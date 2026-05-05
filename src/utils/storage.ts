@@ -222,6 +222,9 @@ const QPM_STORAGE_KEYS = [
 
   // Shop Keybinds
   'qpm.shop-keybinds.v1',
+
+  // Hub Window
+  'qpm.hub.state.v1',
 ];
 
 /**
