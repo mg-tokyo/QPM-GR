@@ -326,7 +326,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   const hubLabelEl = tHub.querySelector('.qpm-tile__label');
   if (hubLabelEl) {
     const upgradeHubIcon = () => {
-      const url = getAnySpriteDataUrl('sprite/pet/Cat');
+      const url = getAnySpriteDataUrl('sprite/pet/Peacock');
       if (url && hubLabelEl.firstChild?.nodeType === Node.TEXT_NODE) {
         const img = document.createElement('img');
         img.src = url;
@@ -335,7 +335,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
       }
     };
     upgradeHubIcon();
-    if (!getAnySpriteDataUrl('sprite/pet/Cat')) onSpritesReady(upgradeHubIcon);
+    if (!getAnySpriteDataUrl('sprite/pet/Peacock')) onSpritesReady(upgradeHubIcon);
   }
   tHub.addEventListener('click', async () => {
     try {

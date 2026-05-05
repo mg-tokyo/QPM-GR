@@ -19,9 +19,12 @@ export function getToolsGroup(): HubGroupDef {
     key: 'guide',
     label: 'Guide',
     description: 'Magic Garden Money Making Guide by bella',
-    icon: { kind: 'sprite', value: '📖', spriteKey: 'sprite/ui/Book', fallback: '📖' },
+    icon: { kind: 'sprite', value: '📖', spriteKey: 'sprite/ui/JournalStamp', fallback: '📖' },
     tier: 'launcher',
-    renderSummary: (el) => { el.textContent = 'In-app money making guide'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;';
+      el.textContent = 'In-app money making guide';
+    },
     onOpen: () => {
       toggleWindow('guide-window', '📖 Guide', (root) => {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
@@ -36,9 +39,12 @@ export function getToolsGroup(): HubGroupDef {
     key: 'decor-layout',
     label: 'MG Decor Layout Customiser',
     description: 'Design and preview different decor layouts',
-    icon: { kind: 'sprite', value: '🏰', spriteKey: 'sprite/decor/Castle', fallback: '🏰' },
+    icon: { kind: 'sprite', value: '🏰', spriteKey: 'sprite/decor/MiniWizardTower', fallback: '🏰' },
     tier: 'launcher',
-    renderSummary: (el) => { el.textContent = 'External tool — opens in new tab'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;';
+      el.textContent = 'External tool — opens in new tab';
+    },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/MG-Decor-Layout-Customiser/'),
   };
 
@@ -46,9 +52,12 @@ export function getToolsGroup(): HubGroupDef {
     key: 'sprite-customizer',
     label: 'MG Sprite Customiser V2',
     description: 'Customise in-game sprites and create scenes/GIFs',
-    icon: { kind: 'sprite', value: '🖼️', spriteKey: 'sprite/pet/Cat', fallback: '🖼️' },
+    icon: { kind: 'sprite', value: '🖼️', spriteKey: 'sprite/pet/Butterfly', spriteMutations: ['Rainbow'], fallback: '🖼️' },
     tier: 'launcher',
-    renderSummary: (el) => { el.textContent = 'External tool — opens in new tab'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;';
+      el.textContent = 'External tool — opens in new tab';
+    },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/MG-Sprite-Customiser-V2/'),
   };
 
@@ -56,9 +65,12 @@ export function getToolsGroup(): HubGroupDef {
     key: 'celestial-layout',
     label: 'Celestial Position Calculator',
     description: 'Calculate celestial positions for binding coverage',
-    icon: { kind: 'sprite', value: '🌟', spriteKey: 'sprite/plant/Celestial', fallback: '🌟' },
+    icon: { kind: 'sprite', value: '🌟', spriteKey: 'sprite/plant/DawnCelestialCrop', fallback: '🌟' },
     tier: 'launcher',
-    renderSummary: (el) => { el.textContent = 'External tool — opens in new tab'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;';
+      el.textContent = 'External tool — opens in new tab';
+    },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/Celestial-Position-Layout-Calculator/'),
   };
 
@@ -69,9 +81,12 @@ export function getToolsGroup(): HubGroupDef {
       key: 'texture-manipulator',
       label: 'Texture Manipulator',
       description: 'Cosmetic texture overrides for sprites and UI',
-      icon: { kind: 'sprite', value: '🖌️', spriteKey: 'sprite/ui/Paint', fallback: '🖌️' },
+      icon: { kind: 'sprite', value: '🖌️', spriteKey: 'sprite/item/RainbowPotion', fallback: '🖌️' },
       tier: 'launcher',
-      renderSummary: (el) => { el.textContent = 'Tint, swap, or replace any sprite'; },
+      renderSummary: (el) => {
+        el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;';
+        el.textContent = 'Tint, swap, or replace any sprite';
+      },
       onOpen: () => {
         import('../../textureSwapperWindow').then(({ openTextureSwapperWindow }) => {
           openTextureSwapperWindow();
@@ -84,7 +99,7 @@ export function getToolsGroup(): HubGroupDef {
   return {
     id: 'tools',
     label: 'Tools',
-    icon: { kind: 'sprite', value: '🔗', spriteKey: 'sprite/ui/Wrench', fallback: '🔗' },
+    icon: { kind: 'sprite', value: '🔗', spriteKey: 'sprite/item/WateringCan', fallback: '🔗' },
     cards,
   };
 }

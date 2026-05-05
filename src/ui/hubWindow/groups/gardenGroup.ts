@@ -9,9 +9,12 @@ export function getGardenGroup(): HubGroupDef {
     key: 'garden-filters',
     label: 'Garden Filters',
     description: 'Filter & highlight garden tiles by species, mutations',
-    icon: { kind: 'sprite', value: '🔍', spriteKey: 'sprite/plant/Sunflower', fallback: '🔍' },
+    icon: { kind: 'sprite', value: '🔍', spriteKey: 'sprite/plant/RoseRed', spriteMutations: ['Thunderstruck'], fallback: '🔍' },
     tier: 'expandable',
-    renderSummary: (el) => { el.textContent = 'Species, mutation, and rarity filters'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;display:flex;gap:8px;align-items:center;';
+      el.innerHTML = '<span style="color:#c084fc">● Filter</span><span>Species · Mutations · Rarity</span>';
+    },
     renderExpanded: (container) => {
       container.style.overflowY = 'auto';
       const spinner = document.createElement('div');
@@ -46,9 +49,12 @@ export function getGardenGroup(): HubGroupDef {
     key: 'reminders',
     label: 'Reminders',
     description: 'Timers and alerts for garden events and harvests',
-    icon: { kind: 'sprite', value: '🔔', spriteKey: 'sprite/ui/Clock', fallback: '🔔' },
+    icon: { kind: 'sprite', value: '🔔', spriteKey: 'sprite/plant/Mushroom', spriteMutations: ['Dawnlit'], fallback: '🔔' },
     tier: 'expandable',
-    renderSummary: (el) => { el.textContent = 'Custom timers and event alerts'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;display:flex;gap:8px;align-items:center;';
+      el.innerHTML = '<span style="color:#34d399">● Timer</span><span>Custom alerts · Event timers</span>';
+    },
     renderExpanded: (container) => {
       container.style.overflowY = 'auto';
       import('../../originalPanel').then(({ renderRemindersContent }) => {
@@ -70,9 +76,12 @@ export function getGardenGroup(): HubGroupDef {
     key: 'stats',
     label: 'Garden & Hatch Stats',
     description: 'Visual stats for mutation progress and hatching history',
-    icon: { kind: 'sprite', value: '🌿', spriteKey: 'sprite/plant/Rose', fallback: '🌿' },
+    icon: { kind: 'sprite', value: '🌿', spriteKey: 'sprite/pet/CommonEgg', fallback: '🌿' },
     tier: 'launcher',
-    renderSummary: (el) => { el.textContent = 'Mutation and hatching analytics'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;';
+      el.textContent = 'Mutation and hatching analytics';
+    },
     onOpen: () => {
       import('../../statsHubWindow').then(({ openStatsHubWindow }) => {
         openStatsHubWindow();
@@ -83,7 +92,7 @@ export function getGardenGroup(): HubGroupDef {
   return {
     id: 'garden',
     label: 'Garden',
-    icon: { kind: 'sprite', value: '🌱', spriteKey: 'sprite/plant/Sunflower', fallback: '🌱' },
+    icon: { kind: 'sprite', value: '🌱', spriteKey: 'sprite/ui/PlantIcon', fallback: '🌱' },
     cards: [gardenFiltersCard, remindersCard, statsCard],
   };
 }

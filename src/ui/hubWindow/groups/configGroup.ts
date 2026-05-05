@@ -11,7 +11,7 @@ export function getConfigGroup(): HubGroupDef {
     key: 'auto-reconnect',
     label: 'Auto Reconnect',
     description: 'Reconnect automatically after a disconnect',
-    icon: { kind: 'sprite', value: '↻', spriteKey: 'sprite/ui/Refresh', fallback: '↻' },
+    icon: { kind: 'sprite', value: '↻', spriteKey: 'sprite/ui/ProgressStar', fallback: '↻' },
     tier: 'inline-toggle',
     getEnabled: () => getAutoReconnectConfig().enabled,
     setEnabled: (enabled: boolean) => { updateAutoReconnectConfig({ enabled }); },
@@ -21,9 +21,12 @@ export function getConfigGroup(): HubGroupDef {
     key: 'controller',
     label: 'Controller',
     description: 'Gamepad support: analog cursor, D-pad, rebindable buttons',
-    icon: { kind: 'sprite', value: '🎮', spriteKey: 'sprite/ui/Controller', fallback: '🎮' },
+    icon: { kind: 'sprite', value: '🎮', spriteKey: 'sprite/ui/Touchpad', fallback: '🎮' },
     tier: 'expandable',
-    renderSummary: (el) => { el.textContent = 'Gamepad bindings and cursor config'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;display:flex;gap:8px;align-items:center;';
+      el.innerHTML = '<span style="color:#60a5fa">● Input</span><span>Bindings · Deadzone · Cursor</span>';
+    },
     renderExpanded: (container) => {
       container.style.overflowY = 'auto';
       import('../../sections/controllerSection').then(({ createControllerSection }) => {
@@ -45,22 +48,16 @@ export function getConfigGroup(): HubGroupDef {
     key: 'shop-keybinds',
     label: 'Shop Keybinds',
     description: 'Keyboard shortcuts to open game shops',
-    icon: { kind: 'sprite', value: '⌨️', spriteKey: 'sprite/ui/Key', fallback: '⌨️' },
+    icon: { kind: 'sprite', value: '⌨️', spriteKey: 'sprite/ui/ArrowKeys', fallback: '⌨️' },
     tier: 'inline-toggle',
     getEnabled: () => isShopKeybindsEnabled(),
     setEnabled: (enabled: boolean) => { setShopKeybindsEnabled(enabled); },
-    renderSettings: (container) => {
-      import('../../sections/shopKeybindsSection').then(({ createShopKeybindsSection }) => {
-        container.appendChild(createShopKeybindsSection());
-        container.style.display = 'block';
-      }).catch(e => log('⚠️ Failed to load shop keybinds settings', e));
-    },
   };
 
   return {
     id: 'config',
     label: 'Config',
-    icon: { kind: 'sprite', value: '⚙️', spriteKey: 'sprite/ui/Settings', fallback: '⚙️' },
+    icon: { kind: 'sprite', value: '⚙️', spriteKey: 'sprite/ui/ToolIcon', fallback: '⚙️' },
     cards: [autoReconnectCard, controllerCard, shopKeybindsCard],
   };
 }

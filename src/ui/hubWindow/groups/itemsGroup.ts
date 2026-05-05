@@ -9,9 +9,12 @@ export function getItemsGroup(): HubGroupDef {
     key: 'favorites',
     label: 'Favorites',
     description: 'Auto-favorite rules and bulk favorite actions',
-    icon: { kind: 'sprite', value: '⭐', spriteKey: 'sprite/ui/Favorite', fallback: '⭐' },
+    icon: { kind: 'sprite', value: '⭐', spriteKey: 'sprite/ui/HeartSticker', fallback: '⭐' },
     tier: 'expandable',
-    renderSummary: (el) => { el.textContent = 'Auto-rules + bulk favorite/unfavorite'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;display:flex;gap:8px;align-items:center;';
+      el.innerHTML = '<span style="color:#f472b6">● Rules</span><span>Auto-fav + bulk actions</span>';
+    },
     renderExpanded: (container) => {
       container.style.overflowY = 'auto';
       const spinner = document.createElement('div');
@@ -50,9 +53,12 @@ export function getItemsGroup(): HubGroupDef {
     key: 'protection',
     label: 'Protection',
     description: 'Inventory locks, harvest guards, and capacity alerts',
-    icon: { kind: 'sprite', value: '🛡️', spriteKey: 'sprite/ui/Lock', fallback: '🛡️' },
+    icon: { kind: 'sprite', value: '🛡️', spriteKey: 'sprite/ui/Locked', fallback: '🛡️' },
     tier: 'expandable',
-    renderSummary: (el) => { el.textContent = 'Action guards + capacity warnings'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;display:flex;gap:8px;align-items:center;';
+      el.innerHTML = '<span style="color:#fb923c">● Guard</span><span>Locks + capacity warnings</span>';
+    },
     renderExpanded: (container) => {
       container.style.overflowY = 'auto';
       const spinner = document.createElement('div');
@@ -93,10 +99,13 @@ export function getItemsGroup(): HubGroupDef {
     description: 'Calculate crop and pet sell values with mutations',
     icon: { kind: 'sprite', value: '🧮', spriteKey: 'sprite/ui/Coin', fallback: '🧮' },
     tier: 'expandable',
-    renderSummary: (el) => { el.textContent = 'Sell price calculator with bonuses'; },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:10px;color:#776ea8;margin-top:2px;display:flex;gap:8px;align-items:center;';
+      el.innerHTML = '<span style="color:#fbbf24">● Calc</span><span>Sell prices with bonuses</span>';
+    },
     renderExpanded: (container) => {
       container.style.overflowY = 'auto';
-      // Use a wrapper div so renderCalculator's cssText doesn't overwrite container
+      // Wrapper div so renderCalculator's cssText doesn't overwrite container
       const wrapper = document.createElement('div');
       wrapper.style.cssText = 'display:flex;flex-direction:column;min-height:200px;';
       container.appendChild(wrapper);
@@ -115,7 +124,7 @@ export function getItemsGroup(): HubGroupDef {
   return {
     id: 'items',
     label: 'Items',
-    icon: { kind: 'sprite', value: '🎒', spriteKey: 'sprite/ui/Inventory', fallback: '🎒' },
+    icon: { kind: 'sprite', value: '🎒', spriteKey: 'sprite/ui/InventoryBag', fallback: '🎒' },
     cards: [favoritesCard, protectionCard, calculatorCard],
   };
 }
