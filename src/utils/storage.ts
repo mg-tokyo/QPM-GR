@@ -223,8 +223,9 @@ const QPM_STORAGE_KEYS = [
   // Shop Keybinds
   'qpm.shop-keybinds.v1',
 
-  // Hub Window
+  // Hub State
   'qpm.hub.state.v1',
+  'qpm.hub.migrated.v1',
 ];
 
 /**

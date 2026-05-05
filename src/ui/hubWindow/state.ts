@@ -1,54 +1,63 @@
+// src/ui/hubWindow/state.ts
+
 import { storage } from '../../utils/storage';
 import type { HubGroupId } from './cards/types';
 
-const STATE_KEY = 'qpm.hub.state.v1';
+const HUB_STATE_KEY = 'qpm.hub.state.v1';
 
-interface HubState {
+interface HubPersistedState {
   activeGroup: HubGroupId;
   expandedCards: Partial<Record<HubGroupId, string | null>>;
 }
 
-const DEFAULT_STATE: HubState = {
+const DEFAULT_STATE: HubPersistedState = {
   activeGroup: 'trackers',
   expandedCards: {},
 };
 
-let current: HubState = { ...DEFAULT_STATE };
+let cached: HubPersistedState | null = null;
 
-export function loadHubState(): HubState {
-  try {
-    const raw = storage.get<string | null>(STATE_KEY, null);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<HubState>;
-      current = {
-        activeGroup: parsed.activeGroup ?? DEFAULT_STATE.activeGroup,
-        expandedCards: parsed.expandedCards ?? {},
-      };
-    }
-  } catch {
-    current = { ...DEFAULT_STATE };
+function load(): HubPersistedState {
+  if (cached) return cached;
+  const raw = storage.get<HubPersistedState | null>(HUB_STATE_KEY, null);
+  if (raw && typeof raw === 'object' && 'activeGroup' in raw) {
+    cached = { ...DEFAULT_STATE, ...raw };
+  } else {
+    cached = { ...DEFAULT_STATE };
   }
-  return current;
+  return cached;
+}
+
+function save(): void {
+  if (!cached) return;
+  storage.set(HUB_STATE_KEY, cached);
+}
+
+export function loadHubState(): HubPersistedState {
+  return load();
 }
 
 export function saveHubState(): void {
-  storage.set(STATE_KEY, JSON.stringify(current));
+  save();
 }
 
 export function getActiveGroup(): HubGroupId {
-  return current.activeGroup;
+  return load().activeGroup;
 }
 
-export function setActiveGroup(group: HubGroupId): void {
-  current.activeGroup = group;
-  saveHubState();
+export function setActiveGroup(groupId: HubGroupId): void {
+  const state = load();
+  state.activeGroup = groupId;
+  save();
 }
 
-export function getExpandedCard(group: HubGroupId): string | null {
-  return current.expandedCards[group] ?? null;
+export function getExpandedCard(groupId: HubGroupId): string | null {
+  const state = load();
+  return state.expandedCards[groupId] ?? null;
 }
 
-export function setExpandedCard(group: HubGroupId, cardKey: string | null): void {
-  current.expandedCards[group] = cardKey;
-  saveHubState();
+export function setExpandedCard(groupId: HubGroupId, cardKey: string | null): void {
+  const state = load();
+  state.expandedCards[groupId] = cardKey;
+  save();
 }
