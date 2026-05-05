@@ -6,7 +6,12 @@ export type HubGroupId = 'trackers' | 'items' | 'garden' | 'config' | 'tools';
 export interface CardIcon {
   readonly kind: 'emoji' | 'svg' | 'sprite';
   readonly value: string;
-  readonly category?: string;
+  /** Sprite key for getAnySpriteDataUrl (e.g. 'sprite/ui/Coin'). Used when kind='sprite'. */
+  readonly spriteKey?: string;
+  /** Sprite categories for runtime resolution (e.g. ['pet']). */
+  readonly spriteCategories?: readonly string[];
+  /** Fallback emoji if sprite isn't loaded yet. */
+  readonly fallback?: string;
 }
 
 interface CardConfigBase {

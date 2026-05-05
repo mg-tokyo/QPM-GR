@@ -11,7 +11,7 @@ export function getConfigGroup(): HubGroupDef {
     key: 'auto-reconnect',
     label: 'Auto Reconnect',
     description: 'Reconnect automatically after a disconnect',
-    icon: { kind: 'emoji', value: '↻' },
+    icon: { kind: 'sprite', value: '↻', spriteKey: 'sprite/ui/Refresh', fallback: '↻' },
     tier: 'inline-toggle',
     getEnabled: () => getAutoReconnectConfig().enabled,
     setEnabled: (enabled: boolean) => { updateAutoReconnectConfig({ enabled }); },
@@ -21,11 +21,11 @@ export function getConfigGroup(): HubGroupDef {
     key: 'controller',
     label: 'Controller',
     description: 'Gamepad support: analog cursor, D-pad, rebindable buttons',
-    icon: { kind: 'emoji', value: '🎮' },
+    icon: { kind: 'sprite', value: '🎮', spriteKey: 'sprite/ui/Controller', fallback: '🎮' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Gamepad bindings and cursor config'; },
     renderExpanded: (container) => {
-      container.style.cssText += ';overflow-y:auto;max-height:400px;';
+      container.style.overflowY = 'auto';
       import('../../sections/controllerSection').then(({ createControllerSection }) => {
         container.appendChild(createControllerSection(null, null));
       }).catch(e => log('⚠️ Failed to load Controller', e));
@@ -45,7 +45,7 @@ export function getConfigGroup(): HubGroupDef {
     key: 'shop-keybinds',
     label: 'Shop Keybinds',
     description: 'Keyboard shortcuts to open game shops',
-    icon: { kind: 'emoji', value: '⌨️' },
+    icon: { kind: 'sprite', value: '⌨️', spriteKey: 'sprite/ui/Key', fallback: '⌨️' },
     tier: 'inline-toggle',
     getEnabled: () => isShopKeybindsEnabled(),
     setEnabled: (enabled: boolean) => { setShopKeybindsEnabled(enabled); },
@@ -60,7 +60,7 @@ export function getConfigGroup(): HubGroupDef {
   return {
     id: 'config',
     label: 'Config',
-    icon: { kind: 'emoji', value: '⚙️' },
+    icon: { kind: 'sprite', value: '⚙️', spriteKey: 'sprite/ui/Settings', fallback: '⚙️' },
     cards: [autoReconnectCard, controllerCard, shopKeybindsCard],
   };
 }

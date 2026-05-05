@@ -19,7 +19,7 @@ export function getToolsGroup(): HubGroupDef {
     key: 'guide',
     label: 'Guide',
     description: 'Magic Garden Money Making Guide by bella',
-    icon: { kind: 'emoji', value: '📖' },
+    icon: { kind: 'sprite', value: '📖', spriteKey: 'sprite/ui/Book', fallback: '📖' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'In-app money making guide'; },
     onOpen: () => {
@@ -36,7 +36,7 @@ export function getToolsGroup(): HubGroupDef {
     key: 'decor-layout',
     label: 'MG Decor Layout Customiser',
     description: 'Design and preview different decor layouts',
-    icon: { kind: 'emoji', value: '🏰' },
+    icon: { kind: 'sprite', value: '🏰', spriteKey: 'sprite/decor/Castle', fallback: '🏰' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'External tool — opens in new tab'; },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/MG-Decor-Layout-Customiser/'),
@@ -46,7 +46,7 @@ export function getToolsGroup(): HubGroupDef {
     key: 'sprite-customizer',
     label: 'MG Sprite Customiser V2',
     description: 'Customise in-game sprites and create scenes/GIFs',
-    icon: { kind: 'emoji', value: '🖼️' },
+    icon: { kind: 'sprite', value: '🖼️', spriteKey: 'sprite/pet/Cat', fallback: '🖼️' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'External tool — opens in new tab'; },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/MG-Sprite-Customiser-V2/'),
@@ -56,7 +56,7 @@ export function getToolsGroup(): HubGroupDef {
     key: 'celestial-layout',
     label: 'Celestial Position Calculator',
     description: 'Calculate celestial positions for binding coverage',
-    icon: { kind: 'emoji', value: '🌟' },
+    icon: { kind: 'sprite', value: '🌟', spriteKey: 'sprite/plant/Celestial', fallback: '🌟' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'External tool — opens in new tab'; },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/Celestial-Position-Layout-Calculator/'),
@@ -69,7 +69,7 @@ export function getToolsGroup(): HubGroupDef {
       key: 'texture-manipulator',
       label: 'Texture Manipulator',
       description: 'Cosmetic texture overrides for sprites and UI',
-      icon: { kind: 'emoji', value: '🖌️' },
+      icon: { kind: 'sprite', value: '🖌️', spriteKey: 'sprite/ui/Paint', fallback: '🖌️' },
       tier: 'launcher',
       renderSummary: (el) => { el.textContent = 'Tint, swap, or replace any sprite'; },
       onOpen: () => {
@@ -84,7 +84,7 @@ export function getToolsGroup(): HubGroupDef {
   return {
     id: 'tools',
     label: 'Tools',
-    icon: { kind: 'emoji', value: '🔗' },
+    icon: { kind: 'sprite', value: '🔗', spriteKey: 'sprite/ui/Wrench', fallback: '🔗' },
     cards,
   };
 }

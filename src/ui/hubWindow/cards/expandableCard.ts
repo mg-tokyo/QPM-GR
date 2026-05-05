@@ -1,6 +1,7 @@
 // src/ui/hubWindow/cards/expandableCard.ts
 
 import type { ExpandableCardConfig } from './types';
+import { buildIconBox } from './iconRenderer';
 
 export interface ExpandableCardResult {
   element: HTMLElement;
@@ -20,7 +21,7 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     'background:rgba(143,130,255,0.06)',
     'border:1px solid rgba(143,130,255,0.12)',
     'border-radius:8px',
-    'transition:border-color 0.2s',
+    'transition:border-color 0.2s,box-shadow 0.2s',
   ].join(';');
 
   // Header row
@@ -32,22 +33,18 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     'padding:10px 14px',
     'cursor:pointer',
     'user-select:none',
+    'transition:background 0.15s',
+    'border-radius:8px',
   ].join(';');
+  header.addEventListener('mouseenter', () => {
+    if (!expanded) header.style.background = 'rgba(143,130,255,0.04)';
+  });
+  header.addEventListener('mouseleave', () => {
+    header.style.background = 'transparent';
+  });
 
   // Icon
-  const iconBox = document.createElement('div');
-  iconBox.style.cssText = [
-    'width:28px',
-    'height:28px',
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'border-radius:6px',
-    'background:linear-gradient(135deg, rgba(143,130,255,0.2), rgba(143,130,255,0.1))',
-    'font-size:14px',
-    'flex-shrink:0',
-  ].join(';');
-  iconBox.textContent = config.icon.value;
+  const iconBox = buildIconBox(config.icon);
 
   // Info
   const info = document.createElement('div');
@@ -66,7 +63,7 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
 
   // Chevron
   const chevron = document.createElement('span');
-  chevron.style.cssText = 'font-size:12px;color:#776ea8;transition:color 0.15s,transform 0.2s;flex-shrink:0;';
+  chevron.style.cssText = 'font-size:11px;color:#776ea8;transition:color 0.15s,transform 0.2s;flex-shrink:0;';
   chevron.textContent = '▸';
 
   // Detach button (hidden until expanded)
@@ -75,24 +72,24 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
   detachBtn.title = 'Open in separate window';
   detachBtn.style.cssText = [
     'display:none',
-    'background:none',
-    'border:none',
-    'color:#776ea8',
-    'font-size:14px',
+    'background:rgba(143,130,255,0.08)',
+    'border:1px solid rgba(143,130,255,0.2)',
+    'color:#8f82ff',
+    'font-size:13px',
     'cursor:pointer',
-    'padding:2px 4px',
+    'padding:3px 6px',
     'border-radius:4px',
-    'transition:color 0.15s,background 0.15s',
+    'transition:background 0.15s,border-color 0.15s',
     'flex-shrink:0',
   ].join(';');
   detachBtn.textContent = '↗';
   detachBtn.addEventListener('mouseenter', () => {
-    detachBtn.style.color = '#8f82ff';
-    detachBtn.style.background = 'rgba(143,130,255,0.1)';
+    detachBtn.style.background = 'rgba(143,130,255,0.18)';
+    detachBtn.style.borderColor = 'rgba(143,130,255,0.4)';
   });
   detachBtn.addEventListener('mouseleave', () => {
-    detachBtn.style.color = '#776ea8';
-    detachBtn.style.background = 'none';
+    detachBtn.style.background = 'rgba(143,130,255,0.08)';
+    detachBtn.style.borderColor = 'rgba(143,130,255,0.2)';
   });
   if (config.onDetach) {
     detachBtn.addEventListener('click', (e) => {
@@ -103,14 +100,13 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
 
   header.append(iconBox, info, detachBtn, chevron);
 
-  // Expanded content area
+  // Expanded content area — no max-height so trackers/filters can fill naturally
   const body = document.createElement('div');
   body.style.cssText = [
     'display:none',
     'border-top:1px solid rgba(143,130,255,0.1)',
     'padding:12px 14px',
-    'overflow:auto',
-    'max-height:400px',
+    'overflow-y:auto',
   ].join(';');
 
   container.append(header, body);
@@ -121,7 +117,8 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     body.style.display = 'block';
     chevron.textContent = '▾';
     chevron.style.color = '#8f82ff';
-    container.style.borderColor = 'rgba(143,130,255,0.25)';
+    container.style.borderColor = 'rgba(143,130,255,0.3)';
+    container.style.boxShadow = '0 2px 12px rgba(143,130,255,0.08)';
     if (config.detachWindowId) detachBtn.style.display = 'block';
 
     // Render expanded content
@@ -137,6 +134,7 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     chevron.textContent = '▸';
     chevron.style.color = '#776ea8';
     container.style.borderColor = 'rgba(143,130,255,0.12)';
+    container.style.boxShadow = 'none';
     detachBtn.style.display = 'none';
 
     // Clean up expanded content

@@ -1,6 +1,7 @@
 // src/ui/hubWindow/hubSidebar.ts
 
 import type { HubGroupDef, HubGroupId } from './cards/types';
+import { buildSidebarIcon } from './cards/iconRenderer';
 
 export interface HubSidebarResult {
   element: HTMLElement;
@@ -51,7 +52,7 @@ export function renderHubSidebar(
       'opacity:0.4',
       'outline:none',
     ].join(';');
-    btn.textContent = group.icon.value;
+    btn.appendChild(buildSidebarIcon(group.icon));
 
     btn.addEventListener('click', () => onGroupSelect(group.id));
 

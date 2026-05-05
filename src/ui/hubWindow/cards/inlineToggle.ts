@@ -1,6 +1,7 @@
 // src/ui/hubWindow/cards/inlineToggle.ts
 
 import type { InlineToggleConfig } from './types';
+import { buildIconBox } from './iconRenderer';
 
 export interface InlineToggleResult {
   element: HTMLElement;
@@ -21,21 +22,17 @@ export function renderInlineToggle(config: InlineToggleConfig): InlineToggleResu
     'border-radius:8px',
     'transition:border-color 0.15s,background 0.15s',
   ].join(';');
+  card.addEventListener('mouseenter', () => {
+    card.style.borderColor = 'rgba(143,130,255,0.22)';
+    card.style.background = 'rgba(143,130,255,0.08)';
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.borderColor = 'rgba(143,130,255,0.12)';
+    card.style.background = 'rgba(143,130,255,0.06)';
+  });
 
   // Icon
-  const iconBox = document.createElement('div');
-  iconBox.style.cssText = [
-    'width:28px',
-    'height:28px',
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'border-radius:6px',
-    'background:linear-gradient(135deg, rgba(143,130,255,0.2), rgba(143,130,255,0.1))',
-    'font-size:14px',
-    'flex-shrink:0',
-  ].join(';');
-  iconBox.textContent = config.icon.value;
+  const iconBox = buildIconBox(config.icon);
 
   // Info
   const info = document.createElement('div');

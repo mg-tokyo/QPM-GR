@@ -1,6 +1,7 @@
 // src/ui/hubWindow/cards/launcherCard.ts
 
 import type { LauncherCardConfig } from './types';
+import { buildIconBox } from './iconRenderer';
 
 export interface LauncherCardResult {
   element: HTMLElement;
@@ -32,19 +33,7 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
   });
 
   // Icon
-  const iconBox = document.createElement('div');
-  iconBox.style.cssText = [
-    'width:28px',
-    'height:28px',
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'border-radius:6px',
-    'background:linear-gradient(135deg, rgba(143,130,255,0.2), rgba(143,130,255,0.1))',
-    'font-size:14px',
-    'flex-shrink:0',
-  ].join(';');
-  iconBox.textContent = config.icon.value;
+  const iconBox = buildIconBox(config.icon);
 
   // Info
   const info = document.createElement('div');

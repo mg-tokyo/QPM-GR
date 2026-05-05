@@ -9,11 +9,11 @@ export function getGardenGroup(): HubGroupDef {
     key: 'garden-filters',
     label: 'Garden Filters',
     description: 'Filter & highlight garden tiles by species, mutations',
-    icon: { kind: 'emoji', value: '🔍' },
+    icon: { kind: 'sprite', value: '🔍', spriteKey: 'sprite/plant/Sunflower', fallback: '🔍' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Species, mutation, and rarity filters'; },
     renderExpanded: (container) => {
-      container.style.cssText += ';overflow-y:auto;max-height:400px;';
+      container.style.overflowY = 'auto';
       const spinner = document.createElement('div');
       spinner.style.cssText = 'color:rgba(224,224,224,0.45);font-size:12px;padding:8px;';
       spinner.textContent = '⏳ Loading...';
@@ -46,11 +46,11 @@ export function getGardenGroup(): HubGroupDef {
     key: 'reminders',
     label: 'Reminders',
     description: 'Timers and alerts for garden events and harvests',
-    icon: { kind: 'emoji', value: '🔔' },
+    icon: { kind: 'sprite', value: '🔔', spriteKey: 'sprite/ui/Clock', fallback: '🔔' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Custom timers and event alerts'; },
     renderExpanded: (container) => {
-      container.style.cssText += ';overflow-y:auto;max-height:400px;';
+      container.style.overflowY = 'auto';
       import('../../originalPanel').then(({ renderRemindersContent }) => {
         renderRemindersContent(container);
       }).catch(e => log('⚠️ Failed to load Reminders', e));
@@ -70,7 +70,7 @@ export function getGardenGroup(): HubGroupDef {
     key: 'stats',
     label: 'Garden & Hatch Stats',
     description: 'Visual stats for mutation progress and hatching history',
-    icon: { kind: 'emoji', value: '🌿' },
+    icon: { kind: 'sprite', value: '🌿', spriteKey: 'sprite/plant/Rose', fallback: '🌿' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'Mutation and hatching analytics'; },
     onOpen: () => {
@@ -83,7 +83,7 @@ export function getGardenGroup(): HubGroupDef {
   return {
     id: 'garden',
     label: 'Garden',
-    icon: { kind: 'emoji', value: '🌱' },
+    icon: { kind: 'sprite', value: '🌱', spriteKey: 'sprite/plant/Sunflower', fallback: '🌱' },
     cards: [gardenFiltersCard, remindersCard, statsCard],
   };
 }

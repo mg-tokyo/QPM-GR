@@ -6,7 +6,8 @@ import { log } from '../../../utils/logger';
 
 function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => void) | void {
   return (container: HTMLElement) => {
-    container.style.cssText = 'display:flex;flex-direction:column;min-height:200px;max-height:350px;overflow:hidden;';
+    // Give tracker content room to breathe — fill available space
+    container.style.cssText = 'display:flex;flex-direction:column;min-height:300px;overflow:hidden;';
     const spinner = document.createElement('div');
     spinner.style.cssText = 'display:flex;align-items:center;justify-content:center;flex:1;color:rgba(224,224,224,0.45);font-size:12px;';
     spinner.textContent = '⏳ Loading...';
@@ -56,7 +57,8 @@ function embedWindowRoot(windowRoot: HTMLElement, container: HTMLElement): void 
     'top:auto',
     'left:auto',
     'width:100%',
-    'height:100%',
+    'height:auto',
+    'min-height:280px',
     'max-width:none',
     'max-height:none',
     'z-index:auto',
@@ -83,7 +85,7 @@ export function getTrackersGroup(): HubGroupDef {
     key: 'ability',
     label: 'Ability Tracker',
     description: 'Monitor pet ability procs, mutation grants, and coin/hr',
-    icon: { kind: 'emoji', value: '📊' },
+    icon: { kind: 'sprite', value: '📊', spriteKey: 'sprite/pet/Turtle', fallback: '📊' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Tracks ability activations in real-time'; },
     renderExpanded: makeTrackerExpanded('ability'),
@@ -95,7 +97,7 @@ export function getTrackersGroup(): HubGroupDef {
     key: 'xp',
     label: 'XP Tracker',
     description: 'Track pet XP progress and level-up estimates',
-    icon: { kind: 'emoji', value: '✨' },
+    icon: { kind: 'sprite', value: '✨', spriteKey: 'sprite/ui/Age', fallback: '✨' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'XP rates, level progress, strength growth'; },
     renderExpanded: makeTrackerExpanded('xp'),
@@ -107,7 +109,7 @@ export function getTrackersGroup(): HubGroupDef {
     key: 'turtle',
     label: 'Turtle Timer',
     description: 'Track turtle fishing timers and cooldowns',
-    icon: { kind: 'emoji', value: '🐢' },
+    icon: { kind: 'sprite', value: '🐢', spriteKey: 'sprite/pet/Turtle', fallback: '🐢' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Fishing cooldowns and cast timers'; },
     renderExpanded: makeTrackerExpanded('turtle'),
@@ -119,7 +121,7 @@ export function getTrackersGroup(): HubGroupDef {
     key: 'crops',
     label: 'Crop Boosts',
     description: 'View active crop boost effects and durations',
-    icon: { kind: 'emoji', value: '🌱' },
+    icon: { kind: 'sprite', value: '🌱', spriteKey: 'sprite/plant/Sunflower', fallback: '🌱' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Active boost effects and sources'; },
     renderExpanded: makeTrackerExpanded('crops'),
@@ -131,7 +133,7 @@ export function getTrackersGroup(): HubGroupDef {
     key: 'shop-restock',
     label: 'Shop Restock',
     description: 'Track shop restock items and schedules',
-    icon: { kind: 'emoji', value: '🏪' },
+    icon: { kind: 'sprite', value: '🏪', spriteKey: 'sprite/ui/Coin', fallback: '🏪' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'Restock items and timing'; },
     onOpen: () => {
@@ -145,7 +147,7 @@ export function getTrackersGroup(): HubGroupDef {
     key: 'value-display',
     label: 'Value Display',
     description: 'Storage coin values and crop sell price overlays',
-    icon: { kind: 'emoji', value: '💰' },
+    icon: { kind: 'sprite', value: '💰', spriteKey: 'sprite/ui/Coin', fallback: '💰' },
     tier: 'launcher',
     renderSummary: (el) => { el.textContent = 'Overlay sell values on crops and storage'; },
     onOpen: () => {
@@ -178,7 +180,7 @@ export function getTrackersGroup(): HubGroupDef {
   return {
     id: 'trackers',
     label: 'Trackers',
-    icon: { kind: 'emoji', value: '📊' },
+    icon: { kind: 'sprite', value: '📊', spriteKey: 'sprite/pet/Turtle', fallback: '📊' },
     cards: [abilityCard, xpCard, turtleCard, cropsCard, shopRestockCard, valueDisplayCard, activityLogCard],
   };
 }

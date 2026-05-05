@@ -322,6 +322,21 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   const { section: gameSection, addRow: gameRow } = buildSection('GAME');
   const { tile: tHub, setStatus: setHubStatus } = buildTile('hub', '🔮', 'Hub');
   tHub.dataset.windowId = 'qpm-hub';
+  // Upgrade Hub tile icon to sprite when available
+  const hubLabelEl = tHub.querySelector('.qpm-tile__label');
+  if (hubLabelEl) {
+    const upgradeHubIcon = () => {
+      const url = getAnySpriteDataUrl('sprite/pet/Cat');
+      if (url && hubLabelEl.firstChild?.nodeType === Node.TEXT_NODE) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = 'width:16px;height:16px;image-rendering:pixelated;vertical-align:middle;margin-right:2px;';
+        hubLabelEl.replaceChild(img, hubLabelEl.firstChild);
+      }
+    };
+    upgradeHubIcon();
+    if (!getAnySpriteDataUrl('sprite/pet/Cat')) onSpritesReady(upgradeHubIcon);
+  }
   tHub.addEventListener('click', async () => {
     try {
       const { toggleHub } = await import('./hubWindow');

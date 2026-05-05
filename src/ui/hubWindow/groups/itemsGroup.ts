@@ -9,28 +9,30 @@ export function getItemsGroup(): HubGroupDef {
     key: 'favorites',
     label: 'Favorites',
     description: 'Auto-favorite rules and bulk favorite actions',
-    icon: { kind: 'emoji', value: '⭐' },
+    icon: { kind: 'sprite', value: '⭐', spriteKey: 'sprite/ui/Favorite', fallback: '⭐' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Auto-rules + bulk favorite/unfavorite'; },
     renderExpanded: (container) => {
-      container.style.cssText += ';overflow-y:auto;max-height:400px;';
+      container.style.overflowY = 'auto';
       const spinner = document.createElement('div');
       spinner.style.cssText = 'color:rgba(224,224,224,0.45);font-size:12px;padding:8px;';
       spinner.textContent = '⏳ Loading...';
       container.appendChild(spinner);
 
+      let cleanup: (() => void) | undefined;
       (async () => {
         try {
           const { createFavoritesSection } = await import('../../sections/favoritesSection');
-          const { element, cleanup } = createFavoritesSection();
+          const result = createFavoritesSection();
           spinner.remove();
-          container.appendChild(element);
-          return cleanup;
+          container.appendChild(result.element);
+          cleanup = result.cleanup;
         } catch (err) {
           log('⚠️ Failed to load Favorites', err);
           spinner.textContent = '❌ Failed to load';
         }
       })();
+      return () => { if (cleanup) cleanup(); };
     },
     detachWindowId: 'hub-favorites',
     onDetach: () => {
@@ -48,28 +50,30 @@ export function getItemsGroup(): HubGroupDef {
     key: 'protection',
     label: 'Protection',
     description: 'Inventory locks, harvest guards, and capacity alerts',
-    icon: { kind: 'emoji', value: '🛡️' },
+    icon: { kind: 'sprite', value: '🛡️', spriteKey: 'sprite/ui/Lock', fallback: '🛡️' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Action guards + capacity warnings'; },
     renderExpanded: (container) => {
-      container.style.cssText += ';overflow-y:auto;max-height:400px;';
+      container.style.overflowY = 'auto';
       const spinner = document.createElement('div');
       spinner.style.cssText = 'color:rgba(224,224,224,0.45);font-size:12px;padding:8px;';
       spinner.textContent = '⏳ Loading...';
       container.appendChild(spinner);
 
+      let cleanup: (() => void) | undefined;
       (async () => {
         try {
           const { createProtectionSection } = await import('../../sections/protectionSection');
-          const { element, cleanup } = createProtectionSection();
+          const result = createProtectionSection();
           spinner.remove();
-          container.appendChild(element);
-          return cleanup;
+          container.appendChild(result.element);
+          cleanup = result.cleanup;
         } catch (err) {
           log('⚠️ Failed to load Protection', err);
           spinner.textContent = '❌ Failed to load';
         }
       })();
+      return () => { if (cleanup) cleanup(); };
     },
     detachWindowId: 'hub-protection',
     onDetach: () => {
@@ -87,13 +91,17 @@ export function getItemsGroup(): HubGroupDef {
     key: 'calculator',
     label: 'Calculator',
     description: 'Calculate crop and pet sell values with mutations',
-    icon: { kind: 'emoji', value: '🧮' },
+    icon: { kind: 'sprite', value: '🧮', spriteKey: 'sprite/ui/Coin', fallback: '🧮' },
     tier: 'expandable',
     renderSummary: (el) => { el.textContent = 'Sell price calculator with bonuses'; },
     renderExpanded: (container) => {
-      container.style.cssText += ';overflow-y:auto;max-height:400px;';
+      container.style.overflowY = 'auto';
+      // Use a wrapper div so renderCalculator's cssText doesn't overwrite container
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display:flex;flex-direction:column;min-height:200px;';
+      container.appendChild(wrapper);
       import('../../cropCalculatorWindow').then(({ renderCalculator }) => {
-        renderCalculator(container);
+        renderCalculator(wrapper);
       }).catch(e => log('⚠️ Failed to load Calculator', e));
     },
     detachWindowId: 'crop-calculator',
@@ -107,7 +115,7 @@ export function getItemsGroup(): HubGroupDef {
   return {
     id: 'items',
     label: 'Items',
-    icon: { kind: 'emoji', value: '🎒' },
+    icon: { kind: 'sprite', value: '🎒', spriteKey: 'sprite/ui/Inventory', fallback: '🎒' },
     cards: [favoritesCard, protectionCard, calculatorCard],
   };
 }
