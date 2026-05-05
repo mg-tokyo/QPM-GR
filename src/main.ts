@@ -62,6 +62,7 @@ import { openPetOptimizerWindow } from './ui/petOptimizerWindow';
 import { openCropBoostTrackerWindow } from './ui/cropBoostTrackerWindow';
 import { openStatsHubWindow } from './ui/statsHubWindow';
 import { registerHubGroups, toggleHub, HUB_WINDOW_ID } from './ui/hubWindow';
+import { migrateHubStorage } from './ui/hubWindow/migration';
 import { getTrackersGroup } from './ui/hubWindow/groups/trackersGroup';
 import { getItemsGroup } from './ui/hubWindow/groups/itemsGroup';
 import { getGardenGroup } from './ui/hubWindow/groups/gardenGroup';
@@ -1594,7 +1595,8 @@ async function initialize(): Promise<void> {
     toggleWindow('pet-hub', '🐾 Pet Hub', render, '1600px', '92vh');
   });
 
-  // Register unified hub groups
+  // Migrate old hub storage and register unified hub groups
+  migrateHubStorage();
   registerHubGroups([
     getTrackersGroup(),
     getItemsGroup(),
