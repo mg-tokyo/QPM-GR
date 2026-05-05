@@ -5,6 +5,7 @@ export interface TileDefinition {
   readonly id: string;
   readonly icon: string;
   readonly label: string;
+  readonly color: string; // rgba color for background tint + glow
   readonly action: () => void;
 }
 
@@ -32,6 +33,7 @@ export function registerBuiltinTiles(): void {
     id: 'pet-teams',
     icon: '👥',
     label: 'Pet Teams',
+    color: 'rgba(255, 152, 0, 0.28)',
     action: () => {
       import('../petsWindow').then(({ togglePetsWindow }) => togglePetsWindow())
         .catch(e => log('⚠️ Failed to open Pets window', e));
@@ -42,6 +44,7 @@ export function registerBuiltinTiles(): void {
     id: 'shop-restock',
     icon: '🏪',
     label: 'Shop Restock',
+    color: 'rgba(0, 188, 212, 0.28)',
     action: () => {
       import('../shopRestockWindow').then(({ openShopRestockWindow }) => openShopRestockWindow())
         .catch(e => log('⚠️ Failed to open Shop Restock', e));
@@ -52,6 +55,7 @@ export function registerBuiltinTiles(): void {
     id: 'public-rooms',
     icon: '🌐',
     label: 'Public Rooms',
+    color: 'rgba(233, 30, 99, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('public-rooms', '🌐 Public Rooms', (root) => {
@@ -67,6 +71,7 @@ export function registerBuiltinTiles(): void {
     id: 'journal-checker',
     icon: '📔',
     label: 'Journal Checker',
+    color: 'rgba(121, 85, 72, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('journal-checker-window', '📔 Journal Checker', (root) => {
@@ -83,6 +88,7 @@ export function registerBuiltinTiles(): void {
     id: 'ability-tracker',
     icon: '📊',
     label: 'Ability Tracker',
+    color: 'rgba(76, 175, 80, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('trackers-v2-ability', '📊 Ability Tracker', (root) => {
@@ -101,6 +107,7 @@ export function registerBuiltinTiles(): void {
     id: 'xp-tracker',
     icon: '✨',
     label: 'XP Tracker',
+    color: 'rgba(255, 215, 0, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('trackers-v2-xp', '✨ XP Tracker', (root) => {
@@ -119,6 +126,7 @@ export function registerBuiltinTiles(): void {
     id: 'turtle-timer',
     icon: '🐢',
     label: 'Turtle Timer',
+    color: 'rgba(102, 187, 106, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('trackers-v2-turtle', '🐢 Turtle Timer', (root) => {
@@ -136,6 +144,7 @@ export function registerBuiltinTiles(): void {
     id: 'crop-boosts',
     icon: '🌱',
     label: 'Crop Boosts',
+    color: 'rgba(139, 195, 74, 0.28)',
     action: () => {
       import('../cropBoostTrackerWindow').then(({ openCropBoostTrackerWindow }) => openCropBoostTrackerWindow())
         .catch(e => log('⚠️ Failed to open Crop Boosts', e));
@@ -146,6 +155,7 @@ export function registerBuiltinTiles(): void {
     id: 'value-display',
     icon: '💰',
     label: 'Value Display',
+    color: 'rgba(255, 193, 7, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('trackers-v2-storageValue', '💰 Value Display', (root) => {
@@ -162,6 +172,7 @@ export function registerBuiltinTiles(): void {
     id: 'activity-log',
     icon: '📜',
     label: 'Activity Log',
+    color: 'rgba(158, 118, 255, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-activity-log', '📜 Activity Log', (root) => {
@@ -178,6 +189,7 @@ export function registerBuiltinTiles(): void {
     id: 'locker',
     icon: '🔒',
     label: 'Protection',
+    color: 'rgba(244, 67, 54, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-protection', '🔒 Protection', (root) => {
@@ -194,6 +206,7 @@ export function registerBuiltinTiles(): void {
     id: 'crop-calculator',
     icon: '🧮',
     label: 'Crop Calculator',
+    color: 'rgba(3, 169, 244, 0.28)',
     action: () => {
       import('../cropCalculatorWindow').then(({ openCalculatorWindow }) => openCalculatorWindow())
         .catch(e => log('⚠️ Failed to open Crop Calculator', e));
@@ -204,6 +217,7 @@ export function registerBuiltinTiles(): void {
     id: 'texture-swapper',
     icon: '🖼️',
     label: 'Texture Swapper',
+    color: 'rgba(171, 71, 188, 0.28)',
     action: () => {
       import('../textureSwapperWindow').then(({ openTextureSwapperWindow }) => openTextureSwapperWindow())
         .catch(e => log('⚠️ Failed to open Texture Swapper', e));
@@ -214,6 +228,7 @@ export function registerBuiltinTiles(): void {
     id: 'controller',
     icon: '🎮',
     label: 'Controller',
+    color: 'rgba(96, 125, 139, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-controller', '🎮 Controller Settings', (root) => {
