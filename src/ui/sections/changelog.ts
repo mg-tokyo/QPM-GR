@@ -6,6 +6,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.0",
+    date: "2026-05",
+    notes: [
+      "UI Redesign: Replaced Trackers Hub, Utility Hub, and Tools Hub with a unified QPM Hub",
+      "Features organized into task-based groups: Trackers, Items, Garden, Config, Tools",
+      "Cards show live summaries and expand in-place with accordion behavior",
+      "Auto-Favorite + Bulk Favorite unified into Favorites section with tab switching",
+      "Locker + Inventory Capacity unified into Protection section",
+      "Main panel streamlined from 8 tiles to 6",
+    ],
+  },
+  {
     version: "3.1.97",
     date: "2026-05",
     notes: [

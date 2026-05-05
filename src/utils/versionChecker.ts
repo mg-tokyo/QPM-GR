@@ -2,7 +2,7 @@ import { notify } from "../core/notifications";
 import { storage } from "./storage";
 import { visibleInterval } from "./timerManager";
 
-const CURRENT_VERSION = "3.1.97"; // This should match package.json version
+const CURRENT_VERSION = "3.2.0"; // This should match package.json version
 export const GITHUB_URL = "https://github.com/ryandt2305-cpu/QPM-GR";
 export const UPDATE_URL =
   "https://raw.githubusercontent.com/ryandt2305-cpu/QPM-GR/master/dist/QPM.user.js";
