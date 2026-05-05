@@ -17,14 +17,8 @@ export function registerHubGroups(groups: ReadonlyArray<HubGroupDef>): void {
 }
 
 export function toggleHub(): void {
-  toggleWindow(HUB_WINDOW_ID, '🔮 QPM Hub', (root) => {
-    root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:0;';
-    const { element, cleanup } = renderHub(registeredGroups);
-    root.appendChild(element);
-
-    // Store cleanup for when window closes
-    (root as unknown as Record<string, unknown>).__hubCleanup = cleanup;
-  }, '800px', '85vh');
+  // Hub is now integrated into the panel nav — this is a no-op.
+  // Kept for backwards compatibility with any code that calls it.
 }
 
 export function openHubToGroup(groupId: HubGroupId): void {

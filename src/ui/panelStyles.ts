@@ -173,20 +173,6 @@ export function ensurePanelStyles(): void {
     /* Background, box-shadow, and glow set by JavaScript based on tab color */
   }
 
-  .qpm-tabs {
-    position: relative;
-  }
-
-  .qpm-tab {
-    display: none;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .qpm-tab--active {
-    display: flex;
-  }
-
   .qpm-card {
     background: var(--qpm-surface-2);
     border: 1px solid var(--qpm-border);
@@ -524,39 +510,6 @@ export function ensurePanelStyles(): void {
   }
 
   /* ── Nav Sections ── */
-  .qpm-nav-sections {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 6px;
-  }
-  .qpm-nav-section {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-  .qpm-nav-section__header {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: rgba(150, 160, 200, 0.45);
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 0 2px;
-  }
-  .qpm-nav-section__header::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: rgba(150, 160, 200, 0.12);
-  }
-  .qpm-nav-section__row {
-    display: flex;
-    gap: 6px;
-  }
-
   /* ── Status Tiles ── */
   .qpm-tile {
     flex: 1;
