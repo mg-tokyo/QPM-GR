@@ -1,5 +1,6 @@
 // src/ui/sections/protectionSection.ts — Unified Protection (Locker + Inventory Capacity)
 
+import { t } from '../../i18n';
 import { log } from '../../utils/logger';
 
 export function createProtectionSection(): { element: HTMLElement; cleanup: () => void } {
@@ -11,7 +12,7 @@ export function createProtectionSection(): { element: HTMLElement; cleanup: () =
   // Section: Locks
   const locksHeader = document.createElement('div');
   locksHeader.style.cssText = 'font-size:12px;font-weight:600;color:#8f82ff;text-transform:uppercase;letter-spacing:0.5px;';
-  locksHeader.textContent = 'Locks';
+  locksHeader.textContent = t('feature.protection.locksHeader');
 
   const locksContent = document.createElement('div');
   locksContent.style.cssText = 'min-height:60px;';
@@ -19,7 +20,7 @@ export function createProtectionSection(): { element: HTMLElement; cleanup: () =
   // Section: Capacity
   const capacityHeader = document.createElement('div');
   capacityHeader.style.cssText = 'font-size:12px;font-weight:600;color:#8f82ff;text-transform:uppercase;letter-spacing:0.5px;margin-top:8px;';
-  capacityHeader.textContent = 'Capacity';
+  capacityHeader.textContent = t('feature.protection.capacityHeader');
 
   const capacityContent = document.createElement('div');
   capacityContent.style.cssText = 'min-height:60px;';
@@ -33,7 +34,7 @@ export function createProtectionSection(): { element: HTMLElement; cleanup: () =
       locksContent.appendChild(createLockerSection());
     } catch (err) {
       log('⚠️ Failed to load Locker section', err);
-      locksContent.textContent = '❌ Failed to load';
+      locksContent.textContent = `❌ ${t('common.loadError')}`;
     }
   })();
 
@@ -43,7 +44,7 @@ export function createProtectionSection(): { element: HTMLElement; cleanup: () =
       capacityContent.appendChild(createInventoryCapacitySection());
     } catch (err) {
       log('⚠️ Failed to load Capacity section', err);
-      capacityContent.textContent = '❌ Failed to load';
+      capacityContent.textContent = `❌ ${t('common.loadError')}`;
     }
   })();
 

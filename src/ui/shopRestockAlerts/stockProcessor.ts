@@ -103,6 +103,7 @@ export function categoryToShopType(category: ShopCategory): RestockShopType | nu
     case 'eggs':   return 'egg';
     case 'decor':  return 'decor';
     case 'tools':  return 'tool';
+    case 'dawn':   return 'dawn';
     default:       return null;
   }
 }
@@ -140,6 +141,13 @@ export function getPurchaseItemId(shopType: RestockShopType, item: ShopStockItem
   if (shopType === 'egg')   return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
   if (shopType === 'decor') return firstString([raw?.decorId, item.id, raw?.id]) ?? item.id;
   if (shopType === 'tool')  return firstString([raw?.toolId,  item.id, raw?.id]) ?? item.id;
+  if (shopType === 'dawn') {
+    // Dawn shop carries mixed item types — read itemType from raw to pick the right ID field
+    const itemType = raw?.itemType as string | undefined;
+    if (itemType === 'Egg')  return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
+    // Default: treat as seed (most Dawn items are seeds)
+    return firstString([raw?.species, item.id, raw?.id]) ?? item.id;
+  }
   return item.id;
 }
 
@@ -185,7 +193,7 @@ function getStockCycleId(
 export function processShopStock(state: ShopStockState): void {
   const tracked = loadTrackedSet();
   const seenKeys = new Set<string>();
-  const categories: ShopCategory[] = ['seeds', 'eggs', 'decor', 'tools'];
+  const categories: ShopCategory[] = ['seeds', 'eggs', 'decor', 'tools', 'dawn'];
 
   for (const category of categories) {
     const shopType = categoryToShopType(category);
@@ -285,6 +293,7 @@ export function processShopStock(state: ShopStockState): void {
         label: item.label || canonicalId,
         quantity: currentQty,
         priceCoins: item.priceCoins ?? null,
+        itemType: (item.raw as Record<string, unknown>)?.itemType as string | undefined,
       });
 
       const active = activeAlerts.get(canonicalKey);

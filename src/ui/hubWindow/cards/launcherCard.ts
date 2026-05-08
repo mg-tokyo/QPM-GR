@@ -2,6 +2,7 @@
 
 import type { LauncherCardConfig } from './types';
 import { buildIconBox } from './iconRenderer';
+import { t } from '../../../i18n';
 
 export interface LauncherCardResult {
   element: HTMLElement;
@@ -12,6 +13,9 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
   const cleanups: Array<() => void> = [];
 
   const card = document.createElement('div');
+  card.setAttribute('role', 'button');
+  card.tabIndex = 0;
+  card.setAttribute('aria-label', t('hub.card.openLabel', { label: config.label }));
   card.style.cssText = [
     'display:flex',
     'align-items:center',
@@ -20,16 +24,38 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
     'background:rgba(255,255,255,0.03)',
     'border:1px solid rgba(143,130,255,0.18)',
     'border-radius:10px',
-    'transition:border-color 0.15s,background 0.15s',
+    'cursor:pointer',
+    'transition:border-color 0.15s,background 0.15s,box-shadow 0.15s,transform 0.15s',
+    'outline:none',
   ].join(';');
 
   card.addEventListener('mouseenter', () => {
     card.style.borderColor = 'rgba(143,130,255,0.35)';
     card.style.background = 'rgba(143,130,255,0.06)';
+    card.style.boxShadow = '0 2px 12px rgba(143,130,255,0.08)';
   });
   card.addEventListener('mouseleave', () => {
     card.style.borderColor = 'rgba(143,130,255,0.18)';
     card.style.background = 'rgba(255,255,255,0.03)';
+    card.style.boxShadow = '';
+  });
+  card.addEventListener('pointerdown', () => {
+    card.style.transform = 'translateY(1px)';
+  });
+  card.addEventListener('pointerup', () => {
+    card.style.transform = '';
+  });
+  card.addEventListener('pointercancel', () => {
+    card.style.transform = '';
+  });
+  card.addEventListener('blur', () => {
+    card.style.transform = '';
+    card.style.boxShadow = '';
+    card.style.borderColor = 'rgba(143,130,255,0.18)';
+  });
+  card.addEventListener('focus', () => {
+    card.style.borderColor = 'rgba(143,130,255,0.45)';
+    card.style.boxShadow = '0 0 0 2px rgba(143,130,255,0.18), 0 2px 12px rgba(143,130,255,0.08)';
   });
 
   // Icon
@@ -53,7 +79,7 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
   // Open button
   const openBtn = document.createElement('button');
   openBtn.type = 'button';
-  openBtn.textContent = 'Open →';
+  openBtn.textContent = t('hub.card.open');
   openBtn.style.cssText = [
     'background:rgba(143,130,255,0.12)',
     'color:#c8c0ff',
@@ -75,7 +101,20 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
     openBtn.style.background = 'rgba(143,130,255,0.15)';
     openBtn.style.borderColor = 'rgba(143,130,255,0.3)';
   });
-  openBtn.addEventListener('click', () => config.onOpen());
+  const activate = (): void => {
+    config.onOpen();
+  };
+
+  openBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    activate();
+  });
+  card.addEventListener('click', () => activate());
+  card.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    activate();
+  });
 
   card.append(iconBox, info, openBtn);
 

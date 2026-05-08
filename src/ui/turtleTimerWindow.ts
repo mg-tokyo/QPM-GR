@@ -15,6 +15,7 @@ import { getPetSpriteDataUrlWithMutations } from '../sprite-v2/compat';
 import { throttle } from '../utils/scheduling';
 import { storage } from '../utils/storage';
 import { clampPct, scaledDimension } from '../utils/windowPosition';
+import { t } from '../i18n';
 
 // ============================================================================
 // CONSTANTS
@@ -281,14 +282,14 @@ function buildTurtleRow(contribution: TurtleContribution): HTMLElement {
 
   // Name
   const nameEl = document.createElement('span');
-  nameEl.textContent = contribution.name ?? contribution.species ?? `Slot ${contribution.slotIndex + 1}`;
+  nameEl.textContent = contribution.name ?? contribution.species ?? t('feature.turtleTimer.slotFallback', { index: String(contribution.slotIndex + 1) });
   nameEl.style.cssText = 'font-size:11px;font-weight:600;color:var(--qpm-text,#fff);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   row.appendChild(nameEl);
 
   // Stats columns — fixed widths to align with column headers
   if (contribution.missingStats) {
     const pendingEl = document.createElement('span');
-    pendingEl.textContent = 'Data pending';
+    pendingEl.textContent = t('feature.turtleTimer.dataPending');
     pendingEl.style.cssText = 'font-size:10px;color:#ffa500;font-style:italic;flex-shrink:0;margin-left:auto;';
     row.appendChild(pendingEl);
   } else {
@@ -296,7 +297,7 @@ function buildTurtleRow(contribution: TurtleContribution): HTMLElement {
     const rateEl = document.createElement('span');
     if (contribution.perHourReduction > 0) {
       rateEl.textContent = `−${contribution.perHourReduction.toFixed(1)}`;
-      rateEl.title = `Saves ~${contribution.perHourReduction.toFixed(1)} minutes of grow time per hour`;
+      rateEl.title = t('feature.turtleTimer.rateTooltip', { rate: contribution.perHourReduction.toFixed(1) });
       rateEl.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-accent,#4CAF50);flex-shrink:0;width:52px;text-align:right;';
     } else {
       rateEl.style.cssText = 'flex-shrink:0;width:52px;';
@@ -309,7 +310,7 @@ function buildTurtleRow(contribution: TurtleContribution): HTMLElement {
       const hPct = Math.round(contribution.hungerPct);
       const hColor = hPct < 20 ? '#ef5350' : hPct < 50 ? '#ffa500' : 'var(--qpm-text-muted,#888)';
       hungerEl.textContent = `${hPct}%`;
-      hungerEl.title = 'Hunger level (% fed)';
+      hungerEl.title = t('feature.turtleTimer.hungerTooltip');
       hungerEl.style.cssText = `font-size:10px;color:${hColor};flex-shrink:0;width:44px;text-align:right;`;
     } else {
       hungerEl.style.cssText = 'flex-shrink:0;width:44px;';
@@ -334,16 +335,16 @@ function buildFocusControls(
   wrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--qpm-surface-2,#1a1a1a);border-radius:6px;border:1px solid var(--qpm-border,#2a2a2a);';
 
   const modeLabel = document.createElement('span');
-  modeLabel.textContent = 'Track:';
+  modeLabel.textContent = t('feature.turtleTimer.trackLabel');
   modeLabel.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,#888);flex-shrink:0;';
   wrap.appendChild(modeLabel);
 
   // Focus mode selector
   const modeSelect = makeSelect('flex-shrink:0;');
   const modes: { value: TurtleTimerFocus; label: string }[] = [
-    { value: 'latest', label: 'Latest finishing' },
-    { value: 'earliest', label: 'Earliest finishing' },
-    { value: 'specific', label: 'Specific slot…' },
+    { value: 'latest', label: t('feature.turtleTimer.latestFinishing') },
+    { value: 'earliest', label: t('feature.turtleTimer.earliestFinishing') },
+    { value: 'specific', label: t('feature.turtleTimer.specificSlot') },
   ];
   for (const { value, label } of modes) {
     const opt = document.createElement('option');
@@ -358,13 +359,13 @@ function buildFocusControls(
   const targetSelect = makeSelect('flex:1;min-width:0;');
   const noTargetOpt = document.createElement('option');
   noTargetOpt.value = '';
-  noTargetOpt.textContent = targets.length ? 'Choose slot…' : 'No slots available';
+  noTargetOpt.textContent = targets.length ? t('feature.turtleTimer.chooseSlot') : t('feature.turtleTimer.noSlotsAvailable');
   targetSelect.appendChild(noTargetOpt);
 
   for (const target of targets) {
     const opt = document.createElement('option');
     opt.value = target.key;
-    const speciesLabel = target.species ?? 'Unknown';
+    const speciesLabel = target.species ?? t('feature.turtleTimer.unknownSpecies');
     const etaLabel = target.remainingMs != null ? ` (${formatMs(target.remainingMs)})` : '';
     opt.textContent = `${speciesLabel}${etaLabel}`;
     if (target.key === focusTargetKey) opt.selected = true;
@@ -410,20 +411,20 @@ function buildSlotCountsRow(channel: TurtleTimerChannel): HTMLElement | null {
 
   const total = document.createElement('span');
   total.style.color = 'var(--qpm-text-muted,#888)';
-  total.textContent = `${channel.trackedSlots} tracked`;
+  total.textContent = t('feature.turtleTimer.tracked', { count: String(channel.trackedSlots) });
   row.appendChild(total);
 
   if (channel.growingSlots > 0) {
     const growing = document.createElement('span');
     growing.style.color = 'var(--qpm-text,#ccc)';
-    growing.textContent = `${channel.growingSlots} growing`;
+    growing.textContent = t('feature.turtleTimer.growing', { count: String(channel.growingSlots) });
     row.appendChild(growing);
   }
 
   if (channel.maturedSlots > 0) {
     const ready = document.createElement('span');
     ready.style.color = 'var(--qpm-accent,#4CAF50)';
-    ready.textContent = `${channel.maturedSlots} ready`;
+    ready.textContent = t('feature.turtleTimer.ready', { count: String(channel.maturedSlots) });
     row.appendChild(ready);
   }
 
@@ -461,7 +462,7 @@ function buildEtaBlock(channel: TurtleTimerChannel): HTMLElement {
 
   if (hasTurtleBoost) {
     const badge = document.createElement('span');
-    badge.textContent = `−${formatMinutes(channel.minutesSaved!)} saved`;
+    badge.textContent = t('feature.turtleTimer.timeSaved', { time: formatMinutes(channel.minutesSaved!) });
     badge.style.cssText = 'font-size:11px;color:var(--qpm-accent,#4CAF50);opacity:0.8;';
     mainRow.appendChild(badge);
   }
@@ -472,12 +473,12 @@ function buildEtaBlock(channel: TurtleTimerChannel): HTMLElement {
   if (hasTurtleBoost && channel.naturalMsRemaining != null) {
     const detail = document.createElement('div');
     detail.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#777);';
-    detail.textContent = `Without turtles: ${formatMs(channel.naturalMsRemaining)}`;
+    detail.textContent = t('feature.turtleTimer.withoutTurtles', { time: formatMs(channel.naturalMsRemaining) });
     block.appendChild(detail);
   } else if (!hasTurtleBoost && channel.status === 'no-turtles') {
     const note = document.createElement('div');
     note.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#777);';
-    note.textContent = 'No turtles assigned to this channel';
+    note.textContent = t('feature.turtleTimer.noTurtlesAssigned');
     block.appendChild(note);
   }
 
@@ -485,7 +486,7 @@ function buildEtaBlock(channel: TurtleTimerChannel): HTMLElement {
   if (channel.focusSlot?.species) {
     const focusEl = document.createElement('div');
     focusEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#666);';
-    focusEl.textContent = `Tracking: ${channel.focusSlot.species}`;
+    focusEl.textContent = t('feature.turtleTimer.tracking', { species: channel.focusSlot.species });
     block.appendChild(focusEl);
   }
 
@@ -518,13 +519,13 @@ function updateDynamicZone(
     sections.push(buildEtaBlock(channel));
   } else {
     const statusMessages: Record<string, string> = {
-      'disabled': 'This channel is disabled.',
-      'no-data': 'Waiting for game data…',
-      'no-crops': 'No crops currently growing.',
-      'no-eggs': 'No eggs currently incubating.',
-      'no-turtles': 'No data yet for this channel.',
+      'disabled': t('feature.turtleTimer.statusDisabled'),
+      'no-data': t('feature.turtleTimer.statusNoData'),
+      'no-crops': t('feature.turtleTimer.statusNoCrops'),
+      'no-eggs': t('feature.turtleTimer.statusNoEggs'),
+      'no-turtles': t('feature.turtleTimer.statusNoTurtles'),
     };
-    const msg = statusMessages[channel.status] ?? 'Unknown state.';
+    const msg = statusMessages[channel.status] ?? t('feature.turtleTimer.statusUnknown');
     const statusEl = document.createElement('div');
     statusEl.style.cssText = 'padding:16px;text-align:center;color:var(--qpm-text-muted,#666);font-size:12px;font-style:italic;';
     statusEl.textContent = msg;
@@ -543,13 +544,15 @@ function updateDynamicZone(
 
     const contribHeader = document.createElement('div');
     contribHeader.style.cssText = 'font-size:11px;font-weight:600;color:var(--qpm-text-muted,#888);margin-bottom:2px;';
-    contribHeader.textContent = `${channel.contributions.length} turtle${channel.contributions.length !== 1 ? 's' : ''} contributing`;
+    contribHeader.textContent = channel.contributions.length === 1
+      ? t('feature.turtleTimer.turtleContributing', { count: '1' })
+      : t('feature.turtleTimer.turtlesContributing', { count: String(channel.contributions.length) });
     contribCard.appendChild(contribHeader);
 
     if (channel.effectiveRate != null && channel.effectiveRate > 1) {
       const rateTotal = document.createElement('div');
       rateTotal.style.cssText = 'font-size:10px;color:var(--qpm-accent,#4CAF50);margin-bottom:4px;';
-      rateTotal.textContent = `${channel.effectiveRate.toFixed(1)}× combined growth speed`;
+      rateTotal.textContent = t('feature.turtleTimer.combinedGrowthSpeed', { rate: channel.effectiveRate.toFixed(1) });
       contribCard.appendChild(rateTotal);
     }
 
@@ -559,13 +562,13 @@ function updateDynamicZone(
     const chSpacer = document.createElement('div');
     chSpacer.style.cssText = 'width:22px;flex-shrink:0;';
     const chName = document.createElement('span');
-    chName.textContent = 'Turtle';
+    chName.textContent = t('feature.turtleTimer.colTurtle');
     chName.style.cssText = 'flex:1;font-size:9px;color:var(--qpm-text-muted,#555);';
     const chRate = document.createElement('span');
-    chRate.textContent = '−min/hr';
+    chRate.textContent = t('feature.turtleTimer.colRate');
     chRate.style.cssText = 'width:52px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
     const chHunger = document.createElement('span');
-    chHunger.textContent = 'hunger';
+    chHunger.textContent = t('feature.turtleTimer.colHunger');
     chHunger.style.cssText = 'width:44px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
     colHeader.append(chSpacer, chName, chRate, chHunger);
     contribCard.appendChild(colHeader);
@@ -578,7 +581,7 @@ function updateDynamicZone(
   } else if (channel.status === 'estimating') {
     const noTurtles = document.createElement('div');
     noTurtles.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,#666);text-align:center;padding:8px;';
-    noTurtles.textContent = 'No turtles active for this channel';
+    noTurtles.textContent = t('feature.turtleTimer.noTurtlesActive');
     sections.push(noTurtles);
   }
 
@@ -596,9 +599,11 @@ function renderTurtleTimerState(state: TurtleTimerWindowState, timerState: Turtl
 
   // Summary strip
   const summaryParts: string[] = [];
-  summaryParts.push(`${timerState.availableTurtles} turtle${timerState.availableTurtles !== 1 ? 's' : ''}`);
-  if (timerState.hungerFilteredCount > 0) summaryParts.push(`${timerState.hungerFilteredCount} hungry`);
-  if (timerState.turtlesMissingStats > 0) summaryParts.push(`${timerState.turtlesMissingStats} data pending`);
+  summaryParts.push(timerState.availableTurtles === 1
+    ? t('feature.turtleTimer.summaryTurtle', { count: '1' })
+    : t('feature.turtleTimer.summaryTurtles', { count: String(timerState.availableTurtles) }));
+  if (timerState.hungerFilteredCount > 0) summaryParts.push(t('feature.turtleTimer.summaryHungry', { count: String(timerState.hungerFilteredCount) }));
+  if (timerState.turtlesMissingStats > 0) summaryParts.push(t('feature.turtleTimer.summaryDataPending', { count: String(timerState.turtlesMissingStats) }));
   state.summaryStrip.textContent = summaryParts.join(' · ');
 
   renderActiveTab(state, timerState);
@@ -695,7 +700,7 @@ export function createTurtleTimerWindow(): TurtleTimerWindowState {
   ].join(';');
 
   const titleText = document.createElement('span');
-  titleText.textContent = '🐢 Turtle Timer';
+  titleText.textContent = `🐢 ${t('feature.turtleTimer.title')}`;
   titleText.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);pointer-events:none;flex:1;';
   titleBar.appendChild(titleText);
 
@@ -726,7 +731,7 @@ export function createTurtleTimerWindow(): TurtleTimerWindowState {
     'overflow:hidden',
     'text-overflow:ellipsis',
   ].join(';');
-  summaryStrip.textContent = 'Loading…';
+  summaryStrip.textContent = t('common.loading');
   root.appendChild(summaryStrip);
 
   // Tab bar
@@ -744,12 +749,12 @@ export function createTurtleTimerWindow(): TurtleTimerWindowState {
   const savedTurtleTab = storage.get<string>(TURTLE_TAB_KEY, 'plant');
 
   const plantTabBtn = document.createElement('button');
-  plantTabBtn.textContent = '🌱 Plants';
+  plantTabBtn.textContent = `🌱 ${t('feature.turtleTimer.tabPlants')}`;
   plantTabBtn.style.cssText = savedTurtleTab === 'egg' ? inactiveTabStyle : activeTabStyle;
   tabBar.appendChild(plantTabBtn);
 
   const eggTabBtn = document.createElement('button');
-  eggTabBtn.textContent = '🥚 Eggs';
+  eggTabBtn.textContent = `🥚 ${t('feature.turtleTimer.tabEggs')}`;
   eggTabBtn.style.cssText = savedTurtleTab === 'egg' ? activeTabStyle : inactiveTabStyle;
   tabBar.appendChild(eggTabBtn);
 
@@ -787,7 +792,7 @@ export function createTurtleTimerWindow(): TurtleTimerWindowState {
 
   // Resize handle
   const resizeHandle = document.createElement('div');
-  resizeHandle.title = 'Drag to resize';
+  resizeHandle.title = t('window.chrome.resizeHint');
   resizeHandle.style.cssText = [
     'position:absolute',
     'bottom:0',

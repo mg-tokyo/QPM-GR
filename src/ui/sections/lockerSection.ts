@@ -11,17 +11,21 @@ import {
 import {
   buildPlantsPanel, buildEggsPanel, buildDecorPanel, buildSellPanel,
 } from './lockerTabPanels';
+import { t } from '../../i18n';
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 
-const TAB_DEFS = [
-  { id: 'plants', label: '\ud83c\udf31 Plants' },
-  { id: 'eggs',   label: '\ud83e\udd5a Eggs' },
-  { id: 'decor',  label: '\ud83e\ude91 Decor' },
-  { id: 'sell',   label: '\ud83d\udcb0 Sell' },
-] as const;
+type TabId = 'plants' | 'eggs' | 'decor' | 'sell';
 
-type TabId = typeof TAB_DEFS[number]['id'];
+/** Built lazily so t() runs after the locale is set. */
+function getTabDefs(): { id: TabId; label: string }[] {
+  return [
+    { id: 'plants', label: `\ud83c\udf31 ${t('feature.locker.tab.plants')}` },
+    { id: 'eggs',   label: `\ud83e\udd5a ${t('feature.locker.tab.eggs')}` },
+    { id: 'decor',  label: `\ud83e\ude91 ${t('feature.locker.tab.decor')}` },
+    { id: 'sell',   label: `\ud83d\udcb0 ${t('feature.locker.tab.sell')}` },
+  ];
+}
 
 // ── Tab bar (bug fix #2: returns setActive instead of rebuilding) ────────
 
@@ -37,7 +41,7 @@ function buildTabBar(initialTab: TabId, onSwitch: (id: TabId) => void): TabBar {
   let currentTab = initialTab;
   const buttons = new Map<TabId, HTMLButtonElement>();
 
-  for (const tab of TAB_DEFS) {
+  for (const tab of getTabDefs()) {
     const btn = document.createElement('button');
     btn.textContent = tab.label;
     const isActive = tab.id === currentTab;
@@ -76,7 +80,7 @@ export function createLockerSection(): HTMLElement {
     masterRow.style.cssText = TOGGLE_ROW_CSS;
     const masterText = document.createElement('div');
     masterText.style.cssText = LABEL_CSS;
-    masterText.textContent = 'Enable Locker';
+    masterText.textContent = t('feature.locker.enableLocker');
     const masterInput = document.createElement('input');
     masterInput.type = 'checkbox';
     masterInput.checked = cfg.enabled;

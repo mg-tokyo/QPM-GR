@@ -295,6 +295,13 @@ interface ActiveAbility {
   suppressRateDisplay?: boolean;
 }
 
+export interface AbilityTrackerTotals {
+  procsPerHour: number;
+  coinsPerHour: number;
+  abilityCount: number;
+  petCount: number;
+}
+
 const SUPPRESS_RATE_ABILITY_IDS = new Set(['ProduceMutationBoost', 'ProduceMutationBoostII']);
 
 function resolvePetAbilities(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): ActiveAbility[] {
@@ -671,7 +678,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
 // RENDER LOGIC
 // ============================================================================
 
-function getTotals(pets: ActivePetInfo[], gardenCtx?: AbilityValuationContext): { procsPerHour: number; coinsPerHour: number; abilityCount: number; petCount: number } {
+function getTotals(pets: ActivePetInfo[], gardenCtx?: AbilityValuationContext): AbilityTrackerTotals {
   let procsPerHour = 0;
   let coinsPerHour = 0;
   let abilityCount = 0;
@@ -689,6 +696,12 @@ function getTotals(pets: ActivePetInfo[], gardenCtx?: AbilityValuationContext): 
     }
   }
   return { procsPerHour, coinsPerHour, abilityCount, petCount };
+}
+
+export function getAbilityTrackerTotals(pets: ActivePetInfo[]): AbilityTrackerTotals {
+  let gardenCtx: AbilityValuationContext | undefined;
+  try { gardenCtx = buildAbilityValuationContext(); } catch { /* not ready yet */ }
+  return getTotals(pets, gardenCtx);
 }
 
 function renderAbilityTracker(state: AbilityTrackerWindowState): void {

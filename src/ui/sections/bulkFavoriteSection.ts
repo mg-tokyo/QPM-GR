@@ -1,12 +1,13 @@
 import { createCard } from '../panelHelpers';
 import { isBulkFavoriteEnabled, setBulkFavoriteEnabled } from '../../features/bulkFavorite';
+import { t } from '../../i18n';
 
 export function createBulkFavoriteSection(opts?: { startExpanded?: boolean }): HTMLElement {
   const statusChip = document.createElement('span');
   statusChip.className = 'qpm-chip';
-  statusChip.textContent = isBulkFavoriteEnabled() ? 'Enabled' : 'Disabled';
+  statusChip.textContent = isBulkFavoriteEnabled() ? t('common.enabled') : t('common.disabled');
 
-  const { root, body } = createCard('❤️ Bulk Favorite', {
+  const { root, body } = createCard(`❤️ ${t('feature.bulkFav.title')}`, {
     collapsible: true,
     startCollapsed: !opts?.startExpanded,
     subtitleElement: statusChip,
@@ -16,20 +17,20 @@ export function createBulkFavoriteSection(opts?: { startExpanded?: boolean }): H
   const status = document.createElement('div');
   status.className = 'qpm-section-muted';
   status.style.marginBottom = '8px';
-  status.textContent = 'Quickly lock or unlock all produce of a species at once.';
+  status.textContent = t('feature.bulkFav.description');
   body.appendChild(status);
 
   const toggleRow = document.createElement('div');
   toggleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;';
 
   const toggleLabel = document.createElement('span');
-  toggleLabel.textContent = 'Bulk Favorite';
+  toggleLabel.textContent = t('feature.bulkFav.title');
   toggleLabel.style.cssText = 'font-size:12px;color:#e0e0e0;font-weight:600;';
 
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.setAttribute('role', 'switch');
-  toggle.setAttribute('aria-label', 'Enable bulk favorite');
+  toggle.setAttribute('aria-label', t('feature.bulkFav.enableAriaLabel'));
   toggle.style.cssText = [
     'width:36px',
     'height:22px',
@@ -77,10 +78,10 @@ export function createBulkFavoriteSection(opts?: { startExpanded?: boolean }): H
 
   const applyToggleState = (nextEnabled: boolean) => {
     setBulkFavoriteEnabled(nextEnabled);
-    statusChip.textContent = nextEnabled ? 'Enabled' : 'Disabled';
+    statusChip.textContent = nextEnabled ? t('common.enabled') : t('common.disabled');
     status.textContent = nextEnabled
-      ? 'Quickly lock or unlock all produce of a species at once.'
-      : 'Bulk Favorite is disabled.';
+      ? t('feature.bulkFav.description')
+      : t('feature.bulkFav.statusDisabled');
     syncToggleVisual();
   };
 
@@ -99,13 +100,25 @@ export function createBulkFavoriteSection(opts?: { startExpanded?: boolean }): H
   body.appendChild(toggleRow);
 
   const infoBox = document.createElement('div');
-  infoBox.innerHTML = '💡 <strong>How it works:</strong><br>• Open your inventory<br>• Buttons appear next to the inventory for each produce type<br>• Click a button to lock/unlock ALL items of that species<br>• The corner lock icon shows state';
+  const infoHeader = document.createElement('strong');
+  infoHeader.textContent = `💡 ${t('feature.bulkFav.howItWorks')}`;
+  infoBox.appendChild(infoHeader);
+  infoBox.appendChild(document.createElement('br'));
+  for (const key of [
+    'feature.bulkFav.infoBullet1',
+    'feature.bulkFav.infoBullet2',
+    'feature.bulkFav.infoBullet3',
+    'feature.bulkFav.infoBullet4',
+  ] as const) {
+    infoBox.appendChild(document.createTextNode(`• ${t(key)}`));
+    infoBox.appendChild(document.createElement('br'));
+  }
   infoBox.style.cssText = 'background:#333;padding:8px;border-radius:4px;margin-bottom:8px;font-size:10px;line-height:1.5;border-left:3px solid #FFCA28';
   body.appendChild(infoBox);
 
   const getHelperText = () => isBulkFavoriteEnabled()
-    ? 'Tip: Open inventory to see the bulk favorite buttons on the right side of the modal.'
-    : 'Enable Bulk Favorite above, then open inventory to show buttons.';
+    ? t('feature.bulkFav.helperEnabled')
+    : t('feature.bulkFav.helperDisabled');
 
   const helper = document.createElement('div');
   helper.textContent = getHelperText();

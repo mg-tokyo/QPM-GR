@@ -137,10 +137,7 @@ export function evaluateAction(
       return PASS;
     }
 
-    case 'PurchaseSeed':
-    case 'PurchaseEgg':
-    case 'PurchaseTool':
-    case 'PurchaseDecor': {
+    case 'PurchaseShopItem': {
       return inventoryReserveCheck(config, inventory);
     }
 

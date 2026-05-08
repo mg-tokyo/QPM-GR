@@ -2,6 +2,7 @@
 import type { HubGroupDef } from '../hubWindow/cards/types';
 import { renderPanelNav, type NavId, type PanelNavResult } from './panelNav';
 import { renderHomeView, type HomeViewResult } from './homeView';
+import { renderPanelFooter, type PanelFooterResult } from './panelFooter';
 import { renderHubGroup, type HubGroupResult } from '../hubWindow/hubGroup';
 import { setActiveGroup } from '../hubWindow/state';
 import { registerBuiltinTiles } from './tileRegistry';
@@ -9,6 +10,7 @@ import { registerBuiltinTiles } from './tileRegistry';
 export interface ViewSwitcherResult {
   navElement: HTMLElement;
   viewElement: HTMLElement;
+  footerElement: HTMLElement;
   cleanup: () => void;
 }
 
@@ -20,6 +22,8 @@ export function createViewSwitcher(groups: ReadonlyArray<HubGroupDef>): ViewSwit
 
   let currentHomeView: HomeViewResult | null = null;
   let currentGroupView: HubGroupResult | null = null;
+  const footerResult: PanelFooterResult = renderPanelFooter();
+  cleanups.push(footerResult.cleanup);
 
   const viewContainer = document.createElement('div');
   viewContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;padding:8px 12px;';
@@ -45,6 +49,7 @@ export function createViewSwitcher(groups: ReadonlyArray<HubGroupDef>): ViewSwit
     }
 
     navResult.setActive(id);
+    document.dispatchEvent(new CustomEvent('qpm:panel-view-change', { detail: { viewId: id } }));
   }
 
   const navResult: PanelNavResult = renderPanelNav(groups, initialNav, showView);
@@ -56,6 +61,7 @@ export function createViewSwitcher(groups: ReadonlyArray<HubGroupDef>): ViewSwit
   return {
     navElement: navResult.element,
     viewElement: viewContainer,
+    footerElement: footerResult.element,
     cleanup: () => {
       if (currentHomeView) { currentHomeView.cleanup(); currentHomeView = null; }
       if (currentGroupView) { currentGroupView.cleanup(); currentGroupView = null; }

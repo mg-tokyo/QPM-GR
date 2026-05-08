@@ -29,11 +29,12 @@ export type { ShopStockItem, ShopStockCategoryState, ShopStockState } from './sh
 const MY_USER_SLOT_ATOM_LABEL = 'myUserSlotAtom';
 const MY_DATA_ATOM_LABEL = 'myDataAtom';
 
-const ITEM_TYPE_BY_CATEGORY: Record<ShopCategory, 'Seed' | 'Egg' | 'Tool' | 'Decor'> = {
+const ITEM_TYPE_BY_CATEGORY: Record<ShopCategory, 'Seed' | 'Egg' | 'Tool' | 'Decor' | 'Dawn'> = {
   seeds: 'Seed',
   eggs: 'Egg',
   tools: 'Tool',
   decor: 'Decor',
+  dawn: 'Dawn',
 };
 
 const listeners = new Set<(state: ShopStockState) => void>();

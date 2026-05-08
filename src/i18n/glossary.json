@@ -1,0 +1,1969 @@
+{
+  "Buildings & Storage": [
+    {
+      "english": "Silo",
+      "category": "Buildings & Storage",
+      "notes": "Seed storage building",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "サイロ",
+          "verified": true
+        },
+        "zh": {
+          "value": "筒仓",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Hutch",
+      "category": "Buildings & Storage",
+      "notes": "Pet storage building",
+      "translations": {
+        "es": {
+          "value": "Conejera",
+          "verified": true
+        },
+        "pt": {
+          "value": "Capoeira",
+          "verified": true
+        },
+        "de": {
+          "value": "Stall",
+          "verified": true
+        },
+        "fr": {
+          "value": "Clapier",
+          "verified": true
+        },
+        "ja": {
+          "value": "小屋",
+          "verified": true
+        },
+        "zh": {
+          "value": "兔笼",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Shed",
+      "category": "Buildings & Storage",
+      "notes": "Decor storage building",
+      "translations": {
+        "es": {
+          "value": "Cobertizo",
+          "verified": true
+        },
+        "pt": {
+          "value": "Galpão",
+          "verified": true
+        },
+        "de": {
+          "value": "Schuppen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Remise",
+          "verified": true
+        },
+        "ja": {
+          "value": "小屋",
+          "verified": true
+        },
+        "zh": {
+          "value": "仓棚",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Trough",
+      "category": "Buildings & Storage",
+      "notes": "Pet auto-feeder",
+      "translations": {
+        "es": {
+          "value": "Comedero",
+          "verified": true
+        },
+        "pt": {
+          "value": "Cocho",
+          "verified": true
+        },
+        "de": {
+          "value": "Trog",
+          "verified": true
+        },
+        "fr": {
+          "value": "Auge",
+          "verified": true
+        },
+        "ja": {
+          "value": "飼い葉桶",
+          "verified": true
+        },
+        "zh": {
+          "value": "饲槽",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Bag",
+      "category": "Buildings & Storage",
+      "notes": "Player inventory",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Inventory",
+      "category": "Buildings & Storage",
+      "notes": "Player's carried items",
+      "translations": {
+        "es": {
+          "value": "Inventario",
+          "verified": true
+        },
+        "pt": {
+          "value": "Inventário",
+          "verified": true
+        },
+        "de": {
+          "value": "Inventar",
+          "verified": true
+        },
+        "fr": {
+          "value": "Inventaire",
+          "verified": true
+        },
+        "ja": {
+          "value": "インベントリ",
+          "verified": true
+        },
+        "zh": {
+          "value": "库存",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Garden",
+      "category": "Buildings & Storage",
+      "notes": "Main play area",
+      "translations": {
+        "es": {
+          "value": "Jardín",
+          "verified": true
+        },
+        "pt": {
+          "value": "Jardim",
+          "verified": true
+        },
+        "de": {
+          "value": "Garten",
+          "verified": true
+        },
+        "fr": {
+          "value": "Jardin",
+          "verified": true
+        },
+        "ja": {
+          "value": "ガーデン",
+          "verified": true
+        },
+        "zh": {
+          "value": "花园",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Shop",
+      "category": "Buildings & Storage",
+      "notes": "In-game store",
+      "translations": {
+        "es": {
+          "value": "Tienda",
+          "verified": true
+        },
+        "pt": {
+          "value": "Loja",
+          "verified": true
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "Boutique",
+          "verified": true
+        },
+        "ja": {
+          "value": "ショップ",
+          "verified": true
+        },
+        "zh": {
+          "value": "商店",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Dawn Shop",
+      "category": "Buildings & Storage",
+      "notes": "Special event shop",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    }
+  ],
+  "Item Types": [
+    {
+      "english": "Crop",
+      "category": "Item Types",
+      "notes": "Singular",
+      "translations": {
+        "es": {
+          "value": "Cultivo",
+          "verified": true
+        },
+        "pt": {
+          "value": "Cultivo",
+          "verified": true
+        },
+        "de": {
+          "value": "Pflanze",
+          "verified": true
+        },
+        "fr": {
+          "value": "Culture",
+          "verified": true
+        },
+        "ja": {
+          "value": "作物",
+          "verified": true
+        },
+        "zh": {
+          "value": "裁剪",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Crops",
+      "category": "Item Types",
+      "notes": "Plural",
+      "translations": {
+        "es": {
+          "value": "Cultivos",
+          "verified": true
+        },
+        "pt": {
+          "value": "Cultivos",
+          "verified": true
+        },
+        "de": {
+          "value": "Pflanzen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Cultures",
+          "verified": true
+        },
+        "ja": {
+          "value": "作物",
+          "verified": true
+        },
+        "zh": {
+          "value": "作物",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Seed",
+      "category": "Item Types",
+      "notes": "Singular",
+      "translations": {
+        "es": {
+          "value": "Semilla",
+          "verified": true
+        },
+        "pt": {
+          "value": "Semente",
+          "verified": true
+        },
+        "de": {
+          "value": "Samen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Graine",
+          "verified": true
+        },
+        "ja": {
+          "value": "シード",
+          "verified": true
+        },
+        "zh": {
+          "value": "种子",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Seeds",
+      "category": "Item Types",
+      "notes": "Plural",
+      "translations": {
+        "es": {
+          "value": "Semillas",
+          "verified": true
+        },
+        "pt": {
+          "value": "Sementes",
+          "verified": true
+        },
+        "de": {
+          "value": "Samen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Graines",
+          "verified": true
+        },
+        "ja": {
+          "value": "種",
+          "verified": true
+        },
+        "zh": {
+          "value": "种子",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Egg",
+      "category": "Item Types",
+      "notes": "Singular",
+      "translations": {
+        "es": {
+          "value": "Huevo",
+          "verified": true
+        },
+        "pt": {
+          "value": "Ovo",
+          "verified": true
+        },
+        "de": {
+          "value": "Ei",
+          "verified": true
+        },
+        "fr": {
+          "value": "Œuf",
+          "verified": true
+        },
+        "ja": {
+          "value": "卵",
+          "verified": true
+        },
+        "zh": {
+          "value": "蛋",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Eggs",
+      "category": "Item Types",
+      "notes": "Plural",
+      "translations": {
+        "es": {
+          "value": "Huevos",
+          "verified": true
+        },
+        "pt": {
+          "value": "Ovos",
+          "verified": true
+        },
+        "de": {
+          "value": "Eier",
+          "verified": true
+        },
+        "fr": {
+          "value": "Œufs",
+          "verified": true
+        },
+        "ja": {
+          "value": "たまご",
+          "verified": true
+        },
+        "zh": {
+          "value": "蛋",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Pet",
+      "category": "Item Types",
+      "notes": "Singular",
+      "translations": {
+        "es": {
+          "value": "Mascota",
+          "verified": true
+        },
+        "pt": {
+          "value": "Mascote",
+          "verified": true
+        },
+        "de": {
+          "value": "Haustier",
+          "verified": true
+        },
+        "fr": {
+          "value": "Animal",
+          "verified": true
+        },
+        "ja": {
+          "value": "ペット",
+          "verified": true
+        },
+        "zh": {
+          "value": "宠物",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Pets",
+      "category": "Item Types",
+      "notes": "Plural",
+      "translations": {
+        "es": {
+          "value": "Mascotas",
+          "verified": true
+        },
+        "pt": {
+          "value": "Mascotes",
+          "verified": true
+        },
+        "de": {
+          "value": "Haustiere",
+          "verified": true
+        },
+        "fr": {
+          "value": "Animaux",
+          "verified": true
+        },
+        "ja": {
+          "value": "ペット",
+          "verified": true
+        },
+        "zh": {
+          "value": "宠物",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Decor",
+      "category": "Item Types",
+      "notes": "Decoration items",
+      "translations": {
+        "es": {
+          "value": "Decoración",
+          "verified": true
+        },
+        "pt": {
+          "value": "Decoração",
+          "verified": true
+        },
+        "de": {
+          "value": "Dekoration",
+          "verified": true
+        },
+        "fr": {
+          "value": "Décoration",
+          "verified": true
+        },
+        "ja": {
+          "value": "装飾品",
+          "verified": true
+        },
+        "zh": {
+          "value": "装饰",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Tool",
+      "category": "Item Types",
+      "notes": "Singular",
+      "translations": {
+        "es": {
+          "value": "Herramienta",
+          "verified": true
+        },
+        "pt": {
+          "value": "Ferramenta",
+          "verified": true
+        },
+        "de": {
+          "value": "Werkzeug",
+          "verified": true
+        },
+        "fr": {
+          "value": "Outil",
+          "verified": true
+        },
+        "ja": {
+          "value": "道具",
+          "verified": true
+        },
+        "zh": {
+          "value": "工具",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Tools",
+      "category": "Item Types",
+      "notes": "Plural",
+      "translations": {
+        "es": {
+          "value": "Herramientas",
+          "verified": true
+        },
+        "pt": {
+          "value": "Ferramentas",
+          "verified": true
+        },
+        "de": {
+          "value": "Werkzeuge",
+          "verified": true
+        },
+        "fr": {
+          "value": "Outils",
+          "verified": true
+        },
+        "ja": {
+          "value": "道具",
+          "verified": true
+        },
+        "zh": {
+          "value": "工具",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Coin",
+      "category": "Item Types",
+      "notes": "Currency singular",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Coins",
+      "category": "Item Types",
+      "notes": "Currency plural",
+      "translations": {
+        "es": {
+          "value": "Monedas",
+          "verified": true
+        },
+        "pt": {
+          "value": "Moedas",
+          "verified": true
+        },
+        "de": {
+          "value": "Münzen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Pièces",
+          "verified": true
+        },
+        "ja": {
+          "value": "コイン",
+          "verified": true
+        },
+        "zh": {
+          "value": "金币",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Magic Dust",
+      "category": "Item Types",
+      "notes": "Premium currency",
+      "translations": {
+        "es": {
+          "value": "Polvo Mágico",
+          "verified": true
+        },
+        "pt": {
+          "value": "Pó Mágico",
+          "verified": true
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "Poussière Magique",
+          "verified": true
+        },
+        "ja": {
+          "value": "マジックダスト",
+          "verified": true
+        },
+        "zh": {
+          "value": "魔法尘埃",
+          "verified": true
+        }
+      }
+    }
+  ],
+  "Rarity Tiers": [
+    {
+      "english": "Uncommon",
+      "category": "Rarity Tiers",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Poco común",
+          "verified": true
+        },
+        "pt": {
+          "value": "Incomum",
+          "verified": true
+        },
+        "de": {
+          "value": "Ungewöhnlich",
+          "verified": true
+        },
+        "fr": {
+          "value": "Peu commun",
+          "verified": true
+        },
+        "ja": {
+          "value": "アンコモン",
+          "verified": true
+        },
+        "zh": {
+          "value": "稀有",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Rare",
+      "category": "Rarity Tiers",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Raro",
+          "verified": true
+        },
+        "pt": {
+          "value": "Raro",
+          "verified": true
+        },
+        "de": {
+          "value": "Selten",
+          "verified": true
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "レア",
+          "verified": true
+        },
+        "zh": {
+          "value": "稀有",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Legendary",
+      "category": "Rarity Tiers",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Legendario",
+          "verified": true
+        },
+        "pt": {
+          "value": "Lendário",
+          "verified": true
+        },
+        "de": {
+          "value": "Legendär",
+          "verified": true
+        },
+        "fr": {
+          "value": "Légendaire",
+          "verified": true
+        },
+        "ja": {
+          "value": "レジェンダリー",
+          "verified": true
+        },
+        "zh": {
+          "value": "传奇",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Mythical",
+      "category": "Rarity Tiers",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Mítico",
+          "verified": true
+        },
+        "pt": {
+          "value": "Mítico",
+          "verified": true
+        },
+        "de": {
+          "value": "Mythisch",
+          "verified": true
+        },
+        "fr": {
+          "value": "Mythique",
+          "verified": true
+        },
+        "ja": {
+          "value": "神話級",
+          "verified": true
+        },
+        "zh": {
+          "value": "神话",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Divine",
+      "category": "Rarity Tiers",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Divino",
+          "verified": true
+        },
+        "pt": {
+          "value": "Divino",
+          "verified": true
+        },
+        "de": {
+          "value": "Göttlich",
+          "verified": true
+        },
+        "fr": {
+          "value": "Divin",
+          "verified": true
+        },
+        "ja": {
+          "value": "神聖",
+          "verified": true
+        },
+        "zh": {
+          "value": "神圣",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Celestial",
+      "category": "Rarity Tiers",
+      "notes": "Highest tier",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "Himmlisch",
+          "verified": true
+        },
+        "fr": {
+          "value": "Céleste",
+          "verified": true
+        },
+        "ja": {
+          "value": "天体",
+          "verified": true
+        },
+        "zh": {
+          "value": "天体",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Rarity",
+      "category": "Rarity Tiers",
+      "notes": "Category label",
+      "translations": {
+        "es": {
+          "value": "Rareza",
+          "verified": true
+        },
+        "pt": {
+          "value": "Raridade",
+          "verified": true
+        },
+        "de": {
+          "value": "Seltenheit",
+          "verified": true
+        },
+        "fr": {
+          "value": "Rareté",
+          "verified": true
+        },
+        "ja": {
+          "value": "レアリティ",
+          "verified": true
+        },
+        "zh": {
+          "value": "稀有度",
+          "verified": true
+        }
+      }
+    }
+  ],
+  "Pet Mechanics": [
+    {
+      "english": "Strength",
+      "category": "Pet Mechanics",
+      "notes": "Pet stat",
+      "translations": {
+        "es": {
+          "value": "Fuerza",
+          "verified": true
+        },
+        "pt": {
+          "value": "Força",
+          "verified": true
+        },
+        "de": {
+          "value": "Stärke",
+          "verified": true
+        },
+        "fr": {
+          "value": "Force",
+          "verified": true
+        },
+        "ja": {
+          "value": "強さ",
+          "verified": true
+        },
+        "zh": {
+          "value": "强度",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Max Strength",
+      "category": "Pet Mechanics",
+      "notes": "Pet stat cap",
+      "translations": {
+        "es": {
+          "value": "Fuerza máxima",
+          "verified": true
+        },
+        "pt": {
+          "value": "Força máxima",
+          "verified": true
+        },
+        "de": {
+          "value": "Maximale Stärke",
+          "verified": true
+        },
+        "fr": {
+          "value": "Force maximale",
+          "verified": true
+        },
+        "ja": {
+          "value": "最大強さ",
+          "verified": true
+        },
+        "zh": {
+          "value": "最大力量",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Current Strength",
+      "category": "Pet Mechanics",
+      "notes": "Pet's current level",
+      "translations": {
+        "es": {
+          "value": "Fuerza actual",
+          "verified": true
+        },
+        "pt": {
+          "value": "Força atual",
+          "verified": true
+        },
+        "de": {
+          "value": "Aktuelle Stärke",
+          "verified": true
+        },
+        "fr": {
+          "value": "Force actuelle",
+          "verified": true
+        },
+        "ja": {
+          "value": "現在の強度",
+          "verified": true
+        },
+        "zh": {
+          "value": "当前强度",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "XP",
+      "category": "Pet Mechanics",
+      "notes": "Experience points",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "EP",
+          "verified": true
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Level",
+      "category": "Pet Mechanics",
+      "notes": "Pet level",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Hunger",
+      "category": "Pet Mechanics",
+      "notes": "Pet hunger meter",
+      "translations": {
+        "es": {
+          "value": "Hambre",
+          "verified": true
+        },
+        "pt": {
+          "value": "Fome",
+          "verified": true
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "Faim",
+          "verified": true
+        },
+        "ja": {
+          "value": "空腹度",
+          "verified": true
+        },
+        "zh": {
+          "value": "饥饿",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Diet",
+      "category": "Pet Mechanics",
+      "notes": "What a pet eats",
+      "translations": {
+        "es": {
+          "value": "Dieta",
+          "verified": true
+        },
+        "pt": {
+          "value": "Dieta",
+          "verified": true
+        },
+        "de": {
+          "value": "Ernährung",
+          "verified": true
+        },
+        "fr": {
+          "value": "Régime",
+          "verified": true
+        },
+        "ja": {
+          "value": "食事",
+          "verified": true
+        },
+        "zh": {
+          "value": "饮食",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Feed",
+      "category": "Pet Mechanics",
+      "notes": "Action: feed a pet",
+      "translations": {
+        "es": {
+          "value": "Alimentar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Alimentar",
+          "verified": true
+        },
+        "de": {
+          "value": "Füttern",
+          "verified": true
+        },
+        "fr": {
+          "value": "Nourrir",
+          "verified": true
+        },
+        "ja": {
+          "value": "餌やり",
+          "verified": true
+        },
+        "zh": {
+          "value": "喂食",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Ability",
+      "category": "Pet Mechanics",
+      "notes": "Pet special power",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Mount",
+      "category": "Pet Mechanics",
+      "notes": "Action: ride a pet",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Dismount",
+      "category": "Pet Mechanics",
+      "notes": "Action: stop riding",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Swap",
+      "category": "Pet Mechanics",
+      "notes": "Action: switch pets",
+      "translations": {
+        "es": {
+          "value": "Intercambiar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Trocar",
+          "verified": true
+        },
+        "de": {
+          "value": "Tauschen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Échanger",
+          "verified": true
+        },
+        "ja": {
+          "value": "交換",
+          "verified": true
+        },
+        "zh": {
+          "value": "交换",
+          "verified": true
+        }
+      }
+    }
+  ],
+  "Garden Mechanics": [
+    {
+      "english": "Plant",
+      "category": "Garden Mechanics",
+      "notes": "Action: place a seed",
+      "translations": {
+        "es": {
+          "value": "Planta",
+          "verified": true
+        },
+        "pt": {
+          "value": "Planta",
+          "verified": true
+        },
+        "de": {
+          "value": "Pflanze",
+          "verified": true
+        },
+        "fr": {
+          "value": "Plante",
+          "verified": true
+        },
+        "ja": {
+          "value": "植物",
+          "verified": true
+        },
+        "zh": {
+          "value": "种植",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Harvest",
+      "category": "Garden Mechanics",
+      "notes": "Action: pick a crop",
+      "translations": {
+        "es": {
+          "value": "Cosechar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Colher",
+          "verified": true
+        },
+        "de": {
+          "value": "Ernten",
+          "verified": true
+        },
+        "fr": {
+          "value": "Récolter",
+          "verified": true
+        },
+        "ja": {
+          "value": "収穫",
+          "verified": true
+        },
+        "zh": {
+          "value": "收获",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Hatch",
+      "category": "Garden Mechanics",
+      "notes": "Action: open an egg",
+      "translations": {
+        "es": {
+          "value": "Eclosionar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Chocar",
+          "verified": true
+        },
+        "de": {
+          "value": "Schlüpfen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Éclore",
+          "verified": true
+        },
+        "ja": {
+          "value": "孵化",
+          "verified": true
+        },
+        "zh": {
+          "value": "孵化",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Growth",
+      "category": "Garden Mechanics",
+      "notes": "Growth state/speed",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Size",
+      "category": "Garden Mechanics",
+      "notes": "Crop size",
+      "translations": {
+        "es": {
+          "value": "Tamaño",
+          "verified": true
+        },
+        "pt": {
+          "value": "Tamanho",
+          "verified": true
+        },
+        "de": {
+          "value": "Größe",
+          "verified": true
+        },
+        "fr": {
+          "value": "Taille",
+          "verified": true
+        },
+        "ja": {
+          "value": "サイズ",
+          "verified": true
+        },
+        "zh": {
+          "value": "大小",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Mutation",
+      "category": "Garden Mechanics",
+      "notes": "Crop/pet variant",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    }
+  ],
+  "Events": [
+    {
+      "english": "Dawn",
+      "category": "Events",
+      "notes": "Event/mutation type",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Amber Moon",
+      "category": "Events",
+      "notes": "Event/mutation type",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Snow",
+      "category": "Events",
+      "notes": "Event/mutation type",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Celestial",
+      "category": "Events",
+      "notes": "Celestial category",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "Himmlisch",
+          "verified": true
+        },
+        "fr": {
+          "value": "Céleste",
+          "verified": true
+        },
+        "ja": {
+          "value": "天体",
+          "verified": true
+        },
+        "zh": {
+          "value": "天体",
+          "verified": true
+        }
+      }
+    }
+  ],
+  "Common UI": [
+    {
+      "english": "Save",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Guardar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Salvar",
+          "verified": true
+        },
+        "de": {
+          "value": "Speichern",
+          "verified": true
+        },
+        "fr": {
+          "value": "Enregistrer",
+          "verified": true
+        },
+        "ja": {
+          "value": "保存",
+          "verified": true
+        },
+        "zh": {
+          "value": "保存",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Delete",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Eliminar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Excluir",
+          "verified": true
+        },
+        "de": {
+          "value": "Löschen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Supprimer",
+          "verified": true
+        },
+        "ja": {
+          "value": "削除",
+          "verified": true
+        },
+        "zh": {
+          "value": "删除",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Cancel",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Cancelar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Cancelar",
+          "verified": true
+        },
+        "de": {
+          "value": "Abbrechen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Annuler",
+          "verified": true
+        },
+        "ja": {
+          "value": "キャンセル",
+          "verified": true
+        },
+        "zh": {
+          "value": "取消",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Close",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Cerrar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Fechar",
+          "verified": true
+        },
+        "de": {
+          "value": "Schließen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Fermer",
+          "verified": true
+        },
+        "ja": {
+          "value": "閉じる",
+          "verified": true
+        },
+        "zh": {
+          "value": "关闭",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Search",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Buscar",
+          "verified": true
+        },
+        "pt": {
+          "value": "Pesquisar",
+          "verified": true
+        },
+        "de": {
+          "value": "Suchen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Rechercher",
+          "verified": true
+        },
+        "ja": {
+          "value": "検索",
+          "verified": true
+        },
+        "zh": {
+          "value": "搜索",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Settings",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "Ajustes",
+          "verified": true
+        },
+        "pt": {
+          "value": "Configurações",
+          "verified": true
+        },
+        "de": {
+          "value": "Einstellungen",
+          "verified": true
+        },
+        "fr": {
+          "value": "Paramètres",
+          "verified": true
+        },
+        "ja": {
+          "value": "設定",
+          "verified": true
+        },
+        "zh": {
+          "value": "设置",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Sort",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Filter",
+      "category": "Common UI",
+      "notes": "",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Activity Log",
+      "category": "Common UI",
+      "notes": "Game's activity log",
+      "translations": {
+        "es": {
+          "value": "Registro de actividad",
+          "verified": true
+        },
+        "pt": {
+          "value": "Registro de atividades",
+          "verified": true
+        },
+        "de": {
+          "value": "Aktivitätsprotokoll",
+          "verified": true
+        },
+        "fr": {
+          "value": "Journal d'activité",
+          "verified": true
+        },
+        "ja": {
+          "value": "アクティビティログ",
+          "verified": true
+        },
+        "zh": {
+          "value": "活动日志",
+          "verified": true
+        }
+      }
+    },
+    {
+      "english": "Friend",
+      "category": "Common UI",
+      "notes": "Singular",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    },
+    {
+      "english": "Friends",
+      "category": "Common UI",
+      "notes": "Plural (garden visitors)",
+      "translations": {
+        "es": {
+          "value": "",
+          "verified": false
+        },
+        "pt": {
+          "value": "",
+          "verified": false
+        },
+        "de": {
+          "value": "",
+          "verified": false
+        },
+        "fr": {
+          "value": "",
+          "verified": false
+        },
+        "ja": {
+          "value": "",
+          "verified": false
+        },
+        "zh": {
+          "value": "",
+          "verified": false
+        }
+      }
+    }
+  ]
+}

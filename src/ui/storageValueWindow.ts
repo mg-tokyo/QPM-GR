@@ -11,6 +11,7 @@ import {
   getTileValueConfig,
   setTileValueConfig,
 } from '../features/tileValueIndicator';
+import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Toggle switch helper
@@ -42,7 +43,7 @@ function buildToggle(
 
   if (disabled) {
     container.style.opacity = '0.45';
-    container.title = 'Not detected in your garden';
+    container.title = t('feature.storageValue.notDetected');
   }
 
   // Info section
@@ -55,7 +56,7 @@ function buildToggle(
 
   const descEl = document.createElement('div');
   descEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.5);line-height:1.5;';
-  descEl.textContent = disabled ? `${description} — not detected` : description;
+  descEl.textContent = disabled ? `${description} — ${t('feature.storageValue.notDetectedSuffix')}` : description;
 
   info.append(labelEl, descEl);
 
@@ -117,9 +118,7 @@ export function renderStorageValueSettings(root: HTMLElement): void {
     'border-bottom:1px solid rgba(143,130,255,0.15)',
     'margin-bottom:2px',
   ].join(';');
-  headerEl.textContent =
-    'Toggle value displays for storage buildings and crop sell price overlays. ' +
-    'Storage buildings not found in your garden are greyed out.';
+  headerEl.textContent = t('feature.storageValue.header');
   root.appendChild(headerEl);
 
   const definitions: Array<{
@@ -130,26 +129,26 @@ export function renderStorageValueSettings(root: HTMLElement): void {
   }> = [
     {
       key: 'seedSilo',
-      label: 'Seed Silo',
-      desc: 'Shop buy price of all seeds stored in the silo',
+      label: t('feature.storageValue.seedSilo'),
+      desc: t('feature.storageValue.seedSiloDesc'),
       storageId: 'SeedSilo',
     },
     {
       key: 'petHutch',
-      label: 'Pet Hutch',
-      desc: 'Sell price of all pets stored in the hutch',
+      label: t('feature.storageValue.petHutch'),
+      desc: t('feature.storageValue.petHutchDesc'),
       storageId: 'PetHutch',
     },
     {
       key: 'decorShed',
-      label: 'Decor Shed',
-      desc: 'Shop buy price of all decor stored in the shed',
+      label: t('feature.storageValue.decorShed'),
+      desc: t('feature.storageValue.decorShedDesc'),
       storageId: 'DecorShed',
     },
     {
       key: 'inventory',
-      label: 'Inventory',
-      desc: 'Total sell/buy value of all items in your inventory',
+      label: t('feature.storageValue.inventory'),
+      desc: t('feature.storageValue.inventoryDesc'),
     },
   ];
 
@@ -176,8 +175,8 @@ export function renderStorageValueSettings(root: HTMLElement): void {
   // ── Crop Price toggle (controls tileValueIndicator) ──
   const tileValueCfg = getTileValueConfig();
   const { container: cropPriceContainer } = buildToggle(
-    'Crop Price',
-    'Show sell price on crop tooltips when standing on a tile',
+    t('feature.storageValue.cropPrice'),
+    t('feature.storageValue.cropPriceDesc'),
     tileValueCfg.enabled,
     false,
     (value) => {

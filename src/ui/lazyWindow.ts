@@ -4,6 +4,7 @@
 
 import { toggleWindow, type PanelRender, getWindow, isWindowOpen } from './modalWindow';
 import { yieldToBrowser } from '../utils/scheduling';
+import { t } from '../i18n';
 
 export type LazyRender = () => Promise<PanelRender>;
 
@@ -66,12 +67,15 @@ export async function toggleLazyWindow(
   
   // Create a loading placeholder render function
   const loadingRender: PanelRender = (root) => {
-    root.innerHTML = `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100px; color: #8f82ff;">
-        <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
-        <div>Loading...</div>
-      </div>
-    `;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100px;color:#8f82ff;';
+    const icon = document.createElement('div');
+    icon.style.cssText = 'font-size:24px;margin-bottom:8px;';
+    icon.textContent = '⏳';
+    const msg = document.createElement('div');
+    msg.textContent = t('window.lazy.loading');
+    wrap.append(icon, msg);
+    root.appendChild(wrap);
   };
   
   // Open window with loading placeholder
@@ -97,13 +101,19 @@ export async function toggleLazyWindow(
     // Show error state
     const win = getWindow(id);
     if (win && win.body) {
-      win.body.innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100px; color: #ff6b6b;">
-          <div style="font-size: 24px; margin-bottom: 8px;">❌</div>
-          <div>Failed to load window</div>
-          <div style="font-size: 12px; opacity: 0.7; margin-top: 4px;">${error instanceof Error ? error.message : 'Unknown error'}</div>
-        </div>
-      `;
+      win.body.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100px;color:#ff6b6b;';
+      const icon = document.createElement('div');
+      icon.style.cssText = 'font-size:24px;margin-bottom:8px;';
+      icon.textContent = '❌';
+      const heading = document.createElement('div');
+      heading.textContent = t('window.lazy.error');
+      const detail = document.createElement('div');
+      detail.style.cssText = 'font-size:12px;opacity:0.7;margin-top:4px;';
+      detail.textContent = error instanceof Error ? error.message : t('window.lazy.unknownError');
+      wrap.append(icon, heading, detail);
+      win.body.appendChild(wrap);
     }
   }
   

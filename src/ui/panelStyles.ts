@@ -36,8 +36,9 @@ export function ensurePanelStyles(): void {
     border-radius: 14px;
     font: 12px/1.55 var(--qpm-font);
     box-shadow: var(--qpm-shadow);
-    min-width: 280px;
-    width: 360px;
+    min-width: min(340px, calc(100vw - 32px));
+    width: min(560px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
     max-height: calc(100vh - 32px);
     overflow: hidden;
     backdrop-filter: blur(18px);
@@ -511,25 +512,120 @@ export function ensurePanelStyles(): void {
 
   /* ── Nav Sections ── */
   /* ── Status Tiles ── */
-  .qpm-tile {
-    flex: 1;
+  .qpm-tile-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    touch-action: pan-y;
+  }
+  .qpm-tile-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+    transition: transform 0.16s ease, opacity 0.16s ease;
+  }
+  .qpm-tile-row--single .qpm-tile,
+  .qpm-tile-row--single .qpm-tile-placeholder {
+    flex-basis: 100%;
+    min-width: 100%;
+  }
+  .qpm-tile-row--pair .qpm-tile,
+  .qpm-tile-row--pair .qpm-tile-placeholder {
+    flex-basis: 0;
     min-width: 0;
+  }
+  .qpm-tile-row--placeholder {
+    animation: qpm-tile-row-in 0.14s ease;
+  }
+  @keyframes qpm-tile-row-in {
+    from { opacity: 0; transform: scaleY(0.96); }
+    to { opacity: 1; transform: scaleY(1); }
+  }
+  .qpm-tile {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
     border: 1px solid var(--qpm-border);
     background: rgba(255, 255, 255, 0.04);
     border-radius: 10px;
     padding: 8px 11px;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: grab;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, outline-color 0.16s ease;
     display: flex;
     flex-direction: column;
     gap: 3px;
     text-align: left;
     will-change: transform, box-shadow;
   }
+  .qpm-add-tile {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+  }
   .qpm-tile:hover {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(143, 130, 255, 0.45);
     transform: translateY(-1px);
+  }
+  .qpm-tile:active,
+  .qpm-tile--pressing {
+    cursor: grabbing;
+    transform: translateY(0) scale(0.985);
+    outline: 1px solid rgba(143, 130, 255, 0.55);
+    outline-offset: 2px;
+  }
+  .qpm-tile--dragging {
+    cursor: grabbing;
+    opacity: 0.92;
+    transform: scale(1.03);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(143, 130, 255, 0.34);
+  }
+  .qpm-tile--delete-target {
+    opacity: 0.46;
+    transform: scale(0.92);
+    filter: saturate(0.72);
+  }
+  .qpm-tile-placeholder {
+    border: 2px dashed rgba(143, 130, 255, 0.42);
+    border-radius: 10px;
+    box-sizing: border-box;
+    background: rgba(143, 130, 255, 0.055);
+    animation: qpm-tile-placeholder-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes qpm-tile-placeholder-pulse {
+    0%, 100% { border-color: rgba(143, 130, 255, 0.28); background: rgba(143, 130, 255, 0.035); }
+    50% { border-color: rgba(143, 130, 255, 0.58); background: rgba(143, 130, 255, 0.075); }
+  }
+  .qpm-tile-delete-zone {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(244, 67, 54, 0.62);
+    background: rgba(244, 67, 54, 0.06);
+    border-top: 1px dashed rgba(244, 67, 54, 0.22);
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: qpm-delete-zone-in 0.16s ease forwards;
+    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+  }
+  .qpm-tile-delete-zone--active {
+    color: rgba(255, 112, 112, 1);
+    background: rgba(244, 67, 54, 0.16);
+    border-color: rgba(244, 67, 54, 0.42);
+  }
+  @keyframes qpm-delete-zone-in {
+    to { opacity: 1; transform: translateY(0); }
   }
   .qpm-tile--active { color: var(--qpm-text); }
   .qpm-tile__label {
@@ -546,14 +642,132 @@ export function ensurePanelStyles(): void {
   .qpm-tile__status {
     font-size: 10px;
     font-weight: 400;
-    color: rgba(140, 150, 190, 0.65);
+    color: rgba(var(--qpm-tile-status-rgb, 140, 150, 190), 0.9);
+    min-height: 16px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.4;
+    text-shadow: 0 0 8px rgba(var(--qpm-tile-status-rgb, 143, 130, 255), 0.42);
   }
-  .qpm-tile__status--alert  { color: #ffb347 !important; }
-  .qpm-tile__status--positive { color: #4fd18b !important; }
+  .qpm-tile__status--alert  {
+    color: color-mix(in srgb, rgb(var(--qpm-tile-status-rgb, 255, 179, 71)) 58%, #ffcf66) !important;
+    text-shadow: 0 0 10px rgba(255, 179, 71, 0.42), 0 0 8px rgba(var(--qpm-tile-status-rgb, 143, 130, 255), 0.24);
+  }
+  .qpm-tile__status--positive {
+    color: color-mix(in srgb, rgb(var(--qpm-tile-status-rgb, 79, 209, 139)) 68%, #f0fff7) !important;
+    text-shadow: 0 0 10px rgba(var(--qpm-tile-status-rgb, 79, 209, 139), 0.48);
+  }
+  .qpm-tile__status--muted {
+    color: rgba(var(--qpm-tile-status-rgb, 140, 150, 190), 0.68) !important;
+    text-shadow: 0 0 7px rgba(var(--qpm-tile-status-rgb, 143, 130, 255), 0.24);
+  }
+  .qpm-tile__status--rich {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .qpm-tile-status-sprites {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .qpm-tile-status-sprite {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+  }
+  .qpm-tile-status-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Shared panel footer */
+  .qpm-panel-footer {
+    flex: 0 0 auto;
+    border-top: 1px solid rgba(143, 130, 255, 0.12);
+    background: rgba(18, 21, 32, 0.72);
+    padding: 7px 12px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .qpm-panel-footer__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .qpm-panel-footer__toggle,
+  .qpm-panel-footer__button {
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(143, 130, 255, 0.22);
+    background: rgba(143, 130, 255, 0.055);
+    color: rgba(200, 192, 255, 0.72);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .qpm-panel-footer__toggle,
+  .qpm-panel-footer__button {
+    padding: 0 8px;
+  }
+  .qpm-panel-footer__toggle:hover,
+  .qpm-panel-footer__button:hover {
+    background: rgba(143, 130, 255, 0.11);
+    border-color: rgba(143, 130, 255, 0.38);
+    color: rgba(238, 240, 255, 0.92);
+    transform: translateY(-1px);
+  }
+  .qpm-panel-footer__keybind-hint {
+    font-size: 9px;
+    color: #8f82ff;
+    letter-spacing: 0.01em;
+    text-shadow: 0 0 6px rgba(143, 130, 255, 0.4);
+    text-align: center;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qpm-panel-footer__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .qpm-panel-footer__changelog {
+    max-height: 190px;
+    overflow-y: auto;
+    border-top: 1px solid rgba(143, 130, 255, 0.08);
+    padding-top: 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .qpm-panel-footer__changelog-item {
+    font-size: 10px;
+    line-height: 1.45;
+    color: rgba(224, 224, 224, 0.62);
+  }
+  .qpm-panel-footer__changelog-item strong {
+    color: var(--qpm-accent);
+  }
 
   /* ── Resize handle ── */
   .qpm-panel__resize-handle {
@@ -580,6 +794,21 @@ export function ensurePanelStyles(): void {
   }
   .qpm-panel__resize-handle:hover::after {
     border-color: rgba(143, 130, 255, 0.7);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qpm-tile,
+    .qpm-tile-row,
+    .qpm-tile-row--placeholder,
+    .qpm-panel-footer__toggle,
+    .qpm-panel-footer__button,
+    .qpm-tile-delete-zone {
+      transition: none;
+      animation: none;
+    }
+    .qpm-tile-placeholder {
+      animation: none;
+    }
   }
   `;
   document.head.appendChild(style);

@@ -76,6 +76,13 @@ const PLANT_MAX_SCALE: Record<string, number> = {
   moonbinderbulb: 2,
   favabeanpod: 3,
   cacaofruit: 2.5,        // normaliseSpeciesKey('CacaoFruit') → 'cacao' (fruit stripped)
+
+  // Dawn content (PR-2644) — confirmed from beta floraSpeciesDex
+  daisy: 2.5,
+  purpledaisy: 2.5,
+  lavender: 3,
+  ube: 3,
+  dawnbreaker: 3,
 };
 
 export function lookupMaxScale(normalizedKey: string): number | null {

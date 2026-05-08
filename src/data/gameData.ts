@@ -73,6 +73,19 @@ export const EGG_PET_RATES = {
     Butterfly: 0.75, // 75%
     Peacock: 0.20,   // 20%
   },
+
+  // Dawn content (PR-2644) — rates confirmed from beta eggsDex
+  Dawn: {
+    Sheep: 0.60,     // 60%
+    Horse: 0.35,     // 35%
+    Hedgehog: 0.05,  // 5%
+  },
+
+  Horse: {
+    Pony: 0.60,      // 60%
+    Horse: 0.35,     // 35%
+    FireHorse: 0.05, // 5%
+  },
 } as const;
 
 /**
@@ -104,6 +117,15 @@ export const PET_ABILITY_POOLS = {
   Capybara: ['Produce Refund', 'Double Harvest'],
   Butterfly: ['Crop Size Boost II', 'Produce Mutation II', 'Seed Finder III'],
   Peacock: ['Sell Boost IV', 'XP Boost II', 'Pet Refund II'],
+
+  // Dawn Eggs (PR-2644) — abilities confirmed from beta faunaSpeciesDex
+  Sheep: ['Dawn Coin Finder', 'Dawnlit Granter', 'Dawnbinder Boost'],
+  Horse: ['Dawn Boost', 'Dawnlit Granter', 'Dawn Plant Growth Boost', 'Pet Age Boost II'],
+  Hedgehog: ['Dawn Capture', 'Dawn XP Boost', 'Produce Scale Boost II'],
+
+  // Horse Eggs (PR-2644)
+  Pony: ['Sell Boost III', 'Coin Finder III', 'Hunger Restore II', 'Seed Finder II'],
+  FireHorse: ['Amber Moon Boost', 'Pet Hatch Size Boost II', 'Amberlit Granter', 'Amber Plant Growth Boost'],
 } as const;
 
 /**

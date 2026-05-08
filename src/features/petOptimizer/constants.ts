@@ -22,6 +22,17 @@ export const HIGH_VALUE_ABILITIES = new Set([
   'SeedFinderIV',
   'DoubleHarvest',
   'RainDance',
+  // Dawn content (PR-2644)
+  'DawnCapture',
+  'DawnCoinFinder',
+  'DawnXpBoost',
+  'DawnBoost',
+  'DawnlitGranter',
+  'DawnbinderBoost',
+  'DawnPlantGrowthBoost',
+  'AmberMoonBoost',
+  'AmberlitGranter',
+  'AmberPlantGrowthBoost',
 ]);
 
 export const LOW_VALUE_ABILITIES = new Set([
@@ -42,8 +53,8 @@ export const LOW_VALUE_ABILITIES = new Set([
 export const COMMON_SPECIES = new Set(['Worm', 'Snail', 'Bee']);
 export const UNCOMMON_SPECIES = new Set(['Chicken', 'Bunny', 'Dragonfly']);
 export const RARE_SPECIES = new Set(['Pig', 'Cow', 'Turkey']);
-export const LEGENDARY_SPECIES = new Set(['Squirrel', 'Turtle', 'Goat']);
-export const MYTHICAL_SPECIES = new Set(['Butterfly', 'Peacock', 'Capybara']);
+export const LEGENDARY_SPECIES = new Set(['Squirrel', 'Turtle', 'Goat', 'Sheep', 'Horse', 'Pony']);
+export const MYTHICAL_SPECIES = new Set(['Butterfly', 'Peacock', 'Capybara', 'Hedgehog', 'FireHorse']);
 
 export const MAX_BETTER_ALTERNATIVES = 12;
 export const GOLD_DISLIKE_FACTOR = 0.5;

@@ -4,8 +4,9 @@ import type { HubGroupDef, LauncherCardConfig } from '../cards/types';
 import { toggleWindow } from '../../modalWindow';
 import { log } from '../../../utils/logger';
 import { TEXTURE_MANIPULATOR_ENABLED } from '../../../features/textureSwapper';
+import { t } from '../../../i18n';
 
-function openExternalUrl(url: string): void {
+export function openExternalUrl(url: string): void {
   const gmOpen = (globalThis as Record<string, unknown>).GM_openInTab as
     ((url: string, opts?: Record<string, unknown>) => unknown) | undefined;
   if (typeof gmOpen === 'function') {
@@ -17,13 +18,14 @@ function openExternalUrl(url: string): void {
 export function getToolsGroup(): HubGroupDef {
   const guideCard: LauncherCardConfig = {
     key: 'guide',
-    label: 'Guide',
-    description: 'Magic Garden Money Making Guide by bella',
+    label: t('hub.tools.guide.label'),
+    description: t('hub.tools.guide.description'),
     icon: { kind: 'sprite', value: '📖', spriteKey: 'sprite/ui/JournalStamp', fallback: '📖' },
+    labelColor: '#93c5fd',
     tier: 'launcher',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'In-app money making guide';
+      el.textContent = t('hub.tools.guide.summary');
     },
     onOpen: () => {
       toggleWindow('guide-window', '📖 Guide', (root) => {
@@ -37,39 +39,42 @@ export function getToolsGroup(): HubGroupDef {
 
   const decorLayoutCard: LauncherCardConfig = {
     key: 'decor-layout',
-    label: 'MG Decor Layout Customiser',
-    description: 'Design and preview different decor layouts',
+    label: t('hub.tools.decorLayout.label'),
+    description: t('hub.tools.decorLayout.description'),
     icon: { kind: 'sprite', value: '🏰', spriteKey: 'sprite/decor/MiniWizardTower', fallback: '🏰' },
+    labelColor: '#c4b5fd',
     tier: 'launcher',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'External tool — opens in new tab';
+      el.textContent = t('hub.tools.decorLayout.summary');
     },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/MG-Decor-Layout-Customiser/'),
   };
 
   const spriteCustomiserCard: LauncherCardConfig = {
     key: 'sprite-customizer',
-    label: 'MG Sprite Customiser V2',
-    description: 'Customise in-game sprites and create scenes/GIFs',
+    label: t('hub.tools.spriteCustomiser.label'),
+    description: t('hub.tools.spriteCustomiser.description'),
     icon: { kind: 'sprite', value: '🖼️', spriteKey: 'sprite/pet/Butterfly', spriteMutations: ['Rainbow'], fallback: '🖼️' },
+    labelColor: '#f9a8d4',
     tier: 'launcher',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'External tool — opens in new tab';
+      el.textContent = t('hub.tools.spriteCustomiser.summary');
     },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/MG-Sprite-Customiser-V2/'),
   };
 
   const celestialCard: LauncherCardConfig = {
     key: 'celestial-layout',
-    label: 'Celestial Position Calculator',
-    description: 'Calculate celestial positions for binding coverage',
+    label: t('hub.tools.celestial.label'),
+    description: t('hub.tools.celestial.description'),
     icon: { kind: 'sprite', value: '🌟', spriteKey: 'sprite/plant/DawnCelestialCrop', fallback: '🌟' },
+    labelColor: '#fde68a',
     tier: 'launcher',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'External tool — opens in new tab';
+      el.textContent = t('hub.tools.celestial.summary');
     },
     onOpen: () => openExternalUrl('https://ryandt2305-cpu.github.io/Celestial-Position-Layout-Calculator/'),
   };
@@ -79,13 +84,14 @@ export function getToolsGroup(): HubGroupDef {
   if (TEXTURE_MANIPULATOR_ENABLED) {
     const textureCard: LauncherCardConfig = {
       key: 'texture-manipulator',
-      label: 'Texture Manipulator',
-      description: 'Cosmetic texture overrides for sprites and UI',
+      label: t('hub.tools.textureManipulator.label'),
+      description: t('hub.tools.textureManipulator.description'),
       icon: { kind: 'sprite', value: '🖌️', spriteKey: 'sprite/item/RainbowPotion', fallback: '🖌️' },
+      labelColor: '#86efac',
       tier: 'launcher',
       renderSummary: (el) => {
         el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-        el.textContent = 'Tint, swap, or replace any sprite';
+        el.textContent = t('hub.tools.textureManipulator.summary');
       },
       onOpen: () => {
         import('../../textureSwapperWindow').then(({ openTextureSwapperWindow }) => {
@@ -98,13 +104,13 @@ export function getToolsGroup(): HubGroupDef {
 
   return {
     id: 'tools',
-    label: 'Tools',
+    label: t('hub.tools.label'),
     icon: {
       kind: 'sprite', value: '🔧', fallback: '🔧',
       bunched: [
-        { spriteKey: 'sprite/item/Shovel', offsetX: -8, scale: 0.85 },
-        { spriteKey: 'sprite/item/WateringCan', offsetX: 2, offsetY: -2, scale: 0.85 },
-        { spriteKey: 'sprite/item/PlanterPot', offsetX: 8, offsetY: 2, scale: 0.75 },
+        { spriteKey: 'sprite/item/Shovel', offsetX: -10, scale: 1.0 },
+        { spriteKey: 'sprite/item/WateringCan', offsetX: 3, offsetY: -2, scale: 1.0 },
+        { spriteKey: 'sprite/item/PlanterPot', offsetX: 12, offsetY: 2, scale: 0.9 },
       ],
     },
     cards,

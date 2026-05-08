@@ -54,3 +54,9 @@ yarn-error.log*
 *.tmp
 .cache/
 *.tsbuildinfo
+
+# Scratch / debug files
+find_*.js
+search_*.js
+mg-translations-all*.json
+nul

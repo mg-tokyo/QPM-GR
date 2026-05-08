@@ -50,6 +50,7 @@ import {
   setActivityLogEnhancerEnabled,
 } from './features/activityLogNativeEnhancer';
 import { startAbilityTriggerStore, stopAbilityTriggerStore } from './store/abilityLogs';
+import { initLocale } from './i18n';
 
 import { testPetData, testComparePets, testAbilityDefinitions } from './utils/petDataTester';
 import { initPetHutchWindow, togglePetHutchWindow, openPetHutchWindow, closePetHutchWindow } from './ui/petHutchWindow';
@@ -82,6 +83,8 @@ import { resetFriendsCache } from './services/ariesPlayers';
 import { exposeValidationCommands } from './utils/validationCommands';
 import { initializeStorage, storage } from './utils/storage';
 import { DEBUG_GLOBALS_OPT_IN_KEY, isDebugGlobalsEnabled } from './utils/debugGlobals';
+import { registerDebugBootstrap } from './debug/debugBootstrap';
+import { registerUniversalProbe } from './debug/universalProbe';
 import { timerManager } from './utils/timerManager';
 import { startController, stopController } from './features/controller/index';
 import { startStorageValue, stopStorageValue } from './features/storageValue';
@@ -91,9 +94,14 @@ import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './u
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/textureSwapper';
 import { openTextureSwapperWindow } from './ui/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shopRestockAlerts';
+import { startDawnShopTracker, stopDawnShopTracker } from './features/dawnShop';
+import { startCapsuleTracker, stopCapsuleTracker } from './features/dawnCapsule';
+import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawnCapture';
+import { initDawnEconomy, destroyDawnEconomy } from './store/dawnEconomy';
 import { initGmExportBridge } from './utils/gmExportBridge';
 import { startLocker } from './features/locker/index';
 import { startShopKeybinds, stopShopKeybinds } from './features/shopKeybinds';
+import { stopPanelHotkey } from './features/panelHotkey';
 // Data Catalog Loader
 import {
   initCatalogLoader,
@@ -1290,6 +1298,7 @@ window.addEventListener('beforeunload', () => {
   window.removeEventListener('error', _errorHandler, true);
   stopController();
   stopShopKeybinds();
+  stopPanelHotkey();
   stopAutoReconnect();
   stopAntiAfk();
   stopActivityLogEnhancer();
@@ -1304,6 +1313,10 @@ window.addEventListener('beforeunload', () => {
   stopStorageValueOverlay();
   stopStorageValue();
   stopSeedSiloStore();
+  stopDawnShopTracker();
+  stopCapsuleTracker();
+  stopDawnCaptureTracker();
+  destroyDawnEconomy();
 }, { once: true });
 
 async function waitForGame(): Promise<void> {
@@ -1342,6 +1355,7 @@ async function waitForGame(): Promise<void> {
 
 async function initialize(): Promise<void> {
   importantLog('Quinoa Pet Manager initializing...');
+  registerDebugBootstrap();
   DEBUG_GLOBALS_ENABLED = isDebugGlobalsEnabled();
   initializeGlobalApis();
   const cfg = buildCfg();
@@ -1557,11 +1571,21 @@ async function initialize(): Promise<void> {
 
   // Expose validation commands for testing
   if (DEBUG_GLOBALS_ENABLED) {
+    registerUniversalProbe(QPM_DEBUG_API as Record<string, unknown>);
+    shareGlobal('QPM_DEBUG_API', QPM_DEBUG_API);
+    shareGlobal('QPM', QPM_DEBUG_API);
     exposeValidationCommands();
   }
 
   // Set configuration for UI
   setCfg(cfg);
+
+  // Initialise locale detection before any UI renders
+  try {
+    initLocale();
+  } catch (err) {
+    console.error('[QPM][i18n] initLocale failed (non-fatal, defaulting to English):', err);
+  }
 
   // OPTIMIZATION: Wait for sprite system ONLY before creating UI
   // This allows other features to initialize while sprites load in background
@@ -1575,6 +1599,17 @@ async function initialize(): Promise<void> {
   } catch (error) {
     console.error('[QPM][ShopRestockAlerts] failed to start (non-fatal):', error);
   }
+
+  // Phase 11 — Dawn features (weather-gated shop, capsule tracker, capture cooldowns)
+  try {
+    startDawnShopTracker();
+    startCapsuleTracker();
+    startDawnCaptureTracker();
+    initDawnEconomy();
+  } catch (error) {
+    console.error('[QPM][Dawn] Dawn features failed to start (non-fatal):', error);
+  }
+
   initPetsWindow();
 
   // Register window openers and restore previously open windows

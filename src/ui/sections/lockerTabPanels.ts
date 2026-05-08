@@ -18,6 +18,7 @@ import {
   makeLockTile, makeMutationTile, makeAccentTile, buildRarityGrid,
 } from './lockerPrimitives';
 import { buildCustomRulesCard } from './lockerCustomRules';
+import { t } from '../../i18n';
 
 // ── Plants Panel ────────────────────────────────────────────────────────────
 
@@ -26,8 +27,8 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   panel.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
   // Insta-Harvest card — skip hold-to-harvest delay for Rainbow/Gold plants
-  const { root: instaRoot, body: instaBody } = createCard('Insta-Harvest', { collapsible: true });
-  instaBody.appendChild(makeHint('Skip the hold-to-harvest delay for Rainbow and Gold plants.'));
+  const { root: instaRoot, body: instaBody } = createCard(t('feature.locker.instaHarvest'), { collapsible: true });
+  instaBody.appendChild(makeHint(t('feature.locker.instaHarvestHint')));
   const instaGrid = makeGrid();
   instaGrid.appendChild(makeMutationTile(
     'Rainbow',
@@ -40,7 +41,7 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
     () => { updateLockerConfig({ instaHarvestGold: !getLockerConfig().instaHarvestGold }); },
   ));
   instaGrid.appendChild(makeAccentTile(
-    'Aries Hold',
+    t('feature.locker.ariesHold'),
     () => getLockerConfig().ariesHold,
     () => { updateLockerConfig({ ariesHold: !getLockerConfig().ariesHold }); },
   ));
@@ -53,7 +54,7 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   rateHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
   const rateLabel = document.createElement('div');
   rateLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff)';
-  rateLabel.textContent = 'Hold Rate';
+  rateLabel.textContent = t('feature.locker.holdRate');
   const rateValue = document.createElement('div');
   rateValue.style.cssText = `font-size:12px;color:${ACCENT};font-weight:600`;
   rateValue.textContent = `${config.holdRateHz} Hz`;
@@ -70,15 +71,15 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   instaBody.appendChild(rateWrap);
 
   // Hold Contexts card
-  const { root: ctxRoot, body: ctxBody } = createCard('Hold Contexts', { collapsible: true, startCollapsed: true });
-  ctxBody.appendChild(makeHint('Control which actions rapid-fire when holding Space.'));
+  const { root: ctxRoot, body: ctxBody } = createCard(t('feature.locker.holdContexts'), { collapsible: true, startCollapsed: true });
+  ctxBody.appendChild(makeHint(t('feature.locker.holdContextsHint')));
   const ctxKeys: Array<{ key: keyof typeof config.holdContexts; label: string }> = [
-    { key: 'harvest', label: 'Harvest' },
-    { key: 'plant',   label: 'Plant' },
-    { key: 'shovel',  label: 'Shovel' },
-    { key: 'sell',    label: 'Sell' },
-    { key: 'hatch',   label: 'Hatch' },
-    { key: 'other',   label: 'Other' },
+    { key: 'harvest', label: t('feature.locker.ctx.harvest') },
+    { key: 'plant',   label: t('feature.locker.ctx.plant') },
+    { key: 'shovel',  label: t('feature.locker.ctx.shovel') },
+    { key: 'sell',    label: t('feature.locker.ctx.sell') },
+    { key: 'hatch',   label: t('feature.locker.ctx.hatch') },
+    { key: 'other',   label: t('feature.locker.ctx.other') },
   ];
   for (const { key, label } of ctxKeys) {
     ctxBody.appendChild(makeToggleRow(label, config.holdContexts[key], (v) => {
@@ -89,11 +90,11 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   panel.appendChild(instaRoot);
   panel.appendChild(ctxRoot);
 
-  const blockAllCb = makeBlockAllCheckbox('Block All', config.harvestLock, (v) => {
+  const blockAllCb = makeBlockAllCheckbox(t('feature.locker.blockAll'), config.harvestLock, (v) => {
     updateLockerConfig({ harvestLock: v });
   });
 
-  const { root: lockerRoot, body: lockerBody } = createCard('Plant Locker', {
+  const { root: lockerRoot, body: lockerBody } = createCard(t('feature.locker.plantLocker'), {
     collapsible: true,
     headerActions: [blockAllCb],
   });
@@ -106,7 +107,7 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   function rebuildPlantGrid(showAll: boolean): void {
     plantGridSlot.innerHTML = '';
     if (!areCatalogsReady()) {
-      plantGridSlot.appendChild(makeHint('Plant catalog not loaded. Reload page.'));
+      plantGridSlot.appendChild(makeHint(t('feature.locker.plantCatalogNotLoaded')));
       return;
     }
     const all = getAllPlantSpecies();
@@ -114,7 +115,7 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
     if (filtered.length > 0) {
       plantGridSlot.appendChild(buildRarityGrid(filtered, getLockerConfig().plantLocks, 'plantLocks'));
     } else {
-      plantGridSlot.appendChild(makeHint('No plants in garden or inventory.'));
+      plantGridSlot.appendChild(makeHint(t('feature.locker.noPlantsInGarden')));
     }
   }
 
@@ -130,11 +131,11 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
       lockerBody.appendChild(divider);
 
       const mutHeader = document.createElement('div');
-      mutHeader.textContent = 'Mutations';
+      mutHeader.textContent = t('feature.locker.mutations');
       mutHeader.style.cssText = LABEL_CSS + ';font-size:12px;padding:2px 0 2px';
       lockerBody.appendChild(mutHeader);
 
-      lockerBody.appendChild(makeHint('Block harvesting any plant with these mutations.'));
+      lockerBody.appendChild(makeHint(t('feature.locker.blockHarvestMutations')));
 
       const mutGrid = makeGrid();
       for (const mutId of mutations.sort()) {
@@ -169,11 +170,11 @@ export function buildEggsPanel(config: LockerConfig, eligible: EligibleData): HT
   const panel = document.createElement('div');
   panel.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
-  const blockAllCb = makeBlockAllCheckbox('Block All', config.hatchLock, (v) => {
+  const blockAllCb = makeBlockAllCheckbox(t('feature.locker.blockAll'), config.hatchLock, (v) => {
     updateLockerConfig({ hatchLock: v });
   });
 
-  const { root: lockerRoot, body: lockerBody } = createCard('Egg Locker', {
+  const { root: lockerRoot, body: lockerBody } = createCard(t('feature.locker.eggLocker'), {
     collapsible: true,
     headerActions: [blockAllCb],
   });
@@ -186,18 +187,18 @@ export function buildEggsPanel(config: LockerConfig, eligible: EligibleData): HT
   function rebuildEggGrid(showAll: boolean): void {
     eggGridSlot.innerHTML = '';
     if (!areCatalogsReady()) {
-      eggGridSlot.appendChild(makeHint('Egg catalog not loaded. Reload page.'));
+      eggGridSlot.appendChild(makeHint(t('feature.locker.eggCatalogNotLoaded')));
       return;
     }
     const catalog = getEggCatalog();
     if (!catalog || Object.keys(catalog).length === 0) {
-      eggGridSlot.appendChild(makeHint('No eggs found in catalog.'));
+      eggGridSlot.appendChild(makeHint(t('feature.locker.noEggsInCatalog')));
       return;
     }
     const allIds = Object.keys(catalog).sort();
     const filtered = showAll ? allIds : allIds.filter(id => eligible.eggs.has(id));
     if (filtered.length === 0) {
-      eggGridSlot.appendChild(makeHint('No eggs in garden or inventory.'));
+      eggGridSlot.appendChild(makeHint(t('feature.locker.noEggsInGarden')));
       return;
     }
     const liveEggLocks = getLockerConfig().eggLocks;
@@ -229,11 +230,11 @@ export function buildDecorPanel(config: LockerConfig, eligible: EligibleData): H
   const panel = document.createElement('div');
   panel.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
-  const blockAllCb = makeBlockAllCheckbox('Block All', config.decorPickupLock, (v) => {
+  const blockAllCb = makeBlockAllCheckbox(t('feature.locker.blockAll'), config.decorPickupLock, (v) => {
     updateLockerConfig({ decorPickupLock: v });
   });
 
-  const { root: lockerRoot, body: lockerBody } = createCard('Decor Locker', {
+  const { root: lockerRoot, body: lockerBody } = createCard(t('feature.locker.decorLocker'), {
     collapsible: true,
     headerActions: [blockAllCb],
   });
@@ -246,18 +247,18 @@ export function buildDecorPanel(config: LockerConfig, eligible: EligibleData): H
   function rebuildDecorGrid(showAll: boolean): void {
     decorGridSlot.innerHTML = '';
     if (!areCatalogsReady()) {
-      decorGridSlot.appendChild(makeHint('Decor catalog not loaded. Reload page.'));
+      decorGridSlot.appendChild(makeHint(t('feature.locker.decorCatalogNotLoaded')));
       return;
     }
     const allIds = getAllDecor();
     if (allIds.length === 0) {
-      decorGridSlot.appendChild(makeHint('No decor items found in catalog.'));
+      decorGridSlot.appendChild(makeHint(t('feature.locker.noDecorInCatalog')));
       return;
     }
     const sorted = allIds.sort();
     const filtered = showAll ? sorted : sorted.filter(id => eligible.decor.has(id));
     if (filtered.length === 0) {
-      decorGridSlot.appendChild(makeHint('No decor in garden or inventory.'));
+      decorGridSlot.appendChild(makeHint(t('feature.locker.noDecorInGarden')));
       return;
     }
     const liveDecorLocks = getLockerConfig().decorLocks;
@@ -290,25 +291,25 @@ export function buildSellPanel(config: LockerConfig, eligible: EligibleData): HT
   panel.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
   // Crop Sell Protection card
-  const cropBlockAllCb = makeBlockAllCheckbox('Block All', config.sellAllCropsLock, (v) => {
+  const cropBlockAllCb = makeBlockAllCheckbox(t('feature.locker.blockAll'), config.sellAllCropsLock, (v) => {
     updateLockerConfig({ sellAllCropsLock: v });
   });
 
-  const { root: cropSellRoot, body: cropSellBody } = createCard('Crop Sell Protection', {
+  const { root: cropSellRoot, body: cropSellBody } = createCard(t('feature.locker.cropSellProtection'), {
     collapsible: true,
     headerActions: [cropBlockAllCb],
   });
 
   const cropShowAllBtn = makeShowAllToggle((showAll) => rebuildCropSellGrid(showAll));
   cropSellBody.appendChild(cropShowAllBtn);
-  cropSellBody.appendChild(makeHint('Lock specific crops to block Sell All Crops.'));
+  cropSellBody.appendChild(makeHint(t('feature.locker.cropSellHint')));
 
   const cropSellGridSlot = document.createElement('div');
 
   function rebuildCropSellGrid(showAll: boolean): void {
     cropSellGridSlot.innerHTML = '';
     if (!areCatalogsReady()) {
-      cropSellGridSlot.appendChild(makeHint('Plant catalog not loaded. Reload page.'));
+      cropSellGridSlot.appendChild(makeHint(t('feature.locker.plantCatalogNotLoaded')));
       return;
     }
     const all = getAllPlantSpecies();
@@ -316,7 +317,7 @@ export function buildSellPanel(config: LockerConfig, eligible: EligibleData): HT
     if (filtered.length > 0) {
       cropSellGridSlot.appendChild(buildRarityGrid(filtered, getLockerConfig().cropSellLocks, 'cropSellLocks'));
     } else {
-      cropSellGridSlot.appendChild(makeHint('No plants in garden or inventory.'));
+      cropSellGridSlot.appendChild(makeHint(t('feature.locker.noPlantsInGarden')));
     }
   }
 
@@ -327,10 +328,10 @@ export function buildSellPanel(config: LockerConfig, eligible: EligibleData): HT
   panel.appendChild(cropSellRoot);
 
   // Hold-Sell Protection toggle — blocks selling protected pets during hold-Space
-  panel.appendChild(makeToggleRow('Hold-Sell Protection', config.petSellGuard, (v) => {
+  panel.appendChild(makeToggleRow(t('feature.locker.holdSellProtection'), config.petSellGuard, (v) => {
     updateLockerConfig({ petSellGuard: v });
   }));
-  panel.appendChild(makeHint('Block selling protected pets during hold-Space. Uses Sell All Pets protection rules below.'));
+  panel.appendChild(makeHint(t('feature.locker.holdSellHint')));
 
   // Sell All Pets Protections card
   panel.appendChild(buildSellAllPetsCard());
@@ -341,11 +342,11 @@ export function buildSellPanel(config: LockerConfig, eligible: EligibleData): HT
 // ── Cross-cutting cards ─────────────────────────────────────────────────────
 
 export function buildInventoryReserveCard(config: LockerConfig): HTMLElement {
-  const { root, body } = createCard('Inventory Reserve', { collapsible: true, startCollapsed: true });
+  const { root, body } = createCard(t('feature.locker.inventoryReserve'), { collapsible: true, startCollapsed: true });
 
-  body.appendChild(makeHint('Blocks actions when your inventory (cap: 100) would drop below the reserved slots.'));
+  body.appendChild(makeHint(t('feature.locker.inventoryReserveHint')));
 
-  body.appendChild(makeToggleRow('Enable Inventory Reserve', config.inventoryReserve.enabled, (v) => {
+  body.appendChild(makeToggleRow(t('feature.locker.enableInventoryReserve'), config.inventoryReserve.enabled, (v) => {
     updateLockerConfig({ inventoryReserve: { ...getLockerConfig().inventoryReserve, enabled: v } });
   }));
 
@@ -356,7 +357,7 @@ export function buildInventoryReserveCard(config: LockerConfig): HTMLElement {
   sliderHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
   const sliderLabel = document.createElement('div');
   sliderLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff)';
-  sliderLabel.textContent = 'Min Free Slots';
+  sliderLabel.textContent = t('feature.locker.minFreeSlots');
   const sliderValue = document.createElement('div');
   sliderValue.style.cssText = `font-size:12px;color:${ACCENT};font-weight:600`;
   sliderValue.textContent = String(config.inventoryReserve.minFreeSlots);
@@ -378,13 +379,13 @@ export function buildInventoryReserveCard(config: LockerConfig): HTMLElement {
 }
 
 function buildSellAllPetsCard(): HTMLElement {
-  const { root, body } = createCard('Sell All Pets Protections', { collapsible: true });
+  const { root, body } = createCard(t('feature.locker.sellAllPets'), { collapsible: true });
   const rules = getSellAllPetsSettings().protections;
 
-  body.appendChild(makeToggleRow('Enable Protections', rules.enabled, (v) => { setSellAllPetsProtectionRules({ enabled: v }); }));
-  body.appendChild(makeToggleRow('Protect Gold', rules.protectGold, (v) => { setSellAllPetsProtectionRules({ protectGold: v }); }));
-  body.appendChild(makeToggleRow('Protect Rainbow', rules.protectRainbow, (v) => { setSellAllPetsProtectionRules({ protectRainbow: v }); }));
-  body.appendChild(makeToggleRow('Protect Max STR', rules.protectMaxStr, (v) => { setSellAllPetsProtectionRules({ protectMaxStr: v }); }));
+  body.appendChild(makeToggleRow(t('feature.locker.enableProtections'), rules.enabled, (v) => { setSellAllPetsProtectionRules({ enabled: v }); }));
+  body.appendChild(makeToggleRow(t('feature.locker.protectGold'), rules.protectGold, (v) => { setSellAllPetsProtectionRules({ protectGold: v }); }));
+  body.appendChild(makeToggleRow(t('feature.locker.protectRainbow'), rules.protectRainbow, (v) => { setSellAllPetsProtectionRules({ protectRainbow: v }); }));
+  body.appendChild(makeToggleRow(t('feature.locker.protectMaxStr'), rules.protectMaxStr, (v) => { setSellAllPetsProtectionRules({ protectMaxStr: v }); }));
 
   // STR threshold
   const strWrap = document.createElement('div');
@@ -393,7 +394,7 @@ function buildSellAllPetsCard(): HTMLElement {
   strHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
   const strLabel = document.createElement('div');
   strLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff)';
-  strLabel.textContent = 'Max STR Threshold';
+  strLabel.textContent = t('feature.locker.maxStrThreshold');
   const strValue = document.createElement('div');
   strValue.style.cssText = `font-size:12px;color:${ACCENT};font-weight:600`;
   strValue.textContent = `${rules.maxStrThreshold}%`;
@@ -413,7 +414,7 @@ function buildSellAllPetsCard(): HTMLElement {
   rarityWrap.style.cssText = `display:flex;flex-direction:column;gap:4px;padding:6px 10px;border-radius:8px;border:1px solid ${UNLOCKED_BORDER};background:${UNLOCKED_BG}`;
   const rarityLabel = document.createElement('div');
   rarityLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff);margin-bottom:2px';
-  rarityLabel.textContent = 'Protected Rarities';
+  rarityLabel.textContent = t('feature.locker.protectedRarities');
   rarityWrap.appendChild(rarityLabel);
 
   const currentProtected = new Set(rules.protectedRarities.map(r => r.toLowerCase()));

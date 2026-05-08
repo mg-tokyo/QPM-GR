@@ -59,6 +59,18 @@ export const tileRefsPlants: Record<string, number> = {
   Hedge: 58,
   FlowerBush: 59,
   Squash: 60,
+
+  // Dawn content (PR-2644)
+  // Integer tile indices here are for the garden overlay (gardenData.ts) only.
+  // Sprite rendering uses string keys (e.g. 'sprite/plant/Daisy') via sprite-v2.
+  // These indices require runtime inspection of the game's internal tile map.
+  Daisy: -1,              // TODO(dawn): confirm garden overlay tile index
+  DaisyPurple: -1,        // TODO(dawn): confirm garden overlay tile index
+  Lavender: -1,           // TODO(dawn): confirm garden overlay tile index
+  Ube: -1,                // TODO(dawn): confirm garden overlay tile index
+  BabyUbe: -1,            // TODO(dawn): confirm garden overlay tile index
+  Dawnbreaker: -1,        // TODO(dawn): confirm garden overlay tile index
+  BabyDawnbreaker: -1,    // TODO(dawn): confirm garden overlay tile index
 };
 
 export const tileRefsTallPlants: Record<string, number> = {
@@ -133,6 +145,12 @@ export const tileRefsSeeds: Record<string, number> = {
   Camellia: 48,
   Chrysanthemum: 49,
   Squash: 50,
+
+  // Dawn content (PR-2644) — garden overlay indices, not sprite-v2 string keys
+  Daisy: -1,              // TODO(dawn): confirm garden overlay tile index
+  Lavender: -1,           // TODO(dawn): confirm garden overlay tile index
+  Ube: -1,                // TODO(dawn): confirm garden overlay tile index
+  Dawnbreaker: -1,        // TODO(dawn): confirm garden overlay tile index
 };
 
 export const tileRefsItems: Record<string, number> = {
@@ -165,6 +183,9 @@ export const tileRefsItems: Record<string, number> = {
   ChatBubble: 39,
   ArrowKeys: 41,
   Touchpad: 42,
+
+  // Dawn content (PR-2644) — garden overlay indices, not sprite-v2 string keys
+  DawnCapsule: -1,        // TODO(dawn): confirm garden overlay tile index
 };
 
 export const tileRefsPets: Record<string, number> = {
@@ -190,4 +211,14 @@ export const tileRefsPets: Record<string, number> = {
   Dragonfly: 20,
   Turkey: 29,
   Peacock: 30,
+
+  // Dawn content (PR-2644) — garden overlay indices, not sprite-v2 string keys
+  Sheep: -1,              // TODO(dawn): confirm garden overlay tile index
+  Horse: -1,              // TODO(dawn): confirm garden overlay tile index
+  Hedgehog: -1,           // TODO(dawn): confirm garden overlay tile index
+  Pony: -1,               // TODO(dawn): confirm garden overlay tile index
+  FireHorse: -1,          // TODO(dawn): confirm garden overlay tile index
+  FireHorseActive: -1,    // TODO(dawn): confirm garden overlay tile index
+  DawnEgg: -1,            // TODO(dawn): confirm garden overlay tile index
+  HorseEgg: -1,           // TODO(dawn): confirm garden overlay tile index
 };

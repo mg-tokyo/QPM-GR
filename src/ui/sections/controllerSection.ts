@@ -25,6 +25,7 @@ import {
 import type { ControllerProfile } from '../../features/controller/controller-profile';
 import { detectProfile } from '../../features/controller/controller-profile';
 import { storage } from '../../utils/storage';
+import { t } from '../../i18n';
 import {
   getRunningPoller,
   getRunningCursor,
@@ -117,7 +118,7 @@ export function createControllerSection(
 
     const profile = resolveProfile();
     const connected = profile !== null;
-    const badgeText = connected ? `${profile!.name} · Connected` : 'No controller';
+    const badgeText = connected ? t('feature.controller.connected', { name: profile!.name }) : t('feature.controller.noController');
     const badge = document.createElement('span');
     badge.style.cssText = [
       'font-size:11px',
@@ -134,7 +135,7 @@ export function createControllerSection(
     const updateBadge = (): void => {
       const p = resolveProfile();
       const c = p !== null;
-      badge.textContent = c ? `${p!.name} · Connected` : 'No controller';
+      badge.textContent = c ? t('feature.controller.connected', { name: p!.name }) : t('feature.controller.noController');
       badge.style.background = c ? 'rgba(60,200,100,0.15)' : 'rgba(120,120,120,0.12)';
       badge.style.border = c ? '1px solid rgba(60,200,100,0.35)' : '1px solid rgba(120,120,120,0.2)';
       badge.style.color = c ? '#70e090' : '#777';
@@ -159,7 +160,7 @@ export function createControllerSection(
     const enabled = storage.get<boolean>(ENABLED_KEY, true);
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.textContent = enabled ? 'Enabled' : 'Disabled';
+    toggleBtn.textContent = enabled ? t('common.enabled') : t('common.disabled');
     toggleBtn.style.cssText = [
       'padding:5px 13px',
       'border-radius:6px',
@@ -192,7 +193,13 @@ export function createControllerSection(
   // ---------------------------------------------------------------------------
 
   const buildSpeedSection = (): void => {
-    const section = makeSection('Cursor Speed');
+    const section = makeSection(t('feature.controller.cursorSpeed'));
+
+    const speedLabels: Record<CursorSpeed, string> = {
+      slow: t('feature.controller.speedSlow'),
+      medium: t('feature.controller.speedMedium'),
+      fast: t('feature.controller.speedFast'),
+    };
 
     const speedRow = document.createElement('div');
     speedRow.style.cssText = 'display:flex;gap:6px;padding-bottom:8px;';
@@ -200,7 +207,7 @@ export function createControllerSection(
     for (const speed of ['slow', 'medium', 'fast'] as CursorSpeed[]) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = capitalize(speed);
+      btn.textContent = speedLabels[speed];
       const isActive = speed === currentSpeed;
       btn.style.cssText = [
         'flex:1',
@@ -235,12 +242,12 @@ export function createControllerSection(
     const lb = btnLabel(profile, 4);
     const rb = btnLabel(profile, 5);
 
-    const section = makeSection('Fixed Controls');
+    const section = makeSection(t('feature.controller.fixedControls'));
 
     const rows: Array<[string | HTMLElement, string]> = [
-      ['Left Stick',  'Move character'],
-      ['Right Stick', 'Move cursor'],
-      ['D-Pad',       'Snap cursor to nearest'],
+      [t('feature.controller.leftStick'),  t('feature.controller.moveCharacter')],
+      [t('feature.controller.rightStick'), t('feature.controller.moveCursor')],
+      [t('feature.controller.dPad'),       t('feature.controller.snapCursor')],
     ];
 
     const table = makeTable();
@@ -263,7 +270,7 @@ export function createControllerSection(
     chordInput.append(makePill(lb), makeChordPlus(), makePill(rb));
     const chordDesc = document.createElement('td');
     chordDesc.style.cssText = 'padding:5px 0;color:#666;font-size:12px;vertical-align:middle;';
-    chordDesc.textContent = 'Deselect hotbar slot';
+    chordDesc.textContent = t('feature.controller.deselectHotbar');
     chordTr.append(chordInput, chordDesc);
     table.querySelector('tbody')!.appendChild(chordTr);
 
@@ -292,17 +299,17 @@ export function createControllerSection(
         'color:#c8882a',
         'font-size:11px',
       ].join(';');
-      warn.textContent = '⚠ Non-standard controller — button numbers may vary';
+      warn.textContent = `⚠ ${t('feature.controller.nonStandardWarning')}`;
       section.appendChild(warn);
     }
 
     // Section header
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;';
-    const label = makeSectionLabel('Button Bindings');
+    const label = makeSectionLabel(t('feature.controller.buttonBindings'));
     const hint = document.createElement('span');
     hint.style.cssText = 'font-size:11px;color:#444;font-style:italic;';
-    hint.textContent = 'Click an action to rebind';
+    hint.textContent = t('feature.controller.rebindHint');
     header.append(label, hint);
     section.appendChild(header);
 
@@ -349,7 +356,7 @@ export function createControllerSection(
     if (hasContextNote) {
       const footnote = document.createElement('div');
       footnote.style.cssText = 'font-size:11px;color:#484848;font-style:italic;padding:4px 0 8px;';
-      footnote.textContent = '† On multi-harvest plants, LB/RB cycle grow slots instead of hotbar';
+      footnote.textContent = t('feature.controller.contextFootnote');
       section.appendChild(footnote);
     }
 
@@ -364,11 +371,11 @@ export function createControllerSection(
         'border-top:1px solid rgba(255,255,255,0.05)',
         'padding-top:10px',
       ].join(';');
-      const subLabel = makeSectionLabel('Unbound', true);
+      const subLabel = makeSectionLabel(t('feature.controller.unbound'), true);
 
       const collapseBtn = document.createElement('button');
       collapseBtn.type = 'button';
-      collapseBtn.textContent = 'Show ▾';
+      collapseBtn.textContent = t('feature.controller.show');
       collapseBtn.setAttribute('aria-expanded', 'false');
       collapseBtn.style.cssText = [
         'background:none',
@@ -411,7 +418,7 @@ export function createControllerSection(
         if (isChordAlso) {
           const sub = document.createElement('span');
           sub.style.cssText = 'display:block;font-size:11px;color:#444;font-style:italic;margin-top:1px;';
-          sub.textContent = `Also active as ${btnLabel(profile, 4)} + ${btnLabel(profile, 5)} chord`;
+          sub.textContent = t('feature.controller.chordNote', { lb: btnLabel(profile, 4), rb: btnLabel(profile, 5) });
           tdAction.appendChild(sub);
         }
         tdAction.addEventListener('mouseenter', () => { tdAction.style.color = '#7a9acc'; });
@@ -427,7 +434,7 @@ export function createControllerSection(
       collapseBtn.addEventListener('click', () => {
         const expanded = unboundBody.style.display !== 'none';
         unboundBody.style.display = expanded ? 'none' : '';
-        collapseBtn.textContent  = expanded ? 'Show ▾' : 'Hide ▴';
+        collapseBtn.textContent  = expanded ? t('feature.controller.show') : t('feature.controller.hide');
         collapseBtn.setAttribute('aria-expanded', String(!expanded));
       });
     }
@@ -445,7 +452,7 @@ export function createControllerSection(
 
     const resetBtn = document.createElement('button');
     resetBtn.type = 'button';
-    resetBtn.textContent = 'Reset to Defaults';
+    resetBtn.textContent = t('feature.controller.resetToDefaults');
     resetBtn.style.cssText = [
       'background:rgba(220,60,60,0.12)',
       'border:1px solid rgba(220,60,60,0.28)',
@@ -478,7 +485,7 @@ export function createControllerSection(
     captureAbort?.();
 
     const originalHTML = cell.innerHTML;
-    cell.textContent = 'Press a button…';
+    cell.textContent = t('feature.controller.pressButton');
     cell.style.color = '#f0a040';
     cell.style.fontStyle = 'italic';
     cell.style.cursor = 'default';
@@ -624,7 +631,7 @@ function makePlainInputLabel(text: string): HTMLElement {
 }
 
 function btnLabel(profile: ControllerProfile | null, index: number): string {
-  return profile?.buttonLabels[index] ?? `Btn ${index}`;
+  return profile?.buttonLabels[index] ?? t('feature.controller.btnFallback', { index: String(index) });
 }
 
 function capitalize(str: string): string {

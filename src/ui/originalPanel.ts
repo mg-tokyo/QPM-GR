@@ -1,22 +1,27 @@
 // src/ui/originalPanel.ts - Main panel orchestrator
 import { log } from '../utils/logger';
 import { storage } from '../utils/storage';
+import { t } from '../i18n';
 
 import { startVersionChecker, onVersionChange, getCurrentVersion, type VersionInfo, type VersionStatus } from '../utils/versionChecker';
 import { ensurePanelStyles } from './panelStyles';
 import { toggleWindow } from './modalWindow';
 import { UIState, createInitialUIState } from './panelState';
 import { createMutationSection } from './sections/mutationValueSection';
+import { startPanelHotkey } from '../features/panelHotkey';
 
 let uiState = createInitialUIState();
 
 const PANEL_POSITION_KEY = 'quinoa-ui-panel-position';
 const PANEL_COLLAPSED_KEY = 'quinoa-ui-panel-collapsed';
 const PANEL_SIZE_KEY = 'quinoa-ui-panel-size';
-const MIN_PANEL_WIDTH = 280;
-const MAX_PANEL_WIDTH = 620;
+const DEFAULT_PANEL_WIDTH = 560;
+const MIN_PANEL_WIDTH = 520;
+const MIN_HOME_WIDTH = 340;
+const MAX_PANEL_WIDTH = 700;
 
 let _panelResizeCleanup: (() => void) | null = null;
+let currentViewId = 'home';
 
 // Configuration shape passed down from main.ts via setCfg()
 interface PanelCfg {
@@ -41,17 +46,17 @@ export async function createOriginalUI(): Promise<HTMLElement> {
 
   const titleBar = document.createElement('div');
   titleBar.className = 'qpm-panel__titlebar';
-  titleBar.title = 'Drag to move • Click to collapse';
+  titleBar.title = t('panel.titlebar.tooltip');
 
   const titleText = document.createElement('span');
-  titleText.textContent = '🍖 Quinoa Pet Manager';
+  titleText.textContent = `🍖 ${t('panel.title')}`;
 
   // Create version bubble
   const versionBubble = document.createElement('a');
   versionBubble.className = 'qpm-version-bubble';
   versionBubble.dataset.status = 'checking';
   versionBubble.textContent = `v${getCurrentVersion()}`;
-  versionBubble.title = 'Checking for updates...';
+  versionBubble.title = t('panel.version.checking');
   versionBubble.style.cursor = 'pointer';
   versionBubble.target = '_blank';
   versionBubble.rel = 'noopener noreferrer';
@@ -68,16 +73,16 @@ export async function createOriginalUI(): Promise<HTMLElement> {
 
     if (info.status === 'outdated' && info.latest) {
       versionBubble.textContent = `v${info.current} → v${info.latest}`;
-      versionBubble.title = `Update available! Current: v${info.current}\nLatest: v${info.latest}\nClick to open the latest userscript.`;
+      versionBubble.title = t('panel.version.outdated', { current: info.current, latest: info.latest });
     } else if (info.status === 'error') {
       versionBubble.textContent = `v${info.current}`;
-      versionBubble.title = 'Version check failed. Click to open the repo.';
+      versionBubble.title = t('panel.version.error');
     } else if (info.status === 'checking') {
       versionBubble.textContent = `v${info.current}`;
-      versionBubble.title = 'Checking for updates...';
+      versionBubble.title = t('panel.version.checking');
     } else {
       versionBubble.textContent = `v${info.current}`;
-      versionBubble.title = `QPM v${info.current}\nUp to date.`;
+      versionBubble.title = t('panel.version.upToDate', { version: info.current });
     }
   };
 
@@ -117,7 +122,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   collapseButton.type = 'button';
   collapseButton.dataset.qpmCollapseButton = 'true';
   collapseButton.className = 'qpm-button';
-  collapseButton.setAttribute('aria-label', 'Collapse panel');
+  collapseButton.setAttribute('aria-label', t('panel.collapse'));
 
   const collapseIcon = document.createElement('span');
   collapseIcon.textContent = '▼';
@@ -128,7 +133,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   // ── Content area: nav bar + view switcher ──
   const content = document.createElement('div');
   content.className = 'qpm-content';
-  content.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;flex:1;min-height:0;';
+  content.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;flex:1;min-height:0;padding:0;gap:0;';
 
   // Lazy-load view switcher with hub groups
   (async () => {
@@ -144,15 +149,25 @@ export async function createOriginalUI(): Promise<HTMLElement> {
       const viewSwitcherResult = createViewSwitcher(groups);
       content.appendChild(viewSwitcherResult.navElement);
       content.appendChild(viewSwitcherResult.viewElement);
+      content.appendChild(viewSwitcherResult.footerElement);
     } catch (e) {
       log('⚠️ Failed to load panel view switcher', e);
-      content.textContent = '❌ Panel failed to load.';
+      content.textContent = `❌ ${t('panel.loadError')}`;
     }
   })();
 
   const resizeHandle = document.createElement('div');
   resizeHandle.className = 'qpm-panel__resize-handle';
   panel.append(titleBar, content, resizeHandle);
+
+  let isPanelHidden = false;
+  const setPanelHidden = (hidden: boolean) => {
+    isPanelHidden = hidden;
+    panel.style.display = hidden ? 'none' : '';
+    if (!hidden) {
+      requestAnimationFrame(() => clampPanelPosition());
+    }
+  };
 
   // ── Position / Collapse / Drag / Resize ──
 
@@ -200,11 +215,25 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   let suppressClick = false;
 
   const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+  const getAvailablePanelWidth = () => Math.max(280, window.innerWidth - 32);
+  const getMinPanelWidth = () => Math.min(currentViewId === 'home' ? MIN_HOME_WIDTH : MIN_PANEL_WIDTH, getAvailablePanelWidth());
+  const getMaxPanelWidth = () => Math.min(MAX_PANEL_WIDTH, getAvailablePanelWidth());
+  const clampPanelWidth = (width: number) => clamp(width, getMinPanelWidth(), getMaxPanelWidth());
+  const applyPanelWidth = (width: number) => {
+    panel.style.width = `${clampPanelWidth(width)}px`;
+  };
 
   // Apply saved panel width
-  const savedSize = storage.get<{ width: number } | null>(PANEL_SIZE_KEY, null);
+  const savedSize = storage.get<{ width: number; homeWidth?: number } | null>(PANEL_SIZE_KEY, null);
   if (savedSize?.width && Number.isFinite(savedSize.width)) {
-    panel.style.width = `${clamp(savedSize.width, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH)}px`;
+    // Start on home — use homeWidth if available, otherwise default
+    if (savedSize.homeWidth && Number.isFinite(savedSize.homeWidth)) {
+      applyPanelWidth(savedSize.homeWidth);
+    } else {
+      applyPanelWidth(savedSize.width);
+    }
+  } else {
+    applyPanelWidth(DEFAULT_PANEL_WIDTH);
   }
 
   // Resize handle
@@ -231,7 +260,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
 
   resizeHandle.addEventListener('pointermove', (e: PointerEvent) => {
     if (!isResizing || resizePointerId !== e.pointerId) return;
-    const newWidth = clamp(resizeStartWidth + (e.clientX - resizeStartX), MIN_PANEL_WIDTH, MAX_PANEL_WIDTH);
+    const newWidth = clampPanelWidth(resizeStartWidth + (e.clientX - resizeStartX));
     panel.style.width = `${newWidth}px`;
   });
 
@@ -240,7 +269,13 @@ export async function createOriginalUI(): Promise<HTMLElement> {
     isResizing = false;
     resizePointerId = null;
     panel.style.willChange = '';
-    storage.set(PANEL_SIZE_KEY, { width: panel.offsetWidth });
+    const currentSize = storage.get<{ width: number; homeWidth?: number } | null>(PANEL_SIZE_KEY, null) ?? { width: DEFAULT_PANEL_WIDTH };
+    if (currentViewId === 'home') {
+      currentSize.homeWidth = panel.offsetWidth;
+    } else {
+      currentSize.width = panel.offsetWidth;
+    }
+    storage.set(PANEL_SIZE_KEY, currentSize);
     clampPanelPosition();
   });
 
@@ -252,6 +287,11 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   });
 
   const clampPanelPosition = () => {
+    const clampedWidth = clampPanelWidth(panel.offsetWidth);
+    if (Math.abs(clampedWidth - panel.offsetWidth) > 1) {
+      panel.style.width = `${clampedWidth}px`;
+    }
+
     const rect = panel.getBoundingClientRect();
     const panelWidth = panel.offsetWidth;
     const panelHeight = panel.offsetHeight;
@@ -357,9 +397,53 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   });
 
   window.addEventListener('resize', clampPanelPosition);
-  _panelResizeCleanup = () => window.removeEventListener('resize', clampPanelPosition);
+
+  // Per-view width: swap between home (compact) and group (full) widths
+  const onViewChange = (e: Event) => {
+    const viewId = (e as CustomEvent<{ viewId: string }>).detail.viewId;
+    const prevViewId = currentViewId;
+    currentViewId = viewId;
+    const size = storage.get<{ width: number; homeWidth?: number } | null>(PANEL_SIZE_KEY, null) ?? { width: DEFAULT_PANEL_WIDTH };
+
+    if (prevViewId === 'home' && viewId !== 'home') {
+      // Leaving home → save current width as homeWidth, expand to group width
+      size.homeWidth = panel.offsetWidth;
+      storage.set(PANEL_SIZE_KEY, size);
+      const targetWidth = Math.max(panel.offsetWidth, MIN_PANEL_WIDTH);
+      if (targetWidth !== panel.offsetWidth) {
+        panel.style.transition = 'width 0.2s ease';
+        applyPanelWidth(targetWidth);
+        panel.addEventListener('transitionend', function onEnd(te) {
+          if ((te as TransitionEvent).propertyName !== 'width') return;
+          panel.removeEventListener('transitionend', onEnd);
+          panel.style.transition = '';
+          clampPanelPosition();
+        });
+      }
+    } else if (prevViewId !== 'home' && viewId === 'home') {
+      // Arriving at home → restore homeWidth if smaller
+      if (size.homeWidth && Number.isFinite(size.homeWidth) && size.homeWidth < panel.offsetWidth) {
+        panel.style.transition = 'width 0.2s ease';
+        applyPanelWidth(size.homeWidth);
+        panel.addEventListener('transitionend', function onEnd(te) {
+          if ((te as TransitionEvent).propertyName !== 'width') return;
+          panel.removeEventListener('transitionend', onEnd);
+          panel.style.transition = '';
+          clampPanelPosition();
+        });
+      }
+    }
+  };
+  document.addEventListener('qpm:panel-view-change', onViewChange);
+
+  _panelResizeCleanup = () => {
+    window.removeEventListener('resize', clampPanelPosition);
+    document.removeEventListener('qpm:panel-view-change', onViewChange);
+  };
 
   document.body.appendChild(panel);
+  setPanelHidden(false);
+  startPanelHotkey(() => setPanelHidden(!isPanelHidden));
 
   uiState.panel = panel;
   uiState.content = content;
@@ -375,8 +459,8 @@ export function renderRemindersContent(root: HTMLElement, opts?: { startExpanded
   renderRemindersWindow(root, opts);
 }
 
-function renderRemindersWindow(root: HTMLElement, opts?: { startExpanded?: boolean }): void{
-  root.style.cssText = 'display: flex; flex-direction: column; gap: 16px; min-width: 600px;';
+function renderRemindersWindow(root: HTMLElement, opts?: { startExpanded?: boolean }): void {
+  root.style.cssText = 'display:flex;flex-direction:column;gap:16px;width:100%;min-width:0;box-sizing:border-box;';
 
   const mutationSection = createMutationSection(uiState, cfg, saveCfg, opts);
   mutationSection.style.margin = '0';
@@ -418,7 +502,7 @@ export function openJournalCheckerWindow(): void {
       windowRoot.appendChild(createJournalCheckerSection());
     }).catch(e => {
       log('⚠️ Failed to load Journal Checker', e);
-      windowRoot.textContent = '❌ Failed to load. Reload the page and try again.';
+      windowRoot.textContent = `❌ ${t('panel.windowLoadError')}`;
     });
   }, '900px', '90vh');
 }

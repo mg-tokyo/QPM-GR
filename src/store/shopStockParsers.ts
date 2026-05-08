@@ -13,16 +13,17 @@ import type { ShopCategory } from '../types/shops';
 // Constants & type aliases (exported for use in shopStock.ts)
 // ---------------------------------------------------------------------------
 
-export const ATOM_KEY_BY_CATEGORY: Record<ShopCategory, 'seed' | 'egg' | 'tool' | 'decor'> = {
+export const ATOM_KEY_BY_CATEGORY: Record<ShopCategory, 'seed' | 'egg' | 'tool' | 'decor' | 'dawn'> = {
   seeds: 'seed',
   eggs: 'egg',
   tools: 'tool',
   decor: 'decor',
+  dawn: 'dawn',
 };
 
 export type CustomInventoryMap = Record<string, { items: ShopInventoryEntry[] } | null> | null;
-export type ShopPurchaseKey = 'seed' | 'egg' | 'tool' | 'decor';
-export const SHOP_PURCHASE_KEYS: ShopPurchaseKey[] = ['seed', 'egg', 'tool', 'decor'];
+export type ShopPurchaseKey = 'seed' | 'egg' | 'tool' | 'decor' | 'dawn';
+export const SHOP_PURCHASE_KEYS: ShopPurchaseKey[] = ['seed', 'egg', 'tool', 'decor', 'dawn'];
 
 // ---------------------------------------------------------------------------
 // Public type definitions

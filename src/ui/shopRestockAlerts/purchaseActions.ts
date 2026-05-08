@@ -102,14 +102,39 @@ export function shouldLockDismissForPurchaseCompletion(key: string): boolean {
 
 type PurchaseSendFailureReason = WebSocketSendResult['reason'] | 'socket_not_open';
 
-export function sendPurchase(shopType: RestockShopType, itemId: string): WebSocketSendResult {
-  switch (shopType) {
-    case 'seed':  return sendRoomAction('PurchaseSeed',  { species: itemId }, { throttleMs: BUY_ACTION_THROTTLE_MS });
-    case 'egg':   return sendRoomAction('PurchaseEgg',   { eggId: itemId },   { throttleMs: BUY_ACTION_THROTTLE_MS });
-    case 'decor': return sendRoomAction('PurchaseDecor', { decorId: itemId }, { throttleMs: BUY_ACTION_THROTTLE_MS });
-    case 'tool':  return sendRoomAction('PurchaseTool',  { toolId: itemId },  { throttleMs: BUY_ACTION_THROTTLE_MS });
-    default:      return { ok: false, reason: 'invalid_payload' };
+/**
+ * Map shop type → V16 ItemType string for the standard 4 shops.
+ * Dawn shop can carry multiple item types, so it uses itemTypeHint.
+ */
+const SHOP_TO_ITEM_TYPE: Record<string, string> = {
+  seed: 'Seed',
+  egg:  'Egg',
+  tool: 'Tool',
+  decor: 'Decor',
+};
+
+/**
+ * Build the V16 ShopItemTarget discriminated union for a given shop + item ID.
+ * For Dawn shop, itemTypeHint disambiguates (defaults to 'Seed' if unknown).
+ */
+function buildShopItemTarget(
+  shopType: RestockShopType,
+  itemId: string,
+  itemTypeHint?: string,
+): { itemType: string } & Record<string, unknown> {
+  const itemType = itemTypeHint ?? SHOP_TO_ITEM_TYPE[shopType] ?? 'Seed';
+  switch (itemType) {
+    case 'Seed':  return { itemType: 'Seed',  species: itemId };
+    case 'Egg':   return { itemType: 'Egg',   eggId: itemId };
+    case 'Tool':  return { itemType: 'Tool',  toolId: itemId };
+    case 'Decor': return { itemType: 'Decor', decorId: itemId };
+    default:      return { itemType: 'Seed',  species: itemId };
   }
+}
+
+export function sendPurchase(shopType: RestockShopType, itemId: string, itemTypeHint?: string): WebSocketSendResult {
+  const item = buildShopItemTarget(shopType, itemId, itemTypeHint);
+  return sendRoomAction('PurchaseShopItem', { shop: shopType, item } as unknown as Record<string, unknown>, { throttleMs: BUY_ACTION_THROTTLE_MS });
 }
 
 export function explainSendFailure(reason: PurchaseSendFailureReason | null): string {
@@ -368,7 +393,7 @@ async function buyAllForAlert(model: AlertModel, quantity: number): Promise<BuyA
       debugLog('Buy-all send loop halted: room socket not open', { key: model.key, requested, sent, index: i });
       break;
     }
-    const result = sendPurchase(model.shopType, model.itemId);
+    const result = sendPurchase(model.shopType, model.itemId, model.itemType);
     if (!result.ok) {
       firstFailureReason = result.reason ?? null;
       debugLog('Buy-all send failed', { key: model.key, requested, sent, index: i, reason: firstFailureReason });

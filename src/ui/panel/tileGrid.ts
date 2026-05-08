@@ -1,7 +1,9 @@
 // src/ui/panel/tileGrid.ts
-import { getTileIds, addTile, removeTile, reorderTiles, isTileAdded } from './tileState';
+import { addTile, getTileRows, isTileAdded, moveTile, removeTile } from './tileState';
 import { getAllTileDefinitions, getTileDefinition, type TileDefinition } from './tileRegistry';
 import { attachTileDrag } from './tileDrag';
+import { startAllLiveStatuses } from './tileStatuses';
+import { t } from '../../i18n';
 
 export interface TileGridResult {
   element: HTMLElement;
@@ -38,20 +40,24 @@ function applyTileColor(tile: HTMLElement, color: string): void {
 
 export function renderTileGrid(): TileGridResult {
   const cleanups: Array<() => void> = [];
+  const liveStatusCleanups: Array<() => void> = [];
+  let liveStatusVersion = 0;
 
   const container = document.createElement('div');
   container.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
 
   const grid = document.createElement('div');
-  grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+  grid.className = 'qpm-tile-grid';
+  grid.style.cssText = 'display:flex;flex-direction:column;gap:6px;touch-action:pan-y;';
   grid.dataset.qpmTileGrid = '';
 
   // "+" add button
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
+  addBtn.className = 'qpm-add-tile';
   addBtn.style.cssText = [
-    'flex:1',
-    'min-width:45%',
+    'width:100%',
+    'box-sizing:border-box',
     'border:1px dashed rgba(143,130,255,0.3)',
     'border-radius:10px',
     'padding:12px 11px',
@@ -63,7 +69,7 @@ export function renderTileGrid(): TileGridResult {
     'transition:border-color 0.2s,color 0.2s,background 0.2s,transform 0.2s',
   ].join(';');
   addBtn.textContent = '＋';
-  addBtn.title = 'Add tile';
+  addBtn.title = t('tile.addTile');
   addBtn.addEventListener('mouseenter', () => {
     addBtn.style.borderColor = 'rgba(143,130,255,0.6)';
     addBtn.style.color = 'rgba(143,130,255,0.9)';
@@ -95,19 +101,25 @@ export function renderTileGrid(): TileGridResult {
       'background:rgba(26,28,40,0.98)',
       'border:1px solid rgba(143,130,255,0.35)',
       'border-radius:10px',
-      'padding:10px',
-      'max-height:240px',
-      'overflow-y:auto',
+      'padding:0',
+      'max-height:320px',
       'display:flex',
       'flex-direction:column',
-      'gap:4px',
       'box-shadow:0 8px 32px rgba(0,0,0,0.5)',
     ].join(';');
 
+    // ── Header ──
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:10px 12px 6px;flex-shrink:0;';
     const title = document.createElement('div');
-    title.style.cssText = 'font-size:11px;font-weight:700;color:#8f82ff;padding:4px 6px;letter-spacing:0.03em;';
-    title.textContent = 'Add a tile';
-    pickerEl.appendChild(title);
+    title.style.cssText = 'font-size:11px;font-weight:700;color:#8f82ff;letter-spacing:0.03em;';
+    title.textContent = t('tile.pickerTitle');
+    header.appendChild(title);
+    pickerEl.appendChild(header);
+
+    // ── Scrollable tile list ──
+    const listWrap = document.createElement('div');
+    listWrap.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding:0 10px;display:flex;flex-direction:column;gap:4px;';
 
     const allDefs = getAllTileDefinitions();
     for (const def of allDefs) {
@@ -137,7 +149,7 @@ export function renderTileGrid(): TileGridResult {
       labelSpan.textContent = def.label;
       const actionSpan = document.createElement('span');
       actionSpan.style.cssText = `font-size:10px;font-weight:600;color:${added ? 'rgba(143,130,255,0.4)' : '#66bb6a'};`;
-      actionSpan.textContent = added ? 'added' : '+ add';
+      actionSpan.textContent = added ? t('tile.added') : t('tile.add');
 
       row.append(iconSpan, labelSpan, actionSpan);
 
@@ -157,8 +169,32 @@ export function renderTileGrid(): TileGridResult {
         });
       }
 
-      pickerEl.appendChild(row);
+      listWrap.appendChild(row);
     }
+    pickerEl.appendChild(listWrap);
+
+    // ── Footer hints ──
+    const footer = document.createElement('div');
+    footer.style.cssText = [
+      'padding:6px 12px',
+      'flex-shrink:0',
+      'border-top:1px solid rgba(143,130,255,0.12)',
+      'display:flex',
+      'gap:10px',
+      'font-size:10px',
+      'color:#8f82ff',
+      'letter-spacing:0.01em',
+      'text-shadow:0 0 6px rgba(143,130,255,0.4)',
+    ].join(';');
+    const hint1 = document.createElement('span');
+    hint1.textContent = t('tile.hintDrag');
+    const sep = document.createElement('span');
+    sep.textContent = '·';
+    sep.style.opacity = '0.5';
+    const hint2 = document.createElement('span');
+    hint2.textContent = t('tile.hintRemove');
+    footer.append(hint1, sep, hint2);
+    pickerEl.appendChild(footer);
 
     container.appendChild(pickerEl);
 
@@ -177,17 +213,19 @@ export function renderTileGrid(): TileGridResult {
     openPicker();
   });
 
-  function buildTileEl(def: TileDefinition): HTMLElement {
+  function buildTileEl(def: TileDefinition, rowIndex: number, slotIndex: number): HTMLElement {
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'qpm-tile';
     tile.dataset.tileId = def.id;
+    tile.dataset.rowIndex = String(rowIndex);
+    tile.dataset.slotIndex = String(slotIndex);
+    tile.title = t('tile.tooltip', { label: def.label });
+    tile.setAttribute('aria-label', t('tile.ariaLabel', { label: def.label }));
 
     // Apply vibrant color
     applyTileColor(tile, def.color);
-
-    // Override touch-action for drag support
-    tile.style.touchAction = 'none';
+    const rgb = parseRgba(def.color);
 
     // Label row: icon + text
     const labelEl = document.createElement('div');
@@ -203,11 +241,13 @@ export function renderTileGrid(): TileGridResult {
     const statusEl = document.createElement('div');
     statusEl.className = 'qpm-tile__status';
     statusEl.dataset.tileStatus = def.id;
+    if (rgb) {
+      statusEl.style.setProperty('--qpm-tile-status-rgb', `${rgb[0]}, ${rgb[1]}, ${rgb[2]}`);
+    }
 
     tile.append(labelEl, statusEl);
 
     // Hover: intensify glow
-    const rgb = parseRgba(def.color);
     tile.addEventListener('mouseenter', () => {
       if (rgb) {
         const [r, g, b] = rgb;
@@ -228,96 +268,67 @@ export function renderTileGrid(): TileGridResult {
     return tile;
   }
 
+  function getStatusEl(tileId: string): HTMLElement | null {
+    return grid.querySelector(`[data-tile-status="${tileId}"]`) as HTMLElement | null;
+  }
+
+  function addLiveCleanup(version: number, cleanup: () => void): void {
+    if (version !== liveStatusVersion) {
+      cleanup();
+      return;
+    }
+    liveStatusCleanups.push(cleanup);
+  }
+
+  function stopLiveStatuses(): void {
+    liveStatusVersion++;
+    for (const cleanup of liveStatusCleanups.splice(0)) {
+      try { cleanup(); } catch { /* ignore */ }
+    }
+  }
+
   function refresh(): void {
     grid.innerHTML = '';
-    const ids = getTileIds();
-    for (const id of ids) {
-      const def = getTileDefinition(id);
-      if (def) grid.appendChild(buildTileEl(def));
-    }
+    const rows = getTileRows();
+    rows.forEach((rowIds, rowIndex) => {
+      const rowEl = document.createElement('div');
+      rowEl.className = `qpm-tile-row ${rowIds.length === 1 ? 'qpm-tile-row--single' : 'qpm-tile-row--pair'}`;
+      rowEl.dataset.qpmTileRow = '';
+      rowEl.dataset.rowIndex = String(rowIndex);
+
+      rowIds.forEach((id, slotIndex) => {
+        const def = getTileDefinition(id);
+        if (def) {
+          rowEl.appendChild(buildTileEl(def, rowIndex, slotIndex));
+        }
+      });
+
+      if (rowEl.children.length > 0) {
+        grid.appendChild(rowEl);
+      }
+    });
     grid.appendChild(addBtn);
 
     // Kick off live status updates after render
-    startLiveStatuses();
+    stopLiveStatuses();
+    const version = liveStatusVersion;
+    startAllLiveStatuses(getStatusEl, addLiveCleanup, version);
   }
 
   function getTileElements(): HTMLElement[] {
     return Array.from(grid.querySelectorAll('[data-tile-id]')) as HTMLElement[];
   }
 
-  // ── Live status updates ──
-  function startLiveStatuses(): void {
-    // Pet Teams — hunger & strength info
-    const petStatus = grid.querySelector('[data-tile-status="pet-teams"]') as HTMLElement | null;
-    if (petStatus) {
-      import('../../store/pets').then(({ onActivePetInfos }) => {
-        const unsub = onActivePetInfos((pets) => {
-          if (!petStatus.isConnected) return;
-          if (!pets.length) { petStatus.textContent = 'No active pets'; return; }
-          const hungry = pets.filter(p => p.hungerPct !== null && p.hungerPct < 30);
-          if (hungry.length > 0) {
-            const lowest = Math.min(...hungry.map(p => p.hungerPct as number));
-            petStatus.textContent = `${hungry.length} hungry (${Math.round(lowest)}%)`;
-            petStatus.className = 'qpm-tile__status qpm-tile__status--alert';
-          } else {
-            petStatus.textContent = `All fed ✓`;
-            petStatus.className = 'qpm-tile__status qpm-tile__status--positive';
-          }
-        });
-        cleanups.push(unsub);
-      }).catch(() => {});
-    }
-
-    // Public Rooms — room count
-    const roomsStatus = grid.querySelector('[data-tile-status="public-rooms"]') as HTMLElement | null;
-    if (roomsStatus) {
-      import('../../services/ariesRooms').then(({ listRooms }) => {
-        listRooms(300).then(response => {
-          if (!roomsStatus.isConnected) return;
-          const rooms = response.data;
-          if (!Array.isArray(rooms) || rooms.length === 0) return;
-          roomsStatus.textContent = `${rooms.length} active rooms`;
-        }).catch(() => {});
-      }).catch(() => {});
-    }
-
-    // Shop Restock — tracked item count
-    const shopStatus = grid.querySelector('[data-tile-status="shop-restock"]') as HTMLElement | null;
-    if (shopStatus) {
-      import('../../utils/storage').then(({ storage: s }) => {
-        const tracked = s.get<string[] | null>('qpm.restock.tracked', null);
-        if (tracked?.length) {
-          shopStatus.textContent = `${tracked.length} tracked items`;
-        }
-      }).catch(() => {});
-    }
-
-    // Journal — static tip
-    const journalStatus = grid.querySelector('[data-tile-status="journal-checker"]') as HTMLElement | null;
-    if (journalStatus) {
-      journalStatus.textContent = 'Produce · Pets · Smart Tips';
-    }
-  }
-
   refresh();
 
   const dragCleanup = attachTileDrag(grid, getTileElements, {
-    onReorder: (from, to) => {
-      const ids = getTileIds();
-      const [moved] = ids.splice(from, 1);
-      if (moved) {
-        ids.splice(to, 0, moved);
-        reorderTiles(ids);
-        refresh();
-      }
+    onMove: (id, target) => {
+      moveTile(id, target);
+      refresh();
     },
-    onDelete: (index) => {
-      const ids = getTileIds();
-      const id = ids[index];
-      if (id) {
-        removeTile(id);
-        refresh();
-      }
+    onDelete: (id) => {
+      removeTile(id);
+      refresh();
     },
   });
   cleanups.push(dragCleanup);
@@ -326,7 +337,7 @@ export function renderTileGrid(): TileGridResult {
 
   return {
     element: container,
-    cleanup: () => { cleanups.forEach(fn => fn()); cleanups.length = 0; closePicker(); },
+    cleanup: () => { stopLiveStatuses(); cleanups.forEach(fn => fn()); cleanups.length = 0; closePicker(); },
     refresh,
   };
 }

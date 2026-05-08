@@ -8,6 +8,7 @@ import { RARITY_COLORS, RARITY_ORDER } from '../shopRestockWindowConstants';
 import { findVariantBadge } from '../../data/variantBadges';
 import { getGardenSnapshot } from '../../features/gardenBridge';
 import { getInventoryItems } from '../../store/inventory';
+import { t } from '../../i18n';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -162,11 +163,11 @@ export function makeShowAllToggle(onChange: (showAll: boolean) => void): HTMLEle
   let showAll = false;
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = 'Show All';
+  btn.textContent = t('feature.locker.showAll');
   btn.style.cssText = `background:none;border:none;color:${TEXT_MUTED};font-size:10px;cursor:pointer;padding:0;text-decoration:underline;text-align:left;display:block`;
   btn.addEventListener('click', () => {
     showAll = !showAll;
-    btn.textContent = showAll ? 'Show Eligible' : 'Show All';
+    btn.textContent = showAll ? t('feature.locker.showEligible') : t('feature.locker.showAll');
     onChange(showAll);
   });
   return btn;

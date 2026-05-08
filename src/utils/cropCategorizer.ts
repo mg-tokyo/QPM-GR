@@ -17,7 +17,7 @@ export function getCropCategory(species: string): string | null {
   if (/seed|grain|wheat|corn|rice|barley|oat/.test(normalized)) return 'Seed';
   if (/fruit|berry|apple|banana|grape|melon|lemon/.test(normalized)) return 'Fruit';
   if (/vegetable|carrot|tomato|pepper|mushroom|bamboo/.test(normalized)) return 'Vegetable';
-  if (/flower|lily|tulip|rose|daisy|chrysanthemum|daffodil/.test(normalized)) return 'Flower';
+  if (/flower|lily|tulip|rose|daisy|chrysanthemum|daffodil|lavender/.test(normalized)) return 'Flower';
   if (/succulent|cactus|aloe|echeveria/.test(normalized)) return 'Succulent';
 
   // Catalog-based inference (futureproof for unknown species)

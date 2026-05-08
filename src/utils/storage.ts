@@ -81,6 +81,9 @@ const QPM_STORAGE_KEYS = [
   'quinoa-ui-mutation-tracker-source',
   'quinoa-ui-mutation-tracker-detail',
   'qpm-tracker-settings',
+  'qpm.home-tiles.v1',
+  'qpm.home-tiles.v2',
+  'qpm.home-tiles.v3',
 
   // Main data
   'quinoa-pet-manager',
@@ -196,6 +199,9 @@ const QPM_STORAGE_KEYS = [
   'qpm.restock.tracked',
   'qpm.restock.ui.v1',
 
+  // Dawn capsule pull history
+  'qpm.capsulePulls.v1',
+
   // Hub visible cards
   'qpm.utilityHub.visibleCards',
   'qpm.toolsHub.visibleCards',
@@ -222,10 +228,14 @@ const QPM_STORAGE_KEYS = [
 
   // Shop Keybinds
   'qpm.shop-keybinds.v1',
+  'qpm.panelHotkey.v1',
 
   // Hub State
   'qpm.hub.state.v1',
   'qpm.hub.migrated.v1',
+
+  // Locale
+  'qpm.localeOverride.v1',
 ];
 
 /**
@@ -272,7 +282,7 @@ function getLocalStorageSafe(): globalThis.Storage | null {
   }
 }
 
-function readLocalRaw(key: string): string | null {
+export function readLocalRaw(key: string): string | null {
   const ls = getLocalStorageSafe();
   if (!ls) return null;
   try {
@@ -696,4 +706,3 @@ export function importAllValues(data: Record<string, string>): number {
   }
   return count;
 }
-

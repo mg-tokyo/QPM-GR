@@ -5,6 +5,7 @@
 import { removeStorageKeysByPrefix, storage } from '../utils/storage';
 import { log } from '../utils/logger';
 import { clampPct } from '../utils/windowPosition';
+import { t } from '../i18n';
 
 export type PanelRender = (root: HTMLElement) => void;
 
@@ -100,7 +101,7 @@ function restoreWindowFromMinimize(w: WindowState): void {
   if (w.restoreMinHeight) w.el.style.minHeight = w.restoreMinHeight;
   if (w.restoreMaxHeight) w.el.style.maxHeight = w.restoreMaxHeight;
   w.minimizeBtn.textContent = '−';
-  w.minimizeBtn.title = 'Minimize';
+  w.minimizeBtn.title = t('window.chrome.minimize');
   setResizeHandleVisible(w, true);
   requestAnimationFrame(() => {
     clampWindowSize(w.el);
@@ -354,7 +355,7 @@ function makeDraggable(win: HTMLElement, head: HTMLElement, state: WindowState):
 function makeResizable(win: HTMLElement, state: WindowState): void {
   const handle = document.createElement('div');
   handle.className = 'qpm-window-resize-handle';
-  handle.title = 'Drag to resize';
+  handle.title = t('window.chrome.resizeHint');
   handle.style.cssText = [
     'position:absolute',
     'bottom:0',
@@ -564,8 +565,8 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
   const btnContainer = document.createElement('div');
   btnContainer.style.cssText = 'display: flex; gap: 6px;';
 
-  const minimizeBtn = createWindowButton('−', 'Minimize');
-  const closeBtn = createWindowButton('×', 'Close');
+  const minimizeBtn = createWindowButton('−', t('window.chrome.minimize'));
+  const closeBtn = createWindowButton('×', t('window.chrome.close'));
 
   btnContainer.appendChild(minimizeBtn);
   btnContainer.appendChild(closeBtn);
@@ -724,7 +725,7 @@ export function toggleMinimize(id: string): void {
     w.el.style.minHeight = `${collapsed}px`;
     w.el.style.maxHeight = `${collapsed}px`;
     w.minimizeBtn.textContent = '□';
-    w.minimizeBtn.title = 'Restore';
+    w.minimizeBtn.title = t('window.chrome.restore');
     setResizeHandleVisible(w, false);
     emitWindowEvent('qpm:window-minimized', id);
   } else {

@@ -130,6 +130,54 @@ function findXpAbilities(pet: ActivePetInfo): AbilityDefinition[] {
     );
 }
 
+export interface XpTrackerSummaryStats {
+  abilityCount: number;
+  abilityXpPerHour: number;
+  totalTeamXpPerHour: number;
+  totalProcsPerHour: number;
+  totalProcCount: number;
+  currentWeather: DetailedWeather;
+}
+
+interface XpTrackerComputedStats extends XpTrackerSummaryStats {
+  stats: XpAbilityStats[];
+}
+
+function getXpTrackerComputedStats(pets: ActivePetInfo[]): XpTrackerComputedStats {
+  const currentWeather = getWeatherSnapshot().kind;
+  const stats: XpAbilityStats[] = [];
+  for (const pet of pets) {
+    for (const def of findXpAbilities(pet)) {
+      stats.push(calculateXpStats(
+        pet,
+        def.id,
+        getAbilityName(def.id),
+        def.baseProbability ?? 0,
+        def.effectValuePerProc ?? 0,
+        def.requiredWeather ?? null,
+        currentWeather,
+      ));
+    }
+  }
+
+  const combined = stats.length > 0 ? getCombinedXpStats(stats) : null;
+  const abilityXpPerHour = combined?.totalXpPerHour ?? 0;
+  return {
+    stats,
+    abilityCount: stats.length,
+    abilityXpPerHour,
+    totalTeamXpPerHour: 3600 + abilityXpPerHour,
+    totalProcsPerHour: combined?.totalProcsPerHour ?? 0,
+    totalProcCount: combined?.totalProcCount ?? 0,
+    currentWeather,
+  };
+}
+
+export function getXpTrackerSummaryStats(pets: ActivePetInfo[]): XpTrackerSummaryStats {
+  const { stats: _stats, ...summary } = getXpTrackerComputedStats(pets);
+  return summary;
+}
+
 // ============================================================================
 // UTILITY HELPERS
 // ============================================================================
@@ -779,29 +827,12 @@ function updateSummaryStrip(
 // ============================================================================
 
 function updateXpTrackerDisplay(state: XpTrackerWindowState): void {
-  state.currentWeather = getWeatherSnapshot().kind;
+  const computed = getXpTrackerComputedStats(state.latestPets);
+  state.currentWeather = computed.currentWeather;
+  state.latestStats = computed.stats;
+  state.totalTeamXpPerHour = computed.totalTeamXpPerHour;
 
-  // Build XP stats for pets with XP abilities
-  const allStats: XpAbilityStats[] = [];
-  for (const pet of state.latestPets) {
-    for (const def of findXpAbilities(pet)) {
-      allStats.push(calculateXpStats(
-        pet,
-        def.id,
-        getAbilityName(def.id),
-        def.baseProbability ?? 0,
-        def.effectValuePerProc ?? 0,
-        def.requiredWeather ?? null,
-        state.currentWeather,
-      ));
-    }
-  }
-
-  state.latestStats = allStats;
-  const abilityXp = allStats.length > 0 ? getCombinedXpStats(allStats).totalXpPerHour : 0;
-  state.totalTeamXpPerHour = 3600 + abilityXp;
-
-  updateSummaryStrip(state.summaryStrip, allStats, state.totalTeamXpPerHour, state.currentWeather, state.latestPets.length);
+  updateSummaryStrip(state.summaryStrip, computed.stats, state.totalTeamXpPerHour, state.currentWeather, state.latestPets.length);
   renderPetCards(state);
   void updateNearMaxLevelDisplay(state);
 }

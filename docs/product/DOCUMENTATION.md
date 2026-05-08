@@ -304,7 +304,7 @@ function sendMyAction(itemId: string) {
 
 ### Debug API
 
-Set `qpm.debug.globals.v1=true` in storage and reload to enable `QPM_DEBUG_API` on window.
+Run `QPM_BOOT.enableDebug()` from the browser console and reload to enable `QPM_DEBUG_API` on window.
 
 Key methods:
 ```
@@ -314,6 +314,15 @@ QPM_DEBUG_API.getCatalogs()      — raw captured game catalogs
 QPM_DEBUG_API.diagnoseCatalogs() — catalog capture timing report
 QPM_DEBUG_API.spriteProbe([...]) — test sprite lookup
 QPM_DEBUG_API.activityLogList()  — activity log entries
+```
+
+Developer probe commands, when debug globals are enabled:
+```js
+QPM_DEBUG_API.probe.scan()
+QPM_DEBUG_API.probe.overlay(true)
+QPM_DEBUG_API.probe.pickOnce()
+QPM_DEBUG_API.probe.findTargets('inventory')
+QPM_DEBUG_API.probe.resolve('inventory.grid')
 ```
 
 Console shortcuts: `QPM_ACTIVITY_LOG.list()`, `QPM_ACTIVITY_LOG.export()`

@@ -5,6 +5,7 @@
 import { areCatalogsReady, getAllPlantSpecies } from '../../catalogs/gameCatalogs';
 import { getCropSpriteDataUrl } from '../../sprite-v2/compat';
 import { RARITY_COLORS } from '../shopRestockWindowConstants';
+import { t } from '../../i18n';
 import {
   UNLOCKED_BG, UNLOCKED_BORDER, HOVER_BG, HOVER_BORDER, TEXT_MUTED,
   makeHint, forEachRarityGroup,
@@ -60,7 +61,7 @@ function buildPickerDropdownContent(
 ): void {
   dropdown.innerHTML = '';
   if (speciesList.length === 0) {
-    dropdown.appendChild(makeHint('No plants available.'));
+    dropdown.appendChild(makeHint(t('feature.locker.noPlantsAvailable')));
     return;
   }
 
@@ -116,7 +117,7 @@ export function buildPlantPicker(
       trigger.appendChild(lbl);
     } else {
       const lbl = document.createElement('span');
-      lbl.textContent = 'Select plant...';
+      lbl.textContent = t('feature.locker.selectPlant');
       lbl.style.color = TEXT_MUTED as string;
       trigger.appendChild(lbl);
     }
@@ -139,12 +140,12 @@ export function buildPlantPicker(
   toggleRow.style.cssText = 'display:flex;justify-content:flex-end;padding:0 0 4px';
   const showAllBtn = document.createElement('button');
   showAllBtn.type = 'button';
-  showAllBtn.textContent = 'Show All';
+  showAllBtn.textContent = t('feature.locker.showAll');
   showAllBtn.style.cssText = `background:none;border:none;color:${TEXT_MUTED};font-size:10px;cursor:pointer;padding:2px 4px;text-decoration:underline`;
   showAllBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     showAll = !showAll;
-    showAllBtn.textContent = showAll ? 'Show Eligible' : 'Show All';
+    showAllBtn.textContent = showAll ? t('feature.locker.showEligible') : t('feature.locker.showAll');
     rebuildContent();
   });
   toggleRow.appendChild(showAllBtn);
@@ -159,7 +160,7 @@ export function buildPlantPicker(
   function rebuildContent(): void {
     if (!areCatalogsReady()) {
       contentSlot.innerHTML = '';
-      contentSlot.appendChild(makeHint('Plant catalog not loaded.'));
+      contentSlot.appendChild(makeHint(t('feature.locker.plantCatalogNotLoaded')));
       return;
     }
     const all = getAllPlantSpecies();

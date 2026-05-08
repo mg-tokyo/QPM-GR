@@ -2,6 +2,7 @@
 
 import type { ExpandableCardConfig } from './types';
 import { buildIconBox } from './iconRenderer';
+import { t } from '../../../i18n';
 
 export interface ExpandableCardResult {
   element: HTMLElement;
@@ -64,7 +65,7 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
   // Expand button (visible when collapsed, hidden when expanded)
   const expandBtn = document.createElement('button');
   expandBtn.type = 'button';
-  expandBtn.textContent = 'Expand';
+  expandBtn.textContent = t('hub.card.expand');
   expandBtn.style.cssText = [
     'background:rgba(143,130,255,0.12)',
     'color:#c8c0ff',
@@ -95,7 +96,7 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
   // Detach button (hidden until expanded)
   const detachBtn = document.createElement('button');
   detachBtn.type = 'button';
-  detachBtn.title = 'Open in separate window';
+  detachBtn.title = t('hub.card.detachTooltip');
   detachBtn.style.cssText = [
     'display:none',
     'background:rgba(143,130,255,0.08)',

@@ -2,20 +2,21 @@ import { getMutationValueSnapshot, subscribeToMutationValueTracking } from '../.
 import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/weatherMutationTracking';
 import { createCard, btn } from '../panelHelpers';
 import { log } from '../../utils/logger';
+import { t } from '../../i18n';
 import type { UIState } from '../panelState';
 
 export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLElement {
-  const { root, body } = createCard('💎 Mutation Value & Reminders', {
-    subtitle: 'Gold/Rainbow generation and mutation alerts',
+  const { root, body } = createCard(`💎 ${t('feature.mutationValue.title')}`, {
+    subtitle: t('feature.mutationValue.subtitle'),
     collapsible: true,
   });
   root.dataset.qpmSection = 'mutation-value';
 
   const info = document.createElement('div');
   info.style.cssText = 'padding:10px;background:#1a1a2a;border-radius:6px;font-size:11px;line-height:1.5;margin-bottom:12px;';
-  info.innerHTML = `
-    <strong>💰 Value generation tracking:</strong> Gold/Rainbow proc rates, session value, and best records.
-  `;
+  const infoStrong = document.createElement('strong');
+  infoStrong.textContent = `💰 ${t('feature.mutationValue.trackingInfo')}`;
+  info.appendChild(infoStrong);
   body.appendChild(info);
 
   // Mutation Reminder Controls
@@ -24,18 +25,19 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
 
   const reminderHeader = document.createElement('div');
   reminderHeader.style.cssText = 'font-weight:bold;font-size:12px;margin-bottom:8px;color:#9C27B0;';
-  reminderHeader.textContent = '🧬 Mutation Reminder';
+  reminderHeader.textContent = `🧬 ${t('feature.mutationValue.reminderHeader')}`;
   reminderSection.appendChild(reminderHeader);
 
   const reminderInfo = document.createElement('div');
-  reminderInfo.innerHTML = '💡 Detects weather events (Rain/Snow/Dawn/Amber) and notifies which plants to place for mutations.';
+  reminderInfo.textContent = `💡 ${t('feature.mutationValue.reminderInfo')}`;
   reminderInfo.style.cssText = 'font-size:10px;line-height:1.5;color:#aaa;margin-bottom:8px;';
   reminderSection.appendChild(reminderInfo);
 
-  const reminderToggle = btn(cfg.mutationReminder?.enabled ? '✓ Reminders Enabled' : '✗ Reminders Disabled', async () => {
+  const reminderToggleLabel = (on: boolean) => on ? `✓ ${t('feature.mutationValue.remindersEnabled')}` : `✗ ${t('feature.mutationValue.remindersDisabled')}`;
+  const reminderToggle = btn(reminderToggleLabel(!!cfg.mutationReminder?.enabled), async () => {
     if (!cfg.mutationReminder) return;
     cfg.mutationReminder.enabled = !cfg.mutationReminder.enabled;
-    reminderToggle.textContent = cfg.mutationReminder.enabled ? '✓ Reminders Enabled' : '✗ Reminders Disabled';
+    reminderToggle.textContent = reminderToggleLabel(cfg.mutationReminder.enabled);
     reminderToggle.classList.toggle('qpm-button--positive', cfg.mutationReminder.enabled);
     reminderToggle.classList.toggle('qpm-button--accent', cfg.mutationReminder.enabled);
     try {
@@ -45,7 +47,7 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     } catch (err) {
       // Revert optimistic UI toggle on failure
       cfg.mutationReminder.enabled = !cfg.mutationReminder.enabled;
-      reminderToggle.textContent = cfg.mutationReminder.enabled ? '✓ Reminders Enabled' : '✗ Reminders Disabled';
+      reminderToggle.textContent = reminderToggleLabel(cfg.mutationReminder.enabled);
       reminderToggle.classList.toggle('qpm-button--positive', cfg.mutationReminder.enabled);
       reminderToggle.classList.toggle('qpm-button--accent', cfg.mutationReminder.enabled);
     }
@@ -56,28 +58,29 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
   }
   reminderSection.appendChild(reminderToggle);
 
-  const checkBtn = btn('🔍 Check Now', async () => {
+  const checkNowLabel = `🔍 ${t('feature.mutationValue.checkNow')}`;
+  const checkBtn = btn(checkNowLabel, async () => {
     checkBtn.disabled = true;
-    checkBtn.textContent = '⏳ Checking...';
+    checkBtn.textContent = `⏳ ${t('feature.mutationValue.checking')}`;
     try {
       const { checkForMutations } = await import('../../features/mutationReminder');
       await checkForMutations();
-      checkBtn.textContent = '✅ Done!';
+      checkBtn.textContent = `✅ ${t('feature.mutationValue.done')}`;
       setTimeout(() => {
-        checkBtn.textContent = '🔍 Check Now';
+        checkBtn.textContent = checkNowLabel;
         checkBtn.disabled = false;
       }, 2000);
     } catch (error) {
-      checkBtn.textContent = '❌ Error';
+      checkBtn.textContent = `❌ ${t('feature.mutationValue.error')}`;
       log('Error checking mutations:', error);
       setTimeout(() => {
-        checkBtn.textContent = '🔍 Check Now';
+        checkBtn.textContent = checkNowLabel;
         checkBtn.disabled = false;
       }, 2000);
     }
   });
   checkBtn.style.cssText = 'width:100%;background:#9C27B0;';
-  checkBtn.title = 'Manually check for mutation opportunities';
+  checkBtn.title = t('feature.mutationValue.checkTooltip');
   reminderSection.appendChild(checkBtn);
 
   body.appendChild(reminderSection);
@@ -97,8 +100,8 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     const diff = Date.now() - timestamp;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(minutes / 60);
-    if (hours > 0) return `${hours}h ${minutes % 60}m ago`;
-    return `${minutes}m ago`;
+    if (hours > 0) return t('feature.mutationValue.timeAgoHours', { hours: String(hours), minutes: String(minutes % 60) });
+    return t('feature.mutationValue.timeAgoMinutes', { minutes: String(minutes) });
   };
 
   const render = () => {
@@ -132,9 +135,9 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     const sessionCard = document.createElement('div');
     sessionCard.style.cssText = 'padding:12px;background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(139,69,19,0.1));border-radius:6px;border-left:3px solid #FFD700;';
     sessionCard.innerHTML = `
-      <div style="font-weight:bold;font-size:12px;margin-bottom:8px;">💰 Current Session Value</div>
+      <div style="font-weight:bold;font-size:12px;margin-bottom:8px;">💰 ${t('feature.mutationValue.sessionValue')}</div>
       <div style="font-size:20px;font-weight:bold;color:#FFD700;">${formatNumber(stats.sessionValue)}</div>
-      <div style="font-size:10px;color:#888;margin-top:4px;">Session started ${formatTimeAgo(stats.sessionStart)}</div>
+      <div style="font-size:10px;color:#888;margin-top:4px;">${t('feature.mutationValue.sessionStarted', { time: formatTimeAgo(stats.sessionStart) })}</div>
     `;
     valueContainer.appendChild(sessionCard);
 
@@ -146,25 +149,25 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
       <div style="padding:10px;background:#1a1a2a;border-radius:6px;text-align:center;">
         <div style="font-size:18px;margin-bottom:4px;">🟡</div>
         <div style="font-size:14px;font-weight:bold;color:#FFD700;">${stats.goldProcs}</div>
-        <div style="font-size:9px;color:#888;margin-top:2px;">Gold Procs</div>
+        <div style="font-size:9px;color:#888;margin-top:2px;">${t('feature.mutationValue.goldProcs')}</div>
         <div style="font-size:10px;color:#4CAF50;margin-top:4px;">${stats.goldPerHour.toFixed(1)}/hr</div>
       </div>
       <div style="padding:10px;background:#1a1a2a;border-radius:6px;text-align:center;">
         <div style="font-size:18px;margin-bottom:4px;">🌈</div>
         <div style="font-size:14px;font-weight:bold;color:#FFD700;">${stats.rainbowProcs}</div>
-        <div style="font-size:9px;color:#888;margin-top:2px;">Rainbow Procs</div>
+        <div style="font-size:9px;color:#888;margin-top:2px;">${t('feature.mutationValue.rainbowProcs')}</div>
         <div style="font-size:10px;color:#4CAF50;margin-top:4px;">${stats.rainbowPerHour.toFixed(1)}/hr</div>
       </div>
       <div style="padding:10px;background:#1a1a2a;border-radius:6px;text-align:center;">
         <div style="font-size:18px;margin-bottom:4px;">📈</div>
         <div style="font-size:14px;font-weight:bold;color:#FFD700;">${stats.cropBoostProcs}</div>
-        <div style="font-size:9px;color:#888;margin-top:2px;">Crop Boosts</div>
+        <div style="font-size:9px;color:#888;margin-top:2px;">${t('feature.mutationValue.cropBoosts')}</div>
         <div style="font-size:10px;color:#4CAF50;margin-top:4px;">${stats.cropBoostPerHour.toFixed(1)}/hr</div>
       </div>
       <div style="padding:10px;background:#1a1a2a;border-radius:6px;text-align:center;">
         <div style="font-size:18px;margin-bottom:4px;">☁️</div>
         <div style="font-size:14px;font-weight:bold;color:#FFD700;">${totalWeatherProcs}</div>
-        <div style="font-size:9px;color:#888;margin-top:2px;">Weather Procs</div>
+        <div style="font-size:9px;color:#888;margin-top:2px;">${t('feature.mutationValue.weatherProcs')}</div>
         <div style="font-size:10px;color:#4CAF50;margin-top:4px;">${totalWeatherProcsPerHour.toFixed(1)}/hr</div>
       </div>
     `;
@@ -175,10 +178,10 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
       const recordsCard = document.createElement('div');
       recordsCard.style.cssText = 'padding:10px;background:#1a1a2a;border-radius:6px;';
       recordsCard.innerHTML = `
-        <div style="font-weight:bold;font-size:11px;margin-bottom:8px;">🏆 Best Records</div>
+        <div style="font-weight:bold;font-size:11px;margin-bottom:8px;">🏆 ${t('feature.mutationValue.bestRecords')}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px;">
-          <div><span style="color:#888;">Best Hour:</span> <strong style="color:#FFD700;">${formatNumber(stats.bestHourValue)}</strong></div>
-          <div><span style="color:#888;">Best Session:</span> <strong style="color:#FFD700;">${formatNumber(stats.bestSessionValue)}</strong></div>
+          <div><span style="color:#888;">${t('feature.mutationValue.bestHour')}</span> <strong style="color:#FFD700;">${formatNumber(stats.bestHourValue)}</strong></div>
+          <div><span style="color:#888;">${t('feature.mutationValue.bestSession')}</span> <strong style="color:#FFD700;">${formatNumber(stats.bestSessionValue)}</strong></div>
         </div>
       `;
       valueContainer.appendChild(recordsCard);
@@ -210,9 +213,9 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
 export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () => void, opts?: { startExpanded?: boolean }): HTMLElement {
   const statusChip = document.createElement('span');
   statusChip.className = 'qpm-chip';
-  statusChip.textContent = cfg.mutationReminder?.enabled ? 'Enabled' : 'Disabled';
+  statusChip.textContent = cfg.mutationReminder?.enabled ? t('common.enabled') : t('common.disabled');
 
-  const { root, body } = createCard('🧬 Mutation Reminder', {
+  const { root, body } = createCard(`🧬 ${t('feature.mutationValue.reminderHeader')}`, {
     collapsible: true,
     startCollapsed: !opts?.startExpanded,
     subtitleElement: statusChip,
@@ -220,22 +223,36 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
   root.dataset.qpmSection = 'mutation-reminder';
 
   const mStatus = document.createElement('div');
-  mStatus.textContent = 'Monitoring weather...';
+  mStatus.textContent = t('feature.mutationValue.monitoringWeather');
   mStatus.className = 'qpm-section-muted';
   body.appendChild(mStatus);
 
   const infoBox = document.createElement('div');
-  infoBox.innerHTML = '💡 <strong>How it works:</strong><br>• Detects weather events (Rain/Snow/Dawn/Amber)<br>• Scans your plant inventory for mutations (F/W/C/D/A)<br>• Notifies which plants to place for mutations<br>• Example: Wet plant + Snow → Frozen mutation!';
+  const infoIcon = document.createTextNode('💡 ');
+  const infoTitle = document.createElement('strong');
+  infoTitle.textContent = t('feature.mutationValue.howItWorks');
+  infoBox.appendChild(infoIcon);
+  infoBox.appendChild(infoTitle);
+  for (const key of [
+    'feature.mutationValue.howItWorksBullet1',
+    'feature.mutationValue.howItWorksBullet2',
+    'feature.mutationValue.howItWorksBullet3',
+    'feature.mutationValue.howItWorksBullet4',
+  ] as const) {
+    infoBox.appendChild(document.createElement('br'));
+    infoBox.appendChild(document.createTextNode(`• ${t(key)}`));
+  }
   infoBox.style.cssText = 'background:#333;padding:8px;border-radius:4px;font-size:10px;line-height:1.5;border-left:3px solid #9C27B0';
   body.appendChild(infoBox);
 
-  const mToggle = btn(cfg.mutationReminder?.enabled ? '✓ Reminders Enabled' : '✗ Reminders Disabled', async () => {
+  const mToggleLabel = (on: boolean) => on ? `✓ ${t('feature.mutationValue.remindersEnabled')}` : `✗ ${t('feature.mutationValue.remindersDisabled')}`;
+  const mToggle = btn(mToggleLabel(!!cfg.mutationReminder?.enabled), async () => {
     if (!cfg.mutationReminder) return;
     cfg.mutationReminder.enabled = !cfg.mutationReminder.enabled;
-    mToggle.textContent = cfg.mutationReminder.enabled ? '✓ Reminders Enabled' : '✗ Reminders Disabled';
+    mToggle.textContent = mToggleLabel(cfg.mutationReminder.enabled);
     mToggle.classList.toggle('qpm-button--positive', cfg.mutationReminder.enabled);
     mToggle.classList.toggle('qpm-button--accent', cfg.mutationReminder.enabled);
-    statusChip.textContent = cfg.mutationReminder.enabled ? 'Enabled' : 'Disabled';
+    statusChip.textContent = cfg.mutationReminder.enabled ? t('common.enabled') : t('common.disabled');
     try {
       // Actually enable/disable the mutation reminder system
       const { setMutationReminderEnabled } = await import('../../features/mutationReminder');
@@ -244,10 +261,10 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
     } catch (err) {
       // Revert optimistic UI toggle on failure
       cfg.mutationReminder.enabled = !cfg.mutationReminder.enabled;
-      mToggle.textContent = cfg.mutationReminder.enabled ? '✓ Reminders Enabled' : '✗ Reminders Disabled';
+      mToggle.textContent = mToggleLabel(cfg.mutationReminder.enabled);
       mToggle.classList.toggle('qpm-button--positive', cfg.mutationReminder.enabled);
       mToggle.classList.toggle('qpm-button--accent', cfg.mutationReminder.enabled);
-      statusChip.textContent = cfg.mutationReminder.enabled ? 'Enabled' : 'Disabled';
+      statusChip.textContent = cfg.mutationReminder.enabled ? t('common.enabled') : t('common.disabled');
     }
   });
   mToggle.style.width = '100%';
@@ -257,29 +274,30 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
   body.appendChild(mToggle);
 
   // Add "Check Now" button
-  const checkBtn = btn('🔍 Check Now', async () => {
+  const checkNowLabel2 = `🔍 ${t('feature.mutationValue.checkNow')}`;
+  const checkBtn = btn(checkNowLabel2, async () => {
     checkBtn.disabled = true;
-    checkBtn.textContent = '⏳ Checking...';
+    checkBtn.textContent = `⏳ ${t('feature.mutationValue.checking')}`;
     try {
       const { checkForMutations } = await import('../../features/mutationReminder');
       await checkForMutations();
-      checkBtn.textContent = '✅ Done!';
+      checkBtn.textContent = `✅ ${t('feature.mutationValue.done')}`;
       setTimeout(() => {
-        checkBtn.textContent = '🔍 Check Now';
+        checkBtn.textContent = checkNowLabel2;
         checkBtn.disabled = false;
       }, 2000);
     } catch (error) {
-      checkBtn.textContent = '❌ Error';
+      checkBtn.textContent = `❌ ${t('feature.mutationValue.error')}`;
       log('Error checking mutations:', error);
       setTimeout(() => {
-        checkBtn.textContent = '🔍 Check Now';
+        checkBtn.textContent = checkNowLabel2;
         checkBtn.disabled = false;
       }, 2000);
     }
   });
   checkBtn.style.width = '100%';
   checkBtn.style.background = '#9C27B0';
-  checkBtn.title = 'Manually check for mutation opportunities';
+  checkBtn.title = t('feature.mutationValue.checkTooltip');
   body.appendChild(checkBtn);
 
   uiState.mutationStatus = mStatus;

@@ -4,6 +4,7 @@ import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../c
 import { toggleWindow } from '../../modalWindow';
 import { log } from '../../../utils/logger';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
+import { t } from '../../../i18n';
 
 /** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
@@ -14,19 +15,19 @@ async function awaitCatalogs(): Promise<void> {
 export function getGardenGroup(): HubGroupDef {
   const gardenFiltersCard: ExpandableCardConfig = {
     key: 'garden-filters',
-    label: 'Garden Filters',
-    description: 'Filter & highlight garden tiles by species, mutations',
+    label: t('hub.garden.gardenFilters.label'),
+    description: t('hub.garden.gardenFilters.description'),
     icon: { kind: 'sprite', value: '🔍', spriteKey: 'sprite/plant/RoseRed', spriteMutations: ['Thunderstruck'], fallback: '🔍' },
     labelColor: '#c084fc',
     tier: 'expandable',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'Species · Mutations · Rarity';
+      el.textContent = t('hub.garden.gardenFilters.summary');
     },
     renderExpanded: (container) => {
       const spinner = document.createElement('div');
       spinner.style.cssText = 'color:rgba(224,224,224,0.45);font-size:12px;padding:8px;';
-      spinner.textContent = '⏳ Loading...';
+      spinner.textContent = `⏳ ${t('common.loading')}`;
       container.appendChild(spinner);
 
       (async () => {
@@ -38,7 +39,7 @@ export function getGardenGroup(): HubGroupDef {
           container.appendChild(el);
         } catch (err) {
           log('⚠️ Failed to load Garden Filters', err);
-          spinner.textContent = '❌ Failed to load';
+          spinner.textContent = `❌ ${t('common.loadError')}`;
         }
       })();
     },
@@ -55,14 +56,14 @@ export function getGardenGroup(): HubGroupDef {
 
   const remindersCard: ExpandableCardConfig = {
     key: 'reminders',
-    label: 'Reminders',
-    description: 'Timers and alerts for garden events and harvests',
+    label: t('hub.garden.reminders.label'),
+    description: t('hub.garden.reminders.description'),
     icon: { kind: 'sprite', value: '🔔', spriteKey: 'sprite/plant/Mushroom', spriteMutations: ['Dawnlit'], fallback: '🔔' },
     labelColor: '#34d399',
     tier: 'expandable',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'Custom alerts · Event timers';
+      el.textContent = t('hub.garden.reminders.summary');
     },
     renderExpanded: (container) => {
       // overflow left to parent hub scroll container
@@ -83,13 +84,20 @@ export function getGardenGroup(): HubGroupDef {
 
   const statsCard: LauncherCardConfig = {
     key: 'stats',
-    label: 'Garden & Hatch Stats',
-    description: 'Visual stats for mutation progress and hatching history',
-    icon: { kind: 'sprite', value: '🌿', spriteKey: 'sprite/pet/CommonEgg', fallback: '🌿' },
+    label: t('hub.garden.stats.label'),
+    description: t('hub.garden.stats.description'),
+    icon: {
+      kind: 'sprite', value: '🌿', fallback: '🌿',
+      bunched: [
+        { spriteKey: 'sprite/plant/Starweaver', mutations: ['Rainbow', 'Frozen'], offsetX: -6, scale: 0.85 },
+        { spriteKey: 'sprite/pet/MythicalEgg', offsetX: 6, offsetY: 1, scale: 0.8 },
+      ],
+    },
+    labelColor: '#93c5fd',
     tier: 'launcher',
     renderSummary: (el) => {
       el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      el.textContent = 'Mutation and hatching analytics';
+      el.textContent = t('hub.garden.stats.summary');
     },
     onOpen: () => {
       import('../../statsHubWindow').then(({ openStatsHubWindow }) => {
@@ -100,13 +108,13 @@ export function getGardenGroup(): HubGroupDef {
 
   return {
     id: 'garden',
-    label: 'Garden',
+    label: t('hub.garden.label'),
     icon: {
       kind: 'sprite', value: '🌱', fallback: '🌱',
       bunched: [
-        { spriteKey: 'sprite/plant/RoseRed', offsetX: -8, scale: 0.85 },
-        { spriteKey: 'sprite/plant/Sunflower', offsetX: 2, offsetY: -2, scale: 0.85 },
-        { spriteKey: 'sprite/plant/Blueberry', offsetX: 8, offsetY: 2, scale: 0.75 },
+        { spriteKey: 'sprite/plant/RoseRed', offsetX: -10, scale: 1.0 },
+        { spriteKey: 'sprite/plant/Starweaver', mutations: ['Rainbow', 'Frozen'], offsetX: 3, offsetY: -2, scale: 1.0 },
+        { spriteKey: 'sprite/pet/MythicalEgg', offsetX: 12, offsetY: 2, scale: 0.9 },
       ],
     },
     cards: [gardenFiltersCard, remindersCard, statsCard],

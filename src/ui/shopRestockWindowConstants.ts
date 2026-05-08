@@ -48,13 +48,14 @@ export const RARITY_GLOW: Record<string, string> = {
   celestial: '0 0 12px rgba(255,0,255,0.5)',
 };
 
-export const SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3 };
+export const SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3, dawn: 4 };
 
 export const SHOP_CYCLE_INTERVALS: Record<string, number> = {
   seed:  5  * 60 * 1000,
   egg:   15 * 60 * 1000,
   decor: 60 * 60 * 1000,
   tool:  10 * 60 * 1000,
+  dawn:  0,  // Dawn Shop has no timer-based cycle (weather-gated)
 };
 
 export const TRACKED_KEY    = 'qpm.restock.tracked';
@@ -80,6 +81,7 @@ export const CELESTIAL_IDS = new Set([
   'Starweaver', 'StarweaverPod',
   'Moonbinder', 'MoonbinderPod', 'MoonCelestial',
   'Dawnbinder', 'DawnbinderPod', 'DawnCelestial',
+  'Dawnbreaker',
   'SunCelestial', 'MythicalEgg',
 ]);
 
@@ -90,6 +92,7 @@ export const SHOP_FILTERS = [
   { label: 'Eggs', value: 'egg' },
   { label: 'Decor', value: 'decor' },
   { label: 'Tools', value: 'tool' },
+  { label: 'Dawn', value: 'dawn' },
 ] as const;
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -97,4 +100,5 @@ export const CATEGORY_LABELS: Record<string, string> = {
   egg: 'Eggs',
   decor: 'Decor',
   tool: 'Tools',
+  dawn: 'Dawn',
 };

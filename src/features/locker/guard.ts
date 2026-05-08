@@ -40,11 +40,12 @@ function throttledNotify(rule: string, reason: string): void {
 
 const GAME_INVENTORY_CAP = 100;
 
-const PURCHASE_FIELD_MAP: Record<string, string> = {
-  PurchaseSeed:  'species',
-  PurchaseEgg:   'eggId',
-  PurchaseTool:  'toolId',
-  PurchaseDecor: 'decorId',
+/** Maps V16 PurchaseShopItem itemType → the ID field on the ShopItemTarget. */
+const ITEM_TYPE_ID_FIELD: Record<string, string> = {
+  Seed:  'species',
+  Egg:   'eggId',
+  Tool:  'toolId',
+  Decor: 'decorId',
 };
 
 /**
@@ -58,10 +59,15 @@ function checkPurchaseWillStack(
   actionType: string,
   payload: Record<string, unknown>,
 ): boolean {
-  const field = PURCHASE_FIELD_MAP[actionType];
+  if (actionType !== 'PurchaseShopItem') return false;
+
+  const itemTarget = payload.item as Record<string, unknown> | undefined;
+  if (!itemTarget || typeof itemTarget.itemType !== 'string') return false;
+
+  const field = ITEM_TYPE_ID_FIELD[itemTarget.itemType];
   if (!field) return false;
 
-  const value = payload[field];
+  const value = itemTarget[field];
   if (typeof value !== 'string' || value.length === 0) return false;
 
   return items.some((item) => {
@@ -76,7 +82,7 @@ function getInventorySnapshot(
 ): InventorySnapshot {
   const items = getInventoryItems();
   const snapshot: InventorySnapshot = { itemCount: items.length, capacity: GAME_INVENTORY_CAP };
-  if (actionType && payload && actionType in PURCHASE_FIELD_MAP) {
+  if (actionType === 'PurchaseShopItem' && payload) {
     snapshot.purchaseWillStack = checkPurchaseWillStack(items, actionType, payload);
   }
   return snapshot;

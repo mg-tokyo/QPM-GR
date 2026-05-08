@@ -1,5 +1,7 @@
 // src/ui/sections/changelog.ts — Changelog data + rendering
 
+import { t } from '../../i18n';
+
 // ---------------------------------------------------------------------------
 // Changelog (hardcoded — most practical for userscript)
 // ---------------------------------------------------------------------------
@@ -856,7 +858,7 @@ export function buildChangelogCard(): HTMLElement {
 
   const title = document.createElement("div");
   title.style.cssText = "font-size:11px;font-weight:700;color:#8f82ff;";
-  title.textContent = "📋 Changelog";
+  title.textContent = `📋 ${t('panel.footer.changelog')}`;
 
   const visibleEntries = CHANGELOG.slice(0, 3);
   const latest = visibleEntries[0]!;

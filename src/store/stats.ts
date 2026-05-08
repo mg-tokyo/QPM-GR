@@ -2,7 +2,7 @@
 import { storage } from '../utils/storage';
 import { startWeatherHub, onWeatherSnapshot, getWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
 import { visibleInterval } from '../utils/timerManager';
-export type ShopCategoryKey = 'seeds' | 'eggs' | 'tools' | 'decor';
+export type ShopCategoryKey = 'seeds' | 'eggs' | 'tools' | 'decor' | 'dawn';
 
 interface FeedEntry {
   count: number;
@@ -141,6 +141,7 @@ function createDefaultState(now: number): StatsState {
         eggs: 0,
         tools: 0,
         decor: 0,
+        dawn: 0,
       },
       items: {},
       history: [],
@@ -151,6 +152,7 @@ function createDefaultState(now: number): StatsState {
         eggs: 0,
         tools: 0,
         decor: 0,
+        dawn: 0,
       },
     },
     garden: {
@@ -235,7 +237,7 @@ function hydrateState(): StatsState {
     base.shop.totalSpentCredits = Number(stored.shop.totalSpentCredits ?? 0);
     base.shop.totalSpentMagicDust = Number((stored.shop as Record<string, unknown>).totalSpentMagicDust ?? 0);
     if (stored.shop.purchasesByCategory) {
-      for (const key of ['seeds', 'eggs', 'tools', 'decor'] as ShopCategoryKey[]) {
+      for (const key of ['seeds', 'eggs', 'tools', 'decor', 'dawn'] as ShopCategoryKey[]) {
         const value = stored.shop.purchasesByCategory[key];
         base.shop.purchasesByCategory[key] = Number(value ?? 0);
       }
@@ -277,6 +279,7 @@ function hydrateState(): StatsState {
         eggs: Number(stored.shop.failuresByCategory.eggs ?? 0),
         tools: Number(stored.shop.failuresByCategory.tools ?? 0),
         decor: Number(stored.shop.failuresByCategory.decor ?? 0),
+        dawn: Number((stored.shop.failuresByCategory as Record<string, unknown>).dawn ?? 0),
       };
     }
     if (stored.shop.lastPurchase) {

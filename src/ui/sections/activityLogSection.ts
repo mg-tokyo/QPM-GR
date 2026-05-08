@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { createCard } from '../panelHelpers';
 import {
   getActivityLogEnhancerStatus,
@@ -7,25 +8,28 @@ import {
 
 function getStatusText(enabled: boolean): string {
   if (!enabled) {
-    return 'Activity Log is disabled. Saved history stays on disk and is preserved until re-enabled.';
+    return t('feature.activityLog.statusDisabled');
   }
   const status = getActivityLogEnhancerStatus();
-  return `Activity Log is enabled. ${status.historyCount} entries saved (${status.replaySafeCount} replay-safe).`;
+  return t('feature.activityLog.statusEnabled', {
+    historyCount: String(status.historyCount),
+    replaySafeCount: String(status.replaySafeCount),
+  });
 }
 
 function getHelperText(enabled: boolean): string {
   if (!enabled) {
-    return 'Enable Activity Log to capture new entries and apply filters in the in-game modal.';
+    return t('feature.activityLog.helperDisabled');
   }
-  return 'Entries are persisted continuously to local storage and restored on refresh/restart/crash recovery.';
+  return t('feature.activityLog.helperEnabled');
 }
 
 export function createActivityLogSection(): HTMLElement {
   const statusChip = document.createElement('span');
   statusChip.className = 'qpm-chip';
-  statusChip.textContent = isActivityLogEnhancerEnabled() ? 'Enabled' : 'Disabled';
+  statusChip.textContent = isActivityLogEnhancerEnabled() ? t('common.enabled') : t('common.disabled');
 
-  const { root, body } = createCard('Activity Log', {
+  const { root, body } = createCard(t('hub.trackers.activityLog.label'), {
     collapsible: true,
     startCollapsed: true,
     subtitleElement: statusChip,
@@ -41,13 +45,13 @@ export function createActivityLogSection(): HTMLElement {
   toggleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;';
 
   const toggleLabel = document.createElement('span');
-  toggleLabel.textContent = 'Activity Log';
+  toggleLabel.textContent = t('hub.trackers.activityLog.label');
   toggleLabel.style.cssText = 'font-size:12px;color:#e0e0e0;font-weight:600;';
 
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.setAttribute('role', 'switch');
-  toggle.setAttribute('aria-label', 'Enable activity log');
+  toggle.setAttribute('aria-label', t('feature.activityLog.enableAriaLabel'));
   toggle.style.cssText = [
     'width:36px',
     'height:22px',
@@ -83,8 +87,20 @@ export function createActivityLogSection(): HTMLElement {
   helper.style.cssText = 'font-size:10px;color:#A5D6A7;line-height:1.4;margin-top:8px;';
 
   const infoBox = document.createElement('div');
-  infoBox.innerHTML = '<strong>Persistence and safety:</strong><br>- History writes through to storage on each merge<br>- Restores automatically on page refresh/restart<br>- Survives browser/game crash recovery<br>- Hard cap: 5000 entries';
   infoBox.style.cssText = 'background:#333;padding:8px;border-radius:4px;margin-bottom:8px;font-size:10px;line-height:1.5;border-left:3px solid #64B5F6';
+  const infoTitle = document.createElement('strong');
+  infoTitle.textContent = t('feature.activityLog.infoTitle');
+  infoBox.appendChild(infoTitle);
+  const bullets = [
+    t('feature.activityLog.infoBullet1'),
+    t('feature.activityLog.infoBullet2'),
+    t('feature.activityLog.infoBullet3'),
+    t('feature.activityLog.infoBullet4'),
+  ];
+  for (const bullet of bullets) {
+    infoBox.appendChild(document.createElement('br'));
+    infoBox.appendChild(document.createTextNode(`- ${bullet}`));
+  }
   body.appendChild(infoBox);
 
   const syncToggleVisual = () => {
@@ -99,7 +115,7 @@ export function createActivityLogSection(): HTMLElement {
       toggle.style.borderColor = 'rgba(255,255,255,0.24)';
       toggleKnob.style.transform = 'translateX(0)';
     }
-    statusChip.textContent = enabled ? 'Enabled' : 'Disabled';
+    statusChip.textContent = enabled ? t('common.enabled') : t('common.disabled');
     status.textContent = getStatusText(enabled);
     helper.textContent = getHelperText(enabled);
   };

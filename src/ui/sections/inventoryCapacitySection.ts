@@ -16,6 +16,7 @@ import {
   BUILTIN_SOUNDS,
 } from '../shopRestockAlerts/soundConfig';
 import { previewSound } from '../shopRestockAlerts/soundEngine';
+import { t } from '../../i18n';
 
 const MIN_THRESHOLD = 1;
 const MAX_THRESHOLD = 100;
@@ -117,7 +118,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   // -- Sound selector --
   const soundLabel = document.createElement('div');
   soundLabel.className = 'qpm-ic-snd-label';
-  soundLabel.textContent = 'Sound';
+  soundLabel.textContent = t('feature.soundConfig.sound');
   content.appendChild(soundLabel);
 
   const radioList = document.createElement('div');
@@ -137,7 +138,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
       prevBtn.type = 'button';
       prevBtn.className = 'qpm-ic-snd-preview';
       prevBtn.textContent = '\u25B6';
-      prevBtn.title = 'Preview';
+      prevBtn.title = t('feature.soundConfig.preview');
       prevBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         previewSound(sound.id, selectedVolume);
@@ -165,7 +166,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
       prevBtn.type = 'button';
       prevBtn.className = 'qpm-ic-snd-preview';
       prevBtn.textContent = '\u25B6';
-      prevBtn.title = 'Preview';
+      prevBtn.title = t('feature.soundConfig.preview');
       prevBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         previewSound(id, selectedVolume, true, entry.dataUrl);
@@ -175,7 +176,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
       delBtn.type = 'button';
       delBtn.className = 'qpm-ic-snd-del-btn';
       delBtn.textContent = '\u2715';
-      delBtn.title = 'Delete custom sound';
+      delBtn.title = t('feature.soundConfig.deleteCustomSound');
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         removeInvCapacityCustomSound(id);
@@ -201,7 +202,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   // -- Mode toggle --
   const modeLabel = document.createElement('div');
   modeLabel.className = 'qpm-ic-snd-label';
-  modeLabel.textContent = 'Mode';
+  modeLabel.textContent = t('feature.soundConfig.mode');
   content.appendChild(modeLabel);
 
   const modeToggle = document.createElement('div');
@@ -210,12 +211,12 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   const onceBtn = document.createElement('button');
   onceBtn.type = 'button';
   onceBtn.className = 'qpm-ic-snd-toggle-btn';
-  onceBtn.textContent = 'Play once';
+  onceBtn.textContent = t('feature.soundConfig.playOnce');
 
   const loopBtn = document.createElement('button');
   loopBtn.type = 'button';
   loopBtn.className = 'qpm-ic-snd-toggle-btn';
-  loopBtn.textContent = 'Loop';
+  loopBtn.textContent = t('feature.soundConfig.loop');
 
   // -- Speed slider --
   const speedWrap = document.createElement('div');
@@ -223,7 +224,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
 
   const speedLabel = document.createElement('div');
   speedLabel.className = 'qpm-ic-snd-label';
-  speedLabel.textContent = 'Repeat speed';
+  speedLabel.textContent = t('feature.soundConfig.repeatSpeed');
 
   const speedSliderRow = document.createElement('div');
   speedSliderRow.className = 'qpm-ic-snd-slider-row';
@@ -264,7 +265,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   // -- Volume slider --
   const volLabel = document.createElement('div');
   volLabel.className = 'qpm-ic-snd-label';
-  volLabel.textContent = 'Volume';
+  volLabel.textContent = t('feature.soundConfig.volume');
   content.appendChild(volLabel);
 
   const sliderRow = document.createElement('div');
@@ -296,7 +297,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
 
   const uploadLabel2 = document.createElement('div');
   uploadLabel2.className = 'qpm-ic-snd-label';
-  uploadLabel2.textContent = 'Custom sounds';
+  uploadLabel2.textContent = t('feature.soundConfig.customSounds');
   uploadLabel2.style.marginBottom = '0';
   uploadLabel2.style.flex = '1';
 
@@ -307,7 +308,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
 
   const fileLabelEl = document.createElement('label');
   fileLabelEl.className = 'qpm-ic-snd-upload-label';
-  fileLabelEl.textContent = '+ Upload';
+  fileLabelEl.textContent = t('feature.soundConfig.upload');
   fileLabelEl.addEventListener('click', () => fileInput.click());
 
   const countEl = document.createElement('span');
@@ -329,7 +330,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      errorEl.textContent = 'File too large (max 500KB)';
+      errorEl.textContent = t('feature.soundConfig.fileTooLarge');
       errorEl.style.display = '';
       fileInput.value = '';
       return;
@@ -346,7 +347,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
         updateCount();
         save();
       } catch (err) {
-        errorEl.textContent = err instanceof Error ? err.message : 'Failed to add sound';
+        errorEl.textContent = err instanceof Error ? err.message : t('feature.soundConfig.failedToAdd');
         errorEl.style.display = '';
       }
       fileInput.value = '';
@@ -364,7 +365,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   const clearBtn = document.createElement('button');
   clearBtn.type = 'button';
   clearBtn.className = 'qpm-ic-snd-btn qpm-ic-snd-btn-ghost';
-  clearBtn.textContent = 'Clear sound';
+  clearBtn.textContent = t('feature.soundConfig.clearSound');
   clearBtn.addEventListener('click', () => {
     isEnabled = false;
     headerToggle.checked = false;
@@ -447,7 +448,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
 export function createInventoryCapacitySection(): HTMLElement {
   ensureSectionStyles();
 
-  const { root, body } = createCard('Inventory Capacity');
+  const { root, body } = createCard(t('feature.invCapacity.title'));
   root.dataset.qpmSection = 'inv-capacity';
 
   // -- Enable toggle --
@@ -466,7 +467,7 @@ export function createInventoryCapacitySection(): HTMLElement {
 
   const toggleTitle = document.createElement('div');
   toggleTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  toggleTitle.textContent = 'Enable Inventory Warning';
+  toggleTitle.textContent = t('feature.invCapacity.enableWarning');
 
   const toggleInput = document.createElement('input');
   toggleInput.type = 'checkbox';
@@ -490,7 +491,7 @@ export function createInventoryCapacitySection(): HTMLElement {
 
   const thresholdLabel = document.createElement('div');
   thresholdLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  thresholdLabel.textContent = 'Warning Threshold';
+  thresholdLabel.textContent = t('feature.invCapacity.warningThreshold');
 
   const thresholdRight = document.createElement('div');
   thresholdRight.style.cssText = 'display:flex;align-items:center;gap:6px;';
@@ -513,7 +514,7 @@ export function createInventoryCapacitySection(): HTMLElement {
 
   const thresholdSuffix = document.createElement('span');
   thresholdSuffix.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,rgba(255,255,255,0.65));';
-  thresholdSuffix.textContent = '/ 100 slots';
+  thresholdSuffix.textContent = t('feature.invCapacity.slotsMax');
 
   thresholdRight.append(thresholdInput, thresholdSuffix);
   thresholdWrap.append(thresholdLabel, thresholdRight);
@@ -534,7 +535,7 @@ export function createInventoryCapacitySection(): HTMLElement {
 
   const warningColorLabel = document.createElement('div');
   warningColorLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  warningColorLabel.textContent = 'Warning Color';
+  warningColorLabel.textContent = t('feature.invCapacity.warningColor');
 
   const warningColorInput = document.createElement('input');
   warningColorInput.type = 'color';
@@ -558,7 +559,7 @@ export function createInventoryCapacitySection(): HTMLElement {
 
   const fullColorLabel = document.createElement('div');
   fullColorLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  fullColorLabel.textContent = 'Full Color';
+  fullColorLabel.textContent = t('feature.invCapacity.fullColor');
 
   const fullColorInput = document.createElement('input');
   fullColorInput.type = 'color';
@@ -568,13 +569,13 @@ export function createInventoryCapacitySection(): HTMLElement {
   body.appendChild(fullColorWrap);
 
   // -- Sound config blocks --
-  const warningSoundBlock = buildSoundConfigBlock('Warning Sound', {
+  const warningSoundBlock = buildSoundConfigBlock(t('feature.invCapacity.warningSound'), {
     getConfig: () => getInventoryCapacityConfig().warningSound,
     setConfig: (cfg) => updateInventoryCapacityConfig({ warningSound: cfg }),
   });
   body.appendChild(warningSoundBlock);
 
-  const fullSoundBlock = buildSoundConfigBlock('Full Sound', {
+  const fullSoundBlock = buildSoundConfigBlock(t('feature.invCapacity.fullSound'), {
     getConfig: () => getInventoryCapacityConfig().fullSound,
     setConfig: (cfg) => updateInventoryCapacityConfig({ fullSound: cfg }),
   });

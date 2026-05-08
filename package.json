@@ -14,7 +14,8 @@
     "parse-discord-html": "node --max-old-space-size=4096 scripts/parse-discord-html.js",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "postinstall": "echo Cross-platform setup complete!"
+    "postinstall": "echo Cross-platform setup complete!",
+    "check:i18n": "node scripts/check-i18n-keys.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

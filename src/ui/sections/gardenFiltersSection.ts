@@ -3,10 +3,11 @@ import { getMutationCatalog, getEggCatalog, waitForCatalogs } from '../../catalo
 import { spriteExtractor, getCropSpriteWithMutations } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/canvasHelpers';
 import { createCard } from '../panelHelpers';
+import { t } from '../../i18n';
 
 export async function createGardenFiltersSection(): Promise<HTMLElement> {
-  const { root, body } = createCard('Garden Filters', {
-    subtitle: 'Filter visible crops and eggs in your garden',
+  const { root, body } = createCard(t('feature.gardenFilters.title'), {
+    subtitle: t('feature.gardenFilters.subtitle'),
   });
   root.dataset.qpmSection = 'garden-filters';
 
@@ -35,7 +36,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   });
 
   const enableLabel = document.createElement('span');
-  enableLabel.textContent = 'Enable Garden Filters';
+  enableLabel.textContent = t('feature.gardenFilters.enableToggle');
   enableLabel.style.cssText = `font-weight: 600; font-size: 14px; color: var(--qpm-text, #fff);`;
 
   enableToggle.appendChild(enableCheckbox);
@@ -54,13 +55,18 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     line-height: 1.6;
     color: var(--qpm-text-muted, #aaa);
   `;
-  infoBox.innerHTML = `
-    <strong>How it works:</strong><br>
-    • Dims non-matching crops to alpha 0.1 (barely visible)<br>
-    • Uses "ANY" logic: shows crops with ANY selected filter<br>
-    • Example: Rainbow filter shows Rainbow, Rainbow+Frozen, etc.<br>
-    • Future-proof: Uses catalog data (auto-updates with game)
-  `;
+  const infoStrong = document.createElement('strong');
+  infoStrong.textContent = t('feature.gardenFilters.howItWorks');
+  infoBox.appendChild(infoStrong);
+  for (const key of [
+    'feature.gardenFilters.infoBullet1',
+    'feature.gardenFilters.infoBullet2',
+    'feature.gardenFilters.infoBullet3',
+    'feature.gardenFilters.infoBullet4',
+  ] as const) {
+    infoBox.appendChild(document.createElement('br'));
+    infoBox.appendChild(document.createTextNode(`• ${t(key)}`));
+  }
   body.appendChild(infoBox);
 
   // === MUTATION FILTERS SECTION ===
@@ -76,7 +82,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   `;
 
   const mutationsTitle = document.createElement('h4');
-  mutationsTitle.textContent = 'Mutation Filters';
+  mutationsTitle.textContent = t('feature.gardenFilters.mutationFilters');
   mutationsTitle.style.cssText = `
     margin: 0;
     font-size: 13px;
@@ -104,7 +110,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   });
 
   const filterRemainingLabel = document.createElement('span');
-  filterRemainingLabel.textContent = 'Filter Remaining';
+  filterRemainingLabel.textContent = t('feature.gardenFilters.filterRemaining');
 
   filterRemainingToggle.appendChild(filterRemainingInput);
   filterRemainingToggle.appendChild(filterRemainingLabel);
@@ -197,7 +203,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   cropSection.style.cssText = 'margin-bottom: 16px;';
 
   const cropTitle = document.createElement('h4');
-  cropTitle.textContent = 'Crop Species Filters';
+  cropTitle.textContent = t('feature.gardenFilters.cropSpeciesFilters');
   cropTitle.style.cssText = `
     margin: 0 0 8px 0;
     font-size: 13px;
@@ -273,7 +279,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   eggSection.style.cssText = 'margin-bottom: 16px;';
 
   const eggTitle = document.createElement('h4');
-  eggTitle.textContent = 'Egg Type Filters';
+  eggTitle.textContent = t('feature.gardenFilters.eggTypeFilters');
   eggTitle.style.cssText = `
     margin: 0 0 8px 0;
     font-size: 13px;
@@ -337,7 +343,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   growthSection.style.cssText = 'margin-bottom: 16px;';
 
   const growthTitle = document.createElement('h4');
-  growthTitle.textContent = 'Growth State Filters';
+  growthTitle.textContent = t('feature.gardenFilters.growthStateFilters');
   growthTitle.style.cssText = `
     margin: 0 0 8px 0;
     font-size: 13px;
@@ -347,8 +353,8 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   growthSection.appendChild(growthTitle);
 
   const growthStates: Array<{id: 'mature' | 'growing'; label: string}> = [
-    { id: 'mature', label: 'Mature Only' },
-    { id: 'growing', label: 'Growing Only' },
+    { id: 'mature', label: t('feature.gardenFilters.matureOnly') },
+    { id: 'growing', label: t('feature.gardenFilters.growingOnly') },
   ];
 
   for (const state of growthStates) {
@@ -398,14 +404,14 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   actionsRow.style.cssText = 'display: flex; gap: 8px; margin-top: 16px;';
 
   const applyButton = document.createElement('button');
-  applyButton.textContent = 'Apply Filters';
+  applyButton.textContent = t('feature.gardenFilters.applyFilters');
   applyButton.className = 'qpm-button qpm-button--positive';
   applyButton.addEventListener('click', () => {
     applyGardenFiltersNow();
   });
 
   const resetButton = document.createElement('button');
-  resetButton.textContent = 'Reset All';
+  resetButton.textContent = t('feature.gardenFilters.resetAll');
   resetButton.className = 'qpm-button';
   resetButton.addEventListener('click', () => {
     resetGardenFiltersNow();

@@ -1,6 +1,7 @@
 // src/ui/sections/favoritesSection.ts — Unified Favorites (Auto + Bulk) with tab switching
 
 import { log } from '../../utils/logger';
+import { t } from '../../i18n';
 
 type TabKey = 'rules' | 'bulk';
 
@@ -42,8 +43,8 @@ export function createFavoritesSection(): { element: HTMLElement; cleanup: () =>
     return btn;
   };
 
-  const rulesTab = createTab('rules', 'Rules');
-  const bulkTab = createTab('bulk', 'Bulk');
+  const rulesTab = createTab('rules', t('feature.favorites.tabRules'));
+  const bulkTab = createTab('bulk', t('feature.favorites.tabBulk'));
   tabBar.append(rulesTab, bulkTab);
 
   // Content area
@@ -53,8 +54,8 @@ export function createFavoritesSection(): { element: HTMLElement; cleanup: () =>
   container.append(tabBar, content);
 
   const syncTabStyles = () => {
-    const activeStyle = 'background:rgba(143,130,255,0.15);color:#e8e0ff;';
-    const inactiveStyle = 'background:transparent;color:#776ea8;';
+    const activeStyle = 'background:rgba(143,130,255,0.18);color:#e8e0ff;border-bottom:2px solid #8f82ff;';
+    const inactiveStyle = 'background:transparent;color:#776ea8;border-bottom:2px solid transparent;';
     rulesTab.style.cssText = rulesTab.style.cssText.replace(/background:[^;]+;color:[^;]+;/, activeTab === 'rules' ? activeStyle : inactiveStyle);
     bulkTab.style.cssText = bulkTab.style.cssText.replace(/background:[^;]+;color:[^;]+;/, activeTab === 'bulk' ? activeStyle : inactiveStyle);
   };
@@ -70,7 +71,7 @@ export function createFavoritesSection(): { element: HTMLElement; cleanup: () =>
     content.innerHTML = '';
     const spinner = document.createElement('div');
     spinner.style.cssText = 'color:rgba(224,224,224,0.45);font-size:12px;padding:8px;';
-    spinner.textContent = '⏳ Loading...';
+    spinner.textContent = `⏳ ${t('common.loading')}`;
     content.appendChild(spinner);
 
     (async () => {
@@ -87,7 +88,7 @@ export function createFavoritesSection(): { element: HTMLElement; cleanup: () =>
         }
       } catch (err) {
         log('⚠️ Failed to load favorites tab', err);
-        spinner.textContent = '❌ Failed to load';
+        spinner.textContent = `❌ ${t('common.loadError')}`;
       }
     })();
   };

@@ -216,7 +216,7 @@ function buildSpending(): EconomySnapshot['spending'] {
     dust: stats.totalSpentMagicDust,
   };
 
-  const categories: ShopCategoryKey[] = ['seeds', 'eggs', 'tools', 'decor'];
+  const categories: ShopCategoryKey[] = ['seeds', 'eggs', 'tools', 'decor', 'dawn'];
   const byCategory = {} as Record<ShopCategoryKey, SpendingBreakdown>;
 
   for (const cat of categories) {

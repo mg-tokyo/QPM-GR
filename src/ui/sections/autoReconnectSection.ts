@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { createCard } from '../panelHelpers';
 import {
   getAutoReconnectConfig,
@@ -27,7 +28,7 @@ function formatDelayLabel(seconds: number): string {
 }
 
 export function createAutoReconnectSection(): HTMLElement {
-  const { root, body } = createCard('Auto Reconnect');
+  const { root, body } = createCard(t('hub.config.autoReconnect.label'));
   root.dataset.qpmSection = 'auto-reconnect';
 
   const toggleRow = document.createElement('label');
@@ -48,7 +49,7 @@ export function createAutoReconnectSection(): HTMLElement {
 
   const toggleTitle = document.createElement('div');
   toggleTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  toggleTitle.textContent = 'Enable Auto Reconnect';
+  toggleTitle.textContent = t('feature.autoReconnect.enableToggle');
 
   toggleTextWrap.append(toggleTitle);
 
@@ -75,7 +76,7 @@ export function createAutoReconnectSection(): HTMLElement {
 
   const delayLabel = document.createElement('div');
   delayLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  delayLabel.textContent = 'Reconnect Delay';
+  delayLabel.textContent = t('feature.autoReconnect.delayLabel');
 
   const delayValue = document.createElement('div');
   delayValue.style.cssText = [
@@ -118,7 +119,7 @@ export function createAutoReconnectSection(): HTMLElement {
 
   const inputSuffix = document.createElement('span');
   inputSuffix.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,rgba(255,255,255,0.65));';
-  inputSuffix.textContent = 's (0-300, step 30)';
+  inputSuffix.textContent = t('feature.autoReconnect.delayHint');
 
   inputRow.append(delayInput, inputSuffix);
   delayWrap.appendChild(inputRow);

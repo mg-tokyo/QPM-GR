@@ -107,6 +107,7 @@ export function createInitialUIState(): UIState {
       eggs: null,
       tools: null,
       decor: null,
+      dawn: null,
     },
     turtleStatus: null,
     turtleDetail: null,

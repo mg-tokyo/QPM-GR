@@ -1,5 +1,8 @@
 // src/ui/panel/tileRegistry.ts
 import { log } from '../../utils/logger';
+import { openDetachedTracker } from '../hubWindow/groups/trackersGroup';
+import { TEXTURE_MANIPULATOR_ENABLED } from '../../features/textureSwapper';
+import { t } from '../../i18n';
 
 export interface TileDefinition {
   readonly id: string;
@@ -32,7 +35,7 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'pet-teams',
     icon: '👥',
-    label: 'Pet Teams',
+    label: t('tile.petTeams.label'),
     color: 'rgba(255, 152, 0, 0.28)',
     action: () => {
       import('../petsWindow').then(({ togglePetsWindow }) => togglePetsWindow())
@@ -43,7 +46,7 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'shop-restock',
     icon: '🏪',
-    label: 'Shop Restock',
+    label: t('tile.shopRestock.label'),
     color: 'rgba(0, 188, 212, 0.28)',
     action: () => {
       import('../shopRestockWindow').then(({ openShopRestockWindow }) => openShopRestockWindow())
@@ -54,11 +57,11 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'public-rooms',
     icon: '🌐',
-    label: 'Public Rooms',
+    label: t('tile.publicRooms.label'),
     color: 'rgba(233, 30, 99, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('public-rooms', '🌐 Public Rooms', (root) => {
+        toggleWindow('public-rooms', `🌐 ${t('tile.publicRooms.label')}`, (root) => {
           import('../publicRoomsWindow')
             .then(({ renderPublicRoomsWindow }) => renderPublicRoomsWindow(root))
             .catch(e => log('⚠️ Failed to load Public Rooms', e));
@@ -70,11 +73,11 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'journal-checker',
     icon: '📔',
-    label: 'Journal Checker',
+    label: t('tile.journalChecker.label'),
     color: 'rgba(121, 85, 72, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('journal-checker-window', '📔 Journal Checker', (root) => {
+        toggleWindow('journal-checker-window', `📔 ${t('tile.journalChecker.label')}`, (root) => {
           root.style.padding = '0';
           import('../journalCheckerSection').then(({ createJournalCheckerSection }) => {
             root.appendChild(createJournalCheckerSection());
@@ -87,63 +90,37 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'ability-tracker',
     icon: '📊',
-    label: 'Ability Tracker',
+    label: t('tile.abilityTracker.label'),
     color: 'rgba(76, 175, 80, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('trackers-v2-ability', '📊 Ability Tracker', (root) => {
-          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;';
-          import('../trackerWindow').then(({ createAbilityTrackerWindow, setGlobalAbilityTrackerState }) => {
-            const state = createAbilityTrackerWindow();
-            setGlobalAbilityTrackerState(state);
-            root.appendChild(state.root);
-          }).catch(e => log('⚠️ Failed to load Ability Tracker', e));
-        }, '1200px', '90vh');
-      });
+      openDetachedTracker('trackers-v2-ability', `📊 ${t('tile.abilityTracker.label')}`, 'ability', '1200px');
     },
   });
 
   registerTile({
     id: 'xp-tracker',
     icon: '✨',
-    label: 'XP Tracker',
+    label: t('tile.xpTracker.label'),
     color: 'rgba(255, 215, 0, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('trackers-v2-xp', '✨ XP Tracker', (root) => {
-          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;';
-          import('../xpTrackerWindow').then(({ createXpTrackerWindow, setGlobalXpTrackerState }) => {
-            const state = createXpTrackerWindow();
-            setGlobalXpTrackerState(state);
-            root.appendChild(state.root);
-          }).catch(e => log('⚠️ Failed to load XP Tracker', e));
-        }, '900px', '90vh');
-      });
+      openDetachedTracker('trackers-v2-xp', `✨ ${t('tile.xpTracker.label')}`, 'xp', '900px');
     },
   });
 
   registerTile({
     id: 'turtle-timer',
     icon: '🐢',
-    label: 'Turtle Timer',
+    label: t('tile.turtleTimer.label'),
     color: 'rgba(102, 187, 106, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('trackers-v2-turtle', '🐢 Turtle Timer', (root) => {
-          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;';
-          import('../turtleTimerWindow').then(({ createTurtleTimerWindow }) => {
-            const state = createTurtleTimerWindow();
-            root.appendChild(state.root);
-          }).catch(e => log('⚠️ Failed to load Turtle Timer', e));
-        }, '700px', '90vh');
-      });
+      openDetachedTracker('trackers-v2-turtle', `🐢 ${t('tile.turtleTimer.label')}`, 'turtle', '700px');
     },
   });
 
   registerTile({
     id: 'crop-boosts',
     icon: '🌱',
-    label: 'Crop Boosts',
+    label: t('tile.cropBoosts.label'),
     color: 'rgba(139, 195, 74, 0.28)',
     action: () => {
       import('../cropBoostTrackerWindow').then(({ openCropBoostTrackerWindow }) => openCropBoostTrackerWindow())
@@ -154,11 +131,11 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'value-display',
     icon: '💰',
-    label: 'Value Display',
+    label: t('tile.valueDisplay.label'),
     color: 'rgba(255, 193, 7, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('trackers-v2-storageValue', '💰 Value Display', (root) => {
+        toggleWindow('trackers-v2-storageValue', `💰 ${t('tile.valueDisplay.label')}`, (root) => {
           root.style.cssText = 'overflow-y:auto;';
           import('../storageValueWindow').then(({ renderStorageValueSettings }) => {
             renderStorageValueSettings(root);
@@ -171,11 +148,11 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'activity-log',
     icon: '📜',
-    label: 'Activity Log',
+    label: t('tile.activityLog.label'),
     color: 'rgba(158, 118, 255, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('utility-feature-activity-log', '📜 Activity Log', (root) => {
+        toggleWindow('utility-feature-activity-log', `📜 ${t('tile.activityLog.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/activityLogSection').then(({ createActivityLogSection }) => {
             root.appendChild(createActivityLogSection());
@@ -188,11 +165,11 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'locker',
     icon: '🔒',
-    label: 'Protection',
+    label: t('tile.protection.label'),
     color: 'rgba(244, 67, 54, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('utility-feature-protection', '🔒 Protection', (root) => {
+        toggleWindow('utility-feature-protection', `🔒 ${t('tile.protection.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/protectionSection').then(({ createProtectionSection }) => {
             root.appendChild(createProtectionSection().element);
@@ -205,7 +182,7 @@ export function registerBuiltinTiles(): void {
   registerTile({
     id: 'crop-calculator',
     icon: '🧮',
-    label: 'Crop Calculator',
+    label: t('tile.cropCalculator.label'),
     color: 'rgba(3, 169, 244, 0.28)',
     action: () => {
       import('../cropCalculatorWindow').then(({ openCalculatorWindow }) => openCalculatorWindow())
@@ -214,24 +191,13 @@ export function registerBuiltinTiles(): void {
   });
 
   registerTile({
-    id: 'texture-swapper',
-    icon: '🖼️',
-    label: 'Texture Swapper',
-    color: 'rgba(171, 71, 188, 0.28)',
-    action: () => {
-      import('../textureSwapperWindow').then(({ openTextureSwapperWindow }) => openTextureSwapperWindow())
-        .catch(e => log('⚠️ Failed to open Texture Swapper', e));
-    },
-  });
-
-  registerTile({
     id: 'controller',
     icon: '🎮',
-    label: 'Controller',
+    label: t('tile.controller.label'),
     color: 'rgba(96, 125, 139, 0.28)',
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('utility-feature-controller', '🎮 Controller Settings', (root) => {
+        toggleWindow('utility-feature-controller', `🎮 ${t('tile.controller.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/controllerSection').then(({ createControllerSection }) => {
             root.appendChild(createControllerSection(null, null));
@@ -240,4 +206,194 @@ export function registerBuiltinTiles(): void {
       });
     },
   });
+
+  // ── Garden group ────────────────────────────────────────────────────────────
+
+  registerTile({
+    id: 'garden-filters',
+    icon: '🔍',
+    label: t('tile.gardenFilters.label'),
+    color: 'rgba(192, 132, 252, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('utility-feature-garden-filters', `🔍 ${t('tile.gardenFilters.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../sections/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
+            root.appendChild(await createGardenFiltersSection());
+          }).catch(e => log('⚠️ Failed to load Garden Filters', e));
+        }, '580px', '78vh');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'reminders',
+    icon: '🔔',
+    label: t('tile.reminders.label'),
+    color: 'rgba(52, 211, 153, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('utility-feature-reminders', `🔔 ${t('tile.reminders.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../originalPanel').then(({ renderRemindersContent }) => {
+            renderRemindersContent(root);
+          }).catch(e => log('⚠️ Failed to load Reminders', e));
+        }, '580px', '78vh');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'garden-stats',
+    icon: '🌿',
+    label: t('tile.gardenStats.label'),
+    color: 'rgba(147, 197, 253, 0.28)',
+    action: () => {
+      import('../statsHubWindow').then(({ openStatsHubWindow }) => openStatsHubWindow())
+        .catch(e => log('⚠️ Failed to open Garden Stats', e));
+    },
+  });
+
+  // ── Items group ─────────────────────────────────────────────────────────────
+
+  registerTile({
+    id: 'favorites',
+    icon: '⭐',
+    label: t('tile.favorites.label'),
+    color: 'rgba(244, 114, 182, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('hub-favorites', `⭐ ${t('tile.favorites.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../sections/favoritesSection').then(({ createFavoritesSection }) => {
+            const { element } = createFavoritesSection();
+            root.appendChild(element);
+          }).catch(e => log('⚠️ Failed to load Favorites', e));
+        }, '580px', '78vh');
+      });
+    },
+  });
+
+  // ── Config group ────────────────────────────────────────────────────────────
+
+  registerTile({
+    id: 'auto-reconnect',
+    icon: '↻',
+    label: t('tile.autoReconnect.label'),
+    color: 'rgba(167, 139, 250, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('config-auto-reconnect', `↻ ${t('tile.autoReconnect.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../hubWindow/groups/configGroup').then(({ renderAutoReconnectExpanded }) => {
+            renderAutoReconnectExpanded(root);
+          }).catch(e => log('⚠️ Failed to load Auto Reconnect', e));
+        }, '420px', '50vh');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'shop-keybinds',
+    icon: '⌨️',
+    label: t('tile.shopKeybinds.label'),
+    color: 'rgba(96, 165, 250, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('config-shop-keybinds', `⌨️ ${t('tile.shopKeybinds.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../hubWindow/groups/configGroup').then(({ renderShopKeybindsExpanded }) => {
+            renderShopKeybindsExpanded(root);
+          }).catch(e => log('⚠️ Failed to load Shop Keybinds', e));
+        }, '420px', '60vh');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'panel-shortcut',
+    icon: '⌨️',
+    label: t('tile.panelShortcut.label'),
+    color: 'rgba(167, 139, 250, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('config-panel-shortcut', `⌨️ ${t('tile.panelShortcut.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../hubWindow/groups/configGroup').then(({ renderPanelShortcutExpanded }) => {
+            renderPanelShortcutExpanded(root);
+          }).catch(e => log('⚠️ Failed to load Panel Shortcut', e));
+        }, '420px', '50vh');
+      });
+    },
+  });
+
+  // ── Tools group ─────────────────────────────────────────────────────────────
+
+  registerTile({
+    id: 'guide',
+    icon: '📖',
+    label: t('tile.guide.label'),
+    color: 'rgba(147, 197, 253, 0.28)',
+    action: () => {
+      import('../modalWindow').then(({ toggleWindow }) => {
+        toggleWindow('guide-window', `📖 ${t('tile.guide.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../sections/guideSection').then(({ createGuideSection }) => {
+            root.appendChild(createGuideSection());
+          }).catch(e => log('⚠️ Failed to load Guide', e));
+        }, '700px', '85vh');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'decor-layout',
+    icon: '🏰',
+    label: t('tile.decorLayout.label'),
+    color: 'rgba(196, 181, 253, 0.28)',
+    action: () => {
+      import('../hubWindow/groups/toolsGroup').then(({ openExternalUrl }) => {
+        openExternalUrl('https://ryandt2305-cpu.github.io/MG-Decor-Layout-Customiser/');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'sprite-customizer',
+    icon: '🖼️',
+    label: t('tile.spriteCustomiser.label'),
+    color: 'rgba(249, 168, 212, 0.28)',
+    action: () => {
+      import('../hubWindow/groups/toolsGroup').then(({ openExternalUrl }) => {
+        openExternalUrl('https://ryandt2305-cpu.github.io/MG-Sprite-Customiser-V2/');
+      });
+    },
+  });
+
+  registerTile({
+    id: 'celestial-calculator',
+    icon: '🌟',
+    label: t('tile.celestialCalculator.label'),
+    color: 'rgba(253, 230, 138, 0.28)',
+    action: () => {
+      import('../hubWindow/groups/toolsGroup').then(({ openExternalUrl }) => {
+        openExternalUrl('https://ryandt2305-cpu.github.io/Celestial-Position-Layout-Calculator/');
+      });
+    },
+  });
+
+  // ── Conditional: Texture Manipulator ────────────────────────────────────────
+
+  if (TEXTURE_MANIPULATOR_ENABLED) {
+    registerTile({
+      id: 'texture-manipulator',
+      icon: '🖌️',
+      label: t('tile.textureManipulator.label'),
+      color: 'rgba(134, 239, 172, 0.28)',
+      action: () => {
+        import('../textureSwapperWindow').then(({ openTextureSwapperWindow }) => openTextureSwapperWindow())
+          .catch(e => log('⚠️ Failed to open Texture Manipulator', e));
+      },
+    });
+  }
 }

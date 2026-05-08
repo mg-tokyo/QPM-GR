@@ -12,6 +12,7 @@ import {
   makeHint, makeMutationTile, type EligibleData,
 } from './lockerPrimitives';
 import { buildPlantPicker } from './lockerPlantPicker';
+import { t } from '../../i18n';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ function renderMutationTiles(
 ): void {
   container.innerHTML = '';
   if (mutationIds.length === 0) {
-    container.appendChild(makeHint('No mutations available.'));
+    container.appendChild(makeHint(t('feature.locker.noMutationsAvailable')));
     return;
   }
   for (const mutId of mutationIds) {
@@ -99,7 +100,7 @@ function renderRuleRow(rule: CustomRule, index: number, onDelete: () => void): H
 
   const delBtn = document.createElement('button');
   delBtn.textContent = '\ud83d\uddd1\ufe0f';
-  delBtn.title = 'Remove rule';
+  delBtn.title = t('feature.locker.removeRule');
   delBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:0.6;flex-shrink:0';
   delBtn.addEventListener('mouseenter', () => { delBtn.style.opacity = '1'; });
   delBtn.addEventListener('mouseleave', () => { delBtn.style.opacity = '0.6'; });
@@ -112,14 +113,14 @@ function renderRuleRow(rule: CustomRule, index: number, onDelete: () => void): H
 // ── Main card builder ───────────────────────────────────────────────────────
 
 export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleData): HTMLElement {
-  const { root, body } = createCard('Custom Rules', { collapsible: true });
+  const { root, body } = createCard(t('feature.locker.customRules'), { collapsible: true });
 
   let selectedSpecies: string | null = null;
   const selectedMutations = new Set<string>();
 
   // ── Plant picker ──
   const plantLabel = document.createElement('div');
-  plantLabel.textContent = 'Plant';
+  plantLabel.textContent = t('feature.locker.plant');
   plantLabel.style.cssText = LABEL_CSS + ';font-size:12px;padding:2px 0';
   body.appendChild(plantLabel);
 
@@ -131,7 +132,7 @@ export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleDat
 
   // ── Mutation picker ──
   const mutLabelEl = document.createElement('div');
-  mutLabelEl.textContent = 'Mutations';
+  mutLabelEl.textContent = t('feature.locker.mutations');
   mutLabelEl.style.cssText = LABEL_CSS + ';font-size:12px;padding:6px 0 2px';
   body.appendChild(mutLabelEl);
 
@@ -141,7 +142,7 @@ export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleDat
   function rebuildMutGrid(): void {
     if (!areCatalogsReady()) {
       mutGrid.innerHTML = '';
-      mutGrid.appendChild(makeHint('Mutation catalog not loaded.'));
+      mutGrid.appendChild(makeHint(t('feature.locker.mutationCatalogNotLoaded')));
       return;
     }
     renderMutationTiles(mutGrid, getAllMutations().sort(), selectedMutations, () => { updateAddBtn(); });
@@ -151,7 +152,7 @@ export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleDat
 
   // ── Add button ──
   const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Add Rules';
+  addBtn.textContent = t('feature.locker.addRules');
   addBtn.style.cssText = 'padding:6px 14px;border-radius:6px;border:1px solid rgba(143,130,255,0.5);background:rgba(143,130,255,0.15);color:#8f82ff;font-size:11px;font-weight:600;cursor:pointer;align-self:flex-start;margin-top:2px';
   addBtn.disabled = true;
   addBtn.style.opacity = '0.5';
@@ -192,7 +193,7 @@ export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleDat
 
   // ── Rule list ──
   const ruleListLabel = document.createElement('div');
-  ruleListLabel.textContent = 'Active Rules';
+  ruleListLabel.textContent = t('feature.locker.activeRules');
   ruleListLabel.style.cssText = LABEL_CSS + ';font-size:12px;padding:2px 0';
   body.appendChild(ruleListLabel);
 
@@ -203,7 +204,7 @@ export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleDat
     ruleList.innerHTML = '';
     const cur = getLockerConfig();
     if (cur.customRules.length === 0) {
-      ruleList.appendChild(makeHint('No custom rules yet.'));
+      ruleList.appendChild(makeHint(t('feature.locker.noCustomRulesYet')));
     } else {
       for (let i = 0; i < cur.customRules.length; i++) {
         const index = i;

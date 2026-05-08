@@ -6,11 +6,18 @@ import {
   clearShopKeybind,
   isShopKeybindsEnabled,
   setShopKeybindsEnabled,
-  SHOP_LABELS,
   type ShopId,
 } from '../../features/shopKeybinds';
+import { t } from '../../i18n';
 
 const SHOP_IDS: readonly ShopId[] = ['seedShop', 'eggShop', 'toolShop', 'decorShop'];
+
+const SHOP_I18N_KEYS: Record<ShopId, string> = {
+  seedShop: 'feature.shopKeybinds.seedShop',
+  eggShop: 'feature.shopKeybinds.eggShop',
+  toolShop: 'feature.shopKeybinds.toolShop',
+  decorShop: 'feature.shopKeybinds.decorShop',
+};
 
 /** Inline styles matching .qpm-keybind-input so the button renders correctly
  *  even when the pets window stylesheet hasn't been injected. */
@@ -32,7 +39,7 @@ const KEYBIND_BTN_STYLE = [
 ].join(';');
 
 export function createShopKeybindsSection(): HTMLElement {
-  const { root, body } = createCard('Shop Keybinds');
+  const { root, body } = createCard(t('hub.config.shopKeybinds.label'));
   root.dataset.qpmSection = 'shop-keybinds';
 
   // Toggle row
@@ -51,7 +58,7 @@ export function createShopKeybindsSection(): HTMLElement {
 
   const toggleTitle = document.createElement('div');
   toggleTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-  toggleTitle.textContent = 'Enable Shop Keybinds';
+  toggleTitle.textContent = t('feature.shopKeybinds.enableToggle');
 
   const toggleInput = document.createElement('input');
   toggleInput.type = 'checkbox';
@@ -92,7 +99,7 @@ export function createShopKeybindsSection(): HTMLElement {
 
     const label = document.createElement('div');
     label.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
-    label.textContent = SHOP_LABELS[shopId];
+    label.textContent = t(SHOP_I18N_KEYS[shopId]);
 
     const kbBtn = createKeybindButton({
       onSet: (combo) => setShopKeybind(shopId, combo),

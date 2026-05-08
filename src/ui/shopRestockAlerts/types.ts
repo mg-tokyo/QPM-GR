@@ -34,7 +34,7 @@ export const ALERT_DEBUG_ENABLED = false;
 // Types
 // ---------------------------------------------------------------------------
 
-export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool';
+export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'dawn';
 
 export interface AlertModel {
   key: string;
@@ -44,6 +44,9 @@ export interface AlertModel {
   label: string;
   quantity: number;
   priceCoins: number | null;
+  weatherBound?: boolean;
+  /** V16 ItemType hint for PurchaseShopItem ('Seed'|'Egg'|'Tool'|'Decor'). */
+  itemType?: string;
 }
 
 export interface ActiveAlert {

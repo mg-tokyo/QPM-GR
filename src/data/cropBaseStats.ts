@@ -377,6 +377,54 @@ export const CROP_BASE_STATS: Record<string, CropStats> = {
     maxWeight: 0, // TODO: Update with actual stats from wiki
     exclusive: 'Divine', // Divine rarity
   },
+
+  // Dawn content (PR-2644) — confirmed from beta floraSpeciesDex
+  daisy: {
+    name: 'Daisy',
+    seedPrice: 100,
+    baseSellPrice: 99,
+    cropGrowTime: 0, // Single harvest, no secondsToMature
+    regrow: '2-3 Slots',
+    baseWeight: 0.01,
+    maxWeight: 0.025, // baseWeight × maxScale(2.5)
+  },
+  purpledaisy: {
+    name: 'Purple Daisy',
+    seedPrice: 0, // Hidden — 1/250 chance from Daisy planting
+    baseSellPrice: 9999,
+    cropGrowTime: 0, // Single harvest
+    regrow: 'No',
+    baseWeight: 0.01,
+    maxWeight: 0.025, // baseWeight × maxScale(2.5)
+    exclusive: 'Daisy Variant',
+  },
+  lavender: {
+    name: 'Lavender',
+    seedPrice: 10000,
+    baseSellPrice: 20000,
+    cropGrowTime: 0, // Single harvest, no secondsToMature
+    regrow: 'No',
+    baseWeight: 0.02,
+    maxWeight: 0.06, // baseWeight × maxScale(3.0)
+  },
+  ube: {
+    name: 'Ube',
+    seedPrice: 1000000,
+    baseSellPrice: 2000000,
+    cropGrowTime: 0, // Single harvest, no secondsToMature
+    regrow: 'No',
+    baseWeight: 3.5,
+    maxWeight: 10.5, // baseWeight × maxScale(3.0)
+  },
+  dawnbreaker: {
+    name: 'Dawnbreaker',
+    seedPrice: 10000000,
+    baseSellPrice: 12000000,
+    cropGrowTime: 0, // Single harvest, no secondsToMature
+    regrow: 'No',
+    baseWeight: 3.5,
+    maxWeight: 10.5, // baseWeight × maxScale(3.0)
+  },
 };
 
 /**
