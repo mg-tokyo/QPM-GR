@@ -9,14 +9,20 @@ import { t } from '../../i18n';
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
     version: "3.2.0",
-    date: "2026-05",
+    date: "2026-05-08",
     notes: [
-      "UI Redesign: Replaced Trackers Hub, Utility Hub, and Tools Hub with a unified QPM Hub",
-      "Features organized into task-based groups: Trackers, Items, Garden, Config, Tools",
+      "UI Redesign: unified QPM Hub replaces Trackers, Utility, and Tools hubs",
+      "Hub features organized into groups: Trackers, Items, Garden, Config, Tools",
       "Cards show live summaries and expand in-place with accordion behavior",
-      "Auto-Favorite + Bulk Favorite unified into Favorites section with tab switching",
-      "Locker + Inventory Capacity unified into Protection section",
-      "Main panel streamlined from 8 tiles to 6",
+      "Auto-Favorite + Bulk Favorite merged into single Favorites section",
+      "Locker + Inventory Capacity merged into Protection section",
+      "Main panel streamlined from 8 tiles to 6 with colorful glow and live stats",
+      "Dawn content: Daisy, Lavender, Ube, Dawnbreaker, Sheep, Horse, Hedgehog, Pony, FireHorse",
+      "Dawn Shop tracker, Dawn Capsule pull tracker, DawnCapture cooldown tracker",
+      "Dawn economy session tracking (spend/harvest/ROI)",
+      "Unified shop purchase API (PurchaseShopItem) replacing 4 separate actions",
+      "i18n system: locale detection with English and Spanish dictionaries",
+      "Panel hotkey, tile status badges, panel footer",
     ],
   },
   {
