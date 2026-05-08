@@ -109,6 +109,7 @@ export function normalizeShopType(rawType: unknown): RestockShopType | null {
   if (type === 'egg' || type === 'eggs') return 'egg';
   if (type === 'decor' || type === 'decoration' || type === 'decorations') return 'decor';
   if (type === 'tool' || type === 'tools') return 'tool';
+  if (type === 'dawn') return 'dawn';
   return null;
 }
 
@@ -306,23 +307,39 @@ export function buildDecorShedKeyCounts(myDataValue: unknown): Map<string, numbe
 // Ownership counting and baseline
 // ---------------------------------------------------------------------------
 
+function resolveDawnOwnershipKey(dawnKey: string): string {
+  if (!dawnKey.startsWith('dawn:')) return dawnKey;
+  const suffix = dawnKey.slice('dawn:'.length);
+  for (const prefix of ['seed', 'tool', 'egg', 'decor'] as const) {
+    const candidate = `${prefix}:${suffix}`;
+    if (alertState.inventoryKeyCounts.has(candidate)) return candidate;
+  }
+  for (const prefix of ['seed', 'tool', 'egg', 'decor'] as const) {
+    const candidate = `${prefix}:${suffix}`;
+    if (alertState.seedSiloKeyCounts.has(candidate) || alertState.decorShedKeyCounts.has(candidate)) return candidate;
+  }
+  return dawnKey;
+}
+
 export function combinedOwnedCount(
   key: string,
   inventoryCounts: Map<string, number>,
   seedSiloCounts: Map<string, number>,
   decorShedCounts: Map<string, number>,
 ): number {
-  const inventoryQty = inventoryCounts.get(key) ?? 0;
-  if (key.startsWith('seed:')) return inventoryQty + (seedSiloCounts.get(key) ?? 0);
-  if (key.startsWith('decor:')) return inventoryQty + (decorShedCounts.get(key) ?? 0);
+  const resolvedKey = resolveDawnOwnershipKey(key);
+  const inventoryQty = inventoryCounts.get(resolvedKey) ?? 0;
+  if (resolvedKey.startsWith('seed:')) return inventoryQty + (seedSiloCounts.get(resolvedKey) ?? 0);
+  if (resolvedKey.startsWith('decor:')) return inventoryQty + (decorShedCounts.get(resolvedKey) ?? 0);
   return inventoryQty;
 }
 
 function readOwnedCountFromBaseline(key: string, baseline: OwnershipBaseline): number {
+  const resolvedKey = resolveDawnOwnershipKey(key);
   let total = 0;
-  if (baseline.includeInventory) total += alertState.inventoryKeyCounts.get(key) ?? 0;
-  if (baseline.includeSeedSilo)  total += alertState.seedSiloKeyCounts.get(key) ?? 0;
-  if (baseline.includeDecorShed) total += alertState.decorShedKeyCounts.get(key) ?? 0;
+  if (baseline.includeInventory) total += alertState.inventoryKeyCounts.get(resolvedKey) ?? 0;
+  if (baseline.includeSeedSilo)  total += alertState.seedSiloKeyCounts.get(resolvedKey) ?? 0;
+  if (baseline.includeDecorShed) total += alertState.decorShedKeyCounts.get(resolvedKey) ?? 0;
   return total;
 }
 
@@ -331,9 +348,9 @@ export function hasOwnershipSource(baseline: OwnershipBaseline): boolean {
 }
 
 export async function waitForOwnershipBaselines(shopType: RestockShopType): Promise<void> {
-  const requiresSeedSilo      = shopType === 'seed';
-  const requiresDecorShed     = shopType === 'decor';
-  const requiresToolInventory = shopType === 'tool';
+  const requiresSeedSilo      = shopType === 'seed' || shopType === 'dawn';
+  const requiresDecorShed     = shopType === 'decor' || shopType === 'dawn';
+  const requiresToolInventory = shopType === 'tool' || shopType === 'dawn';
   const ready = (): boolean =>
     alertState.hasInventoryBaseline &&
     (!requiresSeedSilo      || alertState.hasSeedSiloBaseline) &&
@@ -345,8 +362,8 @@ export async function waitForOwnershipBaselines(shopType: RestockShopType): Prom
 
 export function captureOwnershipBaseline(key: string, shopType: RestockShopType): OwnershipBaseline {
   const includeInventory  = alertState.hasInventoryBaseline;
-  const includeSeedSilo   = shopType === 'seed'  && alertState.hasSeedSiloBaseline;
-  const includeDecorShed  = shopType === 'decor' && alertState.hasDecorShedBaseline;
+  const includeSeedSilo   = (shopType === 'seed'  || shopType === 'dawn') && alertState.hasSeedSiloBaseline;
+  const includeDecorShed  = (shopType === 'decor' || shopType === 'dawn') && alertState.hasDecorShedBaseline;
   const baseline: OwnershipBaseline = {
     count: 0,
     includeInventory,
@@ -573,8 +590,11 @@ export function applyOwnershipDelta(
 function mergeToolCountsInto(counts: Map<string, number>): void {
   // Tool items are in a separate atom (myToolInventoryAtom) — merge them in
   // so all cap-check and ownership-delta logic can read from one place.
+  // Use Math.max to avoid regressing a correct general-inventory count with
+  // stale tool-atom data during the race window between snapshot handlers.
   for (const [key, qty] of alertState.toolInventoryKeyCounts.entries()) {
-    counts.set(key, qty);
+    const existing = counts.get(key) ?? 0;
+    counts.set(key, Math.max(existing, qty));
   }
 }
 

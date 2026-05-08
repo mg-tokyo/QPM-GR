@@ -1,7 +1,7 @@
 // src/ui/hubWindow/groups/trackersGroup.ts
 
 import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../cards/types';
-import { toggleWindow } from '../../modalWindow';
+import { toggleWindow, openWindow, closeWindow, destroyWindow, isWindowOpen } from '../../modalWindow';
 import { log } from '../../../utils/logger';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
@@ -103,7 +103,16 @@ function embedWindowRoot(windowRoot: HTMLElement, container: HTMLElement): void 
 }
 
 export function openDetachedTracker(windowId: string, title: string, key: string, width: string): void {
-  toggleWindow(windowId, title, (root) => {
+  // If window is currently visible, close it (toggle behaviour).
+  if (isWindowOpen(windowId)) {
+    closeWindow(windowId);
+    return;
+  }
+  // Destroy any stale hidden window so the tracker is rebuilt with
+  // fresh content + subscriptions.  Position/size restore from storage
+  // automatically inside openWindow.
+  destroyWindow(windowId);
+  openWindow(windowId, title, (root) => {
     root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;';
     makeTrackerExpanded(key)(root);
   }, width, '90vh');

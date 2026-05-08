@@ -144,7 +144,9 @@ export function getPurchaseItemId(shopType: RestockShopType, item: ShopStockItem
   if (shopType === 'dawn') {
     // Dawn shop carries mixed item types — read itemType from raw to pick the right ID field
     const itemType = raw?.itemType as string | undefined;
-    if (itemType === 'Egg')  return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
+    if (itemType === 'Egg')   return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
+    if (itemType === 'Tool')  return firstString([raw?.toolId,  item.id, raw?.id]) ?? item.id;
+    if (itemType === 'Decor') return firstString([raw?.decorId, item.id, raw?.id]) ?? item.id;
     // Default: treat as seed (most Dawn items are seeds)
     return firstString([raw?.species, item.id, raw?.id]) ?? item.id;
   }

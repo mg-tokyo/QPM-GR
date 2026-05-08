@@ -84,7 +84,7 @@ export function applyInventoryCapToQuantity(
   canonicalKey: string,
   requested: number,
 ): number {
-  if (shopType !== 'tool') return requested;
+  if (shopType !== 'tool' && shopType !== 'dawn') return requested;
   const limit = getToolInventoryLimitFromKey(canonicalKey);
   if (limit == null) return requested;
   const owned = getOwnedToolCount(itemId, canonicalKey);

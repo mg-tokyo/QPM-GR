@@ -27,7 +27,7 @@ export const DECOR_SHED_STORAGE_ID    = 'decorshed';
 export const SEED_SILO_WS_STORAGE_ID  = 'SeedSilo';
 export const DECOR_SHED_WS_STORAGE_ID = 'DecorShed';
 export const TOOL_STACK_LIMIT   = 99;
-export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan']);
+export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan', 'replenishpotion', 'xppotion']);
 export const ALERT_DEBUG_ENABLED = false;
 
 // ---------------------------------------------------------------------------
