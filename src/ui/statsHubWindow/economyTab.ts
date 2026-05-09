@@ -2,6 +2,7 @@
 // Economy tab — balances, spending, transactions, compare with room player.
 
 import { onGardenSnapshot, getGardenSnapshot } from '../../features/gardenBridge';
+import { t } from '../../i18n';
 import { formatCoinsAbbreviated } from '../../features/valueCalculator';
 import { computeGardenValueFromCatalog } from '../../features/valueCalculator';
 import { computeInventoryValue, computeAllStoragesValue, computeActivePetsValue, computePlacedDecorAndEggValue, computeGrowingCropsValue, onStorageDataChange } from '../../features/storageValue';
@@ -73,7 +74,7 @@ function balanceChip(
   if (!connected) {
     const note = document.createElement('div');
     note.style.cssText = 'font-size:9px;color:rgba(224,224,224,0.35);';
-    note.textContent = 'not connected';
+    note.textContent = t('feature.statsHub.economy.notConnected');
     col.appendChild(note);
   } else if (rate != null && Math.abs(rate) >= 1) {
     const rateEl = document.createElement('div');
@@ -89,7 +90,7 @@ function balanceChip(
   // Pop-out button
   const popBtn = document.createElement('button');
   popBtn.type = 'button';
-  popBtn.title = `Pop out ${label}`;
+  popBtn.title = t('feature.statsHub.economy.popOut', { label });
   const open = isValueCardOpen(cardType);
   popBtn.style.cssText = `background:none;border:1px solid rgba(143,130,255,${open ? '0.5' : '0.25'});border-radius:4px;color:rgba(224,224,224,${open ? '0.8' : '0.45'});font-size:11px;cursor:pointer;padding:1px 4px;flex-shrink:0;transition:color 0.12s,border-color 0.12s;line-height:1;`;
   popBtn.textContent = '\u2197';
@@ -150,7 +151,7 @@ function buildTransactionRow(tx: Transaction): HTMLElement {
   ].join(';');
 
   const isIncome = tx.amount > 0;
-  const label = CURRENCY_LABELS[tx.currency] ?? 'Currency';
+  const label = CURRENCY_LABELS[tx.currency] ?? t('feature.statsHub.economy.currency');
 
   // Currency sprite
   row.appendChild(currencyIcon(tx.currency, 20));
@@ -161,7 +162,7 @@ function buildTransactionRow(tx: Transaction): HTMLElement {
   if (tx.context) {
     desc.textContent = tx.context;
   } else {
-    desc.textContent = isIncome ? `Earned ${label}` : `Spent ${label}`;
+    desc.textContent = isIncome ? t('feature.statsHub.economy.earned', { label }) : t('feature.statsHub.economy.spent', { label });
   }
   row.appendChild(desc);
 
@@ -221,7 +222,7 @@ function topValueRow(item: TopValueItem): HTMLElement {
   const name = document.createElement('span');
   name.style.cssText = 'flex:1;font-size:10px;color:rgba(224,224,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
   let itemLabel = item.species;
-  if (item.isSeed) itemLabel += ' Seeds';
+  if (item.isSeed) itemLabel += ` ${t('feature.statsHub.economy.seedsSuffix')}`;
   if (item.quantity && item.quantity > 1) itemLabel += ` x${item.quantity}`;
   name.textContent = itemLabel;
   row.appendChild(name);
@@ -244,7 +245,7 @@ function embedTopDropdown(chip: HTMLElement): { update: (items: TopValueItem[]) 
   // Toggle arrow button — insert before the pop-out button
   const arrow = document.createElement('button');
   arrow.type = 'button';
-  arrow.title = 'Top items';
+  arrow.title = t('feature.statsHub.economy.topItems');
   arrow.style.cssText = 'background:none;border:none;color:rgba(224,224,255,0.35);font-size:10px;cursor:pointer;padding:0 2px;flex-shrink:0;transition:color 0.12s,transform 0.15s;line-height:1;';
   arrow.textContent = '\u25BE';
   const popBtn = chip.querySelector('button[title^="Pop out"]');
@@ -278,7 +279,7 @@ function embedTopDropdown(chip: HTMLElement): { update: (items: TopValueItem[]) 
     if (cachedItems.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText = 'font-size:10px;color:rgba(224,224,255,0.3);padding:2px 0;';
-      empty.textContent = 'No items';
+      empty.textContent = t('feature.statsHub.economy.noItems');
       overlay.appendChild(empty);
     } else {
       for (const item of cachedItems) overlay.appendChild(topValueRow(item));
@@ -316,7 +317,7 @@ function embedTopDropdown(chip: HTMLElement): { update: (items: TopValueItem[]) 
       if (items.length === 0) {
         const empty = document.createElement('div');
         empty.style.cssText = 'font-size:10px;color:rgba(224,224,255,0.3);padding:2px 0;';
-        empty.textContent = 'No items';
+        empty.textContent = t('feature.statsHub.economy.noItems');
         overlayEl.appendChild(empty);
       } else {
         for (const item of items) overlayEl.appendChild(topValueRow(item));
@@ -346,7 +347,7 @@ function buildCompareGrid(self: RoomPlayerEconomy | null, target: RoomPlayerEcon
   // Header
   const hdr = document.createElement('div');
   hdr.style.cssText = 'display:contents;font-size:10px;font-weight:700;color:rgba(224,224,224,0.55);';
-  for (const text of ['', 'You', 'Them', 'Delta']) {
+  for (const text of ['', t('feature.statsHub.economy.you'), t('feature.statsHub.economy.them'), t('feature.statsHub.economy.delta')]) {
     const el = document.createElement('span');
     el.textContent = text;
     el.style.textAlign = text === '' ? 'left' : 'right';
@@ -389,11 +390,11 @@ function buildCompareGrid(self: RoomPlayerEconomy | null, target: RoomPlayerEcon
     grid.appendChild(row);
   }
 
-  addRow('Coins', self.coins, target.coins, false);
-  addRow('Garden', self.gardenValue, target.gardenValue, false);
-  addRow('Inv.', self.inventoryValue + self.storageValue, target.inventoryValue + target.storageValue, false);
-  addRow('Pets', self.petCount, target.petCount, true);
-  addRow('Worth',
+  addRow(t('feature.statsHub.economy.coins'), self.coins, target.coins, false);
+  addRow(t('feature.statsHub.economy.garden'), self.gardenValue, target.gardenValue, false);
+  addRow(t('feature.statsHub.economy.invAbbrev'), self.inventoryValue + self.storageValue, target.inventoryValue + target.storageValue, false);
+  addRow(t('feature.statsHub.economy.pets'), self.petCount, target.petCount, true);
+  addRow(t('feature.statsHub.economy.worth'),
     (self.coins || 0) + (self.gardenValue || 0) + (self.growingCropsValue || 0) + (self.placedDecorValue || 0) + (self.inventoryValue || 0) + (self.storageValue || 0) + (self.activePetsValue || 0),
     (target.coins || 0) + (target.gardenValue || 0) + (target.growingCropsValue || 0) + (target.placedDecorValue || 0) + (target.inventoryValue || 0) + (target.storageValue || 0) + (target.activePetsValue || 0),
     false);
@@ -467,7 +468,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
 
     if (snap.others.length === 0) {
       const opt = document.createElement('option');
-      opt.textContent = 'No other players';
+      opt.textContent = t('feature.statsHub.economy.noOtherPlayers');
       opt.disabled = true;
       opt.selected = true;
       select.appendChild(opt);
@@ -481,7 +482,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
 
     // Placeholder
     const placeholder = document.createElement('option');
-    placeholder.textContent = 'Select a player\u2026';
+    placeholder.textContent = t('feature.statsHub.economy.selectPlayer');
     placeholder.value = '';
     placeholder.disabled = true;
     select.appendChild(placeholder);
@@ -506,7 +507,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
         if (compareGridRef.el) {
           const notice = document.createElement('div');
           notice.style.cssText = 'color:rgba(224,224,224,0.35);font-size:11px;padding:6px 0;text-align:center;';
-          notice.textContent = 'Selected player left the room.';
+          notice.textContent = t('feature.statsHub.economy.playerLeft');
           compareGridRef.el.innerHTML = '';
           compareGridRef.el.appendChild(notice);
         }
@@ -524,7 +525,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
 
   function initCompareSection(): void {
     compareSection.innerHTML = '';
-    appendSectionHeader(compareSection, 'Compare with Room Player');
+    appendSectionHeader(compareSection, t('feature.statsHub.economy.compareHeader'));
 
     // Dropdown row
     const dropdownRow = document.createElement('div');
@@ -549,7 +550,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     // Pop-out button
     const popBtn = document.createElement('button');
     popBtn.type = 'button';
-    popBtn.title = 'Pop out comparison';
+    popBtn.title = t('feature.statsHub.economy.popOutComparison');
     const cardOpen = isPlayerCompareCardOpen();
     popBtn.style.cssText = `background:none;border:1px solid rgba(143,130,255,${cardOpen ? '0.5' : '0.25'});border-radius:4px;color:rgba(224,224,224,${cardOpen ? '0.8' : '0.45'});font-size:11px;cursor:pointer;padding:2px 5px;flex-shrink:0;transition:color 0.12s,border-color 0.12s;line-height:1;`;
     popBtn.textContent = '\u2197';
@@ -615,17 +616,17 @@ export function buildEconomyTab(container: HTMLElement): () => void {
 
     chips.appendChild(balanceChip(
       formatCoinsAbbreviated(snapshot.coins.balance),
-      'Coins', 'coins', '#ffd600',
+      t('feature.statsHub.economy.coins'), 'coins', '#ffd600',
       snapshot.coins.rate, snapshot.coins.connected, 'coins',
     ));
     chips.appendChild(balanceChip(
       formatCoinsAbbreviated(snapshot.credits.balance),
-      'Credits', 'credits', '#42a5f5',
+      t('feature.statsHub.economy.credits'), 'credits', '#42a5f5',
       null, snapshot.credits.connected, 'credits',
     ));
     chips.appendChild(balanceChip(
       formatCoinsAbbreviated(snapshot.dust.balance),
-      'Magic Dust', 'dust', '#ab47bc',
+      t('feature.statsHub.economy.magicDust'), 'dust', '#ab47bc',
       snapshot.dust.rate, snapshot.dust.connected, 'dust',
     ));
 
@@ -633,7 +634,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     const fb = getFriendBonusMultiplier();
     const gardenChip = balanceChip(
       formatCoinsAbbreviated(computeGardenValueFromCatalog(getGardenSnapshot(), fb)),
-      'Garden', 'coins', '#ffd600',
+      t('feature.statsHub.economy.garden'), 'coins', '#ffd600',
       null, true, 'garden',
     );
     gardenNumRef.el = gardenChip.querySelector('[data-value-num]');
@@ -642,7 +643,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     // Inventory value chip
     const invChip = balanceChip(
       formatCoinsAbbreviated(computeInventoryValue(fb)),
-      'Inventory', 'coins', '#ffd600',
+      t('feature.statsHub.economy.inventory'), 'coins', '#ffd600',
       null, true, 'inventory',
     );
     inventoryNumRef.el = invChip.querySelector('[data-value-num]');
@@ -659,7 +660,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     const netWorthVal = (snapshot.coins.balance || 0) + (gardenVal || 0) + (growingVal || 0) + (invVal || 0) + (storageVal || 0) + (petsVal || 0) + (placedDecorVal || 0);
     const nwChip = balanceChip(
       formatCoinsAbbreviated(netWorthVal),
-      'Net Worth', 'coins', '#8f82ff',
+      t('feature.statsHub.economy.netWorth'), 'coins', '#8f82ff',
       null, true, 'netWorth',
     );
     netWorthNumRef.el = nwChip.querySelector('[data-value-num]');
@@ -694,13 +695,13 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     const hasSpending = totalData.coins > 0 || totalData.credits > 0 || totalData.dust > 0;
 
     if (hasSpending) {
-      appendSectionHeader(content, 'Session Spending');
+      appendSectionHeader(content, t('feature.statsHub.economy.sessionSpending'));
 
       const categories: Array<{ key: ShopCategoryKey; label: string }> = [
-        { key: 'seeds', label: 'Seeds' },
-        { key: 'eggs', label: 'Eggs' },
-        { key: 'tools', label: 'Tools' },
-        { key: 'decor', label: 'Decor' },
+        { key: 'seeds', label: t('feature.statsHub.economy.seeds') },
+        { key: 'eggs', label: t('feature.statsHub.economy.eggs') },
+        { key: 'tools', label: t('feature.statsHub.economy.tools') },
+        { key: 'decor', label: t('feature.statsHub.economy.decor') },
       ];
 
       const list = document.createElement('div');
@@ -713,7 +714,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
       }
 
       // Total row
-      const totEl = spendingRow('Total', totalData.coins, totalData.credits, totalData.dust);
+      const totEl = spendingRow(t('feature.statsHub.economy.total'), totalData.coins, totalData.credits, totalData.dust);
       totEl.style.borderTop = '1px solid rgba(143,130,255,0.12)';
       totEl.style.paddingTop = '4px';
       totEl.style.marginTop = '2px';
@@ -725,7 +726,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
 
     // --- Transaction log ---
     if (snapshot.transactions.length > 0) {
-      appendSectionHeader(content, 'Recent Activity');
+      appendSectionHeader(content, t('feature.statsHub.economy.recentActivity'));
 
       const txList = document.createElement('div');
       txList.style.cssText = 'display:flex;flex-direction:column;';
@@ -737,7 +738,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     } else if (!hasSpending) {
       const note = document.createElement('div');
       note.style.cssText = 'color:rgba(224,224,224,0.3);font-size:12px;padding:8px 0;';
-      note.textContent = 'No activity this session.';
+      note.textContent = t('feature.statsHub.economy.noActivity');
       content.appendChild(note);
     }
   }

@@ -8,6 +8,7 @@ import { getSpeciesXpPerLevel, calculateMaxStrength } from '../../store/xpTracke
 import { formatCoins } from '../../features/valueCalculator';
 import { swapPetIntoActiveSlot, placePetIntoActiveSlot, type SwapPetFailureReason } from '../../features/petSwap';
 import { makePillButton } from './xpTrackerContent';
+import { t } from '../../i18n';
 
 // ============================================================================
 // TYPES
@@ -227,15 +228,15 @@ function getNearMaxPetKey(pet: PetWithLevel): string {
 function mapSwapErrorReason(reason: SwapPetFailureReason | undefined): string {
   switch (reason) {
     case 'missing_connection':
-      return 'Swap unavailable: connection missing.';
+      return t('feature.xpTracker.swapNoConnection');
     case 'missing_ids':
-      return 'Swap unavailable: pet identifiers missing.';
+      return t('feature.xpTracker.swapNoIds');
     case 'retrieve_failed_or_inventory_full':
-      return 'Cannot retrieve from hutch (inventory may be full).';
+      return t('feature.xpTracker.swapInvFull');
     case 'swap_failed_or_timeout':
-      return 'Swap failed or timed out.';
+      return t('feature.xpTracker.swapTimeout');
     default:
-      return 'Swap failed.';
+      return t('feature.xpTracker.swapFailed');
   }
 }
 
@@ -436,14 +437,14 @@ async function updateNearMaxDisplay(
     filterRow.style.cssText = 'display:flex;gap:6px;padding:10px 14px 4px;flex-wrap:wrap;align-items:center;';
 
     const filterLbl = document.createElement('span');
-    filterLbl.textContent = 'Show:';
+    filterLbl.textContent = t('feature.xpTracker.show');
     filterLbl.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,#666);';
     filterRow.appendChild(filterLbl);
 
     const sourceDefs: Array<{ key: 'active' | 'inventory' | 'hutch'; label: string }> = [
-      { key: 'active', label: 'Active' },
-      { key: 'inventory', label: 'Inventory' },
-      { key: 'hutch', label: 'Hutch' },
+      { key: 'active', label: t('feature.xpTracker.filterActive') },
+      { key: 'inventory', label: t('feature.xpTracker.filterInventory') },
+      { key: 'hutch', label: t('feature.xpTracker.filterHutch') },
     ];
 
     const triggerRerender = (): void => {
@@ -468,8 +469,8 @@ async function updateNearMaxDisplay(
     if (filtered.length === 0) {
       const empty = document.createElement('div');
       empty.textContent = allPets.length === 0
-        ? 'No pets near max level.'
-        : 'No pets match current filters.';
+        ? t('feature.xpTracker.noNearMax')
+        : t('feature.xpTracker.noFilterMatch');
       empty.style.cssText = 'padding:10px 14px 12px;font-size:12px;color:var(--qpm-text-muted,#555);font-style:italic;';
       container.appendChild(empty);
       return;
@@ -480,18 +481,18 @@ async function updateNearMaxDisplay(
     const nmchSpacer = document.createElement('div');
     nmchSpacer.style.cssText = 'width:20px;flex-shrink:0;';
     const nmchName = document.createElement('span');
-    nmchName.textContent = 'Pet';
+    nmchName.textContent = t('feature.xpTracker.colPet');
     nmchName.style.cssText = 'flex:1;font-size:9px;color:var(--qpm-text-muted,#555);';
     const nmchBar = document.createElement('div');
     nmchBar.style.cssText = 'width:56px;flex-shrink:0;';
     const nmchLvl = document.createElement('span');
-    nmchLvl.textContent = 'Level';
+    nmchLvl.textContent = t('feature.xpTracker.colLevel');
     nmchLvl.style.cssText = 'width:44px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
     const nmchTime = document.createElement('span');
-    nmchTime.textContent = 'To max';
+    nmchTime.textContent = t('feature.xpTracker.colToMax');
     nmchTime.style.cssText = 'min-width:56px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
     const nmchAction = document.createElement('span');
-    nmchAction.textContent = 'Action';
+    nmchAction.textContent = t('feature.xpTracker.colAction');
     nmchAction.style.cssText = 'width:58px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
     nearMaxColHeader.append(nmchSpacer, nmchName, nmchBar, nmchLvl, nmchTime, nmchAction);
     container.appendChild(nearMaxColHeader);
@@ -551,7 +552,7 @@ async function updateNearMaxDisplay(
       if (canSwap) {
         const swapButton = document.createElement('button');
         swapButton.type = 'button';
-        swapButton.textContent = isBusy ? 'Swapping...' : 'Swap';
+        swapButton.textContent = isBusy ? t('feature.xpTracker.swapping') : t('feature.xpTracker.swap');
         swapButton.disabled = hasBusyOperation;
         swapButton.style.cssText = [
           'min-height:24px',
@@ -618,7 +619,7 @@ async function updateNearMaxDisplay(
           }
 
           const slotName = document.createElement('span');
-          slotName.textContent = (slotPet?.name || slotPet?.species || 'Empty').slice(0, 14);
+          slotName.textContent = (slotPet?.name || slotPet?.species || t('feature.xpTracker.empty')).slice(0, 14);
           slotName.style.cssText = 'font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;';
           slotButton.appendChild(slotName);
 
@@ -646,7 +647,7 @@ async function updateNearMaxDisplay(
             state.busyPetKey = null;
             if (result.ok) {
               state.expandedPetKey = null;
-              setNearMaxStatus(state, petKey, 'Swapped into active slot.', 'success', triggerRerender);
+              setNearMaxStatus(state, petKey, t('feature.xpTracker.swapSuccess'), 'success', triggerRerender);
             } else {
               state.expandedPetKey = petKey;
               setNearMaxStatus(state, petKey, mapSwapErrorReason(result.reason), 'error', triggerRerender);
@@ -682,6 +683,10 @@ async function updateNearMaxDisplay(
     container.appendChild(list);
   } catch (e) {
     log('Near max update failed', e);
-    container.innerHTML = '<div style="padding:12px 14px;color:var(--qpm-danger,#f44);font-size:12px;">Failed to load near max pets</div>';
+    const errDiv = document.createElement('div');
+    errDiv.style.cssText = 'padding:12px 14px;color:var(--qpm-danger,#f44);font-size:12px;';
+    errDiv.textContent = t('feature.xpTracker.nearMaxError');
+    container.innerHTML = '';
+    container.appendChild(errDiv);
   }
 }

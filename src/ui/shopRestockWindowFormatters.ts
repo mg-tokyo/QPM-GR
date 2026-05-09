@@ -6,6 +6,7 @@ import {
   RARITY_GLOW,
   SHOP_CYCLE_INTERVALS,
 } from './shopRestockWindowConstants';
+import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // ETA + rate formatters
@@ -14,7 +15,7 @@ import {
 export function formatETA(ts: number | null | undefined): string {
   if (!ts) return '--';
   const diff = ts - Date.now();
-  if (diff <= 0) return 'Overdue';
+  if (diff <= 0) return t('feature.shopRestock.overdue');
   const min = Math.ceil(diff / 60_000);
   if (min < 60) return `~${min}m`;
   const hr = Math.ceil(min / 60);
@@ -68,20 +69,20 @@ export function formatFrequency(rate: number | null, shopType: string): string {
   if (rate === null || rate === undefined || rate <= 0) return '';
   const interval = SHOP_CYCLE_INTERVALS[shopType];
   if (!interval) return '';
-  if (rate >= 0.95) return 'Every restock';
+  if (rate >= 0.95) return t('feature.shopRestock.everyRestock');
   const expectedMs = interval / rate;
   const min = Math.round(expectedMs / 60_000);
-  if (min < 60) return `Every ~${min}m`;
+  if (min < 60) return t('feature.shopRestock.everyMinutes', { m: min });
   const hr = Math.round(min / 60);
-  if (hr < 24) return `Every ~${hr}h`;
-  return `Every ~${Math.round(hr / 24)}d`;
+  if (hr < 24) return t('feature.shopRestock.everyHours', { h: hr });
+  return t('feature.shopRestock.everyDays', { d: Math.round(hr / 24) });
 }
 
 export function formatAvgQty(qty: number | null): string {
   if (!qty || qty <= 0) return '';
-  if (qty >= 10) return `~${Math.round(qty)} avg`;
-  if (Number.isInteger(qty)) return `~${qty} avg`;
-  return `~${qty.toFixed(1)} avg`;
+  if (qty >= 10) return t('feature.shopRestock.avg', { qty: Math.round(qty) });
+  if (Number.isInteger(qty)) return t('feature.shopRestock.avg', { qty });
+  return t('feature.shopRestock.avg', { qty: qty.toFixed(1) });
 }
 
 export function formatPrice(value: number): string {
@@ -97,13 +98,13 @@ export function formatPrice(value: number): string {
 export function formatRelative(ms: number | null): string {
   if (!ms) return '--';
   const diff = Date.now() - ms;
-  if (diff < 0) return 'just now';
+  if (diff < 0) return t('feature.shopRestock.justNow');
   const min = Math.floor(diff / 60_000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
+  if (min < 1) return t('feature.shopRestock.justNow');
+  if (min < 60) return t('feature.shopRestock.minutesAgo', { m: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+  if (hr < 24) return t('feature.shopRestock.hoursAgo', { h: hr });
+  return t('feature.shopRestock.daysAgo', { d: Math.floor(hr / 24) });
 }
 
 export function formatClock(ms: number | null): string {

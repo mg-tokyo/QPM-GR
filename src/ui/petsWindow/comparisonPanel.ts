@@ -21,6 +21,7 @@ import type { CompareStage } from '../../data/petCompareRules';
 import type { CompareUiState, ComparePanelHandle } from './types';
 import { loadPetTeamsUiState, saveCompareUiState, saveCompareAbilityForPair, getCompareAbilityForPair } from './state';
 import { getCoinSpriteUrl } from './helpers';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Helper types from comparePresentation
@@ -90,7 +91,7 @@ function applyImpactEmphasis(el: HTMLElement, abilityId: string | null): void {
 }
 
 function formatAbilityNamesForCompare(abilityIds: string[]): string {
-  if (abilityIds.length === 0) return 'No abilities';
+  if (abilityIds.length === 0) return t('feature.petsWindow.noAbilities');
 
   const names = abilityIds.map((abilityId) => getAbilityDefinition(abilityId)?.name ?? abilityId);
   const maxVisible = 3;
@@ -118,12 +119,12 @@ function renderTeamSummaryCompare(params: {
   head.className = 'qpm-tcmp-team-head';
   const title = document.createElement('div');
   title.className = 'qpm-tcmp-team-title';
-  title.textContent = 'Team Summary';
+  title.textContent = t('feature.petsWindow.teamSummary');
   const stageEl = document.createElement('div');
   stageEl.className = 'qpm-tcmp-stage';
   stageEl.style.borderTop = 'none';
   stageEl.style.paddingTop = '0';
-  stageEl.textContent = `Stage ${stage.toUpperCase()} \u2022 ${stageScore.toFixed(1)}`;
+  stageEl.textContent = t('feature.petsWindow.stageLabel', { stage: stage.toUpperCase(), score: stageScore.toFixed(1) });
   head.append(title, stageEl);
   wrap.appendChild(head);
 
@@ -135,7 +136,7 @@ function renderTeamSummaryCompare(params: {
   hA.textContent = teamAName;
   const hMid = document.createElement('div');
   hMid.className = 'qpm-tcmp-team-table-head qpm-tcmp-team-table-head--mid';
-  hMid.textContent = 'Metric';
+  hMid.textContent = t('feature.petsWindow.metric');
   const hB = document.createElement('div');
   hB.className = 'qpm-tcmp-team-table-head qpm-tcmp-team-table-head--b';
   hB.textContent = teamBName;
@@ -166,28 +167,28 @@ function renderTeamSummaryCompare(params: {
   };
 
   addRow(
-    'Coins/Hr',
+    t('feature.petsWindow.coinsPerHr'),
     profileA.totals.coinsPerHour,
     profileB.totals.coinsPerHour,
     formatCoinsAbbreviated(Math.max(0, Math.round(profileA.totals.coinsPerHour))),
     formatCoinsAbbreviated(Math.max(0, Math.round(profileB.totals.coinsPerHour))),
   );
   addRow(
-    'Plant Min/Hr',
+    t('feature.petsWindow.plantMinPerHr'),
     profileA.totals.plantMinutesPerHour,
     profileB.totals.plantMinutesPerHour,
     profileA.totals.plantMinutesPerHour.toFixed(1),
     profileB.totals.plantMinutesPerHour.toFixed(1),
   );
   addRow(
-    'Egg Min/Hr',
+    t('feature.petsWindow.eggMinPerHr'),
     profileA.totals.eggMinutesPerHour,
     profileB.totals.eggMinutesPerHour,
     profileA.totals.eggMinutesPerHour.toFixed(1),
     profileB.totals.eggMinutesPerHour.toFixed(1),
   );
   addRow(
-    'XP/Hr',
+    t('feature.petsWindow.xpPerHr'),
     profileA.totals.xpPerHour,
     profileB.totals.xpPerHour,
     formatCoinsAbbreviated(Math.max(0, Math.round(profileA.totals.xpPerHour))),
@@ -203,7 +204,7 @@ function renderTeamSummaryCompare(params: {
 
     const titleCase = key.charAt(0).toUpperCase() + key.slice(1);
     addRow(
-      `${titleCase} Chance/Min`,
+      t('feature.petsWindow.chancePerMin', { action: titleCase }),
       bucketA.combinedChancePercent,
       bucketB.combinedChancePercent,
       `${bucketA.combinedChancePercent.toFixed(1)}%`,
@@ -211,7 +212,7 @@ function renderTeamSummaryCompare(params: {
     );
     if (hasMagnitude(bucketA.expectedValuePerTrigger, bucketB.expectedValuePerTrigger)) {
       addRow(
-        `${titleCase} Value/Trigger`,
+        t('feature.petsWindow.valuePerTrigger', { action: titleCase }),
         bucketA.expectedValuePerTrigger,
         bucketB.expectedValuePerTrigger,
         formatActionExpectedValue(profileA, key),
@@ -225,7 +226,7 @@ function renderTeamSummaryCompare(params: {
   scoreA.textContent = formatTeamScoreCompact(profileA.score);
   const scoreMid = document.createElement('div');
   scoreMid.className = 'qpm-tcmp-team-mid';
-  scoreMid.textContent = 'Team Score';
+  scoreMid.textContent = t('feature.petsWindow.teamScoreLabel');
   const scoreB = document.createElement('div');
   scoreB.className = 'qpm-tcmp-team-score qpm-tcmp-team-score--right';
   scoreB.textContent = formatTeamScoreCompact(profileB.score);
@@ -265,7 +266,7 @@ function renderComparePetColumn(params: {
   }
 
   if (!pet) {
-    root.textContent = 'Empty slot';
+    root.textContent = t('feature.petsWindow.emptySlot');
     root.style.color = 'rgba(224,224,224,0.35)';
     root.style.fontSize = '13px';
     root.style.justifyContent = 'center';
@@ -327,10 +328,10 @@ function renderComparePetColumn(params: {
   ability.className = 'qpm-tcmp-ab';
   const abilityMain = document.createElement('div');
   abilityMain.className = 'qpm-tcmp-ab-main';
-  abilityMain.textContent = metrics.hasData ? `Focus: ${metrics.abilityName}` : 'No comparable ability';
+  abilityMain.textContent = metrics.hasData ? t('feature.petsWindow.focusAbility', { name: metrics.abilityName }) : t('feature.petsWindow.noComparableAbility');
   const abilityAll = document.createElement('div');
   abilityAll.className = 'qpm-tcmp-ab-all';
-  abilityAll.textContent = `All: ${formatAbilityNamesForCompare(pet.abilities)}`;
+  abilityAll.textContent = t('feature.petsWindow.allAbilitiesPrefix', { list: formatAbilityNamesForCompare(pet.abilities) });
   ability.append(abilityMain, abilityAll);
   root.appendChild(ability);
 
@@ -410,7 +411,7 @@ function buildSlotCompareRow(params: {
   const sideA = model?.sideA ?? {
     hasData: false,
     abilityId: null,
-    abilityName: 'No comparable ability',
+    abilityName: t('feature.petsWindow.noComparableAbility'),
     metricLabel: 'Metric',
     valuePerProc: '\u2014',
     impactPerHour: '\u2014',
@@ -424,7 +425,7 @@ function buildSlotCompareRow(params: {
   const sideB = model?.sideB ?? {
     hasData: false,
     abilityId: null,
-    abilityName: 'No comparable ability',
+    abilityName: t('feature.petsWindow.noComparableAbility'),
     metricLabel: 'Metric',
     valuePerProc: '\u2014',
     impactPerHour: '\u2014',
@@ -436,10 +437,10 @@ function buildSlotCompareRow(params: {
     rawTriggerPercent: 0,
   };
   const rows: CompareRowData[] = model?.ledgerRows ?? [
-    { id: 'value_per_proc', label: 'Value/Proc', a: '\u2014', b: '\u2014', winner: 'review' as const },
-    { id: 'impact_per_hour', label: 'Impact/Hr', a: '\u2014', b: '\u2014', winner: 'review' as const },
-    { id: 'procs_per_hour', label: 'Rate/Hr', a: '\u2014', b: '\u2014', winner: 'review' as const },
-    { id: 'trigger_percent', label: 'Chance/Min', a: '\u2014', b: '\u2014', winner: 'review' as const },
+    { id: 'value_per_proc', label: t('feature.petsWindow.valuePerProc'), a: '\u2014', b: '\u2014', winner: 'review' as const },
+    { id: 'impact_per_hour', label: t('feature.petsWindow.impactPerHr'), a: '\u2014', b: '\u2014', winner: 'review' as const },
+    { id: 'procs_per_hour', label: t('feature.petsWindow.ratePerHr'), a: '\u2014', b: '\u2014', winner: 'review' as const },
+    { id: 'trigger_percent', label: t('feature.petsWindow.chanceMin'), a: '\u2014', b: '\u2014', winner: 'review' as const },
   ];
 
   const left = renderComparePetColumn({ pet: petA, side: 'left', metrics: sideA, rows, verdict: verdictKey });
@@ -451,16 +452,16 @@ function buildSlotCompareRow(params: {
   centerTop.className = 'qpm-tcmp-center-top';
   const slot = document.createElement('div');
   slot.className = 'qpm-tcmp-slot';
-  slot.textContent = `Slot ${slotIndex + 1}`;
+  slot.textContent = t('feature.petsWindow.slotN', { n: String(slotIndex + 1) });
   centerTop.appendChild(slot);
 
   const verdict = document.createElement('div');
   verdict.className = `qpm-tcmp-verdict qpm-tcmp-verdict--${verdictKey}`;
   verdict.textContent =
-    verdictKey === 'a' ? 'A Wins'
-      : verdictKey === 'b' ? 'B Wins'
-        : verdictKey === 'tie' ? 'Tie'
-          : 'Review';
+    verdictKey === 'a' ? t('feature.petsWindow.aWins')
+      : verdictKey === 'b' ? t('feature.petsWindow.bWins')
+        : verdictKey === 'tie' ? t('feature.petsWindow.tie')
+          : t('feature.petsWindow.review');
   centerTop.appendChild(verdict);
   center.appendChild(centerTop);
 
@@ -476,7 +477,7 @@ function buildSlotCompareRow(params: {
 
   const stageBadge = document.createElement('div');
   stageBadge.className = 'qpm-tcmp-stage';
-  stageBadge.textContent = `Stage ${model?.stageBadge ?? stage.toUpperCase()}`;
+  stageBadge.textContent = t('feature.petsWindow.stageOnly', { stage: model?.stageBadge ?? stage.toUpperCase() });
   center.appendChild(stageBadge);
 
   row.append(left, center, right);
@@ -499,7 +500,7 @@ export function buildCompareTeamsPanel(
 
   const hdr = document.createElement('div');
   hdr.style.cssText = 'font-size:11px;font-weight:700;color:rgba(143,130,255,0.8);text-transform:uppercase;letter-spacing:0.06em;';
-  hdr.textContent = 'Team Comparison';
+  hdr.textContent = t('feature.petsWindow.teamComparison');
   panel.appendChild(hdr);
 
   const selectionHint = document.createElement('div');
@@ -510,18 +511,18 @@ export function buildCompareTeamsPanel(
   filterRow.className = 'qpm-tcmp-filter-row';
   const filterLbl = document.createElement('span');
   filterLbl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.4);flex-shrink:0;';
-  filterLbl.textContent = 'Abilities:';
+  filterLbl.textContent = t('feature.petsWindow.abilitiesLabel');
   const filterSel = document.createElement('select');
   filterSel.className = 'qpm-select';
   filterSel.style.cssText = 'flex:1;cursor:pointer;';
   const allOption = document.createElement('option');
   allOption.value = 'all';
-  allOption.textContent = 'All';
+  allOption.textContent = t('feature.petsWindow.all');
   filterSel.appendChild(allOption);
-  const abilityFilterLabels = new Map<string, string>([['all', 'All abilities']]);
+  const abilityFilterLabels = new Map<string, string>([['all', t('feature.petsWindow.allAbilities')]]);
   const activeFilterChip = document.createElement('span');
   activeFilterChip.className = 'qpm-tcmp-filter-chip';
-  activeFilterChip.textContent = 'All abilities';
+  activeFilterChip.textContent = t('feature.petsWindow.allAbilities');
   filterRow.append(filterLbl, filterSel, activeFilterChip);
   panel.appendChild(filterRow);
 
@@ -591,10 +592,10 @@ export function buildCompareTeamsPanel(
 
     filterSel.innerHTML = '';
     abilityFilterLabels.clear();
-    abilityFilterLabels.set('all', 'All abilities');
+    abilityFilterLabels.set('all', t('feature.petsWindow.allAbilities'));
     const all = document.createElement('option');
     all.value = 'all';
-    all.textContent = 'All';
+    all.textContent = t('feature.petsWindow.all');
     filterSel.appendChild(all);
 
     for (const [value, group] of sortedGroups) {
@@ -633,21 +634,21 @@ export function buildCompareTeamsPanel(
     saveCompareUiState(comparePatch);
 
     if (!teamAId && !teamBId) {
-      selectionHint.textContent = 'Compare mode: click a team in the list to set Team A.';
+      selectionHint.textContent = t('feature.petsWindow.compareModeHint');
       filterSel.disabled = true;
       filterSel.value = 'all';
-      activeFilterChip.textContent = 'All abilities';
-      setPlaceholder('Select Team A, then Team B from the list.');
+      activeFilterChip.textContent = t('feature.petsWindow.allAbilities');
+      setPlaceholder(t('feature.petsWindow.selectTeamAB'));
       return;
     }
 
     if (teamAId && !teamBId) {
       const teamAName = getTeamsConfig().teams.find((team) => team.id === teamAId)?.name ?? 'Team A';
-      selectionHint.textContent = `Team A: ${teamAName}. Click another team to set Team B.`;
+      selectionHint.textContent = t('feature.petsWindow.teamASelected', { name: teamAName });
       filterSel.disabled = true;
       filterSel.value = 'all';
-      activeFilterChip.textContent = 'All abilities';
-      setPlaceholder('Waiting for Team B selection.');
+      activeFilterChip.textContent = t('feature.petsWindow.allAbilities');
+      setPlaceholder(t('feature.petsWindow.waitingTeamB'));
       return;
     }
 
@@ -655,7 +656,7 @@ export function buildCompareTeamsPanel(
 
     const teamAName = getTeamsConfig().teams.find((team) => team.id === teamAId)?.name ?? 'Team A';
     const teamBName = getTeamsConfig().teams.find((team) => team.id === teamBId)?.name ?? 'Team B';
-    selectionHint.textContent = `Comparing ${teamAName} (A) vs ${teamBName} (B).`;
+    selectionHint.textContent = t('feature.petsWindow.comparingTeams', { nameA: teamAName, nameB: teamBName });
     filterSel.disabled = false;
 
     const pairKey = getPairKey(teamAId, teamBId);
@@ -664,7 +665,7 @@ export function buildCompareTeamsPanel(
     const preferredAbility = getCompareAbilityForPair(pairKey) ?? filterSel.value;
     updateAbilityFilter([...petsA, ...petsB], preferredAbility);
     saveCompareAbilityForPair(pairKey, filterSel.value);
-    activeFilterChip.textContent = abilityFilterLabels.get(filterSel.value) ?? 'All abilities';
+    activeFilterChip.textContent = abilityFilterLabels.get(filterSel.value) ?? t('feature.petsWindow.allAbilities');
 
     let valuationContext: AbilityValuationContext | null = null;
     try {

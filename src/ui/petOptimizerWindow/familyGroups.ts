@@ -1,5 +1,6 @@
 import { getOptimizerAbilityFamilyInfo } from '../../features/petCompareEngine';
 import { normalizeAbilityName } from '../../utils/petCardRenderer';
+import { t } from '../../i18n';
 import type { FamilyAbilityGroup, FamilyPetEntry } from './types';
 import type { PetComparison } from '../../features/petOptimizer';
 
@@ -147,13 +148,13 @@ function createUnclassifiedFamilyEntry(comparison: PetComparison): FamilyPetEntr
   return {
     comparison,
     familyKey: 'unclassified',
-    familyLabel: 'Unclassified',
+    familyLabel: t('feature.petOptimizer.unclassified'),
     rank: Number.MAX_SAFE_INTEGER,
     totalCompetitors: null,
     familyScore: null,
     tierValue: 0,
     tierLabel: null,
-    representativeAbilityName: 'Unclassified',
+    representativeAbilityName: t('feature.petOptimizer.unclassified'),
   };
 }
 

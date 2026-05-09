@@ -12,6 +12,7 @@ import {
   getProduceSpriteDataUrlWithMutations as compatGetProduceSpriteDataUrlWithMutations,
 } from '../sprite-v2/compat';
 import { storage } from '../utils/storage';
+import { t } from '../i18n';
 import { getCropSizeIndicatorConfig, setCropSizeIndicatorConfig } from '../features/cropSizeIndicator';
 import { getPlantCatalog, getMutationCatalog, getPetCatalog } from '../catalogs/gameCatalogs';
 import { getVariantChipColors } from '../data/variantBadges';
@@ -235,18 +236,19 @@ export function createJournalCheckerSection(): HTMLElement {
     border-bottom: 2px solid #333;
     padding-bottom: 8px;
   `;
-  header.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      <div>
-        <div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px;">
-          📔 Journal Checker
-        </div>
-        <div style="font-size: 12px; color: #aaa;">
-          Track your collection progress across all categories
-        </div>
-      </div>
-    </div>
-  `;
+  const headerRow = document.createElement('div');
+  headerRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between;';
+  const headerTextWrap = document.createElement('div');
+  const headerTitle = document.createElement('div');
+  headerTitle.style.cssText = 'font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px;';
+  headerTitle.textContent = `📔 ${t('feature.journal.title')}`;
+  const headerSub = document.createElement('div');
+  headerSub.style.cssText = 'font-size: 12px; color: #aaa;';
+  headerSub.textContent = t('feature.journal.subtitle');
+  headerTextWrap.appendChild(headerTitle);
+  headerTextWrap.appendChild(headerSub);
+  headerRow.appendChild(headerTextWrap);
+  header.appendChild(headerRow);
   root.appendChild(header);
 
   // Stats summary with gradients and icons
@@ -296,9 +298,9 @@ export function createJournalCheckerSection(): HTMLElement {
     return box;
   };
 
-  const produceStatBox = createStatBox('🌾', 'Produce', '...', '#8BC34A', '#1e2a1e, #1a1a1a');
-  const petVariantStatBox = createStatBox('🐾', 'Pet Variants', '...', '#42A5F5', '#1a212a, #1a1a1a');
-  const overallStatBox = createStatBox('✨', 'Overall', '...', '#9C27B0', '#241a2a, #1a1a1a');
+  const produceStatBox = createStatBox('🌾', t('feature.journal.produce'), '...', '#8BC34A', '#1e2a1e, #1a1a1a');
+  const petVariantStatBox = createStatBox('🐾', t('feature.journal.petVariants'), '...', '#42A5F5', '#1a212a, #1a1a1a');
+  const overallStatBox = createStatBox('✨', t('feature.journal.overall'), '...', '#9C27B0', '#241a2a, #1a1a1a');
 
   statsContainer.appendChild(produceStatBox);
   statsContainer.appendChild(petVariantStatBox);
@@ -316,10 +318,10 @@ export function createJournalCheckerSection(): HTMLElement {
   `;
 
   const categories = [
-    { key: 'produce', label: 'Produce', icon: '🌾', color: '#8BC34A' },
-    { key: 'pets', label: 'Pets', icon: '🐾', color: '#42A5F5' },
-    { key: 'recommendations', label: 'Smart Tips', icon: '💡', color: '#9C27B0' },
-    { key: 'missing', label: 'Missing', icon: '📋', color: '#FF9800' },
+    { key: 'produce', label: t('feature.journal.produce'), icon: '🌾', color: '#8BC34A' },
+    { key: 'pets', label: t('feature.journal.pets'), icon: '🐾', color: '#42A5F5' },
+    { key: 'recommendations', label: t('feature.journal.smartTips'), icon: '💡', color: '#9C27B0' },
+    { key: 'missing', label: t('feature.journal.missing'), icon: '📋', color: '#FF9800' },
   ];
 
   let selectedCategory = 'produce';
@@ -331,11 +333,29 @@ export function createJournalCheckerSection(): HTMLElement {
     if (!getPlantCatalog() || !getMutationCatalog() || !getPetCatalog()) {
       if (catalogRetries < 10) {
         catalogRetries++;
-        resultsContainer.innerHTML = '<div style="color: #999; text-align: center; padding: 40px; font-size: 14px;">⏳ Loading game data...<br><span style="font-size: 12px; color: #666;">Waiting for catalogs to initialize</span></div>';
+        resultsContainer.innerHTML = '';
+        const loadingDiv = document.createElement('div');
+        loadingDiv.style.cssText = 'color: #999; text-align: center; padding: 40px; font-size: 14px;';
+        loadingDiv.textContent = `⏳ ${t('feature.journal.loadingData')}`;
+        const loadingSub = document.createElement('span');
+        loadingSub.style.cssText = 'font-size: 12px; color: #666;';
+        loadingSub.textContent = t('feature.journal.waitingCatalogs');
+        loadingDiv.appendChild(document.createElement('br'));
+        loadingDiv.appendChild(loadingSub);
+        resultsContainer.appendChild(loadingDiv);
         setTimeout(updateDisplay, 1500);
         return;
       }
-      resultsContainer.innerHTML = '<div style="color: #999; text-align: center; padding: 40px; font-size: 14px;">⚠️ Game catalogs did not load<br><span style="font-size: 12px; color: #666;">Try refreshing the page</span></div>';
+      resultsContainer.innerHTML = '';
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = 'color: #999; text-align: center; padding: 40px; font-size: 14px;';
+      errorDiv.textContent = `⚠️ ${t('feature.journal.catalogsNotLoaded')}`;
+      const errorSub = document.createElement('span');
+      errorSub.style.cssText = 'font-size: 12px; color: #666;';
+      errorSub.textContent = t('feature.journal.tryRefreshing');
+      errorDiv.appendChild(document.createElement('br'));
+      errorDiv.appendChild(errorSub);
+      resultsContainer.appendChild(errorDiv);
       return;
     }
     catalogRetries = 0;
@@ -344,7 +364,16 @@ export function createJournalCheckerSection(): HTMLElement {
     const stats = await import('../features/journalChecker').then(m => m.getJournalStats());
 
     if (!summary || !stats) {
-      resultsContainer.innerHTML = '<div style="color: #999; text-align: center; padding: 40px; font-size: 14px;">⚠️ Unable to load journal data<br><span style="font-size: 12px; color: #666;">Try refreshing or check console for errors</span></div>';
+      resultsContainer.innerHTML = '';
+      const loadErrorDiv = document.createElement('div');
+      loadErrorDiv.style.cssText = 'color: #999; text-align: center; padding: 40px; font-size: 14px;';
+      loadErrorDiv.textContent = `⚠️ ${t('feature.journal.unableToLoad')}`;
+      const loadErrorSub = document.createElement('span');
+      loadErrorSub.style.cssText = 'font-size: 12px; color: #666;';
+      loadErrorSub.textContent = t('feature.journal.tryRefreshingConsole');
+      loadErrorDiv.appendChild(document.createElement('br'));
+      loadErrorDiv.appendChild(loadErrorSub);
+      resultsContainer.appendChild(loadErrorDiv);
       return;
     }
 
@@ -527,12 +556,12 @@ export function createJournalCheckerSection(): HTMLElement {
         
         const notesLabel = document.createElement('div');
         notesLabel.style.cssText = 'font-size: 11px; color: #aaa; margin-bottom: 6px; font-weight: 500;';
-        notesLabel.textContent = '📝 Notes';
+        notesLabel.textContent = `📝 ${t('feature.journal.notes')}`;
         notesContainer.appendChild(notesLabel);
-        
+
         const notesTextarea = document.createElement('textarea');
         notesTextarea.value = getSpeciesNotes(species.species);
-        notesTextarea.placeholder = 'Add your notes here...';
+        notesTextarea.placeholder = t('feature.journal.notesPlaceholder');
         notesTextarea.style.cssText = `
           width: 100%;
           min-height: 60px;
@@ -700,7 +729,7 @@ export function createJournalCheckerSection(): HTMLElement {
           html += `
             <div style="margin-bottom: 12px;">
               <div style="color: #42A5F5; font-size: 11px; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                Variants (${variantCollected}/${variantTotal})
+                ${t('feature.journal.variantsCount', { collected: String(variantCollected), total: String(variantTotal) })}
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 ${variants.map(v => {
@@ -730,12 +759,12 @@ export function createJournalCheckerSection(): HTMLElement {
         
         const notesLabel = document.createElement('div');
         notesLabel.style.cssText = 'font-size: 11px; color: #aaa; margin-bottom: 6px; font-weight: 500;';
-        notesLabel.textContent = '📝 Notes';
+        notesLabel.textContent = `📝 ${t('feature.journal.notes')}`;
         notesContainer.appendChild(notesLabel);
-        
+
         const notesTextarea = document.createElement('textarea');
         notesTextarea.value = getSpeciesNotes(`pet:${species.species}`);
-        notesTextarea.placeholder = 'Add your notes here...';
+        notesTextarea.placeholder = t('feature.journal.notesPlaceholder');
         notesTextarea.style.cssText = `
           width: 100%;
           min-height: 60px;
@@ -762,7 +791,16 @@ export function createJournalCheckerSection(): HTMLElement {
       const strategy = await generateJournalStrategy();
 
       if (!strategy) {
-        resultsContainer.innerHTML = '<div style="color: #999; text-align: center; padding: 40px; font-size: 14px;">⚠️ Unable to generate recommendations<br><span style="font-size: 12px; color: #666;">Try refreshing or check console for errors</span></div>';
+        resultsContainer.innerHTML = '';
+        const recErrorDiv = document.createElement('div');
+        recErrorDiv.style.cssText = 'color: #999; text-align: center; padding: 40px; font-size: 14px;';
+        recErrorDiv.textContent = `⚠️ ${t('feature.journal.unableToRecommend')}`;
+        const recErrorSub = document.createElement('span');
+        recErrorSub.style.cssText = 'font-size: 12px; color: #666;';
+        recErrorSub.textContent = t('feature.journal.tryRefreshingConsole');
+        recErrorDiv.appendChild(document.createElement('br'));
+        recErrorDiv.appendChild(recErrorSub);
+        resultsContainer.appendChild(recErrorDiv);
         return;
       }
 
@@ -772,18 +810,10 @@ export function createJournalCheckerSection(): HTMLElement {
         focusSection.style.cssText = `
           margin-bottom: 24px;
         `;
-        focusSection.innerHTML = `
-          <div style="
-            font-size: 16px;
-            font-weight: bold;
-            color: #9C27B0;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #9C27B033;
-          ">
-            🎯 Recommended Focus (Top ${Math.min(10, strategy.recommendedFocus.length)})
-          </div>
-        `;
+        const focusTitle = document.createElement('div');
+        focusTitle.style.cssText = 'font-size: 16px; font-weight: bold; color: #9C27B0; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #9C27B033;';
+        focusTitle.textContent = `🎯 ${t('feature.journal.recommendedFocus', { count: String(Math.min(10, strategy.recommendedFocus.length)) })}`;
+        focusSection.appendChild(focusTitle);
 
         strategy.recommendedFocus.slice(0, 10).forEach(rec => {
           const recCard = document.createElement('div');
@@ -805,7 +835,7 @@ export function createJournalCheckerSection(): HTMLElement {
             recCard.style.boxShadow = 'none';
           });
 
-          const priorityBadge = rec.priority === 'high' ? 'HIGH' : rec.priority === 'medium' ? 'MED' : 'LOW';
+          const priorityBadge = rec.priority === 'high' ? t('feature.journal.priorityHigh') : rec.priority === 'medium' ? t('feature.journal.priorityMed') : t('feature.journal.priorityLow');
           const priorityColor = rec.priority === 'high' ? '#f44336' : rec.priority === 'medium' ? '#ff9800' : '#666';
 
           // Get sprite for this species (pet recommendations prioritize Rainbow/Gold variants)
@@ -855,7 +885,7 @@ export function createJournalCheckerSection(): HTMLElement {
               "></div>
             </div>
             <div style="color: #aaa; font-size: 11px; margin-bottom: 6px;">
-              <strong style="color: #9C27B0;">${rec.completionPct.toFixed(0)}% complete</strong> • ${rec.missingVariants.length} variant${rec.missingVariants.length !== 1 ? 's' : ''} remaining • Est. ${rec.estimatedTime}
+              <strong style="color: #9C27B0;">${t('feature.journal.pctComplete', { pct: rec.completionPct.toFixed(0) })}</strong> • ${rec.missingVariants.length !== 1 ? t('feature.journal.variantsRemaining', { count: String(rec.missingVariants.length) }) : t('feature.journal.variantRemaining', { count: String(rec.missingVariants.length) })} • ${t('feature.journal.estTime', { time: rec.estimatedTime })}
             </div>
             <div style="color: #ccc; font-size: 12px; margin-bottom: 8px; line-height: 1.4;">
               ${rec.strategy}
@@ -885,18 +915,10 @@ export function createJournalCheckerSection(): HTMLElement {
         fruitSection.style.cssText = `
           margin-bottom: 24px;
         `;
-        fruitSection.innerHTML = `
-          <div style="
-            font-size: 16px;
-            font-weight: bold;
-            color: #4CAF50;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #4CAF5033;
-          ">
-            🍒 Quick Wins (Easy Completions)
-          </div>
-        `;
+        const quickWinsTitle = document.createElement('div');
+        quickWinsTitle.style.cssText = 'font-size: 16px; font-weight: bold; color: #4CAF50; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #4CAF5033;';
+        quickWinsTitle.textContent = `🍒 ${t('feature.journal.quickWins')}`;
+        fruitSection.appendChild(quickWinsTitle);
 
         strategy.lowHangingFruit.slice(0, 5).forEach(rec => {
           const fruitCard = document.createElement('div');
@@ -950,32 +972,22 @@ export function createJournalCheckerSection(): HTMLElement {
         pathSection.style.cssText = `
           margin-bottom: 24px;
         `;
-        pathSection.innerHTML = `
-          <div style="
-            font-size: 16px;
-            font-weight: bold;
-            color: #FF9800;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #FF980033;
-          ">
-            🚀 Fastest Path to ${strategy.fastestPath.expectedCompletion} More Variants
-          </div>
-          <div style="
-            background: #FF980022;
-            border-left: 3px solid #FF9800;
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 12px;
-          ">
-            <div style="font-size: 12px; color: #FF9800; font-weight: 600; margin-bottom: 4px;">
-              ⏱️ Estimated Time: ${strategy.fastestPath.estimatedTime}
-            </div>
-            <div style="font-size: 11px; color: #aaa;">
-              Complete these ${strategy.fastestPath.steps.length} species for maximum journal progress
-            </div>
-          </div>
-        `;
+        const pathTitle = document.createElement('div');
+        pathTitle.style.cssText = 'font-size: 16px; font-weight: bold; color: #FF9800; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #FF980033;';
+        pathTitle.textContent = `🚀 ${t('feature.journal.fastestPath', { count: String(strategy.fastestPath.expectedCompletion) })}`;
+        pathSection.appendChild(pathTitle);
+
+        const pathInfo = document.createElement('div');
+        pathInfo.style.cssText = 'background: #FF980022; border-left: 3px solid #FF9800; border-radius: 6px; padding: 12px; margin-bottom: 12px;';
+        const pathTime = document.createElement('div');
+        pathTime.style.cssText = 'font-size: 12px; color: #FF9800; font-weight: 600; margin-bottom: 4px;';
+        pathTime.textContent = `⏱️ ${t('feature.journal.estimatedTime', { time: strategy.fastestPath.estimatedTime })}`;
+        const pathDesc = document.createElement('div');
+        pathDesc.style.cssText = 'font-size: 11px; color: #aaa;';
+        pathDesc.textContent = t('feature.journal.completeSpecies', { count: String(strategy.fastestPath.steps.length) });
+        pathInfo.appendChild(pathTime);
+        pathInfo.appendChild(pathDesc);
+        pathSection.appendChild(pathInfo);
 
         strategy.fastestPath.steps.slice(0, 8).forEach((rec, index) => {
           const stepCard = document.createElement('div');
@@ -1028,29 +1040,15 @@ export function createJournalCheckerSection(): HTMLElement {
         goalsSection.style.cssText = `
           margin-bottom: 24px;
         `;
-        goalsSection.innerHTML = `
-          <div style="
-            font-size: 16px;
-            font-weight: bold;
-            color: #f44336;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #f4433633;
-          ">
-            🎖️ Long-Term Challenges
-          </div>
-          <div style="
-            background: #f4433622;
-            border-left: 3px solid #f44336;
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 12px;
-            font-size: 11px;
-            color: #f44336;
-          ">
-            ⚠️ These variants are very difficult or require rare conditions
-          </div>
-        `;
+        const goalsTitle = document.createElement('div');
+        goalsTitle.style.cssText = 'font-size: 16px; font-weight: bold; color: #f44336; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f4433633;';
+        goalsTitle.textContent = `🎖️ ${t('feature.journal.longTermChallenges')}`;
+        goalsSection.appendChild(goalsTitle);
+
+        const goalsWarning = document.createElement('div');
+        goalsWarning.style.cssText = 'background: #f4433622; border-left: 3px solid #f44336; border-radius: 6px; padding: 10px; margin-bottom: 12px; font-size: 11px; color: #f44336;';
+        goalsWarning.textContent = `⚠️ ${t('feature.journal.longTermWarning')}`;
+        goalsSection.appendChild(goalsWarning);
 
         strategy.longTermGoals.slice(0, 5).forEach(rec => {
           const goalCard = document.createElement('div');
@@ -1164,10 +1162,14 @@ export function createJournalCheckerSection(): HTMLElement {
   `;
 
   const helperText = document.createElement('div');
-  helperText.innerHTML = `
-    <div style="font-size: 13px; font-weight: 600; color: #fff;">Tooltip Helper</div>
-    <div style="font-size: 11px; color: #bbb;">Show journal letters inside crop tooltips</div>
-  `;
+  const helperTitle = document.createElement('div');
+  helperTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: #fff;';
+  helperTitle.textContent = t('feature.journal.tooltipHelper');
+  const helperDesc = document.createElement('div');
+  helperDesc.style.cssText = 'font-size: 11px; color: #bbb;';
+  helperDesc.textContent = t('feature.journal.tooltipHelperDesc');
+  helperText.appendChild(helperTitle);
+  helperText.appendChild(helperDesc);
   helperToggleCard.appendChild(helperText);
 
   const helperToggleButton = document.createElement('button');
@@ -1186,7 +1188,7 @@ export function createJournalCheckerSection(): HTMLElement {
   `;
 
   const applyToggleState = (enabled: boolean) => {
-    helperToggleButton.textContent = enabled ? 'ON' : 'OFF';
+    helperToggleButton.textContent = enabled ? t('feature.dashboard.toggleOn') : t('feature.dashboard.toggleOff');
     helperToggleButton.style.background = enabled
       ? 'linear-gradient(135deg, #5ad1ff, #35a8f7)'
       : 'rgba(0, 0, 0, 0.3)';
@@ -1283,7 +1285,7 @@ export function createJournalCheckerSection(): HTMLElement {
 
   // Refresh button with icon
   const refreshButton = document.createElement('button');
-  refreshButton.textContent = '🔄 Refresh Journal Data';
+  refreshButton.textContent = `🔄 ${t('feature.journal.refresh')}`;
   refreshButton.style.cssText = `
     width: 100%;
     flex-shrink: 0;
@@ -1313,12 +1315,12 @@ export function createJournalCheckerSection(): HTMLElement {
   });
 
   refreshButton.addEventListener('click', () => {
-    refreshButton.textContent = '⏳ Loading...';
+    refreshButton.textContent = `⏳ ${t('common.loading')}`;
     refreshButton.style.opacity = '0.6';
     import('../features/journalChecker').then(m => {
       m.refreshJournalCache();
       updateDisplay().then(() => {
-        refreshButton.textContent = '🔄 Refresh Journal Data';
+        refreshButton.textContent = `🔄 ${t('feature.journal.refresh')}`;
         refreshButton.style.opacity = '1';
       });
     });

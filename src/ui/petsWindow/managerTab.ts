@@ -17,6 +17,7 @@ import { btn, showToast } from './helpers';
 import { buildCompareTeamsPanel } from './comparisonPanel';
 import { renderTeamList } from './teamList';
 import { renderEditor } from './teamEditor';
+import { t } from '../../i18n';
 
 export function buildManagerTab(
   root: HTMLElement,
@@ -48,20 +49,20 @@ export function buildManagerTab(
   listTop.className = 'qpm-mgr__list-top';
   listHeader.appendChild(listTop);
 
-  const newTeamBtn = btn('+ New Team', 'sm');
+  const newTeamBtn = btn(t('feature.petsWindow.newTeam'), 'sm');
   listTop.appendChild(newTeamBtn);
 
-  const compareTeamsBtn = btn('\u2696 Compare', 'sm');
-  compareTeamsBtn.title = 'Compare two teams side by side';
+  const compareTeamsBtn = btn(`\u2696 ${t('feature.petsWindow.compare')}`, 'sm');
+  compareTeamsBtn.title = t('feature.petsWindow.compareTooltip');
   listTop.appendChild(compareTeamsBtn);
 
   const importBtn = btn('\u2B07', 'sm');
-  importBtn.title = 'Import Aries teams';
+  importBtn.title = t('feature.petsWindow.importAriesTooltip');
   listTop.appendChild(importBtn);
 
   const search = document.createElement('input');
   search.className = 'qpm-mgr__search';
-  search.placeholder = 'Search teams\u2026';
+  search.placeholder = t('feature.petsWindow.searchPlaceholder');
   listHeader.appendChild(search);
 
   const teamsContainer = document.createElement('div');
@@ -138,7 +139,7 @@ export function buildManagerTab(
 
   function refreshImportButton(): void {
     const imported = storage.get<boolean>(ARIES_IMPORT_ONCE_KEY, false);
-    importBtn.title = imported ? 'Aries import already completed' : 'Import Aries teams';
+    importBtn.title = imported ? t('feature.petsWindow.importDone') : t('feature.petsWindow.importAriesTooltip');
     importBtn.style.opacity = imported ? '0.62' : '1';
   }
 
@@ -148,7 +149,7 @@ export function buildManagerTab(
     ctx.normalizeComparePair();
     editor.style.display = compareOpen ? 'none' : '';
     compareWrapper.style.display = compareOpen ? '' : 'none';
-    compareTeamsBtn.textContent = compareOpen ? '\u2715 Close Compare' : '\u2696 Compare';
+    compareTeamsBtn.textContent = compareOpen ? `\u2715 ${t('feature.petsWindow.closeCompare')}` : `\u2696 ${t('feature.petsWindow.compare')}`;
     emitCompareState();
     ctx.renderTeamList();
     if (!compareOpen) ctx.renderEditor();
@@ -157,7 +158,7 @@ export function buildManagerTab(
   importBtn.addEventListener('click', () => {
     const result = importAriesTeams();
     if (!result.available) {
-      showToast('No Aries teams found in localStorage', 'info');
+      showToast(t('feature.petsWindow.noAriesTeams'), 'info');
       return;
     }
 
@@ -169,9 +170,9 @@ export function buildManagerTab(
     emitCompareState();
 
     if (result.imported > 0) {
-      showToast(`Imported ${result.imported} team${result.imported > 1 ? 's' : ''}`, 'success');
+      showToast(result.imported > 1 ? t('feature.petsWindow.importedTeams', { count: String(result.imported) }) : t('feature.petsWindow.importedTeam', { count: String(result.imported) }), 'success');
     } else {
-      showToast('Aries teams already imported', 'info');
+      showToast(t('feature.petsWindow.ariesAlreadyImported'), 'info');
     }
   });
 
@@ -185,7 +186,7 @@ export function buildManagerTab(
   state.cleanups.push(() => search.removeEventListener('input', () => {}));
 
   newTeamBtn.addEventListener('click', () => {
-    const team = createTeam(`Team ${getTeamsConfig().teams.length + 1}`);
+    const team = createTeam(t('feature.petsWindow.defaultTeamName', { number: String(getTeamsConfig().teams.length + 1) }));
     state.selectedTeamId = team.id;
     ctx.renderTeamList();
     ctx.renderEditor();
@@ -232,7 +233,7 @@ export function buildManagerTab(
       ctx.normalizeComparePair();
       editor.style.display = '';
       compareWrapper.style.display = 'none';
-      compareTeamsBtn.textContent = '\u2696 Compare';
+      compareTeamsBtn.textContent = `\u2696 ${t('feature.petsWindow.compare')}`;
       emitCompareState();
     }
     ctx.renderTeamList();

@@ -1,4 +1,5 @@
 import { getOptimizerAnalysis } from '../../features/petOptimizer';
+import { t } from '../../i18n';
 import { toggleWindow } from '../modalWindow';
 import { renderFamilyNav } from './familyNav';
 import { renderFilters } from './filters';
@@ -37,14 +38,18 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
 
   const savedScroll = globalState.root.scrollTop;
 
-  globalState.summaryContainer.innerHTML = '<div style="color: #aaa;">⏳ Loading pets...</div>';
+  globalState.summaryContainer.innerHTML = '';
+  const loadingDiv = document.createElement('div');
+  loadingDiv.style.cssText = 'color: #aaa;';
+  loadingDiv.textContent = `⏳ ${t('feature.petOptimizer.loadingPets')}`;
+  globalState.summaryContainer.appendChild(loadingDiv);
   globalState.resultsContainer.innerHTML = '';
 
   try {
     const progressDiv = document.createElement('div');
     progressDiv.style.cssText = 'color: #aaa; display: flex; align-items: center; gap: 10px;';
     const label = document.createElement('div');
-    label.textContent = '⏳ Analyzing pets...';
+    label.textContent = `⏳ ${t('feature.petOptimizer.analyzingPets')}`;
     const progressEl = document.createElement('div');
     progressEl.style.cssText = 'font-weight: bold; color: var(--qpm-accent, #8f82ff);';
     progressEl.textContent = '0%';
@@ -58,15 +63,17 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
     });
 
     if (!analysis || analysis.totalPets === 0) {
-      globalState.summaryContainer.innerHTML = `
-        <div style="color: #FF9800; padding: 20px; text-align: center;">
-          <div style="font-size: 18px; margin-bottom: 8px;">⚠️ No Pets Found</div>
-          <div style="font-size: 13px; color: #aaa;">
-            No pets detected in active slots, inventory, or hutch.
-            <br>Make sure you have pets and try refreshing.
-          </div>
-        </div>
-      `;
+      globalState.summaryContainer.innerHTML = '';
+      const noPetsDiv = document.createElement('div');
+      noPetsDiv.style.cssText = 'color: #FF9800; padding: 20px; text-align: center;';
+      const noPetsTitle = document.createElement('div');
+      noPetsTitle.style.cssText = 'font-size: 18px; margin-bottom: 8px;';
+      noPetsTitle.textContent = `⚠️ ${t('feature.petOptimizer.noPetsFound')}`;
+      const noPetsBody = document.createElement('div');
+      noPetsBody.style.cssText = 'font-size: 13px; color: #aaa;';
+      noPetsBody.textContent = `${t('feature.petOptimizer.noPetsFoundDesc')} ${t('feature.petOptimizer.noPetsFoundHint')}`;
+      noPetsDiv.append(noPetsTitle, noPetsBody);
+      globalState.summaryContainer.appendChild(noPetsDiv);
       globalState.resultsContainer.innerHTML = '';
       return;
     }
@@ -85,24 +92,27 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
     if (stateAfter) stateAfter.root.scrollTop = savedScroll;
   } catch (error) {
     console.error('[Pet Optimizer] Error:', error);
-    globalState.summaryContainer.innerHTML = `
-      <div style="color: var(--qpm-danger, #f44336); padding: 20px;">
-        <div style="font-size: 18px; margin-bottom: 8px;">❌ Analysis Failed</div>
-        <div style="font-size: 13px; color: #aaa;">
-          ${error instanceof Error ? error.message : 'Unknown error'}
-        </div>
-        <div style="font-size: 12px; color: #666; margin-top: 8px;">
-          Check browser console for details
-        </div>
-      </div>
-    `;
+    globalState.summaryContainer.innerHTML = '';
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = 'color: var(--qpm-danger, #f44336); padding: 20px;';
+    const errorTitle = document.createElement('div');
+    errorTitle.style.cssText = 'font-size: 18px; margin-bottom: 8px;';
+    errorTitle.textContent = `❌ ${t('feature.petOptimizer.analysisFailed')}`;
+    const errorMsg = document.createElement('div');
+    errorMsg.style.cssText = 'font-size: 13px; color: #aaa;';
+    errorMsg.textContent = error instanceof Error ? error.message : 'Unknown error';
+    const errorHint = document.createElement('div');
+    errorHint.style.cssText = 'font-size: 12px; color: #666; margin-top: 8px;';
+    errorHint.textContent = t('feature.petOptimizer.checkConsole');
+    errorDiv.append(errorTitle, errorMsg, errorHint);
+    globalState.summaryContainer.appendChild(errorDiv);
   }
 }
 
 export function openPetOptimizerWindow(): void {
   toggleWindow(
     'pet-optimizer',
-    '🎯 Pet Optimizer',
+    `🎯 ${t('feature.petOptimizer.title')}`,
     renderPetOptimizerWindow,
     '900px',
     '85vh',
@@ -138,7 +148,7 @@ export function renderPetOptimizerWindow(body: HTMLElement): void {
   header.style.cssText = 'margin-bottom: 10px;';
   header.innerHTML = `
     <div style="font-size: 17px; font-weight: 700;">
-      🎯 Pet Optimizer
+      🎯 ${t('feature.petOptimizer.title')}
     </div>
   `;
   root.appendChild(header);

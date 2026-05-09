@@ -4,12 +4,13 @@
 import { toggleWindow } from '../modalWindow';
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
+import { t } from '../../i18n';
 import { STATS_HUB_ACTIVE_TAB_KEY } from './constants';
 import { buildGardenTab } from './gardenTab';
 import { buildEconomyTab } from './economyTab';
 
 export function openStatsHubWindow(): void {
-  toggleWindow('stats-hub', '📊 Stats Hub', renderStatsHub, '920px', '85vh');
+  toggleWindow('stats-hub', `📊 ${t('feature.statsHub.title')}`, renderStatsHub, '920px', '85vh');
 }
 
 type TabId = 'garden' | 'economy';
@@ -50,8 +51,8 @@ export function renderStatsHub(root: HTMLElement): void {
     return btn;
   }
 
-  const gardenBtn = makeTab('🌿 Garden');
-  const economyBtn = makeTab('💰 Economy');
+  const gardenBtn = makeTab(`🌿 ${t('feature.statsHub.tabGarden')}`);
+  const economyBtn = makeTab(`💰 ${t('feature.statsHub.tabEconomy')}`);
   tabBar.append(gardenBtn, economyBtn);
   root.appendChild(tabBar);
 
@@ -85,7 +86,10 @@ export function renderStatsHub(root: HTMLElement): void {
       }
     } catch (error) {
       log('[StatsHub] Tab build error', error);
-      panel.innerHTML = '<div style="padding:20px;color:rgba(224,224,224,0.4);font-size:13px;">Failed to load tab content.</div>';
+      const errDiv = document.createElement('div');
+      errDiv.style.cssText = 'padding:20px;color:rgba(224,224,224,0.4);font-size:13px;';
+      errDiv.textContent = t('feature.statsHub.tabLoadError');
+      panel.appendChild(errDiv);
     }
   }
 

@@ -2,6 +2,7 @@
 // Garden tab — mutation progress, tile cards, popover detail, filter persistence.
 
 import { storage } from '../../utils/storage';
+import { t } from '../../i18n';
 import { onGardenSnapshot, getGardenSnapshot, type GardenSnapshot } from '../../features/gardenBridge';
 import { getPlantSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 import { computeMutationMultiplier } from '../../utils/cropMultipliers';
@@ -184,14 +185,14 @@ function buildSlotDetailContent(tile: TileEntry, selectedMutations: string[] = [
   const title = document.createElement('div');
   title.style.cssText = 'font-size:11px;font-weight:700;color:rgba(224,224,224,0.55);margin-bottom:2px;';
   title.textContent = selectedMutations.length > 0
-    ? `${visibleSlots.length} of ${tile.slots.length} slot${tile.slots.length > 1 ? 's' : ''} eligible`
-    : `${tile.slots.length} slot${tile.slots.length > 1 ? 's' : ''}`;
+    ? t('feature.statsHub.garden.slotsEligible', { visible: String(visibleSlots.length), total: String(tile.slots.length) })
+    : t('feature.statsHub.garden.slotCount', { count: String(tile.slots.length) });
   wrap.appendChild(title);
 
   if (visibleSlots.length === 0) {
     const none = document.createElement('div');
     none.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.3);padding:2px 0;';
-    none.textContent = 'All slots already have the selected mutations.';
+    none.textContent = t('feature.statsHub.garden.allSlotsHaveMutations');
     wrap.appendChild(none);
     return wrap;
   }
@@ -339,7 +340,7 @@ function buildTileCard(
     'color:#4ade80',
     'white-space:nowrap',
   ].join(';');
-  readyBadge.textContent = '✓ Ready';
+  readyBadge.textContent = `✓ ${t('feature.statsHub.garden.ready')}`;
   header.appendChild(readyBadge);
 
   // Sprite: use plant-first (bush/tree) for the tile card.
@@ -354,7 +355,7 @@ function buildTileCard(
   if (isMulti) {
     const countEl = document.createElement('div');
     countEl.style.cssText = 'font-size:10px;font-weight:600;color:rgba(143,130,255,0.75);';
-    countEl.textContent = `×${fruitCount} slots · tap`;
+    countEl.textContent = t('feature.statsHub.garden.slotsTap', { count: String(fruitCount) });
     header.appendChild(countEl);
   }
 
@@ -413,7 +414,7 @@ function buildTileCard(
     header.style.position = 'relative';
     const filterBtn = document.createElement('button');
     filterBtn.type = 'button';
-    filterBtn.title = tileFilter.active ? 'Clear garden filter' : 'Filter garden to this species';
+    filterBtn.title = tileFilter.active ? t('feature.statsHub.garden.clearFilter') : t('feature.statsHub.garden.filterSpecies');
     filterBtn.textContent = '◎';
     filterBtn.style.cssText = [
       'position:absolute', 'top:4px', 'right:4px',
@@ -528,7 +529,7 @@ function buildTileSection(
   if (tiles.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.3);padding:4px 0;';
-    empty.textContent = isComplete ? 'No tiles match all selected mutations yet.' : 'All tiles complete!';
+    empty.textContent = isComplete ? t('feature.statsHub.garden.noTilesMatch') : t('feature.statsHub.garden.allComplete');
     section.appendChild(empty);
     return section;
   }
@@ -636,7 +637,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   const plantFilterBtn = document.createElement('button');
   plantFilterBtn.type = 'button';
   plantFilterBtn.style.cssText = pillBtnCss(false);
-  plantFilterBtn.textContent = 'All plants ▾';
+  plantFilterBtn.textContent = `${t('feature.statsHub.garden.allPlants')} ▾`;
 
   let plantDropdownEl: HTMLElement | null = null;
 
@@ -647,8 +648,8 @@ export function buildGardenTab(container: HTMLElement): () => void {
 
   function updatePlantFilterBtn(): void {
     plantFilterBtn.textContent = activeSpeciesFilters.size > 0
-      ? `Plants (${activeSpeciesFilters.size}) ▾`
-      : 'All plants ▾';
+      ? `${t('feature.statsHub.garden.plantsCount', { count: String(activeSpeciesFilters.size) })} ▾`
+      : `${t('feature.statsHub.garden.allPlants')} ▾`;
     plantFilterBtn.style.cssText = pillBtnCss(activeSpeciesFilters.size > 0);
   }
 
@@ -702,7 +703,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
       'display:flex', 'flex-direction:column', 'gap:2px',
     ].join(';');
 
-    const allRow = buildSpeciesCheckRow('All plants', activeSpeciesFilters.size === 0, (checked) => {
+    const allRow = buildSpeciesCheckRow(t('feature.statsHub.garden.allPlants'), activeSpeciesFilters.size === 0, (checked) => {
       if (checked) { activeSpeciesFilters.clear(); renderContent(); updatePlantFilterBtn(); }
     });
     dropdown.appendChild(allRow);
@@ -765,7 +766,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
 
   const filterLabel = document.createElement('span');
   filterLabel.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.38);white-space:nowrap;';
-  filterLabel.textContent = 'Mutations:';
+  filterLabel.textContent = t('feature.statsHub.garden.mutations');
   filterBar.appendChild(filterLabel);
 
   const activeFilters = new Set<string>(savedFilters.mutationFilters ?? []);
@@ -802,8 +803,8 @@ export function buildGardenTab(container: HTMLElement): () => void {
   const maxSizePillBtn = document.createElement('button');
   maxSizePillBtn.type = 'button';
   maxSizePillBtn.style.cssText = pillBtnCss(maxSizeOnly);
-  maxSizePillBtn.textContent = 'Max Size';
-  maxSizePillBtn.title = 'Show only plants where at least one slot has reached its maximum size';
+  maxSizePillBtn.textContent = t('feature.statsHub.garden.maxSize');
+  maxSizePillBtn.title = t('feature.statsHub.garden.maxSizeTooltip');
   maxSizePillBtn.addEventListener('click', () => {
     maxSizeOnly = !maxSizeOnly;
     updatePills();
@@ -844,7 +845,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     valueSummaryBar.innerHTML = '';
 
     valueSummaryBar.appendChild(
-      makeCoinValueEl(current, 'Current:', 'font-size:13px;font-weight:700;color:#FFD700;')
+      makeCoinValueEl(current, t('feature.statsHub.garden.current'), 'font-size:13px;font-weight:700;color:#FFD700;')
     );
 
     if ((selected.length > 0 || maxSize) && potential > current) {
@@ -858,7 +859,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
       );
       const gainLbl = document.createElement('span');
       gainLbl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.38);';
-      gainLbl.textContent = 'if completed';
+      gainLbl.textContent = t('feature.statsHub.garden.ifCompleted');
       valueSummaryBar.appendChild(gainLbl);
     }
   }
@@ -893,7 +894,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     if (tiles.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText = 'color:rgba(224,224,224,0.3);font-size:13px;padding:32px 0;text-align:center;';
-      empty.textContent = allTiles.length === 0 ? 'No plants in garden yet.' : 'No plants match the current filter.';
+      empty.textContent = allTiles.length === 0 ? t('feature.statsHub.garden.noPlants') : t('feature.statsHub.garden.noMatch');
       content.appendChild(empty);
       updateValueSummary([], selected);
       return;
@@ -902,13 +903,13 @@ export function buildGardenTab(container: HTMLElement): () => void {
     if (selected.length === 0 && !maxSizeOnly) {
       const hint = document.createElement('div');
       hint.style.cssText = 'color:rgba(224,224,224,0.32);font-size:12px;padding:8px 0 4px;';
-      hint.textContent = 'Select mutations above to split plants into Remaining / Complete.';
+      hint.textContent = t('feature.statsHub.garden.selectMutationsHint');
       content.appendChild(hint);
     }
 
     const gardenHint = document.createElement('div');
     gardenHint.style.cssText = 'color:rgba(224,224,224,0.25);font-size:11px;padding:0 0 4px;';
-    gardenHint.textContent = 'Click a plant to highlight that specific tile in your garden.';
+    gardenHint.textContent = t('feature.statsHub.garden.clickPlantHint');
     content.appendChild(gardenHint);
 
     const remaining: TileEntry[] = [];
@@ -943,10 +944,10 @@ export function buildGardenTab(container: HTMLElement): () => void {
       const remainingFruits = (maxSizeOnly && selected.length === 0)
         ? countMaxSizeRemainingFruits(remaining)
         : countActionableFruits(remaining, selected);
-      const fruitWord = remainingFruits === 1 ? 'fruit' : 'fruits';
+      const fruitWord = remainingFruits === 1 ? t('feature.statsHub.garden.fruit') : t('feature.statsHub.garden.fruits');
       const remainingLabel = remainingFruits !== remaining.length
-        ? `Remaining — ${remainingFruits} ${fruitWord} · ${remaining.length} plants`
-        : `Remaining — ${remaining.length} plants`;
+        ? t('feature.statsHub.garden.remainingFruits', { fruits: String(remainingFruits), fruitWord, plants: String(remaining.length) })
+        : t('feature.statsHub.garden.remaining', { count: String(remaining.length) });
       content.appendChild(buildTileSection(
         remainingLabel, remaining, selected, false,
         {
@@ -958,14 +959,14 @@ export function buildGardenTab(container: HTMLElement): () => void {
         },
         tileFilterProps,
         selected.length > 0 ? {
-          label: 'Filter Remaining',
+          label: t('feature.statsHub.garden.filterRemaining'),
           active: filterRemainingActive,
           onToggle: (on) => {
             applyFilterRemaining(on);
             renderContent();
           },
           subToggle: (filterRemainingActive || activeSectionFilterSource === 'remaining') ? {
-            label: 'Match ALL',
+            label: t('feature.statsHub.garden.matchAll'),
             active: filterRemainingAllMode,
             onToggle: (on) => {
               filterRemainingAllMode = on;
@@ -982,7 +983,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
       content.appendChild(divider);
     }
     content.appendChild(buildTileSection(
-      isAnyFilterActive ? `Complete — ${complete.length} plants` : `All plants — ${complete.length}`,
+      isAnyFilterActive ? t('feature.statsHub.garden.complete', { count: String(complete.length) }) : t('feature.statsHub.garden.allPlantsCount', { count: String(complete.length) }),
       complete, selected, true,
       {
         active: activeSectionFilterSource === 'complete',

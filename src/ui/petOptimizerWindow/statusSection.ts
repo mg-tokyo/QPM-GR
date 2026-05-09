@@ -1,4 +1,5 @@
 import { getOptimizerConfig, type PetComparison } from '../../features/petOptimizer';
+import { t } from '../../i18n';
 import { getAbilityColor } from '../../utils/petCardRenderer';
 import { createFamilyTeam } from './actions';
 import { createPetCard } from './card';
@@ -28,35 +29,32 @@ function colorWithAlpha(color: string, alpha: number): string {
   return `rgba(143,130,255,${alpha})`;
 }
 
-const STATUS_CONFIG: Record<StatusSectionId, {
-  icon: string;
-  title: string;
-  color: string;
-  bgColor: string;
-  desc: string;
-}> = {
-  review: {
-    icon: '📝',
-    title: 'Review Needed',
-    color: '#FFC107',
-    bgColor: 'rgba(255, 193, 7, 0.1)',
-    desc: 'Contains unknown or unmapped abilities',
-  },
-  sell: {
-    icon: '💰',
-    title: 'Sell Pets',
-    color: '#f44336',
-    bgColor: 'rgba(244, 67, 54, 0.1)',
-    desc: 'Outclassed or low-value pets to sell',
-  },
-  keep: {
-    icon: '✅',
-    title: 'Keep These Pets',
-    color: '#4CAF50',
-    bgColor: 'rgba(76, 175, 80, 0.1)',
-    desc: 'Best in their categories',
-  },
-};
+function getStatusConfig(status: StatusSectionId): { icon: string; title: string; color: string; bgColor: string; desc: string } {
+  const configs: Record<StatusSectionId, { icon: string; title: string; color: string; bgColor: string; desc: string }> = {
+    review: {
+      icon: '📝',
+      title: t('feature.petOptimizer.reviewNeeded'),
+      color: '#FFC107',
+      bgColor: 'rgba(255, 193, 7, 0.1)',
+      desc: t('feature.petOptimizer.reviewDesc'),
+    },
+    sell: {
+      icon: '💰',
+      title: t('feature.petOptimizer.sellPets'),
+      color: '#f44336',
+      bgColor: 'rgba(244, 67, 54, 0.1)',
+      desc: t('feature.petOptimizer.sellDesc'),
+    },
+    keep: {
+      icon: '✅',
+      title: t('feature.petOptimizer.keepThese'),
+      color: '#4CAF50',
+      bgColor: 'rgba(76, 175, 80, 0.1)',
+      desc: t('feature.petOptimizer.keepDesc'),
+    },
+  };
+  return configs[status];
+}
 
 export function createStatusSection(
   status: StatusSectionId,
@@ -65,7 +63,7 @@ export function createStatusSection(
   onAfterSell: () => void,
   onAfterKeep: () => void,
 ): HTMLElement {
-  const sectionConfig = STATUS_CONFIG[status];
+  const sectionConfig = getStatusConfig(status);
   const optimizerConfig = getOptimizerConfig();
 
   // Build a map of familyKey → all comparisons in that family (across all statuses).
@@ -172,7 +170,9 @@ export function createStatusSection(
 
     const headerTitle = document.createElement('span');
     headerTitle.style.cssText = 'font-size: 12px; font-weight: 600; color: #ccc;';
-    headerTitle.textContent = `${family.familyLabel} (${family.pets.length} pet${family.pets.length > 1 ? 's' : ''})`;
+    headerTitle.textContent = family.pets.length === 1
+      ? t('feature.petOptimizer.familyPetCount', { family: family.familyLabel, count: '1' })
+      : t('feature.petOptimizer.familyPetCounts', { family: family.familyLabel, count: String(family.pets.length) });
     headerMeta.appendChild(headerTitle);
 
     abilityHeader.appendChild(headerMeta);
@@ -184,7 +184,7 @@ export function createStatusSection(
     if (topCandidates.length > 0) {
       const createBtn = document.createElement('button');
       createBtn.type = 'button';
-      createBtn.textContent = 'Create Team';
+      createBtn.textContent = t('feature.petOptimizer.createTeam');
       createBtn.style.cssText = [
         'padding:4px 9px',
         'font-size:11px',
@@ -197,7 +197,7 @@ export function createStatusSection(
         'white-space:nowrap',
         'transition:all 0.15s ease',
       ].join(';');
-      createBtn.title = `Create "${family.familyLabel}" team from top ${topCandidates.length} pet${topCandidates.length > 1 ? 's' : ''}`;
+      createBtn.title = t('feature.petOptimizer.createTeamTooltip', { family: family.familyLabel, count: String(topCandidates.length) });
       createBtn.addEventListener('mouseenter', () => {
         createBtn.style.borderColor = 'rgba(143,130,255,0.75)';
         createBtn.style.background = 'linear-gradient(180deg, rgba(143,130,255,0.35), rgba(143,130,255,0.20))';
@@ -216,7 +216,7 @@ export function createStatusSection(
     if (family.pets.length > 0) {
       const familySellBtn = document.createElement('button');
       familySellBtn.type = 'button';
-      familySellBtn.textContent = 'Sell';
+      familySellBtn.textContent = t('feature.petOptimizer.sell');
       familySellBtn.style.cssText = [
         'padding:4px 9px',
         'font-size:11px',
@@ -229,7 +229,7 @@ export function createStatusSection(
         'white-space:nowrap',
         'transition:all 0.15s ease',
       ].join(';');
-      familySellBtn.title = `Sell pets in ${family.familyLabel} family`;
+      familySellBtn.title = t('feature.petOptimizer.sellFamilyTooltip', { family: family.familyLabel });
       familySellBtn.addEventListener('mouseenter', () => {
         familySellBtn.style.borderColor = 'rgba(244,67,54,0.75)';
         familySellBtn.style.background = 'linear-gradient(180deg, rgba(244,67,54,0.35), rgba(244,67,54,0.20))';

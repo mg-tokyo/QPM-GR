@@ -8,6 +8,15 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.8",
+    date: "2026-05-10",
+    notes: [
+      "Added XP Potion button to XP Tracker pet cards with game sprite icon and potion count",
+      "Added inline XP Potion hover preview: progress bar overlay and STR projection shown in light blue glow",
+      "Fixed hunger percentages for Dawn pets showing incorrect values",
+    ],
+  },
+  {
     version: "3.2.7",
     date: "2026-05-09",
     notes: [

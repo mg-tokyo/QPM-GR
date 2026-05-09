@@ -1,5 +1,6 @@
 import { dispatchCustomEventAll } from '../../core/pageContext';
 import type { PetComparison } from '../../features/petOptimizer';
+import { t } from '../../i18n';
 import { createTeam, setTeamSlot } from '../../store/petTeams';
 import { isWindowOpen } from '../modalWindow';
 import { openPetPicker } from '../petPickerModal';
@@ -39,7 +40,7 @@ export function createFamilyTeam(familyLabel: string, pets: PetComparison[]): vo
   const topPets = pets.slice(0, 3);
   if (topPets.length === 0) return;
 
-  const teamName = familyLabel.trim() || 'Ability Team';
+  const teamName = familyLabel.trim() || t('feature.petOptimizer.abilityTeam');
   const team = createTeam(teamName);
 
   for (let slotIndex = 0; slotIndex < 3; slotIndex += 1) {
@@ -64,8 +65,8 @@ export function openBetterPetsCompare(comparison: PetComparison): void {
     .filter((value): value is string => typeof value === 'string' && value.length > 0);
 
   const compareTitle = comparison.decisionFamilyLabel
-    ? `Compare Better ${comparison.decisionFamilyLabel} Pets`
-    : 'Compare Better Pets';
+    ? t('feature.petOptimizer.compareBetterFamily', { family: comparison.decisionFamilyLabel })
+    : t('feature.petOptimizer.compareBetter');
 
   void openPetPicker({
     mode: 'compare_only',
@@ -95,7 +96,7 @@ export function openCompetitorsPetCompare(
 
   void openPetPicker({
     mode: 'compare_only',
-    title: `${familyLabel} Competitors`,
+    title: t('feature.petOptimizer.familyCompetitors', { family: familyLabel }),
     allowedItemIds,
     startInCompareMode: true,
     preselectedCompareItemIds: preselected,

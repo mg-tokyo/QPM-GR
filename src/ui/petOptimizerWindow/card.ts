@@ -5,6 +5,7 @@ import {
   type PetComparison,
 } from '../../features/petOptimizer';
 import { getOptimizerAbilityFamilyInfo } from '../../features/petCompareEngine';
+import { t } from '../../i18n';
 import { getAbilityColor, normalizeAbilityName } from '../../utils/petCardRenderer';
 import { openBetterPetsCompare, openCompetitorsPetCompare } from './actions';
 import { appendSellButton } from './sell';
@@ -34,8 +35,8 @@ function getAbilityFamilyKey(abilityId: string, abilityName: string): string | n
 }
 
 function formatStrength(strength: number, maxStrength: number | null | undefined): string {
-  if (!maxStrength || maxStrength <= strength) return `STR ${strength}`;
-  return `STR ${strength}/${maxStrength}`;
+  if (!maxStrength || maxStrength <= strength) return t('feature.petOptimizer.strValue', { value: String(strength) });
+  return t('feature.petOptimizer.strWithMax', { value: String(strength), max: String(maxStrength) });
 }
 
 function makeSmallButton(
@@ -78,7 +79,7 @@ function appendButtonRow(
 
   const hasRankContext = !!familyEntry && Number.isFinite(familyEntry.rank) && familyEntry.rank < Number.MAX_SAFE_INTEGER;
   const rankMetaLabel = hasRankContext && familyEntry?.totalCompetitors
-    ? `${familyEntry.totalCompetitors} competitor${familyEntry.totalCompetitors === 1 ? '' : 's'}`
+    ? familyEntry.totalCompetitors === 1 ? t('feature.petOptimizer.competitor', { count: '1' }) : t('feature.petOptimizer.competitors', { count: String(familyEntry.totalCompetitors) })
     : null;
   const showCompetitors = comparison.status === 'keep' && !!rankMetaLabel && !!familyPeers && familyPeers.length > 0;
 
@@ -103,8 +104,8 @@ function appendButtonRow(
     const palette = isReturn
       ? { border: 'rgba(255,193,7,0.55)', background: 'rgba(255,193,7,0.16)', color: '#ffe08a' }
       : { border: 'rgba(76,175,80,0.55)', background: 'rgba(76,175,80,0.18)', color: '#9de6a8' };
-    const btn = makeSmallButton(isReturn ? 'Return' : 'Keep', palette);
-    btn.title = isReturn ? 'Return this pet to optimizer recommendations' : 'Keep this pet in the optimizer';
+    const btn = makeSmallButton(isReturn ? t('feature.petOptimizer.returnBtn') : t('feature.petOptimizer.keepBtn'), palette);
+    btn.title = isReturn ? t('feature.petOptimizer.returnTooltip') : t('feature.petOptimizer.keepTooltip');
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
       btn.disabled = true;
@@ -159,7 +160,7 @@ export function createPetCard(
   });
 
   const sprite = getPetSprite(pet.species, pet.hasRainbow, pet.hasGold);
-  const betterPetsHeading = decisionFamilyLabel ? `Better ${decisionFamilyLabel} pets` : 'Better pets';
+  const betterPetsHeading = decisionFamilyLabel ? t('feature.petOptimizer.betterFamilyPets', { family: decisionFamilyLabel }) : t('feature.petOptimizer.betterPets');
 
   // Build the title line: name + optional species subtitle + location icon
   const displayName = pet.name || pet.species;
@@ -258,7 +259,7 @@ export function createPetCard(
             ${reason}
           </div>
           <div style="flex-shrink:0;display:flex;align-items:center;gap:4px;">
-            <span style="font-size:10px;color:#555;">SCORE</span>
+            <span style="font-size:10px;color:#555;">${t('feature.petOptimizer.score')}</span>
             <span style="font-size:15px;font-weight:bold;color:#42A5F5;">${Math.round(score.total - score.granterBonus)}</span>
             ${score.granterBonus > 0 ? `
               <span style="

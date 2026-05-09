@@ -24,6 +24,7 @@ import {
   type EventStatus,
 } from '../utils/restockAccuracy';
 import { getWeatherSnapshot } from '../store/weatherHub';
+import { t } from '../i18n';
 
 const INITIAL_ROWS = 5;
 const DETAIL_WINDOW_REGISTRY_KEY = 'qpm.restock.detailWindows.v1';
@@ -236,12 +237,12 @@ function fmtDuration(ms: number): string {
 }
 
 function fmtRelative(ts: number | null): string {
-  if (!ts) return 'Never seen';
+  if (!ts) return t('feature.itemDetail.neverSeen');
   const diff = Date.now() - ts;
-  if (diff < 60_000) return 'Just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
+  if (diff < 60_000) return t('feature.shopRestock.justNow');
+  if (diff < 3_600_000) return t('feature.shopRestock.minutesAgo', { m: Math.floor(diff / 60_000) });
+  if (diff < 86_400_000) return t('feature.shopRestock.hoursAgo', { h: Math.floor(diff / 3_600_000) });
+  return t('feature.shopRestock.daysAgo', { d: Math.floor(diff / 86_400_000) });
 }
 
 function fmtPercent(rate: number | null): string {
@@ -258,7 +259,7 @@ function fmtPercent(rate: number | null): string {
 function fmtCountdown(ts: number | null): string {
   if (!ts) return '\u2014';
   const diff = ts - Date.now();
-  if (diff <= 0) return 'Overdue';
+  if (diff <= 0) return t('feature.shopRestock.overdue');
   return `~${fmtDuration(diff)}`;
 }
 
@@ -272,10 +273,10 @@ function aggregateModelAccuracyMetric(
 ): { score: number; title: string } | null {
   if (!aggregate || aggregate.scored_predictions < RESTOCK_MODEL_ACCURACY_MIN_SCORED) return null;
   if (aggregate.within_one_cycle_pct == null || !Number.isFinite(aggregate.within_one_cycle_pct)) return null;
-  const details: string[] = [`${aggregate.scored_predictions} scored predictions`];
-  if (aggregate.mae_min != null) details.push(`MAE ${fmtDuration(aggregate.mae_min * 60_000)}`);
+  const details: string[] = [t('feature.itemDetail.scoredPredictions', { count: aggregate.scored_predictions })];
+  if (aggregate.mae_min != null) details.push(t('feature.itemDetail.mae', { duration: fmtDuration(aggregate.mae_min * 60_000) }));
   if (aggregate.median_abs_error_min != null) {
-    details.push(`median error ${fmtDuration(aggregate.median_abs_error_min * 60_000)}`);
+    details.push(t('feature.itemDetail.medianError', { duration: fmtDuration(aggregate.median_abs_error_min * 60_000) }));
   }
   return {
     score: clampPercentScore(aggregate.within_one_cycle_pct),
@@ -345,7 +346,7 @@ function buildAlgorithmMarkerSlots(
     seen.add(h.updated_at_ms);
     entries.push({
       timestampMs: h.updated_at_ms,
-      label: `Estimation algorithm updated \u2014 ${fmtAbsoluteWithZone(h.updated_at_ms)}`,
+      label: t('feature.itemDetail.algoUpdated', { date: fmtAbsoluteWithZone(h.updated_at_ms) }),
     });
   }
 
@@ -353,7 +354,7 @@ function buildAlgorithmMarkerSlots(
   if (entries.length === 0 && dbUpdatedAtMs != null && Number.isFinite(dbUpdatedAtMs)) {
     entries.push({
       timestampMs: dbUpdatedAtMs,
-      label: `Estimation algorithm updated \u2014 ${fmtAbsoluteWithZone(dbUpdatedAtMs)}`,
+      label: t('feature.itemDetail.algoUpdated', { date: fmtAbsoluteWithZone(dbUpdatedAtMs) }),
     });
   }
 
@@ -399,12 +400,12 @@ function makeAlgorithmUpdateMarkerEl(slot: AlgorithmMarkerSlot): HTMLElement {
     'text-overflow:ellipsis',
   ].join(';');
   const suffix = slot.context === 'after-latest'
-    ? ' (after latest listed restock)'
+    ? ` ${t('feature.itemDetail.afterLatest')}`
     : slot.context === 'before-oldest'
-      ? ' (before oldest listed restock)'
+      ? ` ${t('feature.itemDetail.beforeOldest')}`
       : '';
   marker.textContent = `${slot.label}${suffix}`;
-  marker.title = `Updated at ${new Date(slot.timestampMs).toISOString()}`;
+  marker.title = t('feature.itemDetail.updatedAt', { date: new Date(slot.timestampMs).toISOString() });
   return marker;
 }
 
@@ -457,9 +458,17 @@ function getItemSpriteUrl(shopType: string, itemId: string): string | null {
 
 // ── Category & status helpers ────────────────────────────────────────────────
 
-const SHOP_LABELS: Record<string, string> = {
-  seed: 'Seeds', egg: 'Eggs', decor: 'Decor', tool: 'Tools', weather: 'Weather', dawn: 'Dawn',
-};
+function shopLabel(shopType: string): string {
+  const keys: Record<string, string> = {
+    seed: 'feature.shopRestock.filterSeeds',
+    egg: 'feature.shopRestock.filterEggs',
+    decor: 'feature.shopRestock.filterDecor',
+    tool: 'feature.shopRestock.filterTools',
+    weather: 'feature.shopRestock.filterWeather',
+    dawn: 'feature.shopRestock.filterDawn',
+  };
+  return t(keys[shopType] ?? '', undefined, shopType);
+}
 
 /** Thin wrapper: compute accuracy for a RowData using the new module. */
 function computeRowEventAccuracy(
@@ -486,12 +495,14 @@ function computeMedianRowRegularity(
 }
 
 
-const STATUS_CONFIG: Record<EventStatus, { icon: string; label: string; color: string; bg: string }> = {
-  accurate: { icon: '\u2713', label: 'Accurate',    color: '#4ade80', bg: 'rgba(74,222,128,0.10)' },
-  early:    { icon: '\u21D7', label: 'Early',        color: '#60a5fa', bg: 'rgba(96,165,250,0.10)' },
-  late:     { icon: '\u23F1', label: 'Late',          color: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
-  first:    { icon: '\u2014', label: 'First Event',   color: 'rgba(232,224,255,0.5)', bg: 'rgba(143,130,255,0.06)' },
-};
+function getStatusConfig(): Record<EventStatus, { icon: string; label: string; color: string; bg: string }> {
+  return {
+    accurate: { icon: '\u2713', label: t('feature.itemDetail.statusAccurate'), color: '#4ade80', bg: 'rgba(74,222,128,0.10)' },
+    early:    { icon: '\u21D7', label: t('feature.itemDetail.statusEarly'),    color: '#60a5fa', bg: 'rgba(96,165,250,0.10)' },
+    late:     { icon: '\u23F1', label: t('feature.itemDetail.statusLate'),     color: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
+    first:    { icon: '\u2014', label: t('feature.itemDetail.statusFirstEvent'), color: 'rgba(232,224,255,0.5)', bg: 'rgba(143,130,255,0.06)' },
+  };
+}
 
 // ── Shared card styles ───────────────────────────────────────────────────────
 
@@ -537,7 +548,7 @@ function makeCardHeader(
     'border:1px solid rgba(143,130,255,0.2)',
     'text-transform:uppercase', 'letter-spacing:0.4px',
   ].join(';');
-  catBadge.textContent = SHOP_LABELS[shopType] || shopType;
+  catBadge.textContent = shopLabel(shopType);
   headerText.appendChild(catBadge);
   header.appendChild(headerText);
 
@@ -572,10 +583,10 @@ function buildOverviewCard(
   const prob = getItemProbability(item);
   if (prob != null && prob >= 0.5) {
     statusIcon.textContent = '\u{1F525}';
-    statusIcon.title = 'High probability';
+    statusIcon.title = t('feature.itemDetail.highProbability');
   } else {
     statusIcon.textContent = '\u{1F4CA}';
-    statusIcon.title = 'Overview';
+    statusIcon.title = t('feature.itemDetail.overview');
   }
   card.appendChild(header);
 
@@ -600,20 +611,20 @@ function buildOverviewCard(
     return chip;
   };
 
-  const eventCountChip = makeChip(String(item.total_occurrences ?? 0), 'Sightings');
+  const eventCountChip = makeChip(String(item.total_occurrences ?? 0), t('feature.itemDetail.sightings'));
   statsRow.appendChild(eventCountChip);
   if (item.median_interval_ms != null) {
-    let medianLabel = 'Median';
+    let medianLabel = t('feature.itemDetail.median');
     if (item.recent_intervals_ms && item.recent_intervals_ms.length >= 5) {
       const ci = getConfidenceInterval(item.recent_intervals_ms, 0.80);
       if (ci) {
-        medianLabel = `Median (80%: ${fmtDuration(ci[0])}\u2013${fmtDuration(ci[1])})`;
+        medianLabel = t('feature.itemDetail.medianWithCI', { low: fmtDuration(ci[0]), high: fmtDuration(ci[1]) });
       }
     }
     // Weather-conditional median when >= 3 intervals for current weather
     const weatherEta = computeWeatherConditionalMedian(item);
     if (weatherEta) {
-      medianLabel += ` | ~${fmtDuration(weatherEta.median)} during ${weatherEta.weather}`;
+      medianLabel += ` ${t('feature.itemDetail.weatherMedian', { duration: fmtDuration(weatherEta.median), weather: weatherEta.weather })}`;
     }
     statsRow.appendChild(makeChip(fmtDuration(item.median_interval_ms), medianLabel, '#a78bfa'));
   }
@@ -622,14 +633,14 @@ function buildOverviewCard(
     if (Math.abs(trendPct) >= 5) {
       const trendLabel = trendPct > 0 ? `+${trendPct}% trend` : `${trendPct}% trend`;
       const trendColor = trendPct > 0 ? 'rgba(251,191,36,0.85)' : 'rgba(74,222,128,0.85)';
-      statsRow.appendChild(makeChip(fmtDuration(item.ema_interval_ms), `EMA (${trendLabel})`, trendColor));
+      statsRow.appendChild(makeChip(fmtDuration(item.ema_interval_ms), t('feature.itemDetail.emaTrend', { trend: trendLabel }), trendColor));
     }
   }
   if (item.average_quantity != null && item.average_quantity > 0) {
     const qty = item.average_quantity >= 10
       ? `~${Math.round(item.average_quantity)}`
       : `~${item.average_quantity.toFixed(1)}`;
-    statsRow.appendChild(makeChip(qty, 'Avg Qty'));
+    statsRow.appendChild(makeChip(qty, t('feature.itemDetail.avgQty')));
   }
   const lastChip = statsRow.lastElementChild as HTMLElement | null;
   if (lastChip) lastChip.style.borderRight = 'none';
@@ -644,12 +655,12 @@ function buildOverviewCard(
   lastSeenRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
   const lastSeenLabel = document.createElement('span');
   lastSeenLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-  lastSeenLabel.textContent = 'Last Seen';
+  lastSeenLabel.textContent = t('feature.itemDetail.lastSeen');
   const lastSeenValue = document.createElement('span');
   lastSeenValue.style.cssText = 'font-size:13px;font-weight:600;color:#e8e0ff;';
   const setLastSeen = (timestamp: number | null): void => {
-    lastSeenValue.textContent = timestamp ? fmtRelative(timestamp) : 'Never';
-    lastSeenValue.title = timestamp ? fmtAbsoluteWithZone(timestamp) : 'Never seen';
+    lastSeenValue.textContent = timestamp ? fmtRelative(timestamp) : t('feature.itemDetail.never');
+    lastSeenValue.title = timestamp ? fmtAbsoluteWithZone(timestamp) : t('feature.itemDetail.neverSeen');
   };
   setLastSeen(item.last_seen ?? null);
   lastSeenRow.append(lastSeenLabel, lastSeenValue);
@@ -660,7 +671,7 @@ function buildOverviewCard(
   nextRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
   const nextLabel = document.createElement('span');
   nextLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-  nextLabel.textContent = 'Next Estimated';
+  nextLabel.textContent = t('feature.itemDetail.nextEstimated');
   const nextValue = document.createElement('span');
   const isOverdue = item.estimated_next_timestamp != null && item.estimated_next_timestamp <= Date.now();
   nextValue.style.cssText = `font-size:13px;font-weight:600;color:${isOverdue ? '#4ade80' : '#e8e0ff'};`;
@@ -678,7 +689,7 @@ function buildOverviewCard(
     probHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;';
     const probLabel = document.createElement('span');
     probLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-    probLabel.textContent = 'Current Probability';
+    probLabel.textContent = t('feature.itemDetail.currentProbability');
     const probValue = document.createElement('span');
     probValue.style.cssText = [
       'font-size:18px', 'font-weight:800',
@@ -712,7 +723,7 @@ function buildOverviewCard(
       'font-size:11px', 'font-weight:600', 'color:rgba(232,224,255,0.5)',
       'text-transform:uppercase', 'letter-spacing:0.3px',
     ].join(';');
-    decompToggle.textContent = '\u25B6 Prediction Details';
+    decompToggle.textContent = '\u25B6 ' + t('feature.itemDetail.predictionDetails');
 
     const decompContent = document.createElement('div');
     decompContent.style.cssText = 'display:none;margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(143,130,255,0.04);border:1px solid rgba(143,130,255,0.10);';
@@ -720,7 +731,7 @@ function buildOverviewCard(
     decompToggle.addEventListener('click', () => {
       decompOpen = !decompOpen;
       decompContent.style.display = decompOpen ? '' : 'none';
-      decompToggle.textContent = `${decompOpen ? '\u25BC' : '\u25B6'} Prediction Details`;
+      decompToggle.textContent = `${decompOpen ? '\u25BC' : '\u25B6'} ${t('feature.itemDetail.predictionDetails')}`;
     });
 
     const decompGrid = document.createElement('div');
@@ -739,16 +750,16 @@ function buildOverviewCard(
     if (item.fallback_rate != null) {
       const ratePct = (item.fallback_rate * 100).toFixed(2);
       const oneIn = item.fallback_rate > 0 ? Math.round(1 / item.fallback_rate) : 0;
-      addDecompLine('Base rate', `${ratePct}%${oneIn > 0 ? ` (1 in ~${oneIn})` : ''}`);
+      addDecompLine(t('feature.itemDetail.baseRate'), oneIn > 0 ? t('feature.itemDetail.baseRateOneIn', { pct: ratePct, oneIn }) : `${ratePct}%`);
     }
     if (item.empirical_probability != null) {
-      addDecompLine('Empirical', `${(item.empirical_probability * 100).toFixed(2)}% conditional`);
+      addDecompLine(t('feature.itemDetail.empirical'), t('feature.itemDetail.pctConditional', { pct: (item.empirical_probability * 100).toFixed(2) }));
     }
     if (item.empirical_weight != null) {
-      addDecompLine('Blend weight', `${Math.round(item.empirical_weight * 100)}% empirical`);
+      addDecompLine(t('feature.itemDetail.blendWeight'), t('feature.itemDetail.pctEmpirical', { pct: Math.round(item.empirical_weight * 100) }));
     }
     if (prob != null) {
-      addDecompLine('Final probability', fmtPercent(prob), '#a78bfa');
+      addDecompLine(t('feature.itemDetail.finalProbability'), fmtPercent(prob), '#a78bfa');
     }
 
     decompContent.appendChild(decompGrid);
@@ -763,7 +774,7 @@ function buildOverviewCard(
 
     const histLabel = document.createElement('div');
     histLabel.style.cssText = 'font-size:11px;font-weight:600;color:rgba(232,224,255,0.5);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;';
-    histLabel.textContent = 'Interval Distribution';
+    histLabel.textContent = t('feature.itemDetail.intervalDistribution');
     histRow.appendChild(histLabel);
 
     const intervals = item.recent_intervals_ms;
@@ -819,7 +830,7 @@ function buildOverviewCard(
     } else {
       const uniformNote = document.createElement('div');
       uniformNote.style.cssText = 'font-size:11px;color:rgba(232,224,255,0.3);';
-      uniformNote.textContent = `All ${intervals.length} intervals: ${fmtDuration(minVal)}`;
+      uniformNote.textContent = t('feature.itemDetail.allIntervals', { count: intervals.length, duration: fmtDuration(minVal) });
       histRow.appendChild(uniformNote);
     }
 
@@ -833,7 +844,7 @@ function buildOverviewCard(
   accuracyHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;';
   const accuracyLabel = document.createElement('span');
   accuracyLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-  accuracyLabel.textContent = 'Gap Consistency';
+  accuracyLabel.textContent = t('feature.itemDetail.gapConsistency');
   const accuracyValue = document.createElement('span');
   accuracyValue.style.cssText = 'font-size:16px;font-weight:700;color:#e8e0ff;';
   accuracyHeader.append(accuracyLabel, accuracyValue);
@@ -853,7 +864,7 @@ function buildOverviewCard(
   modelAccuracyHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;';
   const modelAccuracyLabel = document.createElement('span');
   modelAccuracyLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-  modelAccuracyLabel.textContent = 'Prediction Accuracy';
+  modelAccuracyLabel.textContent = t('feature.itemDetail.predictionAccuracy');
   const modelAccuracyValue = document.createElement('span');
   modelAccuracyValue.style.cssText = 'font-size:16px;font-weight:700;color:#e8e0ff;';
   modelAccuracyHeader.append(modelAccuracyLabel, modelAccuracyValue);
@@ -873,7 +884,7 @@ function buildOverviewCard(
   btnWrap.style.cssText = 'padding:0 16px 14px;';
   const browseBtn = document.createElement('button');
   browseBtn.type = 'button';
-  browseBtn.textContent = 'Loading events\u2026';
+  browseBtn.textContent = t('feature.itemDetail.loadingEvents');
   browseBtn.disabled = true;
   browseBtn.style.cssText = [
     'display:block', 'width:100%', 'padding:9px',
@@ -900,8 +911,8 @@ function buildOverviewCard(
       browseBtn.style.opacity = count === 0 ? '0.4' : '1';
       browseBtn.style.cursor = count === 0 ? 'default' : 'pointer';
       browseBtn.textContent = count > 0
-        ? `Browse ${count} Restock Event${count !== 1 ? 's' : ''}`
-        : 'No events recorded';
+        ? (count === 1 ? t('feature.itemDetail.browseEvent', { count }) : t('feature.itemDetail.browseEvents', { count }))
+        : t('feature.itemDetail.noEventsRecorded');
       const chipValue = eventCountChip.firstElementChild as HTMLElement | null;
       if (chipValue) chipValue.textContent = String(count);
     },
@@ -958,7 +969,7 @@ function buildEventCard(
   scoreRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;';
   const scoreLabel = document.createElement('span');
   scoreLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);font-weight:600;';
-  scoreLabel.textContent = 'Prediction Accuracy';
+  scoreLabel.textContent = t('feature.itemDetail.predictionAccuracy');
   const scoreValue = document.createElement('span');
   scoreValue.style.cssText = [
     'font-size:20px', 'font-weight:800',
@@ -1000,8 +1011,8 @@ function buildEventCard(
     return { box, valueEl, labelEl: lbl };
   };
 
-  const estimated = makeTimeBox('Estimated Restock', '\u{1F52E}', '#a78bfa', 'rgba(143,130,255,0.06)');
-  const actual    = makeTimeBox('Actual Restock', '\u{1F4CD}', '#f0abfc', 'rgba(255,143,230,0.06)');
+  const estimated = makeTimeBox(t('feature.itemDetail.estimatedRestock'), '\u{1F52E}', '#a78bfa', 'rgba(143,130,255,0.06)');
+  const actual    = makeTimeBox(t('feature.itemDetail.actualRestock'), '\u{1F4CD}', '#f0abfc', 'rgba(255,143,230,0.06)');
   timeSection.append(estimated.box, actual.box);
   card.appendChild(timeSection);
 
@@ -1038,8 +1049,8 @@ function buildEventCard(
     return btn;
   };
 
-  const prevBtn = makeNavBtn('\u25C0 Prev');
-  const nextBtn = makeNavBtn('Next \u25B6');
+  const prevBtn = makeNavBtn('\u25C0 ' + t('feature.itemDetail.prev'));
+  const nextBtn = makeNavBtn(t('feature.itemDetail.nextNav') + ' \u25B6');
   const counter = document.createElement('span');
   counter.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);font-variant-numeric:tabular-nums;min-width:60px;text-align:center;';
 
@@ -1066,7 +1077,7 @@ function buildEventCard(
   backRow.style.cssText = 'text-align:center;padding:0 16px 10px;';
   const backLink = document.createElement('button');
   backLink.type = 'button';
-  backLink.textContent = '\u2190 Back to Overview';
+  backLink.textContent = '\u2190 ' + t('feature.itemDetail.backToOverview');
   backLink.style.cssText = [
     'background:none', 'border:none', 'cursor:pointer',
     'font-size:11px', 'color:rgba(200,192,255,0.55)',
@@ -1083,12 +1094,12 @@ function buildEventCard(
     const row = rows[index]!;
     const prevRow = index + 1 < rows.length ? rows[index + 1]! : null;
     const acc = computeRowEventAccuracy(row, prevRow, medianMs, intervals);
-    const cfg = STATUS_CONFIG[acc.status];
+    const cfg = getStatusConfig()[acc.status];
     const hasLoggedPrediction = row.predicted_next_ms != null;
 
     statusIcon.textContent = cfg.icon;
     statusIcon.style.color = cfg.color;
-    scoreLabel.textContent = hasLoggedPrediction ? 'Prediction Accuracy' : 'Gap Consistency';
+    scoreLabel.textContent = hasLoggedPrediction ? t('feature.itemDetail.predictionAccuracy') : t('feature.itemDetail.gapConsistency');
 
     if (acc.status === 'first') {
       scoreValue.textContent = '\u2014';
@@ -1099,13 +1110,13 @@ function buildEventCard(
     }
 
     if (acc.status === 'first') {
-      estimated.labelEl.textContent = 'Estimated Restock';
+      estimated.labelEl.textContent = t('feature.itemDetail.estimatedRestock');
       estimated.valueEl.textContent = '\u2014';
       estimated.valueEl.style.color = 'rgba(232,224,255,0.3)';
       actual.valueEl.textContent = fmtTimestamp(acc.actualTs);
       actual.valueEl.style.color = '#e8e0ff';
     } else {
-      estimated.labelEl.textContent = hasLoggedPrediction ? 'Predicted Restock' : 'Median Estimate';
+      estimated.labelEl.textContent = hasLoggedPrediction ? t('feature.itemDetail.predictedRestock') : t('feature.itemDetail.medianEstimate');
       estimated.valueEl.textContent = acc.estimatedTs != null ? fmtTimestamp(acc.estimatedTs) : '\u2014';
       estimated.valueEl.style.color = '#e8e0ff';
       actual.valueEl.textContent = fmtTimestamp(acc.actualTs);
@@ -1118,14 +1129,18 @@ function buildEventCard(
     statusBadge.style.border = `1px solid ${cfg.color}30`;
 
     if (acc.status === 'first') {
-      diffText.textContent = 'First recorded \u2014 no comparison available';
+      diffText.textContent = t('feature.itemDetail.firstRecorded');
     } else {
       const absDiff = Math.abs(acc.diffMs);
       const dir = acc.diffMs < 0 ? 'early' : acc.diffMs > 0 ? 'late' : 'exact';
-      diffText.textContent = dir === 'exact' ? 'Exact match' : `${fmtDuration(absDiff)} ${dir}`;
+      diffText.textContent = dir === 'exact'
+        ? t('feature.itemDetail.exactMatch')
+        : dir === 'early'
+          ? t('feature.itemDetail.durationEarly', { duration: fmtDuration(absDiff) })
+          : t('feature.itemDetail.durationLate', { duration: fmtDuration(absDiff) });
     }
 
-    counter.textContent = `${index + 1} of ${rows.length}`;
+    counter.textContent = t('feature.itemDetail.counterOf', { current: index + 1, total: rows.length });
     prevBtn.disabled = index >= rows.length - 1;
     nextBtn.disabled = index <= 0;
     prevBtn.style.opacity = prevBtn.disabled ? '0.3' : '1';
@@ -1151,12 +1166,12 @@ function makeRowEl(
   const { color, pill } = acc.status === 'first'
     ? { color: TIER_COLOR.none, pill: '' }
     : acc.status === 'accurate'
-      ? { color: TIER_COLOR.good, pill: '\u2713 on time' }
+      ? { color: TIER_COLOR.good, pill: '\u2713 ' + t('feature.itemDetail.onTime') }
       : {
           color: Math.abs(acc.diffMs) <= getAccuracyWindows(medianMs, intervals).warnMs
             ? TIER_COLOR.warn
             : TIER_COLOR.bad,
-          pill: `${fmtDuration(acc.diffMs)} ${acc.diffMs < 0 ? 'early' : 'late'}`,
+          pill: acc.diffMs < 0 ? t('feature.itemDetail.durationEarly', { duration: fmtDuration(acc.diffMs) }) : t('feature.itemDetail.durationLate', { duration: fmtDuration(acc.diffMs) }),
         };
   const rowAccuracy = acc.status === 'first' ? null : acc.score;
 
@@ -1238,7 +1253,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
   const winId = getDetailWindowId(shopType, canonicalId);
   destroyWindow(winId);
 
-  openWindow(winId, `${safeItemName} \u2014 Restock History`, (root) => {
+  openWindow(winId, `${safeItemName} \u2014 ${t('feature.itemDetail.restockHistory')}`, (root) => {
     root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;';
     const item = selectedItem;
 
@@ -1338,7 +1353,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
 
     const spinner = document.createElement('div');
     spinner.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:20px;font-size:12px;color:rgba(224,224,224,0.4);';
-    spinner.textContent = '\u23F3 Loading events\u2026';
+    spinner.textContent = '\u23F3 ' + t('feature.itemDetail.loadingEvents');
     eventListSection.appendChild(spinner);
     contentRoot.appendChild(eventListSection);
     updateLinkedScaleFromWindow();
@@ -1403,7 +1418,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         overview.setEventCount(0);
         const empty = document.createElement('div');
         empty.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:24px;font-size:12px;color:rgba(224,224,224,0.35);';
-        empty.textContent = 'No raw event history found for this item.';
+        empty.textContent = t('feature.itemDetail.noEventHistory');
         eventListSection.appendChild(empty);
         updateLinkedScaleFromWindow();
         return;
@@ -1471,8 +1486,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
           .filter((score): score is number => score !== null);
         if (modelScores.length > 0) {
           const avgScore = modelScores.reduce((s, v) => s + v, 0) / modelScores.length;
-          const suffix = modelScores.length === 1 ? '' : 's';
-          overview.setModelAccuracy(avgScore, `${modelScores.length} logged prediction${suffix}`);
+          overview.setModelAccuracy(avgScore, modelScores.length === 1 ? t('feature.itemDetail.loggedPrediction', { count: modelScores.length }) : t('feature.itemDetail.loggedPredictions', { count: modelScores.length }));
         }
       }
 
@@ -1512,9 +1526,9 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         return chip;
       };
 
-      strip.appendChild(makeChip(String(rows.length), 'Events'));
+      strip.appendChild(makeChip(String(rows.length), t('feature.itemDetail.events')));
       if (medianMs != null) {
-        strip.appendChild(makeChip(fmtDuration(medianMs), 'Median gap', '#a78bfa'));
+        strip.appendChild(makeChip(fmtDuration(medianMs), t('feature.itemDetail.medianGap'), '#a78bfa'));
       }
       const modelErrors = rows
         .filter((r) => r.predicted_next_ms != null)
@@ -1523,11 +1537,11 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       if (modelErrors.length > 0) {
         const avgErr = modelErrors.reduce((s, v) => s + v, 0) / modelErrors.length;
         const c = avgErr < 1_800_000 ? '#4ade80' : avgErr < 10_800_000 ? '#fbbf24' : '#f87171';
-        strip.appendChild(makeChip(fmtDuration(avgErr), 'Avg model error', c));
+        strip.appendChild(makeChip(fmtDuration(avgErr), t('feature.itemDetail.avgModelError'), c));
       } else if (withError.length > 0) {
         const avgErr = withError.reduce((s, r) => s + Math.abs(r.errorMs!), 0) / withError.length;
         const c = avgErr < 1_800_000 ? '#4ade80' : avgErr < 10_800_000 ? '#fbbf24' : '#f87171';
-        strip.appendChild(makeChip(fmtDuration(avgErr), 'Avg error', c));
+        strip.appendChild(makeChip(fmtDuration(avgErr), t('feature.itemDetail.avgErrorLabel'), c));
       }
       const lastChip = strip.lastElementChild as HTMLElement | null;
       if (lastChip) lastChip.style.borderRight = 'none';
@@ -1543,13 +1557,13 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         'flex-shrink:0',
       ].join(';');
       const hL = document.createElement('span');
-      hL.textContent = 'Restocked';
+      hL.textContent = t('feature.itemDetail.restocked');
       const hM = document.createElement('span');
       hM.style.textAlign = 'right';
-      hM.textContent = 'Accuracy';
+      hM.textContent = t('feature.itemDetail.accuracy');
       const hR = document.createElement('span');
       hR.style.textAlign = 'right';
-      hR.textContent = 'Status';
+      hR.textContent = t('feature.itemDetail.statusHeader');
       colHdr.append(hL, hM, hR);
       eventListSection.appendChild(colHdr);
 
@@ -1585,7 +1599,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         const remaining = rows.length - INITIAL_ROWS;
         const moreBtn = document.createElement('button');
         moreBtn.type = 'button';
-        moreBtn.textContent = `Show ${remaining} more`;
+        moreBtn.textContent = t('feature.itemDetail.showMore', { count: remaining });
         moreBtn.style.cssText = [
           'display:block', 'width:100%', 'margin-top:6px', 'padding:7px',
           'font-size:12px', 'font-weight:600', 'cursor:pointer',

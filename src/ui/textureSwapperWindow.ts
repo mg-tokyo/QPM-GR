@@ -20,10 +20,10 @@ import {
   type TextureOverrideRule,
 } from '../features/textureSwapper';
 import { notify } from '../core/notifications';
+import { t } from '../i18n';
 import type { SpriteCategory } from '../sprite-v2/types';
 
 const WINDOW_ID = 'texture-swapper';
-const WINDOW_TITLE = 'Texture Manipulator';
 
 const CATEGORIES: SpriteCategory[] = [
   'plant',
@@ -36,16 +36,16 @@ const CATEGORIES: SpriteCategory[] = [
   'mutation',
   'mutation-overlay',
 ];
-const CATEGORY_LABELS: Record<string, string> = {
-  plant: 'Plant',
-  tallplant: 'Tall Plant',
-  crop: 'Crop',
-  pet: 'Pet',
-  seed: 'Seed',
-  item: 'Item',
-  decor: 'Decor',
-  mutation: 'Mutation',
-  'mutation-overlay': 'Mutation Overlay',
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  plant: 'feature.textureSwapper.catPlant',
+  tallplant: 'feature.textureSwapper.catTallPlant',
+  crop: 'feature.textureSwapper.catCrop',
+  pet: 'feature.textureSwapper.catPet',
+  seed: 'feature.textureSwapper.catSeed',
+  item: 'feature.textureSwapper.catItem',
+  decor: 'feature.textureSwapper.catDecor',
+  mutation: 'feature.textureSwapper.catMutation',
+  'mutation-overlay': 'feature.textureSwapper.catMutationOverlay',
 };
 
 const TINT_BLENDS = [
@@ -110,10 +110,10 @@ function defaultState(): WindowState {
 
 export function openTextureSwapperWindow(): void {
   if (!TEXTURE_MANIPULATOR_ENABLED) {
-    notify({ feature: 'textureSwapper', level: 'warning', message: 'Texture Manipulator is disabled in this build.' });
+    notify({ feature: 'textureSwapper', level: 'warning', message: t('feature.textureSwapper.disabledNotice') });
     return;
   }
-  toggleWindow(WINDOW_ID, WINDOW_TITLE, (root) => renderWindow(root), '920px', '88vh');
+  toggleWindow(WINDOW_ID, t('feature.textureSwapper.title'), (root) => renderWindow(root), '920px', '88vh');
 }
 
 // ---------------------------------------------------------------------------
@@ -161,11 +161,11 @@ function renderWindow(root: HTMLElement): void {
 
   const titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-size:15px;font-weight:700;color:#e0e0e0;';
-  titleEl.textContent = 'Texture Manipulator';
+  titleEl.textContent = t('feature.textureSwapper.title');
 
   const descEl = document.createElement('div');
   descEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.4);';
-  descEl.textContent = 'Cosmetic texture overrides for QPM UI and live garden sprites. No game state changes.';
+  descEl.textContent = t('feature.textureSwapper.description');
 
   const titleGroup = document.createElement('div');
   titleGroup.style.cssText = 'display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;';
@@ -191,7 +191,7 @@ function renderWindow(root: HTMLElement): void {
   debugCheckboxEl = debugCheckbox;
   const debugLabel = document.createElement('span');
   debugLabel.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.78);';
-  debugLabel.textContent = 'Debug Logs';
+  debugLabel.textContent = t('feature.textureSwapper.debugLogs');
   debugCheckbox.addEventListener('change', () => {
     setTextureSwapperDebugEnabled(debugCheckbox.checked);
   });
@@ -248,8 +248,8 @@ function renderWindow(root: HTMLElement): void {
   ].join(';');
   const rightTitle = document.createElement('div');
   rightTitle.style.cssText = 'font-size:12px;font-weight:600;color:rgba(224,224,224,0.7);text-transform:uppercase;letter-spacing:0.5px;';
-  rightTitle.textContent = 'Active Rules';
-  const addBtn = buildAccentButton('+ Add Rule', () => {
+  rightTitle.textContent = t('feature.textureSwapper.activeRules');
+  const addBtn = buildAccentButton(t('feature.textureSwapper.addRule'), () => {
     openEditor(leftPanel, state, null, cleanups, () => renderRulesList(rulesListContainer, state, cleanups));
   });
   rightHeader.append(rightTitle, addBtn);
@@ -288,7 +288,7 @@ function buildEditorPlaceholder(container: HTMLElement): void {
   icon.textContent = 'Tx';
   const text = document.createElement('div');
   text.style.cssText = 'font-size:13px;';
-  text.textContent = 'Click "+ Add Rule" to create a texture override.';
+  text.textContent = t('feature.textureSwapper.addRuleHint');
   hint.append(icon, text);
   container.appendChild(hint);
 }
@@ -339,11 +339,11 @@ function openEditor(
   // Section heading
   const heading = document.createElement('div');
   heading.style.cssText = 'font-size:13px;font-weight:700;color:#c8c0ff;';
-  heading.textContent = editRuleId ? 'Edit Rule' : 'Create Rule';
+  heading.textContent = editRuleId ? t('feature.textureSwapper.editRule') : t('feature.textureSwapper.createRule');
   container.appendChild(heading);
 
   // --- Target picker ---
-  container.appendChild(buildSectionLabel('Target Sprite'));
+  container.appendChild(buildSectionLabel(t('feature.textureSwapper.targetSprite')));
 
   const targetSection = document.createElement('div');
   targetSection.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
@@ -355,7 +355,7 @@ function openEditor(
   });
   targetSection.appendChild(catTabs);
 
-  const filterInput = buildSearchInput('Filter sprites...', state.targetSpriteFilter, (v) => {
+  const filterInput = buildSearchInput(t('feature.textureSwapper.filterSprites'), state.targetSpriteFilter, (v) => {
     state.targetSpriteFilter = v;
     rebuildTargetList();
   });
@@ -365,7 +365,7 @@ function openEditor(
   targetListEl.style.cssText = 'max-height:140px;overflow-y:auto;border:1px solid rgba(143,130,255,0.15);border-radius:6px;background:rgba(0,0,0,0.2);';
   targetSection.appendChild(targetListEl);
 
-  const selectedTargetEl = buildSelectedLabel('Target:', state.targetSpriteKey);
+  const selectedTargetEl = buildSelectedLabel(t('feature.textureSwapper.targetLabel'), state.targetSpriteKey);
   targetSection.appendChild(selectedTargetEl);
 
   function rebuildTargetList(): void {
@@ -373,7 +373,7 @@ function openEditor(
     if (!svc) {
       const msg = document.createElement('div');
       msg.style.cssText = 'padding:10px;font-size:11px;color:rgba(224,224,224,0.3);';
-      msg.textContent = 'Sprite system not ready yet.';
+      msg.textContent = t('feature.textureSwapper.spriteNotReady');
       targetListEl.appendChild(msg);
       return;
     }
@@ -384,7 +384,7 @@ function openEditor(
     if (!filtered.length) {
       const msg = document.createElement('div');
       msg.style.cssText = 'padding:8px 10px;font-size:11px;color:rgba(224,224,224,0.3);';
-      msg.textContent = 'No sprites found.';
+      msg.textContent = t('feature.textureSwapper.noSpritesFound');
       targetListEl.appendChild(msg);
       return;
     }
@@ -393,7 +393,7 @@ function openEditor(
       const { id } = parseAtlasKey(item.key);
       const row = buildSpriteRow(item.key, id, item.key === state.targetSpriteKey, () => {
         state.targetSpriteKey = item.key;
-        selectedTargetEl.textContent = `Target: ${id}`;
+        selectedTargetEl.textContent = `${t('feature.textureSwapper.targetLabel')} ${id}`;
         selectedTargetEl.title = item.key;
         // Mark active
         for (const r of targetListEl.querySelectorAll('.qpm-sprite-row')) {
@@ -411,16 +411,16 @@ function openEditor(
   rebuildTargetList();
 
   // --- Source picker ---
-  container.appendChild(buildSectionLabel('Source'));
+  container.appendChild(buildSectionLabel(t('feature.textureSwapper.source')));
 
   const sourceModeRow = document.createElement('div');
   sourceModeRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
   container.appendChild(sourceModeRow);
 
   const sourceModes: Array<{ key: WindowState['sourceMode']; label: string }> = [
-    { key: 'tint-only', label: 'Tint Only' },
-    { key: 'library', label: 'Game Asset' },
-    ...(UPLOADS_ENABLED ? [{ key: 'upload' as const, label: 'Upload' }] : []),
+    { key: 'tint-only', label: t('feature.textureSwapper.tintOnly') },
+    { key: 'library', label: t('feature.textureSwapper.gameAsset') },
+    ...(UPLOADS_ENABLED ? [{ key: 'upload' as const, label: t('feature.textureSwapper.upload') }] : []),
   ];
 
   const sourcePanelContainer = document.createElement('div');
@@ -454,7 +454,7 @@ function openEditor(
       });
       sourcePanelContainer.appendChild(libCatTabs);
 
-      const libFilterInput = buildSearchInput('Filter library sprites...', state.librarySpriteFilter, (v) => {
+      const libFilterInput = buildSearchInput(t('feature.textureSwapper.filterLibrary'), state.librarySpriteFilter, (v) => {
         state.librarySpriteFilter = v;
         rebuildLibraryList();
       });
@@ -464,7 +464,7 @@ function openEditor(
       libListEl.style.cssText = 'max-height:120px;overflow-y:auto;border:1px solid rgba(143,130,255,0.15);border-radius:6px;background:rgba(0,0,0,0.2);';
       sourcePanelContainer.appendChild(libListEl);
 
-      const selectedLibEl = buildSelectedLabel('Source:', state.librarySpriteKey);
+      const selectedLibEl = buildSelectedLabel(t('feature.textureSwapper.sourceLabel'), state.librarySpriteKey);
       sourcePanelContainer.appendChild(selectedLibEl);
 
       function rebuildLibraryList(): void {
@@ -477,7 +477,7 @@ function openEditor(
           const { id } = parseAtlasKey(item.key);
           const row = buildSpriteRow(item.key, id, item.key === state.librarySpriteKey, () => {
             state.librarySpriteKey = item.key;
-            selectedLibEl.textContent = `Source: ${id}`;
+            selectedLibEl.textContent = `${t('feature.textureSwapper.sourceLabel')} ${id}`;
             selectedLibEl.title = item.key;
             for (const r of libListEl.querySelectorAll('.qpm-lib-row')) {
               (r as HTMLElement).style.background = (r as HTMLElement).dataset.key === item.key
@@ -496,7 +496,7 @@ function openEditor(
       if (!UPLOADS_ENABLED) {
         const msg = document.createElement('div');
         msg.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.3);padding:8px 0;';
-        msg.textContent = 'Uploads are disabled.';
+        msg.textContent = t('feature.textureSwapper.uploadsDisabled');
         sourcePanelContainer.appendChild(msg);
         return;
       }
@@ -505,7 +505,7 @@ function openEditor(
       // Tint-only — no source panel, tint params are enough
       const note = document.createElement('div');
       note.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.4);padding:4px 0;';
-      note.textContent = 'Applies tint to the original sprite. Configure tint below.';
+      note.textContent = t('feature.textureSwapper.tintOnlyNote');
       sourcePanelContainer.appendChild(note);
     }
   }
@@ -513,26 +513,26 @@ function openEditor(
   buildSourcePanel();
 
   // --- Params ---
-  container.appendChild(buildSectionLabel('Tint'));
+  container.appendChild(buildSectionLabel(t('feature.textureSwapper.tint')));
   const paramsContainer = document.createElement('div');
   paramsContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
   container.appendChild(paramsContainer);
   buildTintParams(paramsContainer, state, () => refreshPreview());
 
-  container.appendChild(buildSectionLabel('Layer B (Game Sprites)'));
+  container.appendChild(buildSectionLabel(t('feature.textureSwapper.layerB')));
   const layerBContainer = document.createElement('div');
   layerBContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
   container.appendChild(layerBContainer);
   buildLayerBParams(layerBContainer, state);
 
-  container.appendChild(buildSectionLabel('Mutation Handling'));
+  container.appendChild(buildSectionLabel(t('feature.textureSwapper.mutationHandling')));
   const mutationContainer = document.createElement('div');
   mutationContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
   container.appendChild(mutationContainer);
   buildMutationBehaviorParams(mutationContainer, state);
 
   // --- Preview ---
-  container.appendChild(buildSectionLabel('Preview'));
+  container.appendChild(buildSectionLabel(t('feature.textureSwapper.preview')));
   const previewContainer = document.createElement('div');
   previewContainer.style.cssText = 'display:flex;gap:12px;align-items:flex-start;';
   container.appendChild(previewContainer);
@@ -550,9 +550,9 @@ function openEditor(
   const btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:8px;padding-top:4px;flex-shrink:0;';
 
-  const saveBtn = buildAccentButton(editRuleId ? 'Update Rule' : 'Save Rule', async () => {
+  const saveBtn = buildAccentButton(editRuleId ? t('feature.textureSwapper.updateRule') : t('feature.textureSwapper.saveRule'), async () => {
     if (!state.targetSpriteKey) {
-      notify({ feature: 'textureSwapper', level: 'warn', message: 'Select a target sprite first' });
+      notify({ feature: 'textureSwapper', level: 'warn', message: t('feature.textureSwapper.selectTargetFirst') });
       return;
     }
     const { category: targetCat, id: targetId } = parseAtlasKey(state.targetSpriteKey);
@@ -596,7 +596,7 @@ function openEditor(
     invalidateWindow(WINDOW_ID);
   });
 
-  const cancelBtn = buildGhostButton('Cancel', () => buildEditorPlaceholder(container));
+  const cancelBtn = buildGhostButton(t('feature.textureSwapper.cancel'), () => buildEditorPlaceholder(container));
   btnRow.append(saveBtn, cancelBtn);
   container.appendChild(btnRow);
 }
@@ -616,7 +616,7 @@ function buildUploadPanel(
   if (uploadedAssets.length > 0) {
     const label = document.createElement('div');
     label.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.5);margin-bottom:4px;';
-    label.textContent = 'Saved uploads:';
+    label.textContent = t('feature.textureSwapper.savedUploads');
     container.appendChild(label);
 
     const listEl = document.createElement('div');
@@ -656,16 +656,16 @@ function buildUploadPanel(
   fileInput.style.display = 'none';
   container.appendChild(fileInput);
 
-  const uploadBtn = buildGhostButton('Upload Image...', () => fileInput.click());
+  const uploadBtn = buildGhostButton(t('feature.textureSwapper.uploadImage'), () => fileInput.click());
   container.appendChild(uploadBtn);
 
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
-    uploadBtn.textContent = 'Uploading...';
+    uploadBtn.textContent = t('feature.textureSwapper.uploading');
     uploadBtn.setAttribute('disabled', 'true');
     const assetId = await addUploadedAsset(file);
-    uploadBtn.textContent = 'Upload Image...';
+    uploadBtn.textContent = t('feature.textureSwapper.uploadImage');
     uploadBtn.removeAttribute('disabled');
     if (assetId) {
       state.uploadAssetId = assetId;
@@ -683,7 +683,7 @@ function buildUploadPanel(
 
 function buildTintParams(container: HTMLElement, state: WindowState, onChanged: () => void): void {
   // Tint color
-  const colorRow = buildParamRow('Color', () => {
+  const colorRow = buildParamRow(t('feature.textureSwapper.color'), () => {
     const input = document.createElement('input');
     input.type = 'color';
     input.value = state.tintColor;
@@ -694,13 +694,13 @@ function buildTintParams(container: HTMLElement, state: WindowState, onChanged: 
   container.appendChild(colorRow);
 
   // Alpha
-  container.appendChild(buildRangeRow('Alpha', 0, 1, 0.01, state.tintAlpha, (v) => {
+  container.appendChild(buildRangeRow(t('feature.textureSwapper.alpha'), 0, 1, 0.01, state.tintAlpha, (v) => {
     state.tintAlpha = v;
     onChanged();
   }));
 
   // Blend mode
-  const blendRow = buildParamRow('Blend', () => {
+  const blendRow = buildParamRow(t('feature.textureSwapper.blend'), () => {
     const sel = document.createElement('select');
     sel.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid rgba(143,130,255,0.2);color:#e0e0e0;border-radius:4px;padding:2px 6px;font-size:11px;';
     for (const blend of TINT_BLENDS) {
@@ -723,12 +723,12 @@ function buildTintParams(container: HTMLElement, state: WindowState, onChanged: 
 function buildLayerBParams(container: HTMLElement, state: WindowState): void {
   const note = document.createElement('div');
   note.style.cssText = 'font-size:10px;color:rgba(224,224,224,0.35);margin-bottom:4px;';
-  note.textContent = 'Applied to live PIXI sprites in the garden. Cosmetic only.';
+  note.textContent = t('feature.textureSwapper.layerBNote');
   container.appendChild(note);
 
-  container.appendChild(buildRangeRow('Scale X', 0.1, 3, 0.05, state.scaleX, (v) => { state.scaleX = v; }));
-  container.appendChild(buildRangeRow('Scale Y', 0.1, 3, 0.05, state.scaleY, (v) => { state.scaleY = v; }));
-  container.appendChild(buildRangeRow('Alpha', 0, 1, 0.05, state.alpha, (v) => { state.alpha = v; }));
+  container.appendChild(buildRangeRow(t('feature.textureSwapper.scaleX'), 0.1, 3, 0.05, state.scaleX, (v) => { state.scaleX = v; }));
+  container.appendChild(buildRangeRow(t('feature.textureSwapper.scaleY'), 0.1, 3, 0.05, state.scaleY, (v) => { state.scaleY = v; }));
+  container.appendChild(buildRangeRow(t('feature.textureSwapper.alpha'), 0, 1, 0.05, state.alpha, (v) => { state.alpha = v; }));
 }
 
 function buildMutationBehaviorParams(container: HTMLElement, state: WindowState): void {
@@ -737,8 +737,8 @@ function buildMutationBehaviorParams(container: HTMLElement, state: WindowState)
   container.appendChild(row);
 
   const options: Array<{ key: WindowState['mutationBehavior']; label: string }> = [
-    { key: 'preserve', label: 'Keep Mutations' },
-    { key: 'replace', label: 'Replace Texture' },
+    { key: 'preserve', label: t('feature.textureSwapper.keepMutations') },
+    { key: 'replace', label: t('feature.textureSwapper.replaceTexture') },
   ];
 
   const renderButtons = (): void => {
@@ -755,7 +755,7 @@ function buildMutationBehaviorParams(container: HTMLElement, state: WindowState)
 
   const note = document.createElement('div');
   note.style.cssText = 'font-size:10px;color:rgba(224,224,224,0.35);';
-  note.textContent = 'Keep Mutations preserves active weather/color overlays on plants. Replace Texture forces the raw replacement sprite.';
+  note.textContent = t('feature.textureSwapper.mutationNote');
   container.appendChild(note);
 }
 
@@ -769,7 +769,7 @@ function buildPreviewSection(container: HTMLElement, state: WindowState): void {
   if (!state.targetSpriteKey) {
     const hint = document.createElement('div');
     hint.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.3);';
-    hint.textContent = 'Select a target sprite to preview.';
+    hint.textContent = t('feature.textureSwapper.selectToPreview');
     container.appendChild(hint);
     return;
   }
@@ -828,16 +828,16 @@ function buildPreviewSection(container: HTMLElement, state: WindowState): void {
     if (!container.isConnected) return;
     container.innerHTML = '';
     container.append(
-      buildCanvasBox('Original', origCanvas),
+      buildCanvasBox(t('feature.textureSwapper.original'), origCanvas),
       buildArrow(),
-      buildCanvasBox('Custom', customCanvas),
+      buildCanvasBox(t('feature.textureSwapper.custom'), customCanvas),
     );
   })();
 
   // Show loading state while async resolves
   const loading = document.createElement('div');
   loading.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.3);';
-  loading.textContent = 'Rendering...';
+  loading.textContent = t('feature.textureSwapper.rendering');
   container.appendChild(loading);
 }
 
@@ -875,7 +875,7 @@ function renderRulesList(container: HTMLElement, state: WindowState, cleanups: A
     icon.textContent = '\u{1F3A8}';
     const text = document.createElement('div');
     text.style.cssText = 'font-size:12px;';
-    text.textContent = 'No texture rules yet. Click "+ Add Rule" to get started.';
+    text.textContent = t('feature.textureSwapper.noRulesYet');
     hint.append(icon, text);
     container.appendChild(hint);
     return;
@@ -939,20 +939,20 @@ function buildRuleCard(
   const detailEl = document.createElement('div');
   detailEl.style.cssText = 'font-size:10px;color:rgba(224,224,224,0.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   const parts: string[] = [`${rule.targetCategory}`];
-  parts.push((rule.mutationBehavior ?? 'preserve') === 'preserve' ? 'keep muts' : 'replace muts');
+  parts.push((rule.mutationBehavior ?? 'preserve') === 'preserve' ? t('feature.textureSwapper.keepMutsBadge') : t('feature.textureSwapper.replaceMutsBadge'));
   if (rule.params.tintColor) parts.push(`tint ${rule.params.tintColor}`);
   if (rule.source.librarySpriteKey) {
     const { id } = parseAtlasKey(rule.source.librarySpriteKey);
     parts.push(`→ ${id}`);
   } else if (rule.source.uploadAssetId) {
-    parts.push('upload');
+    parts.push(t('feature.textureSwapper.upload').toLowerCase());
   }
   detailEl.textContent = parts.join(' · ');
   info.append(labelEl, detailEl);
   card.appendChild(info);
 
   // Edit button
-  const editBtn = buildIconButton('\u270F', 'Edit rule', () => {
+  const editBtn = buildIconButton('\u270F', t('feature.textureSwapper.editRuleTooltip'), () => {
     // Open editor in the left panel — find it via DOM traversal
     const leftPanel = card.closest('[style*="width:400px"]') as HTMLElement | null;
     if (!leftPanel) return;
@@ -961,7 +961,7 @@ function buildRuleCard(
   card.appendChild(editBtn);
 
   // Delete button
-  const deleteBtn = buildIconButton('\u{1F5D1}', 'Delete rule', () => {
+  const deleteBtn = buildIconButton('\u{1F5D1}', t('feature.textureSwapper.deleteRuleTooltip'), () => {
     deleteRule(rule.id);
     onChanged();
   });
@@ -986,7 +986,7 @@ function buildSelectedLabel(prefix: string, key: string): HTMLElement {
   const { id } = key ? parseAtlasKey(key) : { id: '' };
   const el = document.createElement('div');
   el.style.cssText = 'font-size:10px;color:rgba(224,224,224,0.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-  el.textContent = key ? `${prefix} ${id}` : `${prefix} (none selected)`;
+  el.textContent = key ? `${prefix} ${id}` : `${prefix} ${t('feature.textureSwapper.noneSelected')}`;
   el.title = key;
   return el;
 }
@@ -998,7 +998,7 @@ function buildCategoryTabs(selected: SpriteCategory, onSelect: (cat: SpriteCateg
   for (const cat of CATEGORIES) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = CATEGORY_LABELS[cat] ?? cat;
+    btn.textContent = CATEGORY_LABEL_KEYS[cat] ? t(CATEGORY_LABEL_KEYS[cat]) : cat;
     btn.style.cssText = [
       'padding:3px 8px',
       'font-size:10px',

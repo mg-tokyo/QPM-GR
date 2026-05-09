@@ -32,6 +32,7 @@ import { lookupMaxScale } from '../utils/plantScales';
 import { normalizeSpeciesKey } from '../utils/helpers';
 import { findVariantBadge } from '../data/variantBadges';
 import { toggleWindow } from './modalWindow';
+import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Theme tokens
@@ -421,7 +422,7 @@ function buildMutationToggleRow(
       'font-family:inherit',
     ].join(';'));
     tile.type = 'button';
-    const label = el('div', `font-size:11px;font-weight:600;white-space:nowrap;color:${TEXT};`, 'None');
+    const label = el('div', `font-size:11px;font-weight:600;white-space:nowrap;color:${TEXT};`, t('feature.cropCalc.none'));
     tile.appendChild(label);
 
     const noneRef = { tile, dot: label, label, value: null as string | null, color: ACCENT, gradient: undefined };
@@ -583,7 +584,7 @@ function buildPlantSelector(
     ].join(';'),
   );
   (searchInput as HTMLInputElement).type = 'text';
-  (searchInput as HTMLInputElement).placeholder = 'Search crops...';
+  (searchInput as HTMLInputElement).placeholder = t('feature.cropCalc.searchCrops');
   dropdown.appendChild(searchInput);
 
   const listContainer = el('div', 'flex:1;overflow-y:auto;max-height:240px;');
@@ -595,7 +596,7 @@ function buildPlantSelector(
   function updateBtn(plant: PlantOption | null): void {
     if (!plant) {
       (btnIcon as HTMLImageElement).style.display = 'none';
-      btnLabel.textContent = 'Select a crop...';
+      btnLabel.textContent = t('feature.cropCalc.selectCrop');
       btnPrice.innerHTML = '';
       return;
     }
@@ -653,7 +654,7 @@ function buildPlantSelector(
     }
 
     if (filtered.length === 0) {
-      listContainer.appendChild(el('div', `padding:12px;text-align:center;color:${MUTED};font-size:12px;`, 'No results'));
+      listContainer.appendChild(el('div', `padding:12px;text-align:center;color:${MUTED};font-size:12px;`, t('feature.cropCalc.noResults')));
     }
   }
 
@@ -771,7 +772,7 @@ function buildPetSelector(
     ].join(';'),
   );
   (searchInput as HTMLInputElement).type = 'text';
-  (searchInput as HTMLInputElement).placeholder = 'Search pets...';
+  (searchInput as HTMLInputElement).placeholder = t('feature.cropCalc.searchPets');
   dropdown.appendChild(searchInput);
 
   const listContainer = el('div', 'flex:1;overflow-y:auto;max-height:240px;');
@@ -782,7 +783,7 @@ function buildPetSelector(
   function updateBtn(pet: PetOption | null): void {
     if (!pet) {
       (btnIcon as HTMLImageElement).style.display = 'none';
-      btnLabel.textContent = 'Select a pet...';
+      btnLabel.textContent = t('feature.cropCalc.selectPet');
       btnPrice.innerHTML = '';
       return;
     }
@@ -841,7 +842,7 @@ function buildPetSelector(
     }
 
     if (filtered.length === 0) {
-      listContainer.appendChild(el('div', `padding:12px;text-align:center;color:${MUTED};font-size:12px;`, 'No results'));
+      listContainer.appendChild(el('div', `padding:12px;text-align:center;color:${MUTED};font-size:12px;`, t('feature.cropCalc.noResults')));
     }
   }
 
@@ -1083,7 +1084,7 @@ function renderCropTab(container: HTMLElement): () => void {
 
     if (state.plant) {
       const weight = state.plant.baseWeight * scale;
-      weightEl.textContent = `Weight: ${weight.toFixed(2)} kg`;
+      weightEl.textContent = t('feature.cropCalc.weight', { weight: weight.toFixed(2) });
     } else {
       weightEl.textContent = '';
     }
@@ -1107,7 +1108,7 @@ function renderCropTab(container: HTMLElement): () => void {
       const labels = el(
         'span',
         `color:${MUTED};font-size:10px;opacity:0.6;display:block;margin-top:2px;font-family:monospace;`,
-        'base      scale   muts   friends',
+        t('feature.cropCalc.formulaLabels'),
       );
       formulaEl.appendChild(labels);
     } else {
@@ -1157,7 +1158,7 @@ function renderCropTab(container: HTMLElement): () => void {
   // --- Size slider ---
   const sizeSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
   const sizeHeader = el('div', 'display:flex;align-items:center;gap:8px;');
-  sizeHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, 'Size'));
+  sizeHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.size')));
 
   sliderInput = document.createElement('input');
   sliderInput.type = 'range';
@@ -1184,9 +1185,9 @@ function renderCropTab(container: HTMLElement): () => void {
 
   // --- Mutation toggle groups ---
   const mutSections: { category: MutationCategory; label: string; stateKey: 'colorMutation' | 'weatherMutation' | 'timeMutation' }[] = [
-    { category: 'color', label: 'Color', stateKey: 'colorMutation' },
-    { category: 'weather', label: 'Weather', stateKey: 'weatherMutation' },
-    { category: 'time', label: 'Lunar', stateKey: 'timeMutation' },
+    { category: 'color', label: t('feature.cropCalc.color'), stateKey: 'colorMutation' },
+    { category: 'weather', label: t('feature.cropCalc.weather'), stateKey: 'weatherMutation' },
+    { category: 'time', label: t('feature.cropCalc.lunar'), stateKey: 'timeMutation' },
   ];
 
   for (const sec of mutSections) {
@@ -1218,7 +1219,7 @@ function renderCropTab(container: HTMLElement): () => void {
 
   // --- Friends ---
   const friendSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
-  friendSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, 'Friends'));
+  friendSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.friends')));
 
   const { container: friendContainer } = buildPillRow(FRIEND_OPTIONS, '1', (value) => {
     state.playerCount = parseInt(value ?? '1', 10);
@@ -1250,7 +1251,7 @@ function renderPetTab(container: HTMLElement): () => void {
 
   if (pets.length === 0) {
     container.appendChild(
-      el('div', `text-align:center;color:${MUTED};font-size:13px;padding:40px 20px;`, 'No pet data available yet.'),
+      el('div', `text-align:center;color:${MUTED};font-size:13px;padding:40px 20px;`, t('feature.cropCalc.noPetData')),
     );
     return () => {};
   }
@@ -1319,7 +1320,7 @@ function renderPetTab(container: HTMLElement): () => void {
     dustRow.style.display = dust.dustValue > 0 ? 'flex' : 'none';
 
     // Scale display
-    scaleEl.textContent = `Scale: ${scale.toFixed(2)}x`;
+    scaleEl.textContent = t('feature.cropCalc.scale', { scale: scale.toFixed(2) });
 
     // Slider value labels
     maxSliderValueEl.textContent = `${state.maxStrength}`;
@@ -1346,7 +1347,7 @@ function renderPetTab(container: HTMLElement): () => void {
         el(
           'span',
           `color:${MUTED};font-size:10px;opacity:0.6;display:block;margin-top:2px;font-family:monospace;`,
-          'base      scale   muts   friends',
+          t('feature.cropCalc.formulaLabels'),
         ),
       );
 
@@ -1364,7 +1365,7 @@ function renderPetTab(container: HTMLElement): () => void {
           el(
             'span',
             `color:${DUST_COLOR};font-size:10px;opacity:0.5;display:block;margin-top:2px;font-family:monospace;`,
-            'base  rar   pull  mut   scale',
+            t('feature.cropCalc.dustFormulaLabels'),
           ),
         );
       }
@@ -1426,7 +1427,7 @@ function renderPetTab(container: HTMLElement): () => void {
   // --- Max Strength slider ---
   const maxStrSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
   const maxStrHeader = el('div', 'display:flex;align-items:center;gap:8px;');
-  maxStrHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, 'Max Strength'));
+  maxStrHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.maxStrength')));
 
   maxSliderInput = document.createElement('input');
   maxSliderInput.type = 'range';
@@ -1445,7 +1446,7 @@ function renderPetTab(container: HTMLElement): () => void {
   // --- Current Strength slider ---
   const curStrSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
   const curStrHeader = el('div', 'display:flex;align-items:center;gap:8px;');
-  curStrHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, 'Current Strength'));
+  curStrHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.currentStrength')));
 
   curSliderInput = document.createElement('input');
   curSliderInput.type = 'range';
@@ -1493,7 +1494,7 @@ function renderPetTab(container: HTMLElement): () => void {
   const colorDefs = mutGroups.color;
   if (colorDefs.length > 0) {
     const colorSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
-    colorSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, 'Color'));
+    colorSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.color')));
 
     const tileOptions: MutationTileOption[] = colorDefs.map((d) => {
       const vb = findVariantBadge(d.name);
@@ -1517,7 +1518,7 @@ function renderPetTab(container: HTMLElement): () => void {
 
   // --- Friends ---
   const friendSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
-  friendSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, 'Friends'));
+  friendSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.friends')));
 
   const { container: friendContainer } = buildPillRow(FRIEND_OPTIONS, '1', (value) => {
     state.playerCount = parseInt(value ?? '1', 10);
@@ -1552,7 +1553,7 @@ export function renderCalculator(root: HTMLElement): void {
     const placeholder = el(
       'div',
       `text-align:center;color:${MUTED};font-size:13px;padding:40px 20px;`,
-      'Waiting for game data...',
+      t('feature.cropCalc.waitingForData'),
     );
     root.appendChild(placeholder);
 
@@ -1577,8 +1578,8 @@ export function renderCalculator(root: HTMLElement): void {
   // --- Tab bar ---
   const { container: tabBar } = buildPillRow(
     [
-      { label: 'Crop', value: 'crop' },
-      { label: 'Pet', value: 'pet' },
+      { label: t('feature.cropCalc.tabCrop'), value: 'crop' },
+      { label: t('feature.cropCalc.tabPet'), value: 'pet' },
     ],
     'crop',
     (value) => {
@@ -1622,5 +1623,5 @@ export function renderCalculator(root: HTMLElement): void {
 // ---------------------------------------------------------------------------
 
 export function openCalculatorWindow(): void {
-  toggleWindow('calculator', '\uD83E\uDDEE Calculator', renderCalculator, '500px', '90vh');
+  toggleWindow('calculator', `\uD83E\uDDEE ${t('feature.cropCalc.windowTitle')}`, renderCalculator, '500px', '90vh');
 }

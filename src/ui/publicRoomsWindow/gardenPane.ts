@@ -11,6 +11,7 @@ import {
   getEggSpriteUrl,
   getMutatedCropSpriteUrl,
 } from './spriteHelpers';
+import { t } from '../../i18n';
 
 export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy: PlayerView['privacy']): void {
   const garden = (view as any).garden || (view as any).state?.garden;
@@ -93,17 +94,17 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
   const renderPlot = (plot: GridTile[][]): string => {
     return plot.map(row => row.map(tile => {
       if (!tile.exists) {
-        return `<div class="pr-garden-tile pr-garden-tile-empty" title="Empty"></div>`;
+        return `<div class="pr-garden-tile pr-garden-tile-empty" title="${t('feature.publicRooms.emptyTile')}"></div>`;
       }
 
       const isEgg = tile.objectType === 'egg';
       if (isEgg && tile.eggId) {
         const eggSprite = getEggSpriteUrl(tile.eggId);
         const eggName = friendlyName(tile.eggId);
-        const maturedAt = tile.maturedAt ? new Date(tile.maturedAt).toLocaleString() : 'Unknown';
-        const plantedAt = tile.plantedAt ? new Date(tile.plantedAt).toLocaleString() : 'Unknown';
-        const timeLeft = tile.maturedAt ? formatDuration(Math.max(0, tile.maturedAt - Date.now())) : 'N/A';
-        const tooltipText = `Tile ${tile.tileId}: ${eggName}\nPlanted: ${plantedAt}\nMatured: ${maturedAt}\nTime left: ${timeLeft}`;
+        const maturedAt = tile.maturedAt ? new Date(tile.maturedAt).toLocaleString() : t('feature.publicRooms.unknown');
+        const plantedAt = tile.plantedAt ? new Date(tile.plantedAt).toLocaleString() : t('feature.publicRooms.unknown');
+        const timeLeft = tile.maturedAt ? formatDuration(Math.max(0, tile.maturedAt - Date.now())) : t('feature.publicRooms.na');
+        const tooltipText = `${t('feature.publicRooms.tileLabel', { id: String(tile.tileId), name: eggName })}\n${t('feature.publicRooms.plantedAt', { time: plantedAt })}\n${t('feature.publicRooms.maturedAt', { time: maturedAt })}\n${t('feature.publicRooms.timeLeft', { time: timeLeft })}`;
         return `
           <div class="pr-garden-tile pr-garden-tile-egg" title="${tooltipText.replace(/\n/g, '&#10;')}">
             ${eggSprite ? `<img src="${eggSprite}" alt="${eggName}" class="pr-garden-sprite" />` : '<div class="pr-garden-placeholder">🥚</div>'}
@@ -112,17 +113,17 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
       }
 
       if (!tile.species) {
-        return `<div class="pr-garden-tile pr-garden-tile-empty" title="Tile ${tile.tileId}: Empty"></div>`;
+        return `<div class="pr-garden-tile pr-garden-tile-empty" title="${t('feature.publicRooms.tileEmpty', { id: String(tile.tileId) })}"></div>`;
       }
 
       const sprite = getMutatedCropSpriteUrl(String(tile.species).toLowerCase(), tile.mutations);
-      const mutNames = tile.mutations.length > 0 ? tile.mutations.map(m => friendlyName(String(m))).join(', ') : 'None';
-      const multiIcon = tile.isMultiHarvest ? `<span class="pr-multi-icon" title="Multi-harvest: ${tile.slots.length} slots">×${tile.slots.length}</span>` : '';
+      const mutNames = tile.mutations.length > 0 ? tile.mutations.map(m => friendlyName(String(m))).join(', ') : t('feature.publicRooms.mutationsNone');
+      const multiIcon = tile.isMultiHarvest ? `<span class="pr-multi-icon" title="${t('feature.publicRooms.multiHarvestTooltip', { count: String(tile.slots.length) })}">×${tile.slots.length}</span>` : '';
       const primarySlot = tile.slots[0] || {};
-      const startTime = primarySlot.startTime ? new Date(primarySlot.startTime as number).toLocaleString() : 'Unknown';
-      const endTime = primarySlot.endTime ? new Date(primarySlot.endTime as number).toLocaleString() : 'Unknown';
-      const timeLeft = primarySlot.endTime ? formatDuration(Math.max(0, (primarySlot.endTime as number) - Date.now())) : 'N/A';
-      const tooltipText = `Tile ${tile.tileId}: ${friendlyName(tile.species)}\nMutations: ${mutNames}\n${tile.isMultiHarvest ? `Multi-harvest (${tile.slots.length} slots)\n` : ''}Started: ${startTime}\nReady: ${endTime}\nTime left: ${timeLeft}`;
+      const startTime = primarySlot.startTime ? new Date(primarySlot.startTime as number).toLocaleString() : t('feature.publicRooms.unknown');
+      const endTime = primarySlot.endTime ? new Date(primarySlot.endTime as number).toLocaleString() : t('feature.publicRooms.unknown');
+      const timeLeft = primarySlot.endTime ? formatDuration(Math.max(0, (primarySlot.endTime as number) - Date.now())) : t('feature.publicRooms.na');
+      const tooltipText = `${t('feature.publicRooms.tileLabel', { id: String(tile.tileId), name: friendlyName(tile.species) })}\n${t('feature.publicRooms.mutationsLabel', { names: mutNames })}\n${tile.isMultiHarvest ? `${t('feature.publicRooms.multiHarvestLine', { count: String(tile.slots.length) })}\n` : ''}${t('feature.publicRooms.startedAt', { time: startTime })}\n${t('feature.publicRooms.readyAt', { time: endTime })}\n${t('feature.publicRooms.timeLeft', { time: timeLeft })}`;
       return `
         <div class="pr-garden-tile" title="${tooltipText.replace(/\n/g, '&#10;')}">
           ${sprite ? `<img src="${sprite}" alt="${tile.species}" class="pr-garden-sprite" />` : '<div class="pr-garden-placeholder">🌱</div>'}
@@ -138,11 +139,11 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
   const gardenHtml = `
     <div class="pr-garden-plots">
       <div class="pr-garden-plot">
-        <div class="pr-garden-plot-label">Left Plot</div>
+        <div class="pr-garden-plot-label">${t('feature.publicRooms.leftPlot')}</div>
         <div class="pr-garden-grid pr-garden-grid-10x10">${leftHtml}</div>
       </div>
       <div class="pr-garden-plot">
-        <div class="pr-garden-plot-label">Right Plot</div>
+        <div class="pr-garden-plot-label">${t('feature.publicRooms.rightPlot')}</div>
         <div class="pr-garden-grid pr-garden-grid-10x10">${rightHtml}</div>
       </div>
     </div>
@@ -236,19 +237,19 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
             </div>
           </div>
         `;
-      }).join('') || '<div class="pr-pane-placeholder">No crops logged yet</div>';
+      }).join('') || `<div class="pr-pane-placeholder">${t('feature.publicRooms.noCropsLogged')}</div>`;
 
     journalHtml = `
       <div class="pr-section pr-section-animated" data-expandable-section="journal">
         <div class="pr-section-head" data-qpm-journal-toggle style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;">
-          <span>📖 Journal Progress</span>
+          <span>📖 ${t('feature.publicRooms.journalProgress')}</span>
           <span class="pr-expand-arrow" style="font-size: 12px; transition: transform 0.2s;">${isJournalExpanded ? '▼' : '▶'}</span>
         </div>
         <div class="pr-journal-container" style="display: ${isJournalExpanded ? 'block' : 'none'};">
           <div class="pr-journal-progress">
             <div class="pr-journal-item">
               <div class="pr-journal-header">
-                <span>🐾 Pets Discovered</span>
+                <span>🐾 ${t('feature.publicRooms.petsDiscovered')}</span>
                 <span class="pr-journal-count">${petsDiscovered} / ${totalPets}</span>
               </div>
               <div class="pr-progress-bar">
@@ -258,7 +259,7 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
             </div>
             <div class="pr-journal-item">
               <div class="pr-journal-header">
-                <span>🌿 Crop Variants Discovered</span>
+                <span>🌿 ${t('feature.publicRooms.cropVariantsDiscovered')}</span>
                 <span class="pr-journal-count">${produceVariantsDiscovered} / ${totalProduceVariants}</span>
               </div>
               <div class="pr-progress-bar">
@@ -280,13 +281,13 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
 
   setPaneContent('pr-pets-content', `
     <div class="pr-section">
-      <div class="pr-section-head">Virtual Garden (${activePlots} planted / ${totalTiles} tiles)</div>
-      <div class="pr-garden-grid">${gardenHtml || '<div class="pr-pane-placeholder">No garden data.</div>'}</div>
+      <div class="pr-section-head">${t('feature.publicRooms.virtualGarden', { active: String(activePlots), total: String(totalTiles) })}</div>
+      <div class="pr-garden-grid">${gardenHtml || `<div class="pr-pane-placeholder">${t('feature.publicRooms.noGardenData')}</div>`}</div>
     </div>
     ${journalHtml}
     ${`<div class="pr-section">
-      <div class="pr-section-head">📊 Player Stats</div>
-      ${playerStats ? `<div class="pr-stats-grid">${statsRows}</div>` : '<div class="pr-pane-placeholder">No stats shared.</div>'}
+      <div class="pr-section-head">📊 ${t('feature.publicRooms.playerStats')}</div>
+      ${playerStats ? `<div class="pr-stats-grid">${statsRows}</div>` : `<div class="pr-pane-placeholder">${t('feature.publicRooms.noStatsShared')}</div>`}
     </div>`}
   `);
 

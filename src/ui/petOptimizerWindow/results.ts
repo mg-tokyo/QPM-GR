@@ -3,6 +3,7 @@ import {
   type OptimizerAnalysis,
   type PetComparison,
 } from '../../features/petOptimizer';
+import { t } from '../../i18n';
 import { createStatusSection } from './statusSection';
 import type { StatusSectionId } from './types';
 import { getGlobalState } from './windowState';
@@ -59,7 +60,7 @@ export function renderResults(
           color: #aaa;
           font-size: 14px;
         ">
-          No pets match the current filters
+          ${t('feature.petOptimizer.noFilterMatch')}
         </div>
       `;
       return;
@@ -80,7 +81,7 @@ export function renderResults(
           color: #aaa;
           font-size: 14px;
         ">
-          No pets are visible with the current section toggles
+          ${t('feature.petOptimizer.noVisible')}
         </div>
       `;
       return;

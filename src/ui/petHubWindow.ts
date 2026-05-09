@@ -6,6 +6,7 @@ import { readTeamsFromLocalStorage, type AriesBridgeTeam } from '../integrations
 import { importAriesTeams } from '../utils/ariesTeamImport';
 import { applyTeam, getTeamsConfig } from '../store/petTeams';
 import { storage } from '../utils/storage';
+import { t } from '../i18n';
 
 const ARIES_IMPORT_ONCE_KEY = 'petHub:ariesImportOnce.v1';
 
@@ -33,7 +34,7 @@ async function applyAriesPreset(
     slotsFingerprint(t.slots) === ariesFp || t.name === team.name,
   );
   if (!qpmTeam) {
-    onDone('Could not map Aries team into QPM teams', 'error');
+    onDone(t('feature.petHub.mapError'), 'error');
     return;
   }
 
@@ -41,9 +42,9 @@ async function applyAriesPreset(
   if (result.errors.length > 0) {
     onDone(`Error: ${result.errors[0]}`, 'error');
   } else if (result.applied === 0) {
-    onDone('Team is already active', 'info');
+    onDone(t('feature.petHub.teamActive'), 'info');
   } else {
-    onDone(`Applied "${qpmTeam.name}"`, 'success');
+    onDone(t('feature.petHub.applied', { name: qpmTeam.name }), 'success');
   }
 }
 
@@ -107,7 +108,7 @@ export function renderPetHubWindow(root: HTMLElement): void {
 
   const refreshBtn = document.createElement('button');
   refreshBtn.type = 'button';
-  refreshBtn.textContent = 'Refresh';
+  refreshBtn.textContent = t('feature.petHub.refresh');
   refreshBtn.style.cssText = [
     'height:32px',
     'padding:0 10px',
@@ -139,7 +140,7 @@ export function renderPetHubWindow(root: HTMLElement): void {
 
   const applyBtn = document.createElement('button');
   applyBtn.type = 'button';
-  applyBtn.textContent = 'Apply';
+  applyBtn.textContent = t('feature.petHub.apply');
   applyBtn.style.cssText = [
     'height:32px',
     'padding:0 12px',
@@ -181,7 +182,7 @@ export function renderPetHubWindow(root: HTMLElement): void {
       metaEl.textContent = '';
       return;
     }
-    metaEl.textContent = `${selected.label} • ${selected.filledSlots}/3 slots`;
+    metaEl.textContent = `${selected.label} • ${t('feature.petHub.slotsInfo', { slots: String(selected.filledSlots) })}`;
   };
 
   const renderOptions = (preserveSelection: boolean): void => {
@@ -192,11 +193,11 @@ export function renderPetHubWindow(root: HTMLElement): void {
     if (options.length === 0) {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = 'No teams found';
+      opt.textContent = t('feature.petHub.noTeams');
       select.appendChild(opt);
       select.disabled = true;
       applyBtn.disabled = true;
-      metaEl.textContent = 'Create QPM teams or install Aries teams to use this selector.';
+      metaEl.textContent = t('feature.petHub.noTeamsHint');
       return;
     }
 
@@ -216,7 +217,7 @@ export function renderPetHubWindow(root: HTMLElement): void {
 
   const refreshImportBtn = (): void => {
     const imported = storage.get<boolean>(ARIES_IMPORT_ONCE_KEY, false);
-    importBtn.title = imported ? 'Aries import already completed' : 'Import Aries teams';
+    importBtn.title = imported ? t('feature.petHub.importDone') : t('feature.petHub.importAries');
     importBtn.style.opacity = imported ? '0.62' : '1';
   };
 
@@ -224,22 +225,22 @@ export function renderPetHubWindow(root: HTMLElement): void {
 
   refreshBtn.addEventListener('click', () => {
     renderOptions(true);
-    setStatus('Refreshed teams', 'info');
+    setStatus(t('feature.petHub.refreshed'), 'info');
   });
 
   importBtn.addEventListener('click', () => {
     const result = importAriesTeams();
     if (!result.available) {
-      setStatus('No Aries teams found in localStorage', 'info');
+      setStatus(t('feature.petHub.noAriesTeams'), 'info');
       return;
     }
     storage.set(ARIES_IMPORT_ONCE_KEY, true);
     renderOptions(true);
     refreshImportBtn();
     if (result.imported > 0) {
-      setStatus(`Imported ${result.imported} team${result.imported > 1 ? 's' : ''}`, 'success');
+      setStatus(result.imported > 1 ? t('feature.petHub.importedTeams', { count: String(result.imported) }) : t('feature.petHub.importedTeam', { count: String(result.imported) }), 'success');
     } else {
-      setStatus('Aries teams already imported', 'info');
+      setStatus(t('feature.petHub.alreadyImported'), 'info');
     }
   });
 
@@ -248,26 +249,26 @@ export function renderPetHubWindow(root: HTMLElement): void {
     if (!selected) return;
 
     applyBtn.disabled = true;
-    applyBtn.textContent = 'Applying…';
+    applyBtn.textContent = t('feature.petHub.applying');
     try {
       if (selected.source === 'qpm' && selected.qpmTeamId) {
         const result = await applyTeam(selected.qpmTeamId);
         if (result.errors.length > 0) {
           setStatus(`Error: ${result.errors[0]}`, 'error');
         } else if (result.applied === 0) {
-          setStatus('Team is already active', 'info');
+          setStatus(t('feature.petHub.teamActive'), 'info');
         } else {
-          setStatus(`Applied "${selected.label.replace(/^QPM • /, '')}"`, 'success');
+          setStatus(t('feature.petHub.applied', { name: selected.label.replace(/^QPM • /, '') }), 'success');
         }
       } else if (selected.source === 'aries' && selected.ariesTeam) {
         await applyAriesPreset(selected.ariesTeam, setStatus);
       }
     } catch (err) {
       log('⚠️ Apply team failed', err);
-      setStatus('Apply failed', 'error');
+      setStatus(t('feature.petHub.applyFailed'), 'error');
     } finally {
       applyBtn.disabled = false;
-      applyBtn.textContent = 'Apply';
+      applyBtn.textContent = t('feature.petHub.apply');
       renderOptions(true);
     }
   });

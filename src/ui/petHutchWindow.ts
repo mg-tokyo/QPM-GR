@@ -6,6 +6,7 @@ import { getPetSpriteCanvas } from '../sprite-v2/compat';
 import { getMutationSpriteDataUrl } from '../utils/petMutationRenderer';
 import { storage } from '../utils/storage';
 import { canvasToDataUrl } from '../utils/canvasHelpers';
+import { t } from '../i18n';
 
 interface PetItem {
   name: string;
@@ -117,8 +118,8 @@ function renderPetCard(pet: PetItem): string {
 
   const level = pet.strength || pet.level || '?';
   const locationBadge = pet.location === 'hutch'
-    ? '<span style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">HUTCH</span>'
-    : '<span style="background: #2196F3; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">INV</span>';
+    ? `<span style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">${t('feature.petHutch.hutch')}</span>`
+    : `<span style="background: #2196F3; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">${t('feature.petHutch.inv')}</span>`;
 
   return `
     <div style="
@@ -135,7 +136,7 @@ function renderPetCard(pet: PetItem): string {
     " class="pet-card" onmouseover="this.style.borderColor='rgba(100, 181, 246, 0.8)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(100, 181, 246, 0.3)'; this.style.transform='translateY(0)'">
       <img src="${spriteUrl}" style="width: 48px; height: 48px; image-rendering: pixelated; margin-bottom: 8px;" alt="${species}" />
       <div style="font-size: 12px; font-weight: 600; color: #fff; margin-bottom: 4px; text-align: center;">${pet.name}</div>
-      <div style="font-size: 11px; color: #64B5F6; margin-bottom: 4px;">Lv ${level}</div>
+      <div style="font-size: 11px; color: #64B5F6; margin-bottom: 4px;">${t('feature.petHutch.level', { level: String(level) })}</div>
       ${locationBadge}
     </div>
   `;
@@ -155,27 +156,27 @@ async function renderWindow(): Promise<void> {
       <!-- Hutch Section -->
       <div style="margin-bottom: 30px;">
         <h3 style="color: #4CAF50; font-size: 16px; font-weight: 700; margin-bottom: 12px; border-bottom: 2px solid #4CAF50; padding-bottom: 6px;">
-          🏠 Pet Hutch (${hutchPets.length})
+          🏠 ${t('feature.petHutch.petHutchCount', { count: String(hutchPets.length) })}
         </h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 12px;">
-          ${hutchPets.length > 0 ? hutchPets.map(pet => renderPetCard(pet)).join('') : '<div style="color: #888; font-size: 14px; padding: 20px;">No pets in hutch</div>'}
+          ${hutchPets.length > 0 ? hutchPets.map(pet => renderPetCard(pet)).join('') : `<div style="color: #888; font-size: 14px; padding: 20px;">${t('feature.petHutch.noPetsHutch')}</div>`}
         </div>
       </div>
 
       <!-- Inventory Section -->
       <div>
         <h3 style="color: #2196F3; font-size: 16px; font-weight: 700; margin-bottom: 12px; border-bottom: 2px solid #2196F3; padding-bottom: 6px;">
-          🎒 Inventory (${inventoryPets.length})
+          🎒 ${t('feature.petHutch.inventoryCount', { count: String(inventoryPets.length) })}
         </h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 12px;">
-          ${inventoryPets.length > 0 ? inventoryPets.map(pet => renderPetCard(pet)).join('') : '<div style="color: #888; font-size: 14px; padding: 20px;">No pets in inventory</div>'}
+          ${inventoryPets.length > 0 ? inventoryPets.map(pet => renderPetCard(pet)).join('') : `<div style="color: #888; font-size: 14px; padding: 20px;">${t('feature.petHutch.noPetsInventory')}</div>`}
         </div>
       </div>
 
       <!-- Keybind Settings -->
       <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(100, 181, 246, 0.2);">
         <div style="font-size: 12px; color: #888; text-align: center;">
-          Press <kbd style="background: rgba(100, 181, 246, 0.2); padding: 3px 8px; border-radius: 3px; font-family: monospace;">${currentKeybind.toUpperCase()}</kbd> to toggle this window
+          ${t('feature.petHutch.keybindHint', { key: `<kbd style="background: rgba(100, 181, 246, 0.2); padding: 3px 8px; border-radius: 3px; font-family: monospace;">${currentKeybind.toUpperCase()}</kbd>` })}
         </div>
       </div>
     </div>
@@ -222,7 +223,7 @@ export function openPetHutchWindow(): void {
       align-items: center;
     ">
       <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #64B5F6;">
-        🏠 Pet Hutch & Inventory
+        🏠 ${t('feature.petHutch.title')}
       </h2>
       <button class="close-btn" style="
         background: rgba(244, 67, 54, 0.2);
@@ -235,7 +236,7 @@ export function openPetHutchWindow(): void {
         font-weight: 600;
         transition: all 0.2s;
       " onmouseover="this.style.background='rgba(244, 67, 54, 0.4)'; this.style.borderColor='rgba(244, 67, 54, 0.8)'" onmouseout="this.style.background='rgba(244, 67, 54, 0.2)'; this.style.borderColor='rgba(244, 67, 54, 0.5)'">
-        ✕ Close
+        ✕ ${t('common.close')}
       </button>
     </div>
     <div class="pet-hutch-content"></div>

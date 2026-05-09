@@ -6,6 +6,7 @@ import { calculateMaxStrength } from '../../store/xpTracker';
 import { getAbilityDefinition } from '../../data/petAbilities';
 import type { PooledPet } from '../../types/petTeams';
 import { IS_MAC, IS_OPERA } from './constants';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Button helper
@@ -184,11 +185,11 @@ export function createKeybindButton(
 
     // Warn on Opera GX bare-key conflicts (only on Opera/Opera GX)
     if (IS_OPERA && isOperaConflict(combo)) {
-      kbBtn.textContent = `\u26A0 "${formatKeybind(combo)}" blocked by Opera GX`;
+      kbBtn.textContent = t('feature.petsWindow.operaBlocked', { combo: formatKeybind(combo) });
       kbBtn.style.color = '#f87171';
       setTimeout(() => {
         if (!recording) return;
-        kbBtn.textContent = 'Try Ctrl/Alt/Shift + key\u2026';
+        kbBtn.textContent = t('feature.petsWindow.tryModifierKey');
         kbBtn.style.color = '#fbbf24';
       }, 2000);
       return;
@@ -201,7 +202,7 @@ export function createKeybindButton(
   kbBtn.addEventListener('click', () => {
     if (recording) { stopRecording(); return; }
     recording = true;
-    kbBtn.textContent = 'Press a key\u2026';
+    kbBtn.textContent = t('feature.petsWindow.pressKey');
     kbBtn.style.color = '';
 
     stopCapture?.();
@@ -216,8 +217,8 @@ export function createKeybindButton(
       noKeyTimer = null;
       if (!recording) return;
       kbBtn.textContent = IS_OPERA
-        ? 'No key detected \u2014 try Ctrl/Alt + key'
-        : 'No key detected \u2014 try again';
+        ? t('feature.petsWindow.noKeyDetectedOpera')
+        : t('feature.petsWindow.noKeyDetected');
       kbBtn.style.color = '#fbbf24';
     }, 3000);
   });

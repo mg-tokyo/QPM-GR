@@ -8,6 +8,7 @@ import {
   setSearchTerm,
   setSortBy,
 } from '../../features/publicRooms';
+import { t } from '../../i18n';
 import { showToast } from './helpers';
 import { openInspectorDirect } from './inspectorShell';
 import { PR_STYLES } from './styles';
@@ -64,7 +65,7 @@ export function renderPublicRoomsWindow(root: HTMLElement): void {
 
   refreshBtn?.addEventListener('click', () => {
     fetchRooms();
-    showToast('Refreshing rooms...', 'info');
+    showToast(t('feature.publicRooms.refreshingRooms'), 'info');
   });
 
   setRoomsUpdateCallback(renderRooms);
@@ -72,7 +73,7 @@ export function renderPublicRoomsWindow(root: HTMLElement): void {
   setErrorCallback(showRoomsError);
 
   initPublicRooms().catch(err => {
-    showToast('Unable to initialize Public Rooms', 'error');
+    showToast(t('feature.publicRooms.initFailed'), 'error');
     console.error('[PublicRooms] init failed', err);
   });
 

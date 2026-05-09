@@ -2,6 +2,7 @@
 // Eggs tab — hatch stats (session/lifetime), species cards, egg catalog.
 
 import { storage } from '../../utils/storage';
+import { t } from '../../i18n';
 import {
   subscribeHatchStats,
   seedLifetimeFromPets,
@@ -70,13 +71,13 @@ function buildSpeciesCard(species: string, counts: SpeciesCounts): HTMLElement {
     if (counts.gold > 0) {
       const g = document.createElement('span');
       g.style.cssText = 'background:#ffd600;color:#111;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700;';
-      g.textContent = `${counts.gold} gold`;
+      g.textContent = t('feature.statsHub.eggs.gold', { count: String(counts.gold) });
       badges.appendChild(g);
     }
     if (counts.rainbow > 0) {
       const r = document.createElement('span');
       r.style.cssText = `background:${RAINBOW_GRADIENT};color:#fff;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700;`;
-      r.textContent = `${counts.rainbow} 🌈`;
+      r.textContent = `${t('feature.statsHub.eggs.rainbow', { count: String(counts.rainbow) })} 🌈`;
       badges.appendChild(r);
     }
     card.appendChild(badges);
@@ -175,12 +176,14 @@ function buildEggCard(egg: EggAnalysis): HTMLElement {
   }
 
   const hatchEl = document.createElement('div');
-  hatchEl.textContent = `${egg.hatchHours >= 1 ? Math.round(egg.hatchHours) + 'h' : Math.round(egg.hatchHours * 60) + 'm'} hatch`;
+  hatchEl.textContent = egg.hatchHours >= 1
+    ? t('feature.statsHub.eggs.hatchHours', { time: String(Math.round(egg.hatchHours)) })
+    : t('feature.statsHub.eggs.hatchMinutes', { time: String(Math.round(egg.hatchHours * 60)) });
   stats.appendChild(hatchEl);
 
   if (egg.weightedFeedCost > 0) {
     const feedEl = document.createElement('div');
-    feedEl.textContent = `~${formatCoinsAbbreviated(Math.round(egg.weightedFeedCost))} feed`;
+    feedEl.textContent = t('feature.statsHub.eggs.feed', { cost: formatCoinsAbbreviated(Math.round(egg.weightedFeedCost)) });
     stats.appendChild(feedEl);
   }
 
@@ -213,10 +216,10 @@ export function buildEggsTab(container: HTMLElement): () => void {
 
   const sessionBtn = document.createElement('button');
   sessionBtn.type = 'button';
-  sessionBtn.textContent = 'Session';
+  sessionBtn.textContent = t('feature.statsHub.eggs.session');
   const lifetimeBtn = document.createElement('button');
   lifetimeBtn.type = 'button';
-  lifetimeBtn.textContent = 'Lifetime';
+  lifetimeBtn.textContent = t('feature.statsHub.eggs.lifetime');
 
   const updateToggle = () => {
     sessionBtn.style.cssText = pillBtnCss(activeView === 'session');
@@ -236,8 +239,8 @@ export function buildEggsTab(container: HTMLElement): () => void {
   // Seed button
   const seedBtn = document.createElement('button');
   seedBtn.type = 'button';
-  seedBtn.textContent = '⬆ Seed';
-  seedBtn.title = 'Import existing pets into lifetime stats';
+  seedBtn.textContent = `⬆ ${t('feature.statsHub.eggs.seed')}`;
+  seedBtn.title = t('feature.statsHub.eggs.seedTooltip');
   seedBtn.style.cssText = pillBtnCss(false);
   seedBtn.addEventListener('click', () => {
     seedBtn.disabled = true;
@@ -258,10 +261,10 @@ export function buildEggsTab(container: HTMLElement): () => void {
       updateToggle();
       renderAll();
       seedBtn.textContent = added > 0 ? `+${added}` : '✓';
-      setTimeout(() => { seedBtn.disabled = false; seedBtn.textContent = '⬆ Seed'; }, 2000);
+      setTimeout(() => { seedBtn.disabled = false; seedBtn.textContent = `⬆ ${t('feature.statsHub.eggs.seed')}`; }, 2000);
     } catch {
       seedBtn.disabled = false;
-      seedBtn.textContent = '⬆ Seed';
+      seedBtn.textContent = `⬆ ${t('feature.statsHub.eggs.seed')}`;
     }
   });
   filterBar.appendChild(seedBtn);
@@ -290,7 +293,7 @@ export function buildEggsTab(container: HTMLElement): () => void {
 
     const bucket = activeView === 'session' ? currentStats.session : currentStats.lifetime;
     if (bucket.totalHatched === 0) {
-      appendEmptyNote(content, activeView === 'session' ? 'No hatches this session.' : 'No lifetime data — use Seed to import.');
+      appendEmptyNote(content, activeView === 'session' ? t('feature.statsHub.eggs.noHatches') : t('feature.statsHub.eggs.noLifetime'));
       return;
     }
 
@@ -300,17 +303,17 @@ export function buildEggsTab(container: HTMLElement): () => void {
     // Section header with inline totals
     const hdr = document.createElement('div');
     hdr.style.cssText = 'display:flex;align-items:baseline;gap:10px;font-size:13px;font-weight:700;color:rgba(224,224,224,0.85);';
-    hdr.textContent = `${bucket.totalHatched} Hatched`;
+    hdr.textContent = t('feature.statsHub.eggs.hatched', { count: String(bucket.totalHatched) });
     if (goldTotal > 0) {
       const g = document.createElement('span');
       g.style.cssText = 'background:#ffd600;color:#111;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;';
-      g.textContent = `${goldTotal} gold`;
+      g.textContent = t('feature.statsHub.eggs.gold', { count: String(goldTotal) });
       hdr.appendChild(g);
     }
     if (rainbowTotal > 0) {
       const r = document.createElement('span');
       r.style.cssText = `background:${RAINBOW_GRADIENT};color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;`;
-      r.textContent = `${rainbowTotal} rainbow`;
+      r.textContent = t('feature.statsHub.eggs.rainbow', { count: String(rainbowTotal) });
       hdr.appendChild(r);
     }
     content.appendChild(hdr);
@@ -330,7 +333,7 @@ export function buildEggsTab(container: HTMLElement): () => void {
     // Recent hatches (compact list, last 20)
     const events = (currentStats.recentEvents ?? []).slice(0, 20);
     if (events.length > 0) {
-      appendSectionHeader(content, 'Recent');
+      appendSectionHeader(content, t('feature.statsHub.eggs.recent'));
       const list = document.createElement('div');
       list.style.cssText = 'display:flex;flex-direction:column;';
       for (const ev of events) list.appendChild(buildEventRow(ev));
@@ -344,7 +347,7 @@ export function buildEggsTab(container: HTMLElement): () => void {
     const allEggs = analyzeAllEggs();
     if (allEggs.length === 0) return;
 
-    appendSectionHeader(content, 'Egg Catalog');
+    appendSectionHeader(content, t('feature.statsHub.eggs.catalog'));
 
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;';

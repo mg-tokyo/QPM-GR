@@ -1,6 +1,7 @@
 import type { OptimizerAnalysis } from '../../features/petOptimizer';
 import { getOptimizerAbilityFamilyInfo } from '../../features/petCompareEngine';
 import { getAbilityColor } from '../../utils/petCardRenderer';
+import { t } from '../../i18n';
 
 function colorWithAlpha(color: string, alpha: number): string {
   if (color.includes('gradient') || color.includes('rgb')) {
@@ -69,7 +70,7 @@ export function renderFamilyNav(
 
   const toggle = document.createElement('button');
   toggle.type = 'button';
-  toggle.textContent = 'Abilities \u25B8';
+  toggle.textContent = `${t('feature.petOptimizer.abilitiesExpand')} \u25B8`;
   toggle.style.cssText = [
     'padding:4px 10px',
     'border-radius:5px',
@@ -171,7 +172,7 @@ export function renderFamilyNav(
   toggle.addEventListener('click', () => {
     expanded = !expanded;
     pillsRow.style.display = expanded ? 'flex' : 'none';
-    toggle.textContent = expanded ? 'Abilities \u25BE' : 'Abilities \u25B8';
+    toggle.textContent = expanded ? `${t('feature.petOptimizer.abilitiesExpand')} \u25BE` : `${t('feature.petOptimizer.abilitiesExpand')} \u25B8`;
   });
 
   wrapper.appendChild(toggle);

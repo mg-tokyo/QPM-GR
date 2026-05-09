@@ -64,18 +64,18 @@ Ordered by string count (smallest → largest). Each invocation of `/language` p
 | 19 | Stats Section | `sections/statsSection.ts` | ~10 | done |
 | 20 | Dashboard Modules | `sections/dashboardModules.ts` | ~15 | done |
 | 21 | Trackers Section | `sections/trackersSection.ts` | ~10 | done |
-| 22 | Turtle Timer Section | `sections/turtleTimerSection.ts` | ~25 | pending |
+| 22 | Turtle Timer Section | `sections/turtleTimerSection.ts` | ~25 | done |
 | 23 | Locker Section | `sections/lockerSection.ts`, `lockerCustomRules.ts`, `lockerPlantPicker.ts`, `lockerPrimitives.ts`, `lockerTabPanels.ts` | ~25 | done |
-| 24 | Crop Boost Tracker | `cropBoostTrackerWindow.ts` | ~20 | pending |
-| 25 | Journal Checker | `journalCheckerSection.ts` | ~15 | pending |
-| 26 | Pet Hub Window | `petHubWindow.ts`, `petHutchWindow.ts` | ~15 | pending |
-| 27 | Shop Restock Window | `shopRestockWindow.ts`, `shopRestockWindowConstants.ts`, `shopRestockWindowFormatters.ts`, `shopRestockWindowMeta.ts`, `shopRestockWindowRows.ts` | ~30 | pending |
-| 28 | Item Restock Detail | `itemRestockDetailWindow.ts` | ~20 | pending |
-| 29 | Crop Calculator Window | `cropCalculatorWindow.ts` | ~40 | pending |
-| 30 | XP Tracker Window | `xpTrackerWindow.ts` | ~40 | pending |
-| 31 | Ability Tracker Window | `trackerWindow.ts` | ~35 | pending |
-| 32 | Texture Swapper Window | `textureSwapperWindow.ts` | ~25 | pending |
-| 33 | Stats Hub Window | `statsHubWindow/mainWindow.ts`, `gardenTab.ts`, `eggsTab.ts`, `economyTab.ts`, `tileHelpers.ts` | ~40 | pending |
-| 34 | Pets Window | `petsWindow/mainWindow.ts`, `managerTab.ts`, `teamEditor.ts`, `teamList.ts`, `teamSummary.ts`, `comparisonPanel.ts`, `helpers.ts` | ~50 | pending |
-| 35 | Pet Optimizer Window | `petOptimizerWindow/window.ts`, `card.ts`, `filters.ts`, `results.ts`, `sell.ts`, `actions.ts`, `summary.ts`, `statusSection.ts`, `familyGroups.ts`, `familyNav.ts` | ~50 | pending |
-| 36 | Public Rooms Window | `publicRoomsWindow/mainWindow.ts`, `roomsList.ts`, `gardenPane.ts`, `inspectorShell.ts`, `inspectorPanes.ts` | ~30 | pending |
+| 24 | Crop Boost Tracker | `cropBoostTrackerWindow.ts` | ~20 | done |
+| 25 | Journal Checker | `journalCheckerSection.ts` | ~15 | done |
+| 26 | Pet Hub Window | `petHubWindow.ts`, `petHutchWindow.ts` | ~15 | done |
+| 27 | Shop Restock Window | `shopRestockWindow.ts`, `shopRestockWindowConstants.ts`, `shopRestockWindowFormatters.ts`, `shopRestockWindowMeta.ts`, `shopRestockWindowRows.ts` | ~30 | done |
+| 28 | Item Restock Detail | `itemRestockDetailWindow.ts` | ~20 | done |
+| 29 | Crop Calculator Window | `cropCalculatorWindow.ts` | ~40 | done |
+| 30 | XP Tracker Window | `xpTrackerWindow.ts` | ~40 | done |
+| 31 | Ability Tracker Window | `trackerWindow.ts` | ~35 | done |
+| 32 | Texture Swapper Window | `textureSwapperWindow.ts` | ~25 | done |
+| 33 | Stats Hub Window | `statsHubWindow/mainWindow.ts`, `gardenTab.ts`, `eggsTab.ts`, `economyTab.ts`, `tileHelpers.ts` | ~40 | done |
+| 34 | Pets Window | `petsWindow/mainWindow.ts`, `managerTab.ts`, `teamEditor.ts`, `teamList.ts`, `teamSummary.ts`, `comparisonPanel.ts`, `helpers.ts` | ~50 | done |
+| 35 | Pet Optimizer Window | `petOptimizerWindow/window.ts`, `card.ts`, `filters.ts`, `results.ts`, `sell.ts`, `actions.ts`, `summary.ts`, `statusSection.ts`, `familyGroups.ts`, `familyNav.ts` | ~50 | done |
+| 36 | Public Rooms Window | `publicRoomsWindow/mainWindow.ts`, `roomsList.ts`, `gardenPane.ts`, `inspectorShell.ts`, `inspectorPanes.ts` | ~30 | done |

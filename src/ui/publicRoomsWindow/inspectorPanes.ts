@@ -33,22 +33,23 @@ import {
   renderAbilitySquares,
 } from './spriteHelpers';
 import { renderGardenPane } from './gardenPane';
+import { t } from '../../i18n';
 
 function renderOverviewPane(view: PlayerView, isFriend: boolean, privacy: PlayerView['privacy']): void {
   const allowProfile = isFriend || !!privacy?.showProfile;
   const allowCoins = isFriend || !!privacy?.showCoins;
-  const name = allowProfile ? (view.playerName || inspectorState.targetPlayerName || 'Unknown player') : 'Hidden by privacy';
+  const name = allowProfile ? (view.playerName || inspectorState.targetPlayerName || 'Unknown player') : t('feature.publicRooms.hiddenByPrivacy');
   const roomLabel = (view.room && (view.room.id || (view.room as any).roomId)) || '';
-  const lastEvent = view.lastEventAt ? formatUpdatedAgo(view.lastEventAt) : 'n/a';
+  const lastEvent = view.lastEventAt ? formatUpdatedAgo(view.lastEventAt) : t('feature.publicRooms.na');
   const coins = allowCoins ? formatCoins(view.coins) : '—';
 
   setPaneContent('pr-overview-content', `
     <div class="pr-overview">
       ${renderAvatarBlock(view, name)}
       <div class="pr-overview-grid">
-        <div class="pr-row"><span>Status</span><span>${view.isOnline ? '🟢 Online' : '⚪ Offline'}</span></div>
-        <div class="pr-row"><span>Last event</span><span>${lastEvent}</span></div>
-        <div class="pr-row"><span>Coins</span><span>${coins}</span></div>
+        <div class="pr-row"><span>${t('feature.publicRooms.statusLabel')}</span><span>${view.isOnline ? `🟢 ${t('feature.publicRooms.online')}` : `⚪ ${t('feature.publicRooms.offline')}`}</span></div>
+        <div class="pr-row"><span>${t('feature.publicRooms.lastEvent')}</span><span>${lastEvent}</span></div>
+        <div class="pr-row"><span>${t('feature.publicRooms.coinsLabel')}</span><span>${coins}</span></div>
       </div>
     </div>
   `);
@@ -169,7 +170,7 @@ async function renderInventoryPane(view: PlayerView, _isFriend: boolean, _privac
 
   const sectionHead = document.createElement('div');
   sectionHead.className = 'pr-section-head';
-  sectionHead.textContent = `Inventory (${collected.length} items)`;
+  sectionHead.textContent = t('feature.publicRooms.inventoryCount', { count: String(collected.length) });
 
   const cardsRoot = document.createElement('div');
   cardsRoot.className = 'pr-card-grid';
@@ -272,7 +273,7 @@ async function renderInventoryPane(view: PlayerView, _isFriend: boolean, _privac
     if (!cardsRoot.firstChild) {
       const empty = document.createElement('div');
       empty.className = 'pr-pane-placeholder';
-      empty.textContent = 'Inventory payload empty or private.';
+      empty.textContent = t('feature.publicRooms.inventoryEmpty');
       cardsRoot.appendChild(empty);
     }
   };
@@ -280,7 +281,7 @@ async function renderInventoryPane(view: PlayerView, _isFriend: boolean, _privac
   if (!collected.length) {
     const empty = document.createElement('div');
     empty.className = 'pr-pane-placeholder';
-    empty.textContent = 'Inventory payload empty or private.';
+    empty.textContent = t('feature.publicRooms.inventoryEmpty');
     cardsRoot.appendChild(empty);
   } else {
     requestAnimationFrame(pump);
@@ -294,7 +295,7 @@ async function renderInventoryPane(view: PlayerView, _isFriend: boolean, _privac
 
     const hutchHead = document.createElement('div');
     hutchHead.className = 'pr-section-head';
-    hutchHead.textContent = `Pet Hutch (${hutch.items.length} pets)`;
+    hutchHead.textContent = t('feature.publicRooms.hutchCount', { count: String(hutch.items.length) });
 
     const hutchGrid = document.createElement('div');
     hutchGrid.className = 'pr-card-grid';
@@ -355,7 +356,7 @@ function renderActivityPane(view: PlayerView, _isFriend: boolean, _privacy: Play
     : (Array.isArray(view.state?.activityLogs) ? view.state?.activityLogs : []);
 
   if (!logs || logs.length === 0) {
-    setPanePlaceholder('pr-activity-content', 'No activity shared in the payload.');
+    setPanePlaceholder('pr-activity-content', t('feature.publicRooms.noActivityShared'));
     return;
   }
 
@@ -385,40 +386,40 @@ function renderActivityPane(view: PlayerView, _isFriend: boolean, _privacy: Play
     let detail = '';
     if (rawAction === 'feedPet') {
       const petName = (params?.pet as Record<string, unknown>)?.name || 'pet';
-      detail = `Fed ${petName}`;
+      detail = t('feature.publicRooms.fedPet', { name: String(petName) });
     } else if (rawAction === 'purchaseEgg') {
       const eggIds = (params?.eggIds || []) as string[];
       const eggType = Array.isArray(eggIds) && eggIds.length > 0 ? eggIds[0] : 'egg';
-      detail = `Purchased ${friendlyName(eggType)}`;
+      detail = t('feature.publicRooms.purchasedItem', { name: friendlyName(eggType) });
     } else if (rawAction === 'purchaseSeed') {
       const seedIds = (params?.seedIds || []) as string[];
       const seedType = Array.isArray(seedIds) && seedIds.length > 0 ? seedIds[0] : 'seed';
-      detail = `Purchased ${friendlyName(seedType)}`;
+      detail = t('feature.publicRooms.purchasedItem', { name: friendlyName(seedType) });
     } else if (rawAction === 'purchaseTool') {
-      detail = 'Purchased tool';
+      detail = t('feature.publicRooms.purchasedTool');
     } else if (rawAction === 'harvest') {
       const crops = (params?.crops || []) as Record<string, unknown>[];
       const cropCount = Array.isArray(crops) ? crops.length : 1;
       const cropSpecies = Array.isArray(crops) && crops.length > 0 ? crops[0]?.species : 'crops';
-      detail = `Harvested ${cropCount} ${friendlyName(cropSpecies)}`;
+      detail = t('feature.publicRooms.harvestedCrops', { count: String(cropCount), species: friendlyName(cropSpecies) });
     } else if (rawAction === 'plantEgg') {
-      detail = 'Planted an egg';
+      detail = t('feature.publicRooms.plantedEgg');
     } else if (rawAction.startsWith('PetXpBoost')) {
       const bonusXp = params?.bonusXp || 0;
       const affected = (params?.petsAffected as unknown[])?.length || 0;
-      detail = `+${bonusXp} XP to ${affected} pet${affected !== 1 ? 's' : ''}`;
+      detail = affected !== 1 ? t('feature.publicRooms.xpBoosts', { xp: String(bonusXp), count: String(affected) }) : t('feature.publicRooms.xpBoost', { xp: String(bonusXp), count: String(affected) });
     } else if (rawAction === 'ProduceScaleBoostII' || rawAction === 'ProduceScaleBoost') {
-      detail = 'Crop size boost activated';
+      detail = t('feature.publicRooms.cropSizeBoost');
     } else if (rawAction.includes('Kisser') || rawAction.includes('Granter')) {
-      detail = `${action} ability triggered`;
+      detail = t('feature.publicRooms.abilityTriggered', { ability: action });
     } else if (rawAction.toLowerCase().includes('hatch')) {
-      detail = `Hatched ${friendlyName(pet || crop || 'pet')}`;
+      detail = t('feature.publicRooms.hatched', { name: friendlyName(pet || crop || 'pet') });
     } else if (rawAction.toLowerCase().includes('sell')) {
-      detail = `Sold ${friendlyName(pet || crop || 'item')}`;
+      detail = t('feature.publicRooms.sold', { name: friendlyName(pet || crop || 'item') });
     } else if (params?.currency && params?.purchasePrice) {
-      detail = `Spent ${params.purchasePrice} ${params.currency}`;
+      detail = t('feature.publicRooms.spent', { amount: String(params.purchasePrice), currency: String(params.currency) });
     } else {
-      detail = previewData(params) || 'No details';
+      detail = previewData(params) || t('feature.publicRooms.noDetails');
     }
 
     return { action, ago, detail, sprite: spriteUrl };
@@ -433,7 +434,7 @@ function renderActivityPane(view: PlayerView, _isFriend: boolean, _privacy: Play
 
   const head = document.createElement('div');
   head.className = 'pr-section-head';
-  head.textContent = 'Recent Activity';
+  head.textContent = t('feature.publicRooms.recentActivity');
 
   const timeline = document.createElement('div');
   timeline.className = 'pr-timeline';
@@ -467,7 +468,7 @@ function renderActivityPane(view: PlayerView, _isFriend: boolean, _privacy: Play
 
     const detailEl = document.createElement('div');
     detailEl.className = 'pr-timeline-detail';
-    detailEl.textContent = item.detail || 'No details';
+    detailEl.textContent = item.detail || t('feature.publicRooms.noDetails');
 
     main.append(title, detailEl);
 
@@ -484,7 +485,7 @@ function renderActivityPane(view: PlayerView, _isFriend: boolean, _privacy: Play
   if (logs.length > 8) {
     const hint = document.createElement('div');
     hint.className = 'pr-hint';
-    hint.textContent = 'Showing first 8 entries';
+    hint.textContent = t('feature.publicRooms.showingFirstEntries');
     section.appendChild(hint);
   }
 

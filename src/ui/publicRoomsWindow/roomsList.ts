@@ -11,19 +11,20 @@ import {
   showToast,
 } from './helpers';
 import { openInspector } from './inspectorShell';
+import { t } from '../../i18n';
 
 export function setRoomStatPills(totalRooms: number, visibleRooms: number, lastUpdatedAt?: string | null): void {
   const totalEl = document.getElementById('pr-total-rooms-pill');
   const visibleEl = document.getElementById('pr-visible-rooms-pill');
   const updatedEl = document.getElementById('pr-last-updated-pill');
-  if (totalEl) totalEl.textContent = `Rooms: ${totalRooms}`;
-  if (visibleEl) visibleEl.textContent = `Showing: ${visibleRooms}`;
+  if (totalEl) totalEl.textContent = t('feature.publicRooms.roomsCount', { count: totalRooms });
+  if (visibleEl) visibleEl.textContent = t('feature.publicRooms.showingCount', { count: visibleRooms });
   if (updatedEl) {
     if (lastUpdatedAt) {
       const d = new Date(lastUpdatedAt);
-      updatedEl.textContent = `Updated: ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      updatedEl.textContent = t('feature.publicRooms.updatedAt', { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
     } else {
-      updatedEl.textContent = 'Updated: --';
+      updatedEl.textContent = t('feature.publicRooms.updatedDefault');
     }
   }
 }
@@ -35,65 +36,65 @@ export function createAppContainer(): HTMLElement {
   container.innerHTML = `
     <div class="pr-hero">
       <div>
-        <div style="font-size: 12px; letter-spacing: 0.3px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Live Directory</div>
+        <div style="font-size: 12px; letter-spacing: 0.3px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">${t('feature.publicRooms.liveDirectory')}</div>
         <h3 style="display: flex; align-items: center; gap: 8px;">
-          🌐 Public Rooms
+          🌐 ${t('feature.publicRooms.title')}
         </h3>
-        <p>Discover active rooms and who is inside. Data via Aries API.</p>
+        <p>${t('feature.publicRooms.heroDesc')}</p>
         <div class="pr-hero-badges">
-          <span class="pr-badge pr-badge-ghost">Powered by Aries</span>
-          <span id="pr-connection-status" class="pr-badge pr-badge-status pr-status-connecting">🔄 Connecting...</span>
+          <span class="pr-badge pr-badge-ghost">${t('feature.publicRooms.poweredByAries')}</span>
+          <span id="pr-connection-status" class="pr-badge pr-badge-status pr-status-connecting">🔄 ${t('feature.publicRooms.statusConnecting')}</span>
         </div>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <button id="pr-refresh-btn" class="qpm-button qpm-button--positive" style="padding: 10px 16px; font-weight: 700;">🔄 Refresh</button>
+        <button id="pr-refresh-btn" class="qpm-button qpm-button--positive" style="padding: 10px 16px; font-weight: 700;">🔄 ${t('feature.publicRooms.refresh')}</button>
       </div>
     </div>
 
     <div class="pr-stats">
       <div class="pr-stat">
-        <div class="pr-stat-label">Rooms</div>
-        <div id="pr-total-rooms-pill" class="pr-stat-value">Rooms: --</div>
+        <div class="pr-stat-label">${t('feature.publicRooms.roomsLabel')}</div>
+        <div id="pr-total-rooms-pill" class="pr-stat-value">${t('feature.publicRooms.roomsDefault')}</div>
       </div>
       <div class="pr-stat">
-        <div class="pr-stat-label">Visible</div>
-        <div id="pr-visible-rooms-pill" class="pr-stat-value">Showing: --</div>
+        <div class="pr-stat-label">${t('feature.publicRooms.visibleLabel')}</div>
+        <div id="pr-visible-rooms-pill" class="pr-stat-value">${t('feature.publicRooms.showingDefault')}</div>
       </div>
       <div class="pr-stat">
-        <div class="pr-stat-label">Last Update</div>
-        <div id="pr-last-updated-pill" class="pr-stat-value">Updated: --</div>
+        <div class="pr-stat-label">${t('feature.publicRooms.lastUpdateLabel')}</div>
+        <div id="pr-last-updated-pill" class="pr-stat-value">${t('feature.publicRooms.updatedDefault')}</div>
       </div>
     </div>
 
     <div class="pr-controls">
       <div class="pr-control">
-        <label>🔎 Search rooms or players</label>
-        <input type="text" id="pr-search-input" placeholder="Search by room code or player name..." />
+        <label>🔎 ${t('feature.publicRooms.searchLabel')}</label>
+        <input type="text" id="pr-search-input" placeholder="${t('feature.publicRooms.searchPlaceholder')}" />
       </div>
       <div class="pr-control">
-        <label>👥 Player count</label>
+        <label>👥 ${t('feature.publicRooms.playerCountLabel')}</label>
         <select id="pr-player-filter">
-          <option value="all">All Rooms</option>
-          <option value="low">Few (1-2)</option>
-          <option value="medium">Some (3-4)</option>
-          <option value="high">Many (5-6)</option>
+          <option value="all">${t('feature.publicRooms.allRooms')}</option>
+          <option value="low">${t('feature.publicRooms.fewPlayers')}</option>
+          <option value="medium">${t('feature.publicRooms.somePlayers')}</option>
+          <option value="high">${t('feature.publicRooms.manyPlayers')}</option>
         </select>
       </div>
       <div class="pr-control">
-        <label>📊 Sort by</label>
+        <label>📊 ${t('feature.publicRooms.sortByLabel')}</label>
         <select id="pr-sort-by">
-          <option value="name">Room Code</option>
-          <option value="players-desc" selected>Most Players</option>
-          <option value="players-asc">Least Players</option>
+          <option value="name">${t('feature.publicRooms.sortRoomCode')}</option>
+          <option value="players-desc" selected>${t('feature.publicRooms.sortMostPlayers')}</option>
+          <option value="players-asc">${t('feature.publicRooms.sortLeastPlayers')}</option>
         </select>
       </div>
     </div>
 
     <div style="margin-top: 18px; display: flex; align-items: center; gap: 10px; color: #cbd5e1; font-weight: 700; letter-spacing: 0.2px;">
-      <span style="font-size: 18px;">🎮</span> <span>Available Rooms</span>
+      <span style="font-size: 18px;">🎮</span> <span>${t('feature.publicRooms.availableRooms')}</span>
     </div>
     <div id="pr-rooms-list" class="pr-grid">
-      <p style="text-align: center; color: #aaa; grid-column: 1/-1; font-size: 14px;">Loading rooms...</p>
+      <p style="text-align: center; color: #aaa; grid-column: 1/-1; font-size: 14px;">${t('feature.publicRooms.loadingRooms')}</p>
     </div>
   `;
 
@@ -130,16 +131,16 @@ export function openPlayersModal(room: Room): void {
   const headerText = document.createElement('div');
   const title = document.createElement('div');
   title.style.cssText = 'font-size: 18px; font-weight: 700;';
-  title.textContent = `Players in ${room.id}`;
+  title.textContent = t('feature.publicRooms.playersInRoom', { roomId: room.id });
   const subtitle = document.createElement('div');
   subtitle.style.cssText = 'font-size: 12px; color: #9CA3AF;';
-  subtitle.textContent = `${players.length} visible player${players.length === 1 ? '' : 's'}`;
+  subtitle.textContent = players.length === 1 ? t('feature.publicRooms.visiblePlayerCount', { count: players.length }) : t('feature.publicRooms.visiblePlayerCounts', { count: players.length });
   headerText.append(title, subtitle);
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'qpm-button qpm-button--neutral';
   closeBtn.style.cssText = 'padding: 6px 12px;';
-  closeBtn.textContent = 'Close';
+  closeBtn.textContent = t('common.close');
   closeBtn.addEventListener('click', close);
   header.append(headerText, closeBtn);
 
@@ -149,7 +150,7 @@ export function openPlayersModal(room: Room): void {
   if (players.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'color: #9CA3AF; font-size: 13px; text-align: center; padding: 20px;';
-    empty.textContent = 'No players visible for this room.';
+    empty.textContent = t('feature.publicRooms.noPlayersModal');
     body.appendChild(empty);
   } else {
     players.forEach((slot) => {
@@ -175,17 +176,17 @@ export function openPlayersModal(room: Room): void {
       info.style.cssText = 'flex: 1;';
       const playerName = document.createElement('div');
       playerName.style.cssText = 'font-size: 14px; font-weight: 700;';
-      playerName.textContent = slot.name || 'Unknown player';
+      playerName.textContent = slot.name || t('feature.publicRooms.unknownPlayer');
       const hint = document.createElement('div');
       hint.style.cssText = 'font-size: 11px; color: #9CA3AF;';
-      hint.textContent = 'Tap to search by this player';
+      hint.textContent = t('feature.publicRooms.tapToSearch');
       info.append(playerName, hint);
       row.appendChild(info);
 
       const searchBtn = document.createElement('button');
       searchBtn.className = 'qpm-button qpm-button--neutral';
       searchBtn.style.cssText = 'padding: 6px 10px; font-size: 12px;';
-      searchBtn.textContent = 'Search';
+      searchBtn.textContent = t('common.search');
       searchBtn.addEventListener('click', () => {
         const searchInput = document.getElementById('pr-search-input') as HTMLInputElement | null;
         const name = slot.name || '';
@@ -220,7 +221,7 @@ export function renderRooms(rooms: RoomsMap): void {
   if (roomKeys.length === 0) {
     const empty = document.createElement('p');
     empty.style.cssText = 'text-align: center; color: #aaa; grid-column: 1/-1; font-size: 14px;';
-    empty.textContent = 'No rooms found. Try adjusting filters or search by player name.';
+    empty.textContent = t('feature.publicRooms.noRoomsFound');
     roomsList.appendChild(empty);
     return;
   }
@@ -265,7 +266,7 @@ export function renderRooms(rooms: RoomsMap): void {
 
     const privacyPill = document.createElement('span');
     privacyPill.className = `pr-pill ${room.isPrivate ? 'pr-pill-private' : 'pr-pill-public'}`;
-    privacyPill.textContent = room.isPrivate ? 'Private' : 'Public';
+    privacyPill.textContent = room.isPrivate ? t('feature.publicRooms.private') : t('feature.publicRooms.public');
 
     const roomLabelEl = document.createElement('span');
     roomLabelEl.style.cssText = 'font-size: 18px;';
@@ -283,7 +284,7 @@ export function renderRooms(rooms: RoomsMap): void {
     count.className = 'pr-player-count';
     count.style.cssText = `background: ${playerBgColor}; border-color: ${playerBadgeColor}; color: ${playerBadgeColor};`;
     const countIcon = document.createElement('span');
-    countIcon.textContent = 'Players';
+    countIcon.textContent = t('feature.publicRooms.players');
     const countValue = document.createElement('span');
     countValue.textContent = String(playerCount);
     count.append(countIcon, countValue);
@@ -296,10 +297,10 @@ export function renderRooms(rooms: RoomsMap): void {
     const updated = document.createElement('span');
     const dot = document.createElement('span');
     dot.className = 'pr-dot';
-    updated.append(dot, document.createTextNode(` Updated ${formatUpdatedAgo(room.lastUpdatedAt)}`));
+    updated.append(dot, document.createTextNode(` ${t('feature.publicRooms.updatedAgo', { ago: formatUpdatedAgo(room.lastUpdatedAt) })}`));
 
     const code = document.createElement('span');
-    code.textContent = 'Code: ';
+    code.textContent = t('feature.publicRooms.codeLabel');
     const codeEl = document.createElement('code');
     codeEl.style.color = '#e2e8f0';
     codeEl.textContent = room.id;
@@ -341,13 +342,13 @@ export function renderRooms(rooms: RoomsMap): void {
     } else {
       const emptyPlayers = document.createElement('div');
       emptyPlayers.className = 'pr-players-empty';
-      emptyPlayers.textContent = 'No visible players';
+      emptyPlayers.textContent = t('feature.publicRooms.noVisiblePlayers');
       roomCard.appendChild(emptyPlayers);
     }
 
     const hintLine = document.createElement('div');
     hintLine.className = 'pr-hint-line';
-    hintLine.textContent = 'Tap an avatar to open the Inspector';
+    hintLine.textContent = t('feature.publicRooms.tapAvatarHint');
     roomCard.appendChild(hintLine);
 
     const actions = document.createElement('div');
@@ -356,7 +357,7 @@ export function renderRooms(rooms: RoomsMap): void {
     const joinBtn = document.createElement('button');
     joinBtn.className = `qpm-button ${isFull ? 'qpm-button--negative' : 'qpm-button--positive'} pr-join-btn`;
     joinBtn.style.cssText = `flex: 1; padding: 10px; font-size: 13px; font-weight: 700; ${isFull ? 'background: linear-gradient(135deg, rgba(229,57,53,0.85), rgba(183,28,28,0.9)); border: 2px solid rgba(229,57,53,0.9); color: #fff;' : ''}`;
-    joinBtn.textContent = isFull ? 'Full' : 'Join';
+    joinBtn.textContent = isFull ? t('feature.publicRooms.fullBtn') : t('feature.publicRooms.joinBtn');
     joinBtn.addEventListener('click', () => {
       if (/^[a-zA-Z0-9_-]{1,64}$/.test(roomCode)) {
         window.location.href = `/r/${roomCode}`;
@@ -366,10 +367,10 @@ export function renderRooms(rooms: RoomsMap): void {
     const viewBtn = document.createElement('button');
     viewBtn.className = 'qpm-button qpm-button--neutral pr-view-btn';
     viewBtn.style.cssText = 'padding: 10px; font-size: 13px; font-weight: 700;';
-    viewBtn.textContent = 'Players';
+    viewBtn.textContent = t('feature.publicRooms.players');
     viewBtn.addEventListener('click', () => {
       if (!room.userSlots || room.userSlots.length === 0) {
-        showToast('No players visible in this room', 'info');
+        showToast(t('feature.publicRooms.noPlayersInRoom'), 'info');
         return;
       }
       openPlayersModal(room);
@@ -402,12 +403,12 @@ export function showRoomsError(message: string): void {
   const retryBtn = document.createElement('button');
   retryBtn.id = 'pr-retry-fetch-btn';
   retryBtn.style.cssText = 'padding: 10px 20px; background: rgba(66, 165, 245, 0.2); border: 2px solid #42A5F5; border-radius: 6px; color: #42A5F5; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;';
-  retryBtn.textContent = 'Retry';
+  retryBtn.textContent = t('feature.publicRooms.retry');
   retryBtn.addEventListener('click', () => {
     clearNode(roomsList);
     const loading = document.createElement('p');
     loading.style.cssText = 'text-align: center; color: #aaa; grid-column: 1/-1; font-size: 14px;';
-    loading.textContent = 'Loading rooms...';
+    loading.textContent = t('feature.publicRooms.loadingRooms');
     roomsList.appendChild(loading);
     fetchRooms();
   });
@@ -421,11 +422,11 @@ export function updateConnectionStatus(status: PublicRoomsState['connectionStatu
   const roomsList = document.getElementById('pr-rooms-list');
 
   const statusConfig = {
-    connecting: { text: '🔄 Connecting...', color: '#42A5F5' },
-    connected: { text: '✅ Connected', color: '#4CAF50' },
-    failed: { text: '❌ Connection Failed', color: '#ff4d4d' },
-    retrying: { text: '🔄 Retrying...', color: '#FF9800' },
-  } as const;
+    connecting: { text: `🔄 ${t('feature.publicRooms.statusConnecting')}`, color: '#42A5F5' },
+    connected: { text: `✅ ${t('feature.publicRooms.statusConnected')}`, color: '#4CAF50' },
+    failed: { text: `❌ ${t('feature.publicRooms.statusFailed')}`, color: '#ff4d4d' },
+    retrying: { text: `🔄 ${t('feature.publicRooms.statusRetrying')}`, color: '#FF9800' },
+  };
 
   if (statusEl) {
     const cfg = statusConfig[status];
@@ -437,8 +438,8 @@ export function updateConnectionStatus(status: PublicRoomsState['connectionStatu
     roomsList.innerHTML = `
       <div style="text-align: center; color: #aaa; grid-column: 1/-1; padding: 40px;">
         <div style="font-size: 32px; margin-bottom: 16px;">🔄</div>
-        <p style="font-size: 14px; margin-bottom: 8px;">${status === 'connecting' ? 'Connecting to Public Rooms...' : 'Retrying connection...'}</p>
-        <p style="font-size: 12px; color: #666;">This may take a few seconds</p>
+        <p style="font-size: 14px; margin-bottom: 8px;">${status === 'connecting' ? t('feature.publicRooms.connectingMsg') : t('feature.publicRooms.retryingMsg')}</p>
+        <p style="font-size: 12px; color: #666;">${t('feature.publicRooms.mayTakeSeconds')}</p>
       </div>
     `;
   }

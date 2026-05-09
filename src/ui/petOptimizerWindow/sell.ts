@@ -2,6 +2,7 @@ import type { CollectedPet, PetComparison } from '../../features/petOptimizer';
 import { executeSellPipeline } from '../../features/petSell';
 import type { FamilyPetEntry, SellModalPetEntry } from './types';
 import { getPetSprite } from './sprites';
+import { t } from '../../i18n';
 
 const SELL_CONFIRM_MODAL_ID = 'qpm-optimizer-sell-confirm';
 
@@ -139,12 +140,12 @@ function showSellConfirmModal(
     const updateCounts = (): void => {
       if (hasCheckboxes) {
         const count = rowEntries.filter((entry) => entry.checkbox?.checked).length;
-        selectInfo.textContent = `${count} selected`;
-        sellBtn.textContent = `Sell Selected (${count})`;
+        selectInfo.textContent = t('feature.petOptimizer.selected', { count: String(count) });
+        sellBtn.textContent = t('feature.petOptimizer.sellSelected', { count: String(count) });
         sellBtn.disabled = count === 0;
         sellBtn.style.opacity = count === 0 ? '0.4' : '1';
       } else {
-        sellBtn.textContent = 'Sell';
+        sellBtn.textContent = t('feature.petOptimizer.sell');
         selectInfo.textContent = '';
       }
     };
@@ -156,7 +157,7 @@ function showSellConfirmModal(
 
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
-    cancelBtn.textContent = 'Cancel';
+    cancelBtn.textContent = t('feature.petOptimizer.cancel');
     cancelBtn.style.cssText = 'padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#ffffff;cursor:pointer;font-size:13px;';
 
     let settled = false;
@@ -214,7 +215,7 @@ function executeSellWithFeedback(
   onAfterSell: () => void,
 ): void {
   btn.textContent = '⏳';
-  btn.title = 'Selling...';
+  btn.title = t('feature.petOptimizer.sellingStatus');
   btn.style.opacity = '1';
   (btn as HTMLButtonElement).style.pointerEvents = 'none';
 
@@ -232,14 +233,14 @@ function executeSellWithFeedback(
       }, 450);
     } else {
       btn.textContent = '⚠️';
-      btn.title = `Failed: ${result.reason ?? 'Unknown'}`;
+      btn.title = t('feature.petOptimizer.failedReason', { reason: result.reason ?? 'Unknown' });
       btn.style.background = 'rgba(244,67,54,0.3)';
       btn.style.borderColor = 'rgba(244,67,54,0.5)';
       btn.style.opacity = '1';
       (btn as HTMLButtonElement).style.pointerEvents = 'auto';
       setTimeout(() => {
         btn.textContent = '💰';
-        btn.title = 'Sell this pet';
+        btn.title = t('feature.petOptimizer.sellTooltip');
         btn.style.background = 'rgba(0,0,0,0.3)';
         btn.style.borderColor = 'rgba(255,255,255,0.12)';
         btn.style.opacity = '0.5';
@@ -264,7 +265,7 @@ function executeBulkSell(pets: CollectedPet[], onDone: () => void): void {
   card.style.cssText = 'min-width:300px;max-width:420px;background:#0f1318;color:#ffffff;border:1px solid rgba(255,255,255,0.16);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.45);padding:24px;display:grid;gap:16px;text-align:center;';
 
   const title = document.createElement('div');
-  title.textContent = 'Selling pets...';
+  title.textContent = t('feature.petOptimizer.sellingPets');
   title.style.cssText = 'font-size:18px;font-weight:800;';
 
   const progressText = document.createElement('div');
@@ -302,13 +303,13 @@ function executeBulkSell(pets: CollectedPet[], onDone: () => void): void {
 
     progressFill.style.width = '100%';
     if (failCount === 0) {
-      title.textContent = 'Done!';
-      progressText.textContent = `Sold ${soldCount} pet${soldCount !== 1 ? 's' : ''}`;
+      title.textContent = t('feature.petOptimizer.done');
+      progressText.textContent = soldCount === 1 ? t('feature.petOptimizer.soldPet', { count: '1' }) : t('feature.petOptimizer.soldPets', { count: String(soldCount) });
       progressText.style.color = '#4CAF50';
       progressFill.style.background = '#4CAF50';
     } else {
-      title.textContent = 'Completed';
-      progressText.textContent = `Sold ${soldCount}, ${failCount} failed`;
+      title.textContent = t('feature.petOptimizer.completed');
+      progressText.textContent = t('feature.petOptimizer.soldFailed', { sold: String(soldCount), failed: String(failCount) });
       progressText.style.color = '#FF9800';
       progressFill.style.background = '#FF9800';
     }
@@ -327,8 +328,8 @@ export function appendSellButton(
 ): void {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.title = 'Sell this pet';
-  btn.textContent = 'Sell';
+  btn.title = t('feature.petOptimizer.sellTooltip');
+  btn.textContent = t('feature.petOptimizer.sell');
   btn.style.cssText = [
     'padding:3px 8px',
     'border-radius:5px',
@@ -355,8 +356,8 @@ export function appendSellButton(
 
     const pet = comparison.pet;
     showSellConfirmModal(
-      'Confirm Sell',
-      'Are you sure you want to sell this pet?',
+      t('feature.petOptimizer.confirmSell'),
+      t('feature.petOptimizer.confirmSellDesc'),
       [{ pet, status: comparison.status, checked: true, showCheckbox: false }],
     ).then((confirmed) => {
       if (!confirmed || confirmed.length === 0) return;
@@ -380,8 +381,8 @@ export function showFamilySellModal(
   }));
 
   showSellConfirmModal(
-    `Sell ${familyLabel} Pets`,
-    'Select which pets to sell:',
+    t('feature.petOptimizer.sellFamilyPets', { family: familyLabel }),
+    t('feature.petOptimizer.selectWhichToSell'),
     petEntries,
   ).then((confirmed) => {
     if (!confirmed || confirmed.length === 0) return;

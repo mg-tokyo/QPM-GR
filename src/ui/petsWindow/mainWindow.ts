@@ -23,6 +23,7 @@ import { ensureStyles } from './styles';
 import { btn, showToast, normalizeKeybind, isEditableTarget, createKeybindButton } from './helpers';
 import { buildManagerTab } from './managerTab';
 import { startFeedKeybinds, stopFeedKeybinds } from '../../features/feedKeybinds';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -35,7 +36,7 @@ let currentKeybind = DEFAULT_KEYBIND;
 // ---------------------------------------------------------------------------
 
 export function togglePetsWindow(): void {
-  toggleWindow(WINDOW_ID, 'Pets', renderPetsWindow, '960px', '600px');
+  toggleWindow(WINDOW_ID, t('feature.petsWindow.title'), renderPetsWindow, '960px', '600px');
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +59,7 @@ function renderPetsWindow(root: HTMLElement): void {
 
   const compareStageBadge = document.createElement('div');
   compareStageBadge.className = 'qpm-pets__stage-badge qpm-pets__stage-badge--hidden';
-  compareStageBadge.textContent = 'Stage \u2022 Early';
+  compareStageBadge.textContent = t('feature.petsWindow.stageBadge', { stage: 'EARLY' });
 
   const tabsRight = document.createElement('div');
   tabsRight.className = 'qpm-pets__tabs-right';
@@ -69,7 +70,7 @@ function renderPetsWindow(root: HTMLElement): void {
   const settingsBtn = document.createElement('button');
   settingsBtn.type = 'button';
   settingsBtn.className = 'qpm-pets__settings-btn';
-  settingsBtn.title = 'Sell all pets settings';
+  settingsBtn.title = t('feature.petsWindow.sellSettingsTooltip');
   settingsBtn.textContent = '\u2699';
   settingsBtn.setAttribute('aria-expanded', 'false');
 
@@ -81,12 +82,11 @@ function renderPetsWindow(root: HTMLElement): void {
   body.className = 'qpm-pets__body';
   container.appendChild(body);
 
-  const tabDefs = [
-    { id: 'manager', label: 'Manager', lazy: false },
-    { id: 'pet-optimizer', label: '\uD83C\uDFAF Pet Optimizer', lazy: true },
-  ] as const;
-
-  type TabId = typeof tabDefs[number]['id'];
+  type TabId = 'manager' | 'pet-optimizer';
+  const tabDefs: Array<{ id: TabId; label: string; lazy: boolean }> = [
+    { id: 'manager', label: t('feature.petsWindow.tabManager'), lazy: false },
+    { id: 'pet-optimizer', label: `\uD83C\uDFAF ${t('feature.petsWindow.tabOptimizer')}`, lazy: true },
+  ];
   const validTabIds = new Set<string>(tabDefs.map((d) => d.id));
   const savedTab = storage.get<string>(PETS_TAB_KEY, 'manager');
   let activeTab: TabId = validTabIds.has(savedTab) ? (savedTab as TabId) : 'manager';
@@ -108,7 +108,7 @@ function renderPetsWindow(root: HTMLElement): void {
 
     if (!show || !compareBadgeStage) return;
 
-    compareStageBadge.textContent = `Stage \u2022 ${compareBadgeStage.toUpperCase()}`;
+    compareStageBadge.textContent = t('feature.petsWindow.stageBadge', { stage: compareBadgeStage.toUpperCase() });
     compareStageBadge.classList.add(`qpm-pets__stage-badge--${compareBadgeStage}`);
   }
 
@@ -121,13 +121,17 @@ function renderPetsWindow(root: HTMLElement): void {
 
     const title = document.createElement('div');
     title.className = 'qpm-pets__settings-title';
-    title.textContent = 'Sell All Pets';
+    title.textContent = t('feature.petsWindow.sellTitle');
     panel.appendChild(title);
 
     const keybindRow = document.createElement('div');
     keybindRow.className = 'qpm-pets__settings-row';
     const keybindLabel = document.createElement('div');
-    keybindLabel.innerHTML = 'Keybind<div class="qpm-pets__settings-subtle">Click input, press combo, Del clears</div>';
+    keybindLabel.textContent = t('feature.petsWindow.keybindLabel');
+    const keybindSubtle = document.createElement('div');
+    keybindSubtle.className = 'qpm-pets__settings-subtle';
+    keybindSubtle.textContent = t('feature.petsWindow.keybindHint');
+    keybindLabel.appendChild(keybindSubtle);
 
     const keybindInput = createKeybindButton({
       onSet(combo) { setSellAllPetsKeybind(combo); },
@@ -173,19 +177,19 @@ function renderPetsWindow(root: HTMLElement): void {
     };
 
     panel.appendChild(createToggleRow(
-      'Enable protection rules',
+      t('feature.petsWindow.enableProtection'),
       protections.enabled,
       (checked) => setSellAllPetsProtectionRules({ enabled: checked }),
     ));
 
     panel.appendChild(createToggleRow(
-      'Protect Gold mutation',
+      t('feature.petsWindow.protectGold'),
       protections.protectGold,
       (checked) => setSellAllPetsProtectionRules({ protectGold: checked }),
     ));
 
     panel.appendChild(createToggleRow(
-      'Protect Rainbow mutation',
+      t('feature.petsWindow.protectRainbow'),
       protections.protectRainbow,
       (checked) => setSellAllPetsProtectionRules({ protectRainbow: checked }),
     ));
@@ -208,13 +212,13 @@ function renderPetsWindow(root: HTMLElement): void {
     thresholdInput.addEventListener('blur', saveThreshold);
 
     panel.appendChild(createToggleRow(
-      'Protect pets with Max STR',
+      t('feature.petsWindow.protectMaxStr'),
       protections.protectMaxStr,
       (checked) => {
         setSellAllPetsProtectionRules({ protectMaxStr: checked });
         thresholdInput.disabled = !checked;
       },
-      'Threshold',
+      t('feature.petsWindow.threshold'),
       thresholdInput,
     ));
 
@@ -224,7 +228,11 @@ function renderPetsWindow(root: HTMLElement): void {
     rarityWrap.style.gap = '8px';
 
     const rarityTitle = document.createElement('div');
-    rarityTitle.innerHTML = 'Protected rarities<div class="qpm-pets__settings-subtle">Selected rarities will always require confirmation</div>';
+    rarityTitle.textContent = t('feature.petsWindow.protectedRarities');
+    const raritySubtle = document.createElement('div');
+    raritySubtle.className = 'qpm-pets__settings-subtle';
+    raritySubtle.textContent = t('feature.petsWindow.raritiesHint');
+    rarityTitle.appendChild(raritySubtle);
     rarityWrap.appendChild(rarityTitle);
 
     const rarityGrid = document.createElement('div');
@@ -372,7 +380,11 @@ function renderPetsWindow(root: HTMLElement): void {
         panel.innerHTML = '';
         renderPetOptimizerWindow(panel);
       }).catch(() => {
-        panel.innerHTML = '<div style="padding:20px;color:#ff6b6b;">Failed to load Pet Optimizer</div>';
+        panel.textContent = '';
+        const errDiv = document.createElement('div');
+        errDiv.style.cssText = 'padding:20px;color:#ff6b6b;';
+        errDiv.textContent = t('feature.petsWindow.optimizerLoadError');
+        panel.appendChild(errDiv);
       });
     }
 
@@ -473,11 +485,11 @@ export function initPetsWindow(): void {
       e.stopPropagation();
 
       if (isSellAllPetsRunning()) {
-        showToast('Sell all pets is already running', 'info');
+        showToast(t('feature.petsWindow.sellAlreadyRunning'), 'info');
         return;
       }
 
-      showToast('Selling non-favorited inventory pets\u2026', 'info');
+      showToast(t('feature.petsWindow.sellingPets'), 'info');
       runSellAllPets()
         .then((result) => {
           if (result.status === 'success') {
@@ -495,7 +507,7 @@ export function initPetsWindow(): void {
           showToast(result.message, 'error');
         })
         .catch(() => {
-          showToast('Sell all pets failed', 'error');
+          showToast(t('feature.petsWindow.sellFailed'), 'error');
         });
       return;
     }
@@ -511,17 +523,17 @@ export function initPetsWindow(): void {
 
     e.preventDefault();
     e.stopPropagation();
-    showToast(`Applying "${team.name}"\u2026`);
+    showToast(t('feature.petsWindow.applyingTeam', { name: team.name }));
     applyTeam(team.id)
       .then(result => {
         if (result.errors.length === 0) {
-          showToast(`Applied "${team.name}"`, 'success');
+          showToast(t('feature.petsWindow.appliedTeam', { name: team.name }), 'success');
         } else {
           const summary = result.errorSummary ? `: ${result.errorSummary}` : '';
-          showToast(`Applied "${team.name}" with ${result.errors.length} error(s)${summary}`, 'error');
+          showToast(t('feature.petsWindow.appliedWithErrors', { name: team.name, count: String(result.errors.length), summary }), 'error');
         }
       })
-      .catch(() => showToast('Team apply failed', 'error'));
+      .catch(() => showToast(t('feature.petsWindow.teamApplyFailed'), 'error'));
   };
 
   document.addEventListener('keydown', keybindHandler);

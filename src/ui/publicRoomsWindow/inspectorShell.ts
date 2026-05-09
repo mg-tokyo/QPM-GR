@@ -10,6 +10,7 @@ import {
   inferSelfPlayerId,
 } from './helpers';
 import { renderInspectorPanes } from './inspectorPanes';
+import { t } from '../../i18n';
 
 export function destroyPublicRoomsInspector(): void {
   for (const cleanup of inspectorDragCleanups) {
@@ -35,47 +36,47 @@ function ensureInspectorShell(): HTMLDivElement {
         <div class="pr-inspector-identity">
           <div id="pr-inspector-avatar" class="pr-inspector-avatar">👤</div>
           <div>
-            <div id="pr-inspector-name" class="pr-inspector-name">Player</div>
-            <div id="pr-inspector-sub" class="pr-inspector-sub">Room —</div>
+            <div id="pr-inspector-name" class="pr-inspector-name">${t('feature.publicRooms.playerLabel')}</div>
+            <div id="pr-inspector-sub" class="pr-inspector-sub">${t('feature.publicRooms.roomDefault')}</div>
           </div>
         </div>
         <div class="pr-inspector-actions">
-          <button id="pr-inspector-refresh" class="qpm-button qpm-button--primary" title="Refresh player data">
+          <button id="pr-inspector-refresh" class="qpm-button qpm-button--primary" title="${t('feature.publicRooms.refreshPlayerData')}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
             </svg>
           </button>
-          <button id="pr-inspector-close" class="qpm-button qpm-button--negative" title="Close inspector">✕</button>
+          <button id="pr-inspector-close" class="qpm-button qpm-button--negative" title="${t('feature.publicRooms.closeInspector')}">✕</button>
         </div>
       </div>
       <div class="pr-inspector-tabs">
-        <button class="pr-inspector-tab active" data-tab="player">Player</button>
-        <button class="pr-inspector-tab" data-tab="compare">Compare</button>
+        <button class="pr-inspector-tab active" data-tab="player">${t('feature.publicRooms.playerLabel')}</button>
+        <button class="pr-inspector-tab" data-tab="compare">${t('feature.publicRooms.compareTab')}</button>
       </div>
       <div class="pr-inspector-body">
         <div id="pr-tab-player" class="pr-inspector-pane active">
           <div class="pr-pane-card">
-            <div class="pr-pane-title">Overview</div>
-            <div id="pr-overview-content" class="pr-pane-placeholder">Awaiting endpoint & token. Data will load here when configured.</div>
+            <div class="pr-pane-title">${t('feature.publicRooms.overviewTitle')}</div>
+            <div id="pr-overview-content" class="pr-pane-placeholder">${t('feature.publicRooms.overviewPlaceholder')}</div>
           </div>
           <div class="pr-pane-card collapsible">
-            <div class="pr-pane-title">Garden</div>
-            <div id="pr-pets-content" class="pr-pane-placeholder">Grid, timers, eggs, mutations will render here.</div>
+            <div class="pr-pane-title">${t('feature.publicRooms.gardenTitle')}</div>
+            <div id="pr-pets-content" class="pr-pane-placeholder">${t('feature.publicRooms.gardenPlaceholder')}</div>
           </div>
           <div class="pr-pane-card collapsible">
-            <div class="pr-pane-title">Inventory</div>
-            <div id="pr-inventory-content" class="pr-pane-placeholder">Seeds, potions, tools, rare produce.</div>
+            <div class="pr-pane-title">${t('feature.publicRooms.inventoryTitle')}</div>
+            <div id="pr-inventory-content" class="pr-pane-placeholder">${t('feature.publicRooms.inventoryPlaceholder')}</div>
           </div>
           <div class="pr-pane-card collapsible">
-            <div class="pr-pane-title">Activity</div>
-            <div id="pr-activity-content" class="pr-pane-placeholder">Recent actions (harvest, feedPet, MoonKisser...).</div>
+            <div class="pr-pane-title">${t('feature.publicRooms.activityTitle')}</div>
+            <div id="pr-activity-content" class="pr-pane-placeholder">${t('feature.publicRooms.activityPlaceholder')}</div>
           </div>
         </div>
 
         <div id="pr-tab-compare" class="pr-inspector-pane">
           <div class="pr-pane-card">
-            <div class="pr-pane-title">Compare (coming soon)</div>
-            <div class="pr-pane-placeholder">Compare pets/achievements once other player data is available.</div>
+            <div class="pr-pane-title">${t('feature.publicRooms.compareTitle')}</div>
+            <div class="pr-pane-placeholder">${t('feature.publicRooms.comparePlaceholder')}</div>
           </div>
         </div>
       </div>
@@ -189,20 +190,20 @@ export function openInspector(slot: RoomUserSlot | null, room: Room): void {
     }
   }
 
-  if (nameEl) nameEl.textContent = slot?.name || 'Unknown player';
-  if (subEl) subEl.textContent = `Room ${room.id} • Updated ${formatUpdatedAgo(room.lastUpdatedAt)}`;
+  if (nameEl) nameEl.textContent = slot?.name || t('feature.publicRooms.unknownPlayer');
+  if (subEl) subEl.textContent = t('feature.publicRooms.roomSub', { roomId: room.id, ago: formatUpdatedAgo(room.lastUpdatedAt) });
 
   inspectorState.targetPlayerId = slot?.playerId ?? null;
   inspectorState.targetPlayerName = slot?.name || '';
   inspectorState.targetRoomId = room.id;
 
   if (!inspectorState.targetPlayerId) {
-    setAllPanes('No player id available for this player yet. Ask the player to enable Aries sync or try a different slot.');
+    setAllPanes(t('feature.publicRooms.noPlayerId'));
   } else {
-    setAllPanes('Loading player view...');
+    setAllPanes(t('feature.publicRooms.loadingPlayerView'));
     refreshInspectorData(false).catch(err => {
       console.error('[PublicRooms] Inspector refresh failed', err);
-      setAllPanes('Unable to load player view.');
+      setAllPanes(t('feature.publicRooms.unableToLoadView'));
     });
   }
 
@@ -227,17 +228,17 @@ export function openInspectorDirect(playerId: string, playerName?: string | null
     avatarEl.classList.remove('has-img');
   }
   if (nameEl) nameEl.textContent = playerName || pid;
-  if (subEl) subEl.textContent = 'Inspector (direct)';
+  if (subEl) subEl.textContent = t('feature.publicRooms.inspectorDirect');
 
   inspectorState.targetPlayerId = pid;
   inspectorState.targetPlayerName = playerName || pid;
   inspectorState.targetRoomId = 'debug';
 
-  setAllPanes('Loading player view...');
+  setAllPanes(t('feature.publicRooms.loadingPlayerView'));
   shell.classList.remove('hidden');
   refreshInspectorData(false).catch(err => {
     console.error('[PublicRooms] Inspector direct refresh failed', err);
-    setAllPanes('Unable to load player view.');
+    setAllPanes(t('feature.publicRooms.unableToLoadView'));
   });
 }
 
@@ -245,11 +246,11 @@ async function refreshInspectorData(notify = false): Promise<void> {
   const targetId = inspectorState.targetPlayerId;
 
   if (!targetId) {
-    setAllPanes('No player id available for this player yet.');
+    setAllPanes(t('feature.publicRooms.noPlayerIdShort'));
     return;
   }
 
-  setAllPanes('Loading player view...');
+  setAllPanes(t('feature.publicRooms.loadingPlayerView'));
 
   let friends: Set<string> | null = null;
   const myPlayerId = inferSelfPlayerId();
@@ -263,12 +264,12 @@ async function refreshInspectorData(notify = false): Promise<void> {
 
   const res = await getPlayerView(targetId);
   if (!res || res.error || !res.data) {
-    const msg = res?.status === 401 ? 'Unauthorized. Check your Basic token.' : (res?.error || 'Unable to load player view.');
+    const msg = res?.status === 401 ? t('feature.publicRooms.unauthorized') : (res?.error || t('feature.publicRooms.unableToLoadView'));
     setAllPanes(msg);
     return;
   }
 
   const isFriend = true;
   await renderInspectorPanes(res.data, isFriend);
-  if (notify) showToast('Inspector refreshed', 'success');
+  if (notify) showToast(t('feature.publicRooms.inspectorRefreshed'), 'success');
 }

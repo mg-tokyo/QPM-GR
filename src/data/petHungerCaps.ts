@@ -28,6 +28,11 @@ const RAW_CAPS: Record<string, number> = {
   butterfly: 25000,
   capybara: 150000,
   peacock: 100000,
+  sheep: 250,
+  horse: 25000,
+  hedgehog: 40000,
+  pony: 4000,
+  firehorse: 200000,
 };
 
 export const DEFAULT_HUNGER_CAP = 3000;

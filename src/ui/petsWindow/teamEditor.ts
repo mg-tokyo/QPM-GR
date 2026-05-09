@@ -33,6 +33,7 @@ import type { PetItemFeedOverride } from '../../types/petTeams';
 import { btn, showToast, createKeybindButton, computeTeamScore, computePetScore } from './helpers';
 import { renderTeamSummaryBar, computeTeamAbilityPills } from './teamSummary';
 import type { ManagerContext } from './types';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Diet popover state (module-scoped singleton)
@@ -73,7 +74,7 @@ function openDietPopover(
 
   const titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-size:11px;font-weight:600;color:#e8e0ff;padding:4px 6px 6px;';
-  titleEl.textContent = `Diet \u2014 ${species}`;
+  titleEl.textContent = t('feature.petsWindow.dietTitle', { species });
   dropdown.appendChild(titleEl);
 
   const divider = document.createElement('div');
@@ -208,7 +209,7 @@ export function renderEditor(ctx: ManagerContext): void {
   if (!ctx.state.selectedTeamId) {
     const placeholder = document.createElement('div');
     placeholder.className = 'qpm-editor__placeholder';
-    placeholder.textContent = 'Select a team to edit';
+    placeholder.textContent = t('feature.petsWindow.selectTeam');
     ctx.editor.appendChild(placeholder);
     return;
   }
@@ -232,7 +233,7 @@ export function renderEditor(ctx: ManagerContext): void {
   const nameInput = document.createElement('input');
   nameInput.className = 'qpm-editor__name';
   nameInput.value = team.name;
-  nameInput.placeholder = 'Team name\u2026';
+  nameInput.placeholder = t('feature.petsWindow.teamNamePlaceholder');
   let renameTimer: number | null = null;
   nameInput.addEventListener('input', () => {
     if (renameTimer) clearTimeout(renameTimer);
@@ -245,36 +246,36 @@ export function renderEditor(ctx: ManagerContext): void {
 
   const statusEl = document.createElement('span');
   statusEl.className = `qpm-editor__status ${isActiveTeam ? 'qpm-editor__status--active' : 'qpm-editor__status--inactive'}`;
-  statusEl.textContent = isActiveTeam ? '\u2713 Active' : '';
+  statusEl.textContent = isActiveTeam ? t('feature.petsWindow.active') : '';
   header.appendChild(statusEl);
 
-  const applyBtn = btn('\u25B6 Apply', 'primary');
+  const applyBtn = btn(`\u25B6 ${t('feature.petsWindow.apply')}`, 'primary');
   applyBtn.addEventListener('click', async () => {
     applyBtn.disabled = true;
-    applyBtn.textContent = '\u23F3 Applying\u2026';
+    applyBtn.textContent = `\u23F3 ${t('feature.petsWindow.applying')}`;
     try {
       const result = await applyTeam(team.id);
-      if (result.errors.length === 0) showToast(`Applied "${team.name}"`, 'success');
+      if (result.errors.length === 0) showToast(t('feature.petsWindow.appliedTeam', { name: team.name }), 'success');
       else {
         const summary = result.errorSummary ? `: ${result.errorSummary}` : '';
-        showToast(`Applied "${team.name}" with ${result.errors.length} error(s)${summary}`, 'error');
+        showToast(t('feature.petsWindow.appliedWithErrors', { name: team.name, count: String(result.errors.length), summary }), 'error');
       }
-    } catch { showToast('Apply failed', 'error'); } finally {
+    } catch { showToast(t('feature.petsWindow.applyFailed'), 'error'); } finally {
       applyBtn.disabled = false;
-      applyBtn.textContent = '\u25B6 Apply';
+      applyBtn.textContent = `\u25B6 ${t('feature.petsWindow.apply')}`;
       ctx.renderTeamList();
       ctx.renderEditor();
     }
   });
   header.appendChild(applyBtn);
 
-  const snapshotBtn = btn('\uD83D\uDCF7 Save Current', 'default');
-  snapshotBtn.title = 'Save currently active pets to this team';
+  const snapshotBtn = btn(`\uD83D\uDCF7 ${t('feature.petsWindow.saveCurrent')}`, 'default');
+  snapshotBtn.title = t('feature.petsWindow.saveCurrentTooltip');
   snapshotBtn.addEventListener('click', () => {
     saveCurrentTeamSlots(team.id);
     ctx.renderTeamList();
     ctx.renderEditor();
-    showToast('Team updated from active pets', 'success');
+    showToast(t('feature.petsWindow.teamUpdated'), 'success');
   });
   header.appendChild(snapshotBtn);
   ctx.editor.appendChild(header);
@@ -362,7 +363,7 @@ export function renderEditor(ctx: ManagerContext): void {
 
       const speciesEl = document.createElement('div');
       speciesEl.className = 'qpm-slot__species';
-      speciesEl.textContent = pooledPet?.name || activePet?.name || species || '(unknown)';
+      speciesEl.textContent = pooledPet?.name || activePet?.name || species || t('feature.petsWindow.unknownSpecies');
 
       const hasRainbow = mutations.some(m => m.toLowerCase().includes('rainbow'));
       const hasGold = mutations.some(m => m.toLowerCase().includes('gold'));
@@ -390,7 +391,7 @@ export function renderEditor(ctx: ManagerContext): void {
 
       // 4. Change / clear buttons
       const pickBtn = btn('\u21BB', 'sm');
-      pickBtn.title = 'Change pet';
+      pickBtn.title = t('feature.petsWindow.changePet');
       pickBtn.addEventListener('click', () => {
         const usedIds = new Set((team.slots.filter((s, idx2) => s && idx2 !== i) as string[]));
         openPetPicker({
@@ -407,7 +408,7 @@ export function renderEditor(ctx: ManagerContext): void {
       slot.appendChild(pickBtn);
 
       const clearBtn = btn('\u00D7', 'sm');
-      clearBtn.title = 'Clear slot';
+      clearBtn.title = t('feature.petsWindow.clearSlot');
       clearBtn.addEventListener('click', () => {
         clearTeamSlot(team.id, i as 0 | 1 | 2);
         ctx.renderTeamList();
@@ -445,7 +446,7 @@ export function renderEditor(ctx: ManagerContext): void {
           feedBtn.className = 'qpm-slot__feed-btn';
           if (hasFloatingCardForSlot(i)) feedBtn.classList.add('qpm-slot__feed-btn--active');
           feedBtn.textContent = '\uD83C\uDF56';
-          feedBtn.title = 'Feed pet';
+          feedBtn.title = t('feature.petsWindow.feedPet');
           feedBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             enqueueFeed(i);
@@ -461,7 +462,7 @@ export function renderEditor(ctx: ManagerContext): void {
         const dietBtn = document.createElement('button');
         dietBtn.className = 'qpm-slot__diet-btn';
         dietBtn.textContent = '\u2699';
-        dietBtn.title = 'Diet settings';
+        dietBtn.title = t('feature.petsWindow.dietSettings');
         dietBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           openDietPopover(dietBtn, species, pooledPet?.id ?? activePet?.slotId ?? null, () => {});
@@ -478,7 +479,7 @@ export function renderEditor(ctx: ManagerContext): void {
         scoreWrap.className = 'qpm-slot__score';
         const scoreLbl = document.createElement('div');
         scoreLbl.className = 'qpm-slot__score-label';
-        scoreLbl.textContent = 'Score';
+        scoreLbl.textContent = t('feature.petsWindow.score');
         const scoreVal = document.createElement('div');
         scoreVal.className = 'qpm-slot__score-value';
         scoreVal.textContent = String(Math.round(petScore.total - petScore.granterBonus));
@@ -502,10 +503,10 @@ export function renderEditor(ctx: ManagerContext): void {
 
       const emptyLabel = document.createElement('div');
       emptyLabel.className = 'qpm-slot__empty';
-      emptyLabel.textContent = 'Empty slot';
+      emptyLabel.textContent = t('feature.petsWindow.emptySlot');
       slot.appendChild(emptyLabel);
 
-      const pickBtn = btn('+ Pick Pet', 'sm');
+      const pickBtn = btn(t('feature.petsWindow.pickPet'), 'sm');
       pickBtn.addEventListener('click', () => {
         const usedIds = new Set((team.slots.filter((s, idx2) => s && idx2 !== i) as string[]));
         openPetPicker({
@@ -530,16 +531,16 @@ export function renderEditor(ctx: ManagerContext): void {
   const controls = document.createElement('div');
   controls.className = 'qpm-editor__controls';
 
-  const editorDeleteBtn = btn('Delete', 'danger');
+  const editorDeleteBtn = btn(t('feature.petsWindow.delete'), 'danger');
   editorDeleteBtn.addEventListener('click', () => {
     editorDeleteBtn.style.display = 'none';
     const confirmRow = document.createElement('div');
     confirmRow.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
     const confirmLabel = document.createElement('span');
     confirmLabel.style.cssText = 'font-size:12px;color:#f87171;white-space:nowrap;';
-    confirmLabel.textContent = `Delete "${team.name}"?`;
-    const yesBtn = btn('Yes, delete', 'danger');
-    const cancelConfirmBtn = btn('Cancel', 'default');
+    confirmLabel.textContent = t('feature.petsWindow.deleteConfirm', { name: team.name });
+    const yesBtn = btn(t('feature.petsWindow.yesDelete'), 'danger');
+    const cancelConfirmBtn = btn(t('feature.petsWindow.cancel'), 'default');
     yesBtn.addEventListener('click', () => {
       deleteTeam(team.id);
       ctx.state.selectedTeamId = null;
@@ -561,7 +562,7 @@ export function renderEditor(ctx: ManagerContext): void {
   // Keybind config
   const keybindRow = document.createElement('div');
   keybindRow.className = 'qpm-editor__keybind-row';
-  keybindRow.appendChild(Object.assign(document.createElement('span'), { textContent: 'Keybind:' }));
+  keybindRow.appendChild(Object.assign(document.createElement('span'), { textContent: t('feature.petsWindow.keybindColon') }));
 
   const teamId = team.id;
   const kbBtn = createKeybindButton({
@@ -580,7 +581,7 @@ export function renderEditor(ctx: ManagerContext): void {
 
   const kbHint = document.createElement('span');
   kbHint.style.cssText = 'color:rgba(224,224,224,0.35);font-size:11px;';
-  kbHint.textContent = '(click to set, Del to clear)';
+  kbHint.textContent = t('feature.petsWindow.keybindSetHint');
   keybindRow.appendChild(kbHint);
   ctx.editor.appendChild(keybindRow);
 }

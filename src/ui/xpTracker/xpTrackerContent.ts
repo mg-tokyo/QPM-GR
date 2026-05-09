@@ -3,7 +3,7 @@
 import { formatCoins } from '../../features/valueCalculator';
 import { log } from '../../utils/logger';
 import { onActivePetInfos, type ActivePetInfo } from '../../store/pets';
-import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
+import { getPetSpriteDataUrlWithMutations, getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import {
   calculateXpStats,
   getCombinedXpStats,
@@ -22,7 +22,16 @@ import { getWeatherSnapshot } from '../../store/weatherHub';
 import type { DetailedWeather } from '../../utils/weatherDetection';
 import { getAbilityName } from '../../utils/catalogHelpers';
 import { onCatalogsReady } from '../../catalogs/gameCatalogs';
+import { t } from '../../i18n';
 import { renderNearMaxSection, type NearMaxState } from './nearMaxSection';
+import {
+  getXpPotionCount,
+  onXpPotionCountChange,
+  isPetEligibleForXpPotion,
+  projectXpPotion,
+  sendUseXpPotion,
+  XP_POTION_AMOUNT,
+} from '../../features/xpPotion';
 
 // ============================================================================
 // CONSTANTS
@@ -193,12 +202,31 @@ function createCollapsible(titleText: string, startExpanded: boolean): { wrapper
 }
 
 // ============================================================================
+// POTION PROJECTION COLORS
+// ============================================================================
+
+const POTION_COLOR = '#64d2ff';
+const POTION_GLOW = 'rgba(100,210,255,0.45)';
+const POTION_BG = 'rgba(100,210,255,0.12)';
+const POTION_BORDER = 'rgba(100,210,255,0.35)';
+
+// ============================================================================
 // PET CARD
 // ============================================================================
 
-function createPetCard(pet: ActivePetInfo, teamXpPerHour: number): HTMLElement {
+/** Shared mutable flag — set by any card's potion hover to suppress re-renders. */
+interface HoverGuard { hovering: boolean; pendingRender: boolean }
+
+function createPetCard(
+  pet: ActivePetInfo,
+  teamXpPerHour: number,
+  potionCount: number,
+  hoverGuard: HoverGuard,
+): HTMLElement {
   const maxStr = getMaxStr(pet);
   const xpPerLevel = pet.species ? getSpeciesXpPerLevel(pet.species) : null;
+  const canPotion = potionCount > 0 && isPetEligibleForXpPotion(pet)
+    && xpPerLevel != null && maxStr != null && pet.xp != null && pet.strength != null;
 
   const card = document.createElement('div');
   card.style.cssText = [
@@ -252,7 +280,7 @@ function createPetCard(pet: ActivePetInfo, teamXpPerHour: number): HTMLElement {
   nameBlock.style.cssText = 'flex:1;min-width:0;';
 
   const nameEl = document.createElement('div');
-  nameEl.textContent = pet.name || pet.species || 'Unknown';
+  nameEl.textContent = pet.name || pet.species || t('feature.xpTracker.unknown');
   nameEl.style.cssText = 'font-weight:600;color:var(--qpm-text,#fff);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
   nameBlock.appendChild(nameEl);
 
@@ -264,19 +292,27 @@ function createPetCard(pet: ActivePetInfo, teamXpPerHour: number): HTMLElement {
   }
   header.appendChild(nameBlock);
 
-  // STR badge
+  // STR badge — keep refs for potion projection
+  let strProjection: HTMLElement | null = null;
   if (pet.strength != null) {
     const badge = document.createElement('div');
     badge.style.cssText = 'text-align:right;flex-shrink:0;';
 
     const strEl = document.createElement('div');
-    strEl.textContent = `STR ${pet.strength}`;
-    strEl.style.cssText = 'font-weight:700;font-family:monospace;font-size:13px;color:var(--qpm-accent,#4CAF50);';
+    strEl.textContent = t('feature.xpTracker.str', { value: String(pet.strength) });
+    strEl.style.cssText = 'font-weight:700;font-family:monospace;font-size:13px;color:var(--qpm-accent,#4CAF50);white-space:nowrap;';
     badge.appendChild(strEl);
+
+    // Pre-create hidden projection span
+    if (canPotion) {
+      strProjection = document.createElement('span');
+      strProjection.style.cssText = `color:${POTION_COLOR};text-shadow:0 0 6px ${POTION_GLOW};display:none;`;
+      strEl.appendChild(strProjection);
+    }
 
     if (maxStr) {
       const maxEl = document.createElement('div');
-      maxEl.textContent = `MAX ${maxStr}`;
+      maxEl.textContent = t('feature.xpTracker.maxStr', { value: String(maxStr) });
       maxEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#666);font-family:monospace;margin-top:1px;';
       badge.appendChild(maxEl);
     }
@@ -286,10 +322,14 @@ function createPetCard(pet: ActivePetInfo, teamXpPerHour: number): HTMLElement {
   card.appendChild(header);
 
   // ── Progress bar + time chips ──
+  let projectionFill: HTMLElement | null = null;
+  let barLbl: HTMLElement | null = null;
+  let barLblOrigHtml = '';
+
   if (pet.xp !== null && pet.strength !== null && xpPerLevel && maxStr) {
     if (pet.strength >= maxStr) {
       const maxMsg = document.createElement('div');
-      maxMsg.textContent = `🌟 MAX STR ${maxStr} — fully levelled`;
+      maxMsg.textContent = `🌟 ${t('feature.xpTracker.fullyLevelled', { value: String(maxStr) })}`;
       maxMsg.style.cssText = 'font-size:11px;color:var(--qpm-accent,#4CAF50);font-weight:600;';
       card.appendChild(maxMsg);
     } else {
@@ -301,55 +341,228 @@ function createPetCard(pet: ActivePetInfo, teamXpPerHour: number): HTMLElement {
       barWrap.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
 
       const track = document.createElement('div');
-      track.style.cssText = 'height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;';
+      track.style.cssText = 'height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;position:relative;';
 
       const fill = document.createElement('div');
       fill.style.cssText = `width:${pct.toFixed(1)}%;height:100%;background:linear-gradient(90deg,var(--qpm-accent,#4CAF50),#8BC34A);border-radius:4px;`;
       track.appendChild(fill);
+
+      // Pre-create hidden projection fill (light blue)
+      if (canPotion) {
+        projectionFill = document.createElement('div');
+        projectionFill.style.cssText = [
+          'position:absolute',
+          'top:0',
+          'height:100%',
+          `background:linear-gradient(90deg,${POTION_COLOR},#a0e4ff)`,
+          'border-radius:4px',
+          'opacity:0',
+          'left:0',
+          'width:0',
+          `box-shadow:0 0 8px ${POTION_GLOW}`,
+          'transition:width 0.15s ease,opacity 0.15s ease',
+        ].join(';');
+        track.appendChild(projectionFill);
+      }
+
       barWrap.appendChild(track);
 
-      const lbl = document.createElement('div');
-      lbl.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;color:var(--qpm-text-muted,#666);font-family:monospace;';
-      lbl.innerHTML = `<span>${formatCoins(xpToNext)} / ${formatCoins(xpPerLevel)}</span><span>${pct.toFixed(1)}%</span>`;
-      barWrap.appendChild(lbl);
+      barLbl = document.createElement('div');
+      barLbl.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;color:var(--qpm-text-muted,#666);font-family:monospace;';
+      barLblOrigHtml = `<span>${formatCoins(xpToNext)} / ${formatCoins(xpPerLevel)}</span><span>${pct.toFixed(1)}%</span>`;
+      barLbl.innerHTML = barLblOrigHtml;
+      barWrap.appendChild(barLbl);
       card.appendChild(barWrap);
 
       // Time chips row
       const chips = document.createElement('div');
-      chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;';
+      chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;align-items:center;';
 
       if (teamXpPerHour > 0) {
         const timeToNext = calculateTimeToLevel(xpToNext, xpPerLevel, teamXpPerHour);
         if (timeToNext) {
-          chips.appendChild(makeChip(`⏱ Next: ${formatTime(timeToNext.totalMinutes)}`, 'var(--qpm-positive,#4CAF50)'));
+          chips.appendChild(makeChip(`⏱ ${t('feature.xpTracker.nextLevel', { time: formatTime(timeToNext.totalMinutes) })}`, 'var(--qpm-positive,#4CAF50)'));
         }
 
         const levelsLeft = maxStr - pet.strength;
         const xpToMax = (xpPerLevel - xpToNext) + xpPerLevel * (levelsLeft - 1);
         const minsToMax = (xpToMax / teamXpPerHour) * 60;
-        chips.appendChild(makeChip(`🏁 Max: ${formatTime(minsToMax)}`, 'var(--qpm-warning,#FF9800)'));
+        chips.appendChild(makeChip(`🏁 ${t('feature.xpTracker.toMax', { time: formatTime(minsToMax) })}`, 'var(--qpm-warning,#FF9800)'));
+
+        // ── XP Potion button (3rd chip, after next + max) ──
+        if (canPotion) {
+          const potionBtn = createPotionButton(
+            pet, potionCount, xpPerLevel, maxStr, pct, xpToNext,
+            projectionFill, strProjection, barLbl, barLblOrigHtml, hoverGuard,
+          );
+          chips.appendChild(potionBtn);
+        }
 
         if (pet.species) {
           const hungerCap = getHungerCapOrDefault(pet.species);
           const feeds = calculateFeedsPerLevel(pet.species, hungerCap, xpPerLevel, teamXpPerHour);
           if (feeds && feeds > 0) {
-            chips.appendChild(makeChip(`🍖 ${feeds} feeds/lvl`, 'rgba(255,255,255,0.4)'));
+            chips.appendChild(makeChip(`🍖 ${t('feature.xpTracker.feedsPerLevel', { count: String(feeds) })}`, 'rgba(255,255,255,0.4)'));
           }
         }
       } else {
-        chips.appendChild(makeChip('No XP rate', 'var(--qpm-text-muted,#555)'));
+        chips.appendChild(makeChip(t('feature.xpTracker.noXpRate'), 'var(--qpm-text-muted,#555)'));
       }
 
       if (chips.children.length > 0) card.appendChild(chips);
     }
   } else if (!xpPerLevel && pet.species) {
     const note = document.createElement('div');
-    note.textContent = 'XP/level loading from catalog…';
+    note.textContent = t('feature.xpTracker.xpLoading');
     note.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#444);font-style:italic;';
     card.appendChild(note);
   }
 
   return card;
+}
+
+// ============================================================================
+// POTION BUTTON (extracted to keep createPetCard readable)
+// ============================================================================
+
+function createPotionButton(
+  pet: ActivePetInfo,
+  potionCount: number,
+  xpPerLevel: number,
+  maxStr: number,
+  currentPct: number,
+  xpToNext: number,
+  projectionFill: HTMLElement | null,
+  strProjection: HTMLElement | null,
+  barLbl: HTMLElement | null,
+  barLblOrigHtml: string,
+  hoverGuard: HoverGuard,
+): HTMLElement {
+  const btn = document.createElement('button');
+  btn.style.cssText = [
+    'display:inline-flex',
+    'align-items:center',
+    'gap:4px',
+    'padding:2px 8px 2px 5px',
+    'font-size:10px',
+    'border-radius:10px',
+    'cursor:pointer',
+    `background:${POTION_BG}`,
+    `color:${POTION_COLOR}`,
+    `border:1px solid ${POTION_BORDER}`,
+    'font-weight:600',
+    'white-space:nowrap',
+    'transition:background 0.15s ease,box-shadow 0.15s ease',
+    'flex-shrink:0',
+  ].join(';');
+
+  // Potion sprite
+  const potionUrl = getAnySpriteDataUrl('sprite/item/XPPotion')
+    ?? getAnySpriteDataUrl('item/XPPotion');
+  if (potionUrl) {
+    const img = document.createElement('img');
+    img.src = potionUrl;
+    img.alt = 'XP Potion';
+    img.style.cssText = 'width:14px;height:14px;object-fit:contain;image-rendering:pixelated;flex-shrink:0;';
+    btn.appendChild(img);
+  }
+
+  const label = document.createElement('span');
+  label.textContent = `×${potionCount}`;
+  btn.appendChild(label);
+
+  // Hover glow
+  btn.addEventListener('mouseenter', () => {
+    btn.style.boxShadow = `0 0 8px ${POTION_GLOW}`;
+    btn.style.background = 'rgba(100,210,255,0.2)';
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.boxShadow = 'none';
+    btn.style.background = POTION_BG;
+  });
+
+  // Projection — compute once, toggle on hover
+  const proj = projectXpPotion(pet.xp!, pet.strength!, xpPerLevel, maxStr);
+  const projPct = proj.reachesMax ? 100 : proj.pctOfLevel;
+  const projBarWidth = proj.levelsGained > 0
+    ? (100 - currentPct)
+    : Math.max(0, projPct - currentPct);
+
+  const showProjection = () => {
+    hoverGuard.hovering = true;
+    if (projectionFill) {
+      projectionFill.style.left = `${currentPct.toFixed(1)}%`;
+      projectionFill.style.width = `${projBarWidth.toFixed(1)}%`;
+      projectionFill.style.opacity = '0.7';
+    }
+    if (strProjection) {
+      strProjection.textContent = ` → ${proj.newStrength}`;
+      strProjection.style.display = 'inline';
+    }
+    if (barLbl) {
+      if (proj.levelsGained > 0) {
+        barLbl.innerHTML = `<span style="color:${POTION_COLOR};text-shadow:0 0 4px ${POTION_GLOW}">${formatCoins(proj.xpIntoLevel)} / ${formatCoins(xpPerLevel)}</span><span style="color:${POTION_COLOR};text-shadow:0 0 4px ${POTION_GLOW}">${projPct.toFixed(1)}% (${proj.reachesMax ? 'MAX' : `+${proj.levelsGained} STR`})</span>`;
+      } else {
+        barLbl.innerHTML = `<span>${formatCoins(xpToNext)} <span style="color:${POTION_COLOR};text-shadow:0 0 4px ${POTION_GLOW}">→ ${formatCoins(proj.xpIntoLevel)}</span> / ${formatCoins(xpPerLevel)}</span><span>${currentPct.toFixed(1)}% <span style="color:${POTION_COLOR};text-shadow:0 0 4px ${POTION_GLOW}">→ ${projPct.toFixed(1)}%</span></span>`;
+      }
+    }
+  };
+
+  const hideProjection = () => {
+    hoverGuard.hovering = false;
+    if (projectionFill) {
+      projectionFill.style.width = '0';
+      projectionFill.style.opacity = '0';
+    }
+    if (strProjection) {
+      strProjection.style.display = 'none';
+    }
+    if (barLbl) {
+      barLbl.innerHTML = barLblOrigHtml;
+    }
+    // Flush any render that was deferred while hovering
+    if (hoverGuard.pendingRender) {
+      hoverGuard.pendingRender = false;
+      // Dispatch async so mouseleave finishes first
+      queueMicrotask(() => {
+        if (!hoverGuard.hovering) {
+          window.dispatchEvent(new CustomEvent('qpm:xptracker-deferred-render'));
+        }
+      });
+    }
+  };
+
+  btn.addEventListener('mouseenter', showProjection);
+  btn.addEventListener('mouseleave', hideProjection);
+
+  // Click handler
+  btn.addEventListener('click', async () => {
+    if (!pet.slotId) return;
+    btn.disabled = true;
+    hideProjection();
+    const origChildren = Array.from(btn.childNodes);
+    btn.textContent = t('feature.xpTracker.potionUsing');
+    btn.style.opacity = '0.6';
+
+    const result = await sendUseXpPotion(pet.slotId);
+    if (result.ok) {
+      btn.textContent = t('feature.xpTracker.potionUsed');
+      btn.style.color = 'var(--qpm-accent,#4CAF50)';
+    } else {
+      btn.textContent = t('feature.xpTracker.potionFailed');
+      btn.style.color = 'var(--qpm-negative,#f44336)';
+    }
+
+    setTimeout(() => {
+      btn.textContent = '';
+      for (const child of origChildren) btn.appendChild(child);
+      btn.style.opacity = '1';
+      btn.style.color = POTION_COLOR;
+      btn.disabled = false;
+    }, 1500);
+  });
+
+  return btn;
 }
 
 // ============================================================================
@@ -376,24 +589,24 @@ function updateSummaryStrip(
   };
 
   if (stats.length === 0) {
-    el.appendChild(frag(`${petCount} pet${petCount !== 1 ? 's' : ''}`, 'var(--qpm-text-muted,#666)'));
+    el.appendChild(frag(petCount !== 1 ? t('feature.xpTracker.petCounts', { count: String(petCount) }) : t('feature.xpTracker.petCount', { count: String(petCount) }), 'var(--qpm-text-muted,#666)'));
     el.appendChild(frag('·', 'var(--qpm-border,#444)'));
-    el.appendChild(frag('3,600 XP/hr', 'var(--qpm-warning,#FF9800)'));
-    el.appendChild(frag('(base, no XP abilities)', 'var(--qpm-text-muted,#444)'));
+    el.appendChild(frag(t('feature.xpTracker.baseXpRate'), 'var(--qpm-warning,#FF9800)'));
+    el.appendChild(frag(t('feature.xpTracker.baseNoAbilities'), 'var(--qpm-text-muted,#444)'));
   } else {
-    el.appendChild(frag('Base', 'var(--qpm-text-muted,#666)'));
+    el.appendChild(frag(t('feature.xpTracker.base'), 'var(--qpm-text-muted,#666)'));
     el.appendChild(frag('3,600', 'var(--qpm-warning,#FF9800)'));
     el.appendChild(frag('+', 'var(--qpm-text-muted,#444)'));
-    el.appendChild(frag('Ability', 'var(--qpm-text-muted,#666)'));
+    el.appendChild(frag(t('feature.xpTracker.ability'), 'var(--qpm-text-muted,#666)'));
     el.appendChild(frag(`+${formatCoins(abilityXp)}`, 'var(--qpm-warning,#FF9800)'));
     el.appendChild(frag('=', 'var(--qpm-text-muted,#444)'));
 
-    const total = frag(formatCoins(teamXpPerHour) + ' XP/hr', 'var(--qpm-accent,#4CAF50)');
+    const total = frag(t('feature.xpTracker.xpPerHour', { rate: formatCoins(teamXpPerHour) }), 'var(--qpm-accent,#4CAF50)');
     total.style.fontWeight = '700';
     total.style.fontSize = '12px';
     el.appendChild(total);
 
-    el.appendChild(frag(`· ${stats.length} XP ${stats.length === 1 ? 'pet' : 'pets'}`, 'var(--qpm-text-muted,#555)'));
+    el.appendChild(frag(`· ${stats.length === 1 ? t('feature.xpTracker.xpPetCount', { count: String(stats.length) }) : t('feature.xpTracker.xpPetCounts', { count: String(stats.length) })}`, 'var(--qpm-text-muted,#555)'));
   }
 
   if (weatherLabel) {
@@ -421,6 +634,10 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   let latestStats: XpAbilityStats[] = [];
   let totalTeamXpPerHour = 0;
   let currentWeather: DetailedWeather = 'unknown';
+  let potionCount = getXpPotionCount();
+
+  // Hover guard — suppresses card rebuilds while a potion button is hovered
+  const hoverGuard: HoverGuard = { hovering: false, pendingRender: false };
 
   // Near-max state (shared with nearMaxSection)
   const nearMaxState: NearMaxState = {
@@ -446,7 +663,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
     'color:var(--qpm-text-muted,#777)',
     'flex-shrink:0',
   ].join(';');
-  summaryStrip.textContent = 'Loading…';
+  summaryStrip.textContent = t('common.loading');
   container.appendChild(summaryStrip);
 
   // Scrollable content area
@@ -464,12 +681,12 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   contentWrap.style.cssText = 'display:flex;flex-direction:column;';
 
   // Active pets section
-  const activeSec = createCollapsible('🐾 Active Pets', true);
+  const activeSec = createCollapsible(`🐾 ${t('feature.xpTracker.activePets')}`, true);
   const petCardsContainer = document.createElement('div');
   petCardsContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px 12px 10px;';
 
   const loadingCard = document.createElement('div');
-  loadingCard.textContent = 'Loading…';
+  loadingCard.textContent = t('common.loading');
   loadingCard.style.cssText = 'padding:12px;color:var(--qpm-text-muted,#555);font-style:italic;font-size:12px;';
   petCardsContainer.appendChild(loadingCard);
 
@@ -477,7 +694,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   contentWrap.appendChild(activeSec.wrapper);
 
   // Near Max Level section (collapsed by default)
-  const nearMaxSec = createCollapsible('🏆 Near Max Level', false);
+  const nearMaxSec = createCollapsible(`🏆 ${t('feature.xpTracker.nearMaxLevel')}`, false);
   const nearMaxContainer = document.createElement('div');
   nearMaxSec.content.appendChild(nearMaxContainer);
   contentWrap.appendChild(nearMaxSec.wrapper);
@@ -487,16 +704,21 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
 
   // -- Render functions --
   const renderPetCards = (): void => {
+    // Suppress rebuild while user hovers a potion button (prevents flicker)
+    if (hoverGuard.hovering) {
+      hoverGuard.pendingRender = true;
+      return;
+    }
     petCardsContainer.innerHTML = '';
     if (latestPets.length === 0) {
       const empty = document.createElement('div');
-      empty.textContent = 'No active pets detected.';
+      empty.textContent = t('feature.xpTracker.noActivePets');
       empty.style.cssText = 'padding:18px;color:var(--qpm-text-muted,#555);font-style:italic;text-align:center;font-size:12px;';
       petCardsContainer.appendChild(empty);
       return;
     }
     for (const pet of latestPets) {
-      petCardsContainer.appendChild(createPetCard(pet, totalTeamXpPerHour));
+      petCardsContainer.appendChild(createPetCard(pet, totalTeamXpPerHour, potionCount, hoverGuard));
     }
   };
 
@@ -521,6 +743,17 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
 
   const unsubXpTracker = onXpTrackerUpdate(() => { renderPetCards(); });
   cleanups.push(unsubXpTracker);
+
+  // Deferred render listener — fires when potion hover ends and a render was pending
+  const onDeferredRender = () => { renderPetCards(); };
+  window.addEventListener('qpm:xptracker-deferred-render', onDeferredRender);
+  cleanups.push(() => window.removeEventListener('qpm:xptracker-deferred-render', onDeferredRender));
+
+  const unsubPotions = onXpPotionCountChange((count) => {
+    potionCount = count;
+    renderPetCards();
+  });
+  cleanups.push(unsubPotions);
 
   const unsubCatalogs = onCatalogsReady(() => {
     renderNearMaxSection(nearMaxContainer, nearMaxState, latestPets, totalTeamXpPerHour);

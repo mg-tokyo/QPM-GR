@@ -19,6 +19,7 @@ import {
 import { visibleInterval } from '../utils/timerManager';
 import { onSpritesReady } from '../sprite-v2/compat';
 import { storage } from '../utils/storage';
+import { t } from '../i18n';
 import {
   SHOP_FILTERS,
   SHOP_ORDER,
@@ -113,10 +114,21 @@ function renderShopRestockWindow(root: HTMLElement): void {
     btn.style.borderColor   = active ? 'rgba(143,130,255,0.55)' : 'rgba(143,130,255,0.25)';
   };
 
+  const FILTER_LABEL_KEYS: Record<string, string> = {
+    all: 'feature.shopRestock.filterAll',
+    celestial: 'feature.shopRestock.filterCelestial',
+    seed: 'feature.shopRestock.filterSeeds',
+    egg: 'feature.shopRestock.filterEggs',
+    decor: 'feature.shopRestock.filterDecor',
+    tool: 'feature.shopRestock.filterTools',
+    dawn: 'feature.shopRestock.filterDawn',
+    weather: 'feature.shopRestock.filterWeather',
+  };
+
   for (const f of SHOP_FILTERS) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = f.label;
+    btn.textContent = t(FILTER_LABEL_KEYS[f.value] ?? '', undefined, f.label);
     btn.dataset.filter = f.value;
     btn.style.cssText = [
       'padding:3px 8px', 'font-size:11px', 'border-radius:5px', 'cursor:pointer',
@@ -163,7 +175,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
   // Search
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
-  searchInput.placeholder = 'Search items...';
+  searchInput.placeholder = t('feature.shopRestock.searchPlaceholder');
   searchInput.style.cssText = [
     'padding:4px 10px', 'font-size:12px', 'border-radius:5px', 'flex:1', 'min-width:100px',
     'background:rgba(255,255,255,0.06)', 'border:1px solid rgba(143,130,255,0.25)',
@@ -183,8 +195,8 @@ function renderShopRestockWindow(root: HTMLElement): void {
   // Refresh + quota + last updated
   const refreshBtn = document.createElement('button');
   refreshBtn.type = 'button';
-  refreshBtn.textContent = 'Refresh';
-  refreshBtn.title = 'Refresh data';
+  refreshBtn.textContent = t('feature.shopRestock.refresh');
+  refreshBtn.title = t('feature.shopRestock.refreshData');
   refreshBtn.style.cssText = [
     'padding:4px 10px', 'font-size:13px',
     'background:rgba(143,130,255,0.15)', 'border:1px solid rgba(143,130,255,0.35)',
@@ -201,17 +213,18 @@ function renderShopRestockWindow(root: HTMLElement): void {
   root.appendChild(toolbar);
 
   const updateLastUpdated = (): void => {
-    const t = getRestockFetchedAt();
-    if (!t) { lastUpdatedEl.textContent = ''; return; }
-    const m = Math.round((Date.now() - t) / 60_000);
-    lastUpdatedEl.textContent = m < 1 ? 'Updated now' : `Updated ${m}m ago`;
+    const fetchedAt = getRestockFetchedAt();
+    if (!fetchedAt) { lastUpdatedEl.textContent = ''; return; }
+    const m = Math.round((Date.now() - fetchedAt) / 60_000);
+    lastUpdatedEl.textContent = m < 1 ? t('feature.shopRestock.updatedNow') : t('feature.shopRestock.updatedAgo', { m });
   };
 
   const updateRefreshBudgetUi = (): void => {
     const budget = getRestockRefreshBudget();
-    const noun = budget.remaining === 1 ? 'refresh' : 'refreshes';
     const resetInMs = Math.max(0, budget.resetAt - Date.now());
-    refreshBudgetEl.textContent = `${budget.remaining} ${noun} left - ${formatWindowCountdown(resetInMs)}`;
+    const countdown = formatWindowCountdown(resetInMs);
+    const budgetKey = budget.remaining === 1 ? 'feature.shopRestock.refreshLeft' : 'feature.shopRestock.refreshesLeft';
+    refreshBudgetEl.textContent = t(budgetKey, { count: budget.remaining, countdown });
     refreshBtn.disabled = isLoading || budget.blocked;
     refreshBtn.style.opacity = refreshBtn.disabled ? '0.55' : '1';
     refreshBtn.style.cursor = refreshBtn.disabled ? 'not-allowed' : 'pointer';
@@ -239,7 +252,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
   ].join(';');
   const predTitle = document.createElement('span');
   predTitle.style.cssText = 'font-size:12px;font-weight:700;color:rgba(224,224,224,0.75);';
-  predTitle.textContent = 'Pinned';
+  predTitle.textContent = t('feature.shopRestock.pinned');
   const predChevron = document.createElement('span');
   predChevron.style.cssText = 'font-size:9px;color:rgba(200,192,255,0.4);';
   predChevron.textContent = 'v';
@@ -273,7 +286,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     'display:flex', 'align-items:center', 'justify-content:center',
     'background:rgba(143,130,255,0.08)', 'transition:background 0.12s',
   ].join(';');
-  divider.title = 'Drag to resize';
+  divider.title = t('feature.shopRestock.dragToResize');
   const grip = document.createElement('div');
   grip.style.cssText = 'width:32px;height:2px;border-radius:1px;background:rgba(143,130,255,0.35);';
   divider.appendChild(grip);
@@ -317,10 +330,10 @@ function renderShopRestockWindow(root: HTMLElement): void {
   ].join(';');
   const histTitle = document.createElement('span');
   histTitle.style.cssText = 'font-size:11px;font-weight:700;color:rgba(224,224,224,0.5);text-transform:uppercase;letter-spacing:0.5px;flex:1;';
-  histTitle.textContent = 'Items - click to pin';
+  histTitle.textContent = t('feature.shopRestock.itemsClickToPin');
   const resetSortBtn = document.createElement('button');
   resetSortBtn.type = 'button';
-  resetSortBtn.textContent = 'Default order';
+  resetSortBtn.textContent = t('feature.shopRestock.defaultOrder');
   resetSortBtn.style.cssText = [
     'padding:2px 8px', 'margin-right:8px', 'font-size:10px', 'font-weight:600',
     'border-radius:999px', 'cursor:pointer',
@@ -353,7 +366,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   const updateResetSortButton = (): void => {
     resetSortBtn.style.display = sortColumn ? '' : 'none';
-    resetSortBtn.title = sortColumn ? 'Back to default shop/catalog order' : '';
+    resetSortBtn.title = sortColumn ? t('feature.shopRestock.defaultOrderTooltip') : '';
   };
 
   let renderQueued = false;
@@ -451,7 +464,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     if (!pinned.length) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding:8px 4px;font-size:12px;color:rgba(224,224,224,0.35);font-style:italic;';
-      empty.textContent = 'Click an item below to pin it here.';
+      empty.textContent = t('feature.shopRestock.pinHint');
       frag.appendChild(empty);
       predBody.appendChild(frag);
       return;
@@ -470,7 +483,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
     const hint = document.createElement('div');
     hint.style.cssText = 'padding:6px 12px 2px;font-size:11px;opacity:0.5;';
-    hint.textContent = 'Click to deselect the item in Active Predictions';
+    hint.textContent = t('feature.shopRestock.unpinHint');
     frag.appendChild(hint);
     predBody.appendChild(frag);
   }
@@ -570,12 +583,14 @@ function renderShopRestockWindow(root: HTMLElement): void {
       });
     }
 
-    itemCountEl.textContent = `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`;
+    itemCountEl.textContent = filtered.length === 1
+      ? t('feature.shopRestock.itemCountSingle', { count: filtered.length })
+      : t('feature.shopRestock.itemCount', { count: filtered.length });
 
     if (!filtered.length) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding:40px;text-align:center;color:rgba(224,224,224,0.35);font-size:13px;';
-      empty.textContent = isLoading ? 'Loading restock data...' : 'No items found.';
+      empty.textContent = isLoading ? t('feature.shopRestock.loadingRestock') : t('feature.shopRestock.noItemsFound');
       tableWrap.appendChild(empty);
       historyScrollTop = 0;
       tableWrap.scrollTop = 0;
@@ -598,19 +613,19 @@ function renderShopRestockWindow(root: HTMLElement): void {
     const thItem = document.createElement('th');
     thItem.className = 'qpm-sr-th';
     thItem.style.cssText = TH_BASE + 'text-align:left;width:60%;';
-    thItem.textContent = `Item${sortIndicator('item')}`;
+    thItem.textContent = `${t('feature.shopRestock.thItem')}${sortIndicator('item')}`;
     thItem.addEventListener('click', () => setSortColumn('item'));
 
     const thQty = document.createElement('th');
     thQty.className = 'qpm-sr-th';
     thQty.style.cssText = TH_BASE + 'text-align:center;width:20%;';
-    thQty.textContent = `Qty${sortIndicator('qty')}`;
+    thQty.textContent = `${t('feature.shopRestock.thQty')}${sortIndicator('qty')}`;
     thQty.addEventListener('click', () => setSortColumn('qty'));
 
     const thLast = document.createElement('th');
     thLast.className = 'qpm-sr-th';
     thLast.style.cssText = TH_BASE + 'text-align:right;width:20%;';
-    thLast.textContent = `Seen${sortIndicator('last')}`;
+    thLast.textContent = `${t('feature.shopRestock.thSeen')}${sortIndicator('last')}`;
     thLast.addEventListener('click', () => setSortColumn('last'));
 
     const thDetail = document.createElement('th');
@@ -717,7 +732,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     }
 
     isLoading = true;
-    refreshBtn.textContent = 'Loading...';
+    refreshBtn.textContent = t('common.loading');
     updateRefreshBudgetUi();
 
     const cached = getRestockDataSync();
@@ -739,12 +754,12 @@ function renderShopRestockWindow(root: HTMLElement): void {
       if (force) {
         const message = err instanceof Error ? err.message : String(err);
         const inline = message.length > 64 ? `${message.slice(0, 64)}…` : message;
-        lastUpdatedEl.textContent = `Refresh failed: ${inline}`;
+        lastUpdatedEl.textContent = t('feature.shopRestock.refreshFailed', { message: inline });
         lastUpdatedEl.title = message;
       }
     } finally {
       isLoading = false;
-      refreshBtn.textContent = 'Refresh';
+      refreshBtn.textContent = t('feature.shopRestock.refresh');
       updateRefreshBudgetUi();
     }
   };
@@ -765,5 +780,5 @@ function renderShopRestockWindow(root: HTMLElement): void {
 // ---------------------------------------------------------------------------
 
 export function openShopRestockWindow(): void {
-  toggleWindow('shop-restock', 'Shop Restock', renderShopRestockWindow, '880px', '88vh');
+  toggleWindow('shop-restock', t('feature.shopRestock.title'), renderShopRestockWindow, '880px', '88vh');
 }

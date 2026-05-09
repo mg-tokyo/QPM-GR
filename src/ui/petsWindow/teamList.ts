@@ -14,6 +14,7 @@ import { openFloatingCardForSlot, closeFloatingCardForSlot, hasFloatingCardForSl
 import { formatNumber } from '../../utils/formatters';
 import { computeTeamAbilityPills } from './teamSummary';
 import { btn, formatKeybind, getCoinSpriteUrl, getAgeSpriteUrl, computeTeamScore } from './helpers';
+import { t } from '../../i18n';
 import type { ManagerContext } from './types';
 
 // ---------------------------------------------------------------------------
@@ -88,7 +89,7 @@ export function renderTeamList(ctx: ManagerContext): void {
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'padding:20px;text-align:center;color:rgba(224,224,224,0.3);font-size:12px;';
-    empty.textContent = config.teams.length === 0 ? 'No teams yet. Create one!' : 'No results';
+    empty.textContent = config.teams.length === 0 ? t('feature.petsWindow.noTeamsYet') : t('feature.petsWindow.noResults');
     ctx.teamsContainer.appendChild(empty);
     return;
   }
@@ -123,7 +124,7 @@ export function renderTeamList(ctx: ManagerContext): void {
     if (isActive) {
       const activeBadge = document.createElement('span');
       activeBadge.className = 'qpm-team-row__active-badge';
-      activeBadge.textContent = '\u25CF ACTIVE';
+      activeBadge.textContent = `\u25CF ${t('feature.petsWindow.activeBadge')}`;
       nameLine.appendChild(activeBadge);
     }
 
@@ -170,7 +171,7 @@ export function renderTeamList(ctx: ManagerContext): void {
       scoreWrap.className = 'qpm-team-row__score';
       const scoreLbl = document.createElement('span');
       scoreLbl.className = 'qpm-team-row__score-label';
-      scoreLbl.textContent = 'Score:';
+      scoreLbl.textContent = t('feature.petsWindow.scoreColon');
       const scoreVal = document.createElement('span');
       scoreVal.className = 'qpm-team-row__score-value';
       scoreVal.textContent = String(Math.round(teamScore));
@@ -256,7 +257,7 @@ export function renderTeamList(ctx: ManagerContext): void {
       const allOpen = [0, 1, 2].every(idx => hasFloatingCardForSlot(idx));
       if (allOpen) feedToggle.classList.add('qpm-team-row__feed-toggle--active');
       feedToggle.textContent = '\uD83C\uDF56';
-      feedToggle.title = allOpen ? 'Close all floating feed cards' : 'Open all floating feed cards';
+      feedToggle.title = allOpen ? t('feature.petsWindow.closeFeedCards') : t('feature.petsWindow.openFeedCards');
       feedToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         if (allOpen) {
@@ -273,7 +274,7 @@ export function renderTeamList(ctx: ManagerContext): void {
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'qpm-team-row__delete-btn';
     deleteBtn.textContent = '\uD83D\uDDD1';
-    deleteBtn.title = `Delete ${team.name}`;
+    deleteBtn.title = t('feature.petsWindow.deleteTooltip', { name: team.name });
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       // Replace row content with confirmation strip
@@ -282,9 +283,9 @@ export function renderTeamList(ctx: ManagerContext): void {
       const strip = document.createElement('div');
       strip.className = 'qpm-team-row__confirm-strip';
       const label = document.createElement('span');
-      label.textContent = `Delete "${team.name}"?`;
-      const yesBtn = btn('Confirm', 'danger');
-      const noBtn = btn('Cancel', 'default');
+      label.textContent = t('feature.petsWindow.deleteConfirm', { name: team.name });
+      const yesBtn = btn(t('feature.petsWindow.confirm'), 'danger');
+      const noBtn = btn(t('feature.petsWindow.cancel'), 'default');
       yesBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         deleteTeam(team.id);

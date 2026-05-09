@@ -10,6 +10,7 @@ import {
 } from '../../features/petCompareEngine';
 import { getAbilityColor } from '../../utils/petCardRenderer';
 import { getCoinSpriteUrl } from './helpers';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Color helpers
@@ -218,7 +219,7 @@ export function renderTeamSummaryBar(
   slotVal.textContent = `${filledCount}/3`;
   const slotLbl = document.createElement('div');
   slotLbl.className = 'qpm-team-summary__lbl';
-  slotLbl.textContent = 'Slots';
+  slotLbl.textContent = t('feature.petsWindow.slots');
   slotStat.appendChild(slotVal);
   slotStat.appendChild(slotLbl);
   summary.appendChild(slotStat);
@@ -236,7 +237,7 @@ export function renderTeamSummaryBar(
   strVal.textContent = String(totalStr);
   const strLbl = document.createElement('div');
   strLbl.className = 'qpm-team-summary__lbl';
-  strLbl.textContent = 'Total STR';
+  strLbl.textContent = t('feature.petsWindow.totalStr');
   strStat.appendChild(strVal);
   strStat.appendChild(strLbl);
   summary.appendChild(strStat);
@@ -301,7 +302,7 @@ export function renderTeamSummaryBar(
     scoreWrap.className = 'qpm-team-summary__score';
     const scoreLbl = document.createElement('span');
     scoreLbl.className = 'qpm-team-summary__score-label';
-    scoreLbl.textContent = 'Team Score:';
+    scoreLbl.textContent = t('feature.petsWindow.teamScoreColon');
     const scoreVal = document.createElement('span');
     scoreVal.className = 'qpm-team-summary__score-value';
     scoreVal.textContent = String(Math.round(teamScore));

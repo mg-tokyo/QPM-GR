@@ -14,6 +14,7 @@ import {
 } from '../features/abilityValuation';
 import { onGardenSnapshot } from '../features/gardenBridge';
 import { visibleInterval } from '../utils/timerManager';
+import { t } from '../i18n';
 
 // ============================================================================
 // CONSTANTS
@@ -56,12 +57,12 @@ export interface AbilityTrackerTotals {
 function formatAgo(ts: number | null | undefined): string {
   if (!ts) return '—';
   const ms = Date.now() - ts;
-  if (ms < 5000) return 'just now';
-  if (ms < 60000) return `${Math.floor(ms / 1000)}s ago`;
+  if (ms < 5000) return t('feature.abilityTracker.justNow');
+  if (ms < 60000) return t('feature.abilityTracker.secsAgo', { n: String(Math.floor(ms / 1000)) });
   const mins = Math.floor(ms / 60000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('feature.abilityTracker.minsAgo', { n: String(mins) });
   const hrs = Math.floor(mins / 60);
-  return `${hrs}h ${mins % 60}m ago`;
+  return t('feature.abilityTracker.hoursMinAgo', { h: String(hrs), m: String(mins % 60) });
 }
 
 /** Format the average interval between procs (shown when no history yet). */
@@ -163,7 +164,7 @@ function buildAbilityRow(
   // Color dot — click to hide this ability entirely (stopPropagation keeps row click separate)
   const color = getAbilityColor(ability.def.id);
   const dot = document.createElement('div');
-  dot.title = 'Click to hide this ability';
+  dot.title = t('feature.abilityTracker.hideAbility');
   dot.style.cssText = [
     `background:${color.base}`,
     `box-shadow:0 0 4px ${color.glow}`,
@@ -193,11 +194,11 @@ function buildAbilityRow(
   const procsChip = document.createElement('span');
   if (ability.suppressRateDisplay) {
     procsChip.textContent = '—';
-    procsChip.title = 'Rate cannot be accurately calculated for this ability';
+    procsChip.title = t('feature.abilityTracker.rateUnavailable');
     procsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-text-muted,rgba(232,224,255,0.4));flex-shrink:0;width:52px;text-align:right;';
   } else {
     procsChip.textContent = `${ability.procsPerHour.toFixed(1)}/hr`;
-    procsChip.title = 'Expected procs per hour (based on strength)';
+    procsChip.title = t('feature.abilityTracker.expectedProcs');
     procsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-accent,#4CAF50);flex-shrink:0;width:52px;text-align:right;';
   }
   row.appendChild(procsChip);
@@ -207,7 +208,7 @@ function buildAbilityRow(
     coinsChip.style.cssText = 'flex-shrink:0;width:62px;';
   } else if (ability.coinsPerHour != null && ability.coinsPerHour > 0) {
     coinsChip.textContent = `${formatCoinsAbbreviated(ability.coinsPerHour)}/hr`;
-    coinsChip.title = 'Estimated coins per hour';
+    coinsChip.title = t('feature.abilityTracker.estimatedCoins');
     coinsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-warning,#ffa500);flex-shrink:0;width:62px;text-align:right;';
   } else {
     coinsChip.style.cssText = 'flex-shrink:0;width:62px;';
@@ -243,7 +244,7 @@ function buildAbilityRow(
     coinsChip.style.display = vis;
     timerEl.style.display = vis;
     name.style.opacity = hidden ? '0.55' : '1';
-    row.title = hidden ? `${ability.def.name} — stats hidden (click to show)` : `${ability.def.name} — click to hide stats`;
+    row.title = hidden ? t('feature.abilityTracker.statsHidden', { name: ability.def.name }) : t('feature.abilityTracker.statsVisible', { name: ability.def.name });
   };
 
   applyStatsVisibility();
@@ -266,10 +267,10 @@ function updateTimerCell(el: HTMLElement): void {
   if (lastProc && procsPerHour > 0) {
     const { text, isOverdue } = calculateLiveETA(lastProc, null, procsPerHour);
     if (isOverdue) {
-      el.textContent = `Late ${text}`;
+      el.textContent = t('feature.abilityTracker.late', { time: text });
       el.style.color = '#ef5350';
     } else {
-      el.textContent = `Next: ${text}`;
+      el.textContent = t('feature.abilityTracker.next', { time: text });
       el.style.color = 'var(--qpm-accent,#4CAF50)';
     }
   } else if (lastProc) {
@@ -326,12 +327,12 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
   nameWrap.style.cssText = 'display:flex;flex-direction:column;gap:1px;overflow:hidden;flex:1;';
 
   const petName = document.createElement('span');
-  petName.textContent = pet.name ?? pet.species ?? `Slot ${pet.slotIndex + 1}`;
+  petName.textContent = pet.name ?? pet.species ?? t('feature.abilityTracker.slot', { n: String(pet.slotIndex + 1) });
   petName.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   nameWrap.appendChild(petName);
 
   const petMeta = document.createElement('span');
-  const strText = pet.strength != null ? `STR ${pet.strength}` : 'STR ?';
+  const strText = pet.strength != null ? t('feature.abilityTracker.strValue', { value: String(pet.strength) }) : t('feature.abilityTracker.strUnknown');
   const speciesText = pet.species ? ` · ${pet.species}` : '';
   petMeta.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#888);';
   nameWrap.appendChild(petMeta);
@@ -356,7 +357,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
           'flex-shrink:0',
           'white-space:nowrap',
         ].join(';');
-        hiddenBadge.title = 'Click to show all hidden abilities';
+        hiddenBadge.title = t('feature.abilityTracker.showAllHidden');
         hiddenBadge.addEventListener('click', (e) => {
           e.stopPropagation();
           hiddenAbilities.delete(petKey);
@@ -365,7 +366,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
         });
         header.insertBefore(hiddenBadge, header.lastChild);
       }
-      hiddenBadge.textContent = `${currentHidden} hidden`;
+      hiddenBadge.textContent = t('feature.abilityTracker.hiddenCount', { count: String(currentHidden) });
     } else if (hiddenBadge) {
       hiddenBadge.remove();
       hiddenBadge = null;
@@ -402,17 +403,17 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
   colHeader.appendChild(colHeaderName);
 
   const colHeaderProcs = document.createElement('span');
-  colHeaderProcs.textContent = 'procs/hr';
+  colHeaderProcs.textContent = t('feature.abilityTracker.colProcs');
   colHeaderProcs.style.cssText = 'font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;width:52px;text-align:right;';
   colHeader.appendChild(colHeaderProcs);
 
   const colHeaderCoins = document.createElement('span');
-  colHeaderCoins.textContent = 'coins/hr';
+  colHeaderCoins.textContent = t('feature.abilityTracker.colCoins');
   colHeaderCoins.style.cssText = 'font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;width:62px;text-align:right;';
   colHeader.appendChild(colHeaderCoins);
 
   const colHeaderTimer = document.createElement('span');
-  colHeaderTimer.textContent = 'next proc';
+  colHeaderTimer.textContent = t('feature.abilityTracker.colNext');
   colHeaderTimer.style.cssText = 'font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;width:76px;text-align:right;';
   colHeader.appendChild(colHeaderTimer);
 
@@ -429,7 +430,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
     const currentVisible = allAbilities.filter(a => !currentHidden.has(a.def.id));
     if (currentVisible.length === 0) {
       const msg = document.createElement('div');
-      msg.textContent = 'All abilities hidden — click badge to restore';
+      msg.textContent = t('feature.abilityTracker.allHidden');
       msg.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#555);font-style:italic;padding:4px 0;';
       abilitiesContainer.appendChild(msg);
     } else {
@@ -455,7 +456,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
     abilitiesContainer.style.display = expanded ? 'flex' : 'none';
     colHeader.style.display = expanded ? 'flex' : 'none';
     collapseBtn.textContent = expanded ? '▾' : '▸';
-    collapseBtn.title = expanded ? 'Collapse abilities' : 'Expand abilities';
+    collapseBtn.title = expanded ? t('feature.abilityTracker.collapse') : t('feature.abilityTracker.expand');
     collapseBtn.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
     const strLine = `${strText}${speciesText}`;
     petMeta.textContent = strLine;
@@ -531,7 +532,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
     'overflow:hidden',
     'text-overflow:ellipsis',
   ].join(';');
-  summaryStrip.textContent = 'Loading…';
+  summaryStrip.textContent = t('common.loading');
   container.appendChild(summaryStrip);
 
   // Scroll container
@@ -549,7 +550,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
 
   // Footer hint
   const footerHint = document.createElement('div');
-  footerHint.textContent = 'Click an ability to show/hide its stats!';
+  footerHint.textContent = t('feature.abilityTracker.footerHint');
   footerHint.style.cssText = [
     'padding:4px 12px',
     'font-size:10px',
@@ -574,12 +575,12 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
 
     const totals = getTotals(activePets, gardenCtx);
     const summaryParts: string[] = [
-      `${totals.petCount} pet${totals.petCount !== 1 ? 's' : ''}`,
-      `${totals.abilityCount} abilit${totals.abilityCount !== 1 ? 'ies' : 'y'}`,
-      `${totals.procsPerHour.toFixed(1)} procs/hr`,
+      totals.petCount !== 1 ? t('feature.abilityTracker.summaryPets', { count: String(totals.petCount) }) : t('feature.abilityTracker.summaryPet', { count: String(totals.petCount) }),
+      totals.abilityCount !== 1 ? t('feature.abilityTracker.summaryAbilities', { count: String(totals.abilityCount) }) : t('feature.abilityTracker.summaryAbility', { count: String(totals.abilityCount) }),
+      t('feature.abilityTracker.summaryProcs', { rate: totals.procsPerHour.toFixed(1) }),
     ];
     if (totals.coinsPerHour > 0) {
-      summaryParts.push(`${formatCoinsAbbreviated(totals.coinsPerHour)}/hr coins`);
+      summaryParts.push(t('feature.abilityTracker.summaryCoins', { rate: formatCoinsAbbreviated(totals.coinsPerHour) }));
     }
     summaryStrip.textContent = summaryParts.join(' · ');
 
@@ -588,7 +589,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
     if (!activePets.length) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted,#666);font-size:12px;';
-      empty.textContent = 'No active pets found.';
+      empty.textContent = t('feature.abilityTracker.noPets');
       cardsContainer.appendChild(empty);
       return;
     }
@@ -605,7 +606,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
     if (!hasCards) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted,#666);font-size:12px;';
-      empty.textContent = 'No continuous abilities detected on active pets.';
+      empty.textContent = t('feature.abilityTracker.noAbilities');
       cardsContainer.appendChild(empty);
     }
 

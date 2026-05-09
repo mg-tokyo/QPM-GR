@@ -5,6 +5,7 @@ import {
   type RecommendationMode,
 } from '../../features/petOptimizer';
 import { COMPARE_GROUP_FILTER_OPTIONS } from '../../data/petCompareRules';
+import { t } from '../../i18n';
 import {
   clearFiltersCleanup,
   getGlobalState,
@@ -58,7 +59,7 @@ export function renderFilters(
   ].join(';');
 
   const groupOptions: Array<{ id: OptimizerCompareFilter; label: string }> = [
-    { id: 'all', label: 'All groups' },
+    { id: 'all', label: t('feature.petOptimizer.allGroups') },
     ...COMPARE_GROUP_FILTER_OPTIONS.map((entry) => ({ id: entry.id as OptimizerCompareFilter, label: entry.label })),
   ];
 
@@ -69,7 +70,7 @@ export function renderFilters(
     groupBtn.style.borderColor = open ? 'rgba(143,130,255,0.8)' : 'rgba(143,130,255,0.45)';
   };
 
-  const selectedLabel = groupOptions.find((entry) => entry.id === config.selectedStrategy)?.label ?? 'All groups';
+  const selectedLabel = groupOptions.find((entry) => entry.id === config.selectedStrategy)?.label ?? t('feature.petOptimizer.allGroups');
   groupBtn.textContent = `${selectedLabel} ▾`;
   groupBtn.addEventListener('click', () => setOpen(!open));
 
@@ -117,8 +118,8 @@ export function renderFilters(
   const modeWrap = document.createElement('div');
   modeWrap.style.cssText = 'display:inline-flex;align-items:center;border:1px solid rgba(143,130,255,0.4);border-radius:8px;overflow:hidden;background:rgba(10,14,22,0.75);';
   const modeOptions: Array<{ id: RecommendationMode; label: string }> = [
-    { id: 'specialist', label: 'Specialist' },
-    { id: 'slot_efficiency', label: 'Slot Efficiency' },
+    { id: 'specialist', label: t('feature.petOptimizer.specialist') },
+    { id: 'slot_efficiency', label: t('feature.petOptimizer.slotEfficiency') },
   ];
   for (const option of modeOptions) {
     const button = document.createElement('button');
@@ -158,7 +159,7 @@ export function renderFilters(
   const sellLabel = document.createElement('label');
   sellLabel.htmlFor = 'show-sell-checkbox';
   sellLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  sellLabel.textContent = 'Show Sell';
+  sellLabel.textContent = t('feature.petOptimizer.showSell');
   filtersDiv.append(sellCheckbox, sellLabel);
 
   const reviewCheckbox = document.createElement('input');
@@ -173,7 +174,7 @@ export function renderFilters(
   const reviewLabel = document.createElement('label');
   reviewLabel.htmlFor = 'show-review-checkbox';
   reviewLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  reviewLabel.textContent = 'Show Review';
+  reviewLabel.textContent = t('feature.petOptimizer.showReview');
   filtersDiv.append(reviewCheckbox, reviewLabel);
 
   const keepsCheckbox = document.createElement('input');
@@ -188,7 +189,7 @@ export function renderFilters(
   const keepsLabel = document.createElement('label');
   keepsLabel.htmlFor = 'show-all-keeps-checkbox';
   keepsLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  keepsLabel.textContent = 'Show All Keeps';
+  keepsLabel.textContent = t('feature.petOptimizer.showAllKeeps');
   filtersDiv.append(keepsCheckbox, keepsLabel);
 
   const dislikeGoldCheckbox = document.createElement('input');
@@ -203,11 +204,11 @@ export function renderFilters(
   const dislikeGoldLabel = document.createElement('label');
   dislikeGoldLabel.htmlFor = 'dislike-gold-checkbox';
   dislikeGoldLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  dislikeGoldLabel.textContent = 'Dislike Gold';
+  dislikeGoldLabel.textContent = t('feature.petOptimizer.dislikeGold');
   filtersDiv.append(dislikeGoldCheckbox, dislikeGoldLabel);
 
   const refreshButton = document.createElement('button');
-  refreshButton.textContent = 'Refresh';
+  refreshButton.textContent = t('feature.petOptimizer.refresh');
   refreshButton.style.cssText = `
     padding: 5px 11px;
     background: rgba(66, 165, 245, 0.15);
