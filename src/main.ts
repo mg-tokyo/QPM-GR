@@ -1537,6 +1537,10 @@ async function initialize(): Promise<void> {
     (QPM_DEBUG_API as any).currentTile = gardenCommands.QPM_CURRENT_TILE;
   }
 
+  // Expose shop stock for debugging
+  const { getShopStockState } = await import('./store/shopStock');
+  (QPM_DEBUG_API as any).shopStock = getShopStockState;
+
   // Expose catalog functions to global debug API
   (QPM_DEBUG_API as any).getCatalogs = getCatalogs;
   (QPM_DEBUG_API as any).areCatalogsReady = areCatalogsReady;

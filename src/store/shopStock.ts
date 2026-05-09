@@ -28,6 +28,7 @@ export type { ShopStockItem, ShopStockCategoryState, ShopStockState } from './sh
 
 const MY_USER_SLOT_ATOM_LABEL = 'myUserSlotAtom';
 const MY_DATA_ATOM_LABEL = 'myDataAtom';
+const QUINOA_DATA_ATOM_LABEL = 'quinoaDataAtom';
 
 const ITEM_TYPE_BY_CATEGORY: Record<ShopCategory, 'Seed' | 'Egg' | 'Tool' | 'Decor' | 'Dawn'> = {
   seeds: 'Seed',
@@ -42,14 +43,17 @@ let shopsSnapshot: ShopsAtomSnapshot | null = null;
 let purchasesSnapshot: ShopPurchasesAtomSnapshot | null = null;
 let myDataPurchasesSnapshot: ShopPurchasesAtomSnapshot | null = null;
 let customInventories: CustomInventoryMap = null;
+let quinoaDataShopsSnapshot: ShopsAtomSnapshot | null = null;
 let cachedState: ShopStockState = createEmptyState();
 let startPromise: Promise<void> | null = null;
 let shopsUnsubscribe: (() => void) | null = null;
 let purchasesUnsubscribe: (() => void) | null = null;
 let myDataPurchasesUnsubscribe: (() => void) | null = null;
 let customInventoriesUnsubscribe: (() => void) | null = null;
+let quinoaDataShopsUnsubscribe: (() => void) | null = null;
 let myDataAtomRef: unknown = null;
 let myUserSlotAtomRef: unknown = null;
+let quinoaDataAtomRef: unknown = null;
 
 function createEmptyState(): ShopStockState {
   const categories = Object.create(null) as Record<ShopCategory, ShopStockCategoryState>;
@@ -110,9 +114,10 @@ function rebuildState(): void {
   const now = Date.now();
   const categories = Object.create(null) as Record<ShopCategory, ShopStockCategoryState>;
   const effectivePurchases = getEffectivePurchasesSnapshot();
+  const effectiveShops = shopsSnapshot ?? quinoaDataShopsSnapshot;
   for (const category of SHOP_CATEGORIES) {
     const atomKey = ATOM_KEY_BY_CATEGORY[category];
-    const snapshot = shopsSnapshot?.[atomKey] ?? null;
+    const snapshot = effectiveShops?.[atomKey] ?? null;
     const customInventory = customInventories?.[atomKey] ?? null;
     categories[category] = buildCategoryState(category, snapshot, effectivePurchases, customInventory);
   }
@@ -192,6 +197,23 @@ export async function startShopStockStore(): Promise<void> {
         log('⚠️ Failed to subscribe to myUserSlotAtom', error);
       }
     }
+
+    // Fallback: subscribe to quinoaDataAtom.shops for categories not covered
+    // by customRestockInventories (e.g. dawn shop, which has no custom restock).
+    quinoaDataAtomRef = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
+    if (quinoaDataAtomRef) {
+      try {
+        quinoaDataShopsUnsubscribe = await subscribeAtom<unknown>(quinoaDataAtomRef, (value) => {
+          const shops = (value && typeof value === 'object' && 'shops' in value)
+            ? (value as Record<string, unknown>).shops as ShopsAtomSnapshot | null
+            : null;
+          quinoaDataShopsSnapshot = shops;
+          rebuildState();
+        });
+      } catch (error) {
+        log('⚠️ Failed to subscribe to quinoaDataAtom shops', error);
+      }
+    }
   })().catch((error) => {
     log('⚠️ startShopStockStore error', error);
     startPromise = null;
@@ -212,17 +234,23 @@ export function stopShopStockStore(): void {
   try {
     customInventoriesUnsubscribe?.();
   } catch {}
+  try {
+    quinoaDataShopsUnsubscribe?.();
+  } catch {}
   shopsUnsubscribe = null;
   purchasesUnsubscribe = null;
   myDataPurchasesUnsubscribe = null;
   customInventoriesUnsubscribe = null;
+  quinoaDataShopsUnsubscribe = null;
   startPromise = null;
   shopsSnapshot = null;
   purchasesSnapshot = null;
   myDataPurchasesSnapshot = null;
   customInventories = null;
+  quinoaDataShopsSnapshot = null;
   myDataAtomRef = null;
   myUserSlotAtomRef = null;
+  quinoaDataAtomRef = null;
   cachedState = createEmptyState();
 }
 
@@ -280,6 +308,20 @@ export function forceRefreshShopStock(): void {
       const freshCustom = extractCustomInventories(freshSlot);
       if (freshCustom !== customInventories) {
         customInventories = freshCustom;
+        changed = true;
+      }
+    } catch {}
+  }
+
+  // Re-read quinoaDataAtom shops (fallback for dawn and other non-custom-restock shops)
+  if (quinoaDataAtomRef) {
+    try {
+      const freshQD = store.get(quinoaDataAtomRef) as Record<string, unknown> | null;
+      const freshShops = (freshQD && typeof freshQD === 'object' && 'shops' in freshQD)
+        ? freshQD.shops as ShopsAtomSnapshot | null
+        : null;
+      if (freshShops !== quinoaDataShopsSnapshot) {
+        quinoaDataShopsSnapshot = freshShops;
         changed = true;
       }
     } catch {}

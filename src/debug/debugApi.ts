@@ -7,8 +7,16 @@ import { getCatalogs, areCatalogsReady, logCatalogStatus } from '../catalogs/gam
 
 // These imports are only used by debug functions, so they're fine to load here
 // when the debug API is actually accessed
+type JotaiDebugApi = {
+  listAtoms: (filter?: string) => Array<{ label: string }>;
+  readAtom: (label: string) => Promise<unknown>;
+  shopStock: () => any;
+  captureInfo: () => any;
+};
+
 type DebugApiType = {
   storage: typeof storage;
+  jotai: JotaiDebugApi;
   debugPets: () => any;
   debugAllAtoms: () => any;
   debugCatalogs: () => any;
@@ -80,8 +88,45 @@ export async function createDebugApi(): Promise<DebugApiType> {
     spriteExtractor,
   } = spriteCompat;
 
+  const { getShopStockState } = await import('../store/shopStock');
+  const { getCapturedInfo } = await import('../core/jotaiBridge');
+
+  const jotaiDebug: JotaiDebugApi = {
+    listAtoms: (filter?: string) => {
+      try {
+        const cache = (window as any).__qpmJotaiAtomCache__;
+        if (!cache || typeof cache.entries !== 'function') return [];
+        const results: Array<{ label: string }> = [];
+        for (const [, meta] of cache.entries()) {
+          const label = String(
+            (meta as Record<string, unknown>)?.debugLabel ??
+            (meta as Record<string, unknown>)?.label ?? ''
+          );
+          if (!label) continue;
+          if (filter && !label.toLowerCase().includes(filter.toLowerCase())) continue;
+          results.push({ label });
+        }
+        return results;
+      } catch {
+        return [];
+      }
+    },
+    readAtom: async (label: string) => {
+      const atom = getAtomByLabel(label);
+      if (!atom) return { error: `Atom "${label}" not found` };
+      try {
+        return await readAtomValue(atom);
+      } catch (error) {
+        return { error: `Failed to read "${label}": ${error instanceof Error ? error.message : String(error)}` };
+      }
+    },
+    shopStock: () => getShopStockState(),
+    captureInfo: () => getCapturedInfo(),
+  };
+
   const debugApi: DebugApiType = {
     storage,
+    jotai: jotaiDebug,
 
     debugPets: () => {
       const pets = getActivePetsDebug();
@@ -563,13 +608,30 @@ export function createLazyDebugProxy(): Record<string, any> {
   const proxy: Record<string, any> = {
     // Storage is needed immediately for some inline handlers
     storage,
-    
+
     // Flag to indicate this is a lazy proxy
     __isLazyProxy: true,
-    
+
     // Method to get the full API
     __getFullApi: getDebugApi,
   };
+
+  // jotai namespace — object with methods, loads full API on first call
+  const jotaiProxy: Record<string, any> = {};
+  for (const method of ['listAtoms', 'readAtom', 'shopStock', 'captureInfo'] as const) {
+    Object.defineProperty(jotaiProxy, method, {
+      get() {
+        return async (...args: any[]) => {
+          const api = await getDebugApi();
+          const fn = (api.jotai as any)[method];
+          return typeof fn === 'function' ? fn(...args) : fn;
+        };
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  proxy.jotai = jotaiProxy;
 
   // Create lazy getters for all debug functions
   const lazyMethods = [
