@@ -135,6 +135,19 @@ export function getItemQuantity(item: ShopStockItem): number {
   return 0;
 }
 
+/**
+ * Detect the V16 ItemType for a dawn shop entry from the presence of
+ * type-specific ID fields when raw.itemType isn't set explicitly.
+ */
+function detectDawnItemType(raw: Record<string, unknown>): string | undefined {
+  if (typeof raw.itemType === 'string') return raw.itemType;
+  if (raw.species != null) return 'Seed';
+  if (raw.eggId != null) return 'Egg';
+  if (raw.toolId != null) return 'Tool';
+  if (raw.decorId != null) return 'Decor';
+  return undefined;
+}
+
 export function getPurchaseItemId(shopType: RestockShopType, item: ShopStockItem): string {
   const raw = item.raw as Record<string, unknown> | undefined;
   if (shopType === 'seed')  return firstString([raw?.species, item.id, raw?.id]) ?? item.id;
@@ -142,8 +155,8 @@ export function getPurchaseItemId(shopType: RestockShopType, item: ShopStockItem
   if (shopType === 'decor') return firstString([raw?.decorId, item.id, raw?.id]) ?? item.id;
   if (shopType === 'tool')  return firstString([raw?.toolId,  item.id, raw?.id]) ?? item.id;
   if (shopType === 'dawn') {
-    // Dawn shop carries mixed item types — read itemType from raw to pick the right ID field
-    const itemType = raw?.itemType as string | undefined;
+    // Dawn shop carries mixed item types — detect type from raw fields
+    const itemType = raw ? detectDawnItemType(raw) : undefined;
     if (itemType === 'Egg')   return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
     if (itemType === 'Tool')  return firstString([raw?.toolId,  item.id, raw?.id]) ?? item.id;
     if (itemType === 'Decor') return firstString([raw?.decorId, item.id, raw?.id]) ?? item.id;
@@ -287,6 +300,7 @@ export function processShopStock(state: ShopStockState): void {
         continue;
       }
 
+      const raw = item.raw as Record<string, unknown> | undefined;
       upsertAlert({
         key: canonicalKey,
         shopType,
@@ -295,7 +309,9 @@ export function processShopStock(state: ShopStockState): void {
         label: item.label || canonicalId,
         quantity: currentQty,
         priceCoins: item.priceCoins ?? null,
-        itemType: (item.raw as Record<string, unknown>)?.itemType as string | undefined,
+        itemType: shopType === 'dawn' && raw
+          ? detectDawnItemType(raw)
+          : raw?.itemType as string | undefined,
       });
 
       const active = activeAlerts.get(canonicalKey);
