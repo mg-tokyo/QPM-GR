@@ -8,6 +8,15 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.4",
+    date: "2026-05-09",
+    notes: [
+      "Fixed Dawn shop Buy All sending invalid purchase payload (itemType 'Dawn' is not a valid server type)",
+      "Fixed Dawn item type detection: purchases now correctly resolve underlying type (Seed/Egg/Tool/Decor) from entry fields",
+      "Fixed Dawn item ID extraction for non-seed items (eggs, tools, decor) in both stock parser and restock alerts",
+    ],
+  },
+  {
     version: "3.2.3",
     date: "2026-05-09",
     notes: [
