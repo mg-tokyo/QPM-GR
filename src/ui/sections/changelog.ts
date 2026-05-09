@@ -8,6 +8,14 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.6",
+    date: "2026-05-09",
+    notes: [
+      "Fixed Dawn shop data never populating: added quinoaDataAtom fallback subscription for shop categories not covered by customRestockInventories",
+      "Added dynamic Jotai debug namespace to QPM_DEBUG_API (listAtoms, readAtom, shopStock, captureInfo)",
+    ],
+  },
+  {
     version: "3.2.5",
     date: "2026-05-09",
     notes: [

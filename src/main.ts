@@ -1541,6 +1541,24 @@ async function initialize(): Promise<void> {
   const { getShopStockState } = await import('./store/shopStock');
   (QPM_DEBUG_API as any).shopStock = getShopStockState;
 
+  // Expose jotai debug namespace (lazy — loads full debug API on first method call)
+  const jotaiNs: Record<string, unknown> = {};
+  for (const method of ['listAtoms', 'readAtom', 'shopStock', 'captureInfo'] as const) {
+    Object.defineProperty(jotaiNs, method, {
+      get() {
+        return async (...args: unknown[]) => {
+          const { getDebugApi } = await import('./debug/debugApi');
+          const api = await getDebugApi();
+          const fn = (api.jotai as Record<string, unknown>)[method];
+          return typeof fn === 'function' ? (fn as Function)(...args) : fn;
+        };
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  (QPM_DEBUG_API as any).jotai = jotaiNs;
+
   // Expose catalog functions to global debug API
   (QPM_DEBUG_API as any).getCatalogs = getCatalogs;
   (QPM_DEBUG_API as any).areCatalogsReady = areCatalogsReady;
