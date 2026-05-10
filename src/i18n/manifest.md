@@ -16,7 +16,7 @@ Trigger: `/language [lang] review`
 
 | Language | Status |
 |----------|--------|
-| es | pending — complete all surfaces first |
+| es | in progress — review fixes applied, awaiting re-check |
 
 ## Shell UI (completed)
 

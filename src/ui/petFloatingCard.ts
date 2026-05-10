@@ -32,6 +32,8 @@ import {
   getPetSpriteDataUrlWithMutations,
   isSpritesReady,
 } from '../sprite-v2/compat';
+import { sendRoomAction } from '../websocket/api';
+import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
 
 const STORAGE_KEY = 'qpm.petFloatingCards.v1';
 const FEED_EVENT = 'qpm:feedPet';
@@ -40,6 +42,29 @@ const MAX_SLOTS = 3;
 
 /** Remembers last position per slot so reopening restores placement even after close. */
 const lastKnownPositions = new Map<number, { xPct: number; yPct: number }>();
+
+/** Resolve the player's current grid position (for pet greet). */
+async function resolvePlayerPosition(): Promise<{ x: number; y: number } | null> {
+  // Game stores position in a standalone positionAtom, not nested in playerAtom
+  for (const label of ['positionAtom', 'playerAtom']) {
+    const atom = getAtomByLabel(label);
+    if (!atom) continue;
+    const val = await readAtomValue<unknown>(atom).catch(() => null);
+    if (!val || typeof val !== 'object') continue;
+    const obj = val as Record<string, unknown>;
+    // positionAtom is directly { x, y }; playerAtom may nest it under a key
+    const candidates = 'x' in obj && 'y' in obj
+      ? [obj]
+      : [obj.position, obj.coords, obj.playerPosition].filter(Boolean);
+    for (const c of candidates) {
+      if (!c || typeof c !== 'object') continue;
+      const { x, y } = c as Record<string, unknown>;
+      if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y))
+        return { x: Math.round(x), y: Math.round(y) };
+    }
+  }
+  return null;
+}
 
 const STYLES = `
 .qpm-float-card {
@@ -72,6 +97,12 @@ const STYLES = `
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: box-shadow 0.15s;
+}
+.qpm-float-card__sprite-wrap:hover {
+  box-shadow: 0 0 0 1px rgba(143,130,255,0.3);
 }
 .qpm-float-card__sprite {
   width: 24px;
@@ -434,6 +465,12 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
 
   const spriteWrap = document.createElement('div');
   spriteWrap.className = 'qpm-float-card__sprite-wrap';
+  spriteWrap.addEventListener('click', async () => {
+    if (!currentPet) return;
+    const pos = await resolvePlayerPosition();
+    if (!pos) return;
+    sendRoomAction('RequestPetGreet', { position: pos }, { throttleMs: 2000 });
+  });
   header.appendChild(spriteWrap);
 
   const nameEl = document.createElement('div');
@@ -730,6 +767,7 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   const onMouseDown = (event: MouseEvent): void => {
     if ((event.target as Element).closest('.qpm-float-card__close')) return;
     if ((event.target as Element).closest('.qpm-float-card__feed-btn')) return;
+    if ((event.target as Element).closest('.qpm-float-card__sprite-wrap')) return;
 
     const rect = card.getBoundingClientRect();
     isDragging = true;

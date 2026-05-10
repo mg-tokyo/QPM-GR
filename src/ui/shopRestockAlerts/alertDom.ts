@@ -1,6 +1,7 @@
 // src/ui/shopRestockAlerts/alertDom.ts
 // Alert DOM component — creation, upsert, removal, and sprite resolution.
 
+import { t } from '../../i18n';
 import { getItemIdVariants } from '../../utils/restockDataService';
 import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/canvasHelpers';
@@ -227,7 +228,7 @@ export function setAlertPendingConfirmation(active: ActiveAlert, pending: boolea
 
 export function updateAlertQuantity(active: ActiveAlert, quantity: number): void {
   active.model.quantity = quantity;
-  active.qtyEl.textContent = `${quantity} available`;
+  active.qtyEl.textContent = t('feature.restockAlert.available', { qty: quantity });
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +238,7 @@ export function updateAlertQuantity(active: ActiveAlert, quantity: number): void
 function updateMuteButtonIcon(btn: HTMLButtonElement, itemKey: string): void {
   const looping = isLooping(itemKey);
   btn.textContent = looping ? '\uD83D\uDD0A' : '\uD83D\uDD07'; // 🔊 / 🔇
-  btn.title = looping ? 'Mute sound' : 'Unmute sound';
+  btn.title = looping ? t('feature.restockAlert.muteSound') : t('feature.restockAlert.unmuteSound');
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +270,7 @@ export function createAlert(model: AlertModel): ActiveAlert {
   titleWrap.className = 'qpm-restock-alert__title-wrap';
   const titleEl = document.createElement('div');
   titleEl.className = 'qpm-restock-alert__title';
-  titleEl.textContent = model.isWeatherAlert ? 'Weather event active' : 'Pinned item restocked';
+  titleEl.textContent = model.isWeatherAlert ? t('feature.restockAlert.weatherActive') : t('feature.restockAlert.pinnedRestocked');
   const itemEl = document.createElement('div');
   itemEl.className = 'qpm-restock-alert__item';
   itemEl.textContent = model.label;
@@ -280,21 +281,21 @@ export function createAlert(model: AlertModel): ActiveAlert {
   closeBtn.type = 'button';
   closeBtn.className = 'qpm-restock-alert__close';
   closeBtn.textContent = 'x';
-  closeBtn.title = 'Dismiss';
+  closeBtn.title = t('feature.restockAlert.dismiss');
   top.append(identity, closeBtn);
 
   const qtyEl = document.createElement('span');
   qtyEl.className = 'qpm-restock-alert__qty';
   if (model.isWeatherAlert && model.weatherDurationMs) {
     const dMin = Math.round(model.weatherDurationMs / 60_000);
-    qtyEl.textContent = `${dMin} min event`;
+    qtyEl.textContent = t('feature.restockAlert.minEvent', { min: dMin });
   } else {
-    qtyEl.textContent = `${model.quantity} available`;
+    qtyEl.textContent = t('feature.restockAlert.available', { qty: model.quantity });
   }
 
   const statusEl = document.createElement('span');
   statusEl.className = 'qpm-restock-alert__status';
-  statusEl.textContent = model.isWeatherAlert ? 'Active now' : 'Ready to buy';
+  statusEl.textContent = model.isWeatherAlert ? t('feature.restockAlert.activeNow') : t('feature.restockAlert.readyToBuy');
 
   const qtyRow = document.createElement('div');
   qtyRow.className = 'qpm-restock-alert__qty-row';
@@ -305,17 +306,17 @@ export function createAlert(model: AlertModel): ActiveAlert {
   const buyBtn = document.createElement('button');
   buyBtn.type = 'button';
   buyBtn.className = 'qpm-restock-alert__btn';
-  buyBtn.textContent = 'Buy All';
+  buyBtn.textContent = t('feature.restockAlert.buyAll');
   const dismissBtn = document.createElement('button');
   dismissBtn.type = 'button';
   dismissBtn.className = 'qpm-restock-alert__btn qpm-restock-alert__btn--ghost';
-  dismissBtn.textContent = 'Dismiss';
+  dismissBtn.textContent = t('feature.restockAlert.dismiss');
   // Mute button (only shown when sound config exists)
   const soundCfg = getSoundConfig(model.key);
   const muteBtn = document.createElement('button');
   muteBtn.type = 'button';
   muteBtn.className = 'qpm-restock-alert__mute';
-  muteBtn.title = 'Mute sound';
+  muteBtn.title = t('feature.restockAlert.muteSound');
   muteBtn.style.display = soundCfg ? '' : 'none';
 
   if (model.isWeatherAlert) buyBtn.style.display = 'none';
@@ -403,7 +404,7 @@ export function upsertAlert(model: AlertModel): void {
     updateAlertQuantity(existing, model.quantity);
     if (!existing.busy && !existing.pendingConfirmation) {
       existing.statusEl.style.color = 'rgba(200,192,255,0.72)';
-      existing.statusEl.textContent = 'Ready to buy';
+      existing.statusEl.textContent = t('feature.restockAlert.readyToBuy');
     }
     return;
   }

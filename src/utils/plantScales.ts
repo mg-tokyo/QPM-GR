@@ -3,6 +3,11 @@
 // Values sourced directly from floraSpeciesDex.ts in the game source.
 // Keys are the result of normalizeSpeciesKey(floraSpeciesId) — lowercase, no spaces/dashes,
 // trailing 'seed'/'plant'/'baby'/'fruit'/'crop' stripped.
+//
+// Runtime catalog is tried first (via getCropMaxScale); hardcoded table is fallback
+// for early-load scenarios before catalogs are captured.
+
+import { areCatalogsReady, getCropMaxScale } from '../catalogs/gameCatalogs';
 
 const PLANT_MAX_SCALE: Record<string, number> = {
   // --- Verified against floraSpeciesDex.ts ---
@@ -86,6 +91,14 @@ const PLANT_MAX_SCALE: Record<string, number> = {
 };
 
 export function lookupMaxScale(normalizedKey: string): number | null {
+  // Runtime catalog first — canonical source when available
+  if (areCatalogsReady()) {
+    // getCropMaxScale expects PascalCase species name; try capitalizing the first letter
+    const pascalKey = normalizedKey.charAt(0).toUpperCase() + normalizedKey.slice(1);
+    const runtime = getCropMaxScale(pascalKey);
+    if (runtime !== null) return runtime;
+  }
+  // Hardcoded fallback for early-load or unknown species
   const value = PLANT_MAX_SCALE[normalizedKey];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }

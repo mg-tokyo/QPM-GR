@@ -16,6 +16,9 @@ const en: Dictionary = {
   'common.enabled': 'Enabled',
   'common.disabled': 'Disabled',
   'common.search': 'Search',
+  'common.features': 'features',
+  'common.featuresCount': '{visible}/{total} features',
+  'common.showHideFeatures': 'Show/Hide features',
 
   // ── Window chrome ─────────────────────────────────────────────────────────
   'window.chrome.minimize': 'Minimize',
@@ -640,6 +643,35 @@ const en: Dictionary = {
   'feature.shopRestock.updatedNow': 'Updated now',
   'feature.shopRestock.weatherActive': '{weather} ACTIVE',
   'feature.shopRestock.weatherOnly': '{weather} only',
+
+  // ── Feature: Restock Alerts ────────────────────────────────────────────
+  'feature.restockAlert.pinnedRestocked': 'Pinned item restocked',
+  'feature.restockAlert.weatherActive': 'Weather event active',
+  'feature.restockAlert.dismiss': 'Dismiss',
+  'feature.restockAlert.available': '{qty} available',
+  'feature.restockAlert.readyToBuy': 'Ready to buy',
+  'feature.restockAlert.activeNow': 'Active now',
+  'feature.restockAlert.buyAll': 'Buy All',
+  'feature.restockAlert.minEvent': '{min} min event',
+  'feature.restockAlert.muteSound': 'Mute sound',
+  'feature.restockAlert.unmuteSound': 'Unmute sound',
+
+  // ── Feature: Controller Labels ─────────────────────────────────────────
+  'feature.controller.label.primaryAction': 'Primary Action',
+  'feature.controller.label.back': 'Close / Back',
+  'feature.controller.label.inventory': 'Toggle Inventory',
+  'feature.controller.label.rotateDecor': 'Rotate Decor',
+  'feature.controller.label.prevHotbarSlot': 'Prev Hotbar / Grow Slot',
+  'feature.controller.label.nextHotbarSlot': 'Next Hotbar / Grow Slot',
+  'feature.controller.label.prevPetSlot': 'Prev Pet Slot',
+  'feature.controller.label.nextPetSlot': 'Next Pet Slot',
+  'feature.controller.label.zoomIn': 'Zoom In',
+  'feature.controller.label.zoomOut': 'Zoom Out',
+  'feature.controller.label.cursorClick': 'Cursor Click',
+  'feature.controller.label.openSettings': 'Controller Settings',
+  'feature.controller.label.deselectSlot': 'Deselect Hotbar Slot',
+  'feature.controller.label.nextGrowSlot': 'Next Grow Slot (dedicated)',
+  'feature.controller.label.prevGrowSlot': 'Prev Grow Slot (dedicated)',
 
   // ── Feature: Item Restock Detail ──────────────────────────────────────
   'feature.itemDetail.accuracy': 'Accuracy',

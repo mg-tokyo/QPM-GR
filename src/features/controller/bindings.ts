@@ -5,6 +5,7 @@
  * Hardcoded actions (Move, Start→Settings) are not stored here.
  */
 
+import { t } from '../../i18n';
 import { storage } from '../../utils/storage';
 
 // ---------------------------------------------------------------------------
@@ -32,23 +33,44 @@ export type Action =
 // Human-readable names and descriptions
 // ---------------------------------------------------------------------------
 
-export const ACTION_LABELS: Record<Action, string> = {
-  primaryAction: 'Primary Action',
-  back: 'Close / Back',
-  inventory: 'Toggle Inventory',
-  rotateDecor: 'Rotate Decor',
-  prevHotbarSlot: 'Prev Hotbar / Grow Slot',
-  nextHotbarSlot: 'Next Hotbar / Grow Slot',
-  prevPetSlot: 'Prev Pet Slot',
-  nextPetSlot: 'Next Pet Slot',
-  zoomIn: 'Zoom In',
-  zoomOut: 'Zoom Out',
-  cursorClick: 'Cursor Click',
-  openSettings: 'Controller Settings',
-  deselectSlot: 'Deselect Hotbar Slot',
-  nextGrowSlot: 'Next Grow Slot (dedicated)',
-  prevGrowSlot: 'Prev Grow Slot (dedicated)',
-};
+export const ALL_ACTIONS: readonly Action[] = [
+  'primaryAction',
+  'back',
+  'inventory',
+  'rotateDecor',
+  'prevHotbarSlot',
+  'nextHotbarSlot',
+  'prevPetSlot',
+  'nextPetSlot',
+  'zoomIn',
+  'zoomOut',
+  'cursorClick',
+  'openSettings',
+  'deselectSlot',
+  'nextGrowSlot',
+  'prevGrowSlot',
+] as const;
+
+export function getActionLabel(action: Action): string {
+  const labels: Record<Action, string> = {
+    primaryAction: t('feature.controller.label.primaryAction'),
+    back: t('feature.controller.label.back'),
+    inventory: t('feature.controller.label.inventory'),
+    rotateDecor: t('feature.controller.label.rotateDecor'),
+    prevHotbarSlot: t('feature.controller.label.prevHotbarSlot'),
+    nextHotbarSlot: t('feature.controller.label.nextHotbarSlot'),
+    prevPetSlot: t('feature.controller.label.prevPetSlot'),
+    nextPetSlot: t('feature.controller.label.nextPetSlot'),
+    zoomIn: t('feature.controller.label.zoomIn'),
+    zoomOut: t('feature.controller.label.zoomOut'),
+    cursorClick: t('feature.controller.label.cursorClick'),
+    openSettings: t('feature.controller.label.openSettings'),
+    deselectSlot: t('feature.controller.label.deselectSlot'),
+    nextGrowSlot: t('feature.controller.label.nextGrowSlot'),
+    prevGrowSlot: t('feature.controller.label.prevGrowSlot'),
+  };
+  return labels[action];
+}
 
 // ---------------------------------------------------------------------------
 // Default bindings: button index → Action
@@ -100,7 +122,7 @@ export function saveBindings(bindings: Record<number, Action>): void {
   }
 }
 
-const VALID_ACTIONS = new Set<string>(Object.keys(ACTION_LABELS));
+const VALID_ACTIONS = new Set<string>(ALL_ACTIONS);
 
 function isValidAction(value: string): value is Action {
   return VALID_ACTIONS.has(value);

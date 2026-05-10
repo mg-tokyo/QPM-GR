@@ -125,7 +125,22 @@ export interface PlantStageInfo {
   name?: string;
   coinPrice?: number;
   creditPrice?: number;
-  [key: string]: unknown;
+  // --- Flora blueprint fields (captured at runtime, previously untyped) ---
+  sprite?: string;                    // atlas frame key, e.g. 'sprite/plant/SproutFruit'
+  harvestType?: string;               // 'Single' | 'Multiple'
+  baseTileScale?: number;             // world-space scale of this element
+  maxScale?: number;                  // max growth scale (crop stage)
+  baseWeight?: number;                // base weight in kg (crop stage)
+  baseSellPrice?: number;             // base sell price (crop stage)
+  slotOffsets?: ReadonlyArray<{ x: number; y: number; rotation: number }>;
+  rotateSlotOffsetsRandomly?: boolean;
+  tileTransformOrigin?: string;       // 'bottom' | 'center'
+  secondsToMature?: number;
+  immatureSprite?: string;
+  slotCountMin?: number;
+  slotCountMax?: number;
+  slotCapacity?: number;
+  [key: string]: unknown;             // keep for forward compat
 }
 
 export interface PlantCatalogEntry {

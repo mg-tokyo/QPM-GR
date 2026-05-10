@@ -8,7 +8,7 @@ import { initializeHarvestReminder, configureHarvestReminder } from './features/
 import { initializeTurtleTimer, configureTurtleTimer } from './features/turtleTimer';
 import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from './ui/originalPanel';
 import { startGardenBridge } from './features/gardenBridge';
-import { initializeStatsStore } from './store/stats';
+import { initializeStatsStore, getStatsSnapshot } from './store/stats';
 import { initializePetXpTracker } from './store/petXpTracker';
 import { initializeXpTracker } from './store/xpTracker';
 import { initializeMutationValueTracking } from './features/mutationValueTracking';
@@ -101,6 +101,7 @@ import { startCapsuleTracker, stopCapsuleTracker } from './features/dawnCapsule'
 import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawnCapture';
 import { initDawnEconomy, destroyDawnEconomy } from './store/dawnEconomy';
 import { initGmExportBridge } from './utils/gmExportBridge';
+import { startNativeSendObserver, stopNativeSendObserver } from './websocket/nativeSendObserver';
 import { startLocker } from './features/locker/index';
 import { startShopKeybinds, stopShopKeybinds } from './features/shopKeybinds';
 import { stopPanelHotkey } from './features/panelHotkey';
@@ -1319,6 +1320,7 @@ window.addEventListener('beforeunload', () => {
   stopCapsuleTracker();
   stopDawnCaptureTracker();
   destroyDawnEconomy();
+  stopNativeSendObserver();
 }, { once: true });
 
 async function waitForGame(): Promise<void> {
@@ -1500,7 +1502,10 @@ async function initialize(): Promise<void> {
   configureTurtleTimer(cfg.turtleTimer);
   await yieldToBrowser();
 
-  // Phase 7b: Action guard
+  // Phase 7b: Native send observer (must start before locker so it wraps first)
+  startNativeSendObserver();
+
+  // Phase 7c: Action guard
   startLocker();
   await yieldToBrowser();
 
@@ -1519,6 +1524,11 @@ async function initialize(): Promise<void> {
   if (TEXTURE_MANIPULATOR_ENABLED) {
     initTextureSwapper();
   }
+  await yieldToBrowser();
+
+  // Phase 8b: Stats recorder (subscribes to myDataAtom activity log → stats.ts)
+  const { startStatsRecorder } = await import('./store/statsRecorder');
+  startStatsRecorder();
   await yieldToBrowser();
 
   // Phase 9: Expose Aries bridge
@@ -1540,6 +1550,16 @@ async function initialize(): Promise<void> {
   // Expose shop stock for debugging
   const { getShopStockState } = await import('./store/shopStock');
   (QPM_DEBUG_API as any).shopStock = getShopStockState;
+
+  // Expose stats + hatch stats for debugging
+  (QPM_DEBUG_API as any).stats = getStatsSnapshot;
+  const { getHatchStatsSnapshot, resetHatchStats } = await import('./store/hatchStatsStore');
+  (QPM_DEBUG_API as any).hatchStats = getHatchStatsSnapshot;
+  (QPM_DEBUG_API as any).resetHatchStats = resetHatchStats;
+  const { resetStats } = await import('./store/stats');
+  (QPM_DEBUG_API as any).resetStats = resetStats;
+  const { getStatsRecorderStatus } = await import('./store/statsRecorder');
+  (QPM_DEBUG_API as any).statsRecorder = { status: getStatsRecorderStatus };
 
   // Expose jotai debug namespace (lazy — loads full debug API on first method call)
   const jotaiNs: Record<string, unknown> = {};
@@ -1566,6 +1586,12 @@ async function initialize(): Promise<void> {
   (QPM_DEBUG_API as any).logCatalogStatus = logCatalogStatus;
   (QPM_DEBUG_API as any).diagnoseCatalogs = diagnoseCatalogs;
   (QPM_DEBUG_API as any).forceWeatherCatalogRefresh = forceWeatherCatalogRefresh;
+
+  // Expose flora blueprint + stitcher diagnostics
+  const { diagnoseFloraBlueprints, testStitch, testStitchAll } = await import('./sprite-v2/stitcher');
+  (QPM_DEBUG_API as any).floraBlueprint = diagnoseFloraBlueprints;
+  (QPM_DEBUG_API as any).testStitch = testStitch;
+  (QPM_DEBUG_API as any).testStitchAll = testStitchAll;
 
   // Expose garden snapshot for debugging
   const { getGardenSnapshot, getMapSnapshot, isGardenBridgeReady } = await import('./features/gardenBridge');

@@ -17,7 +17,8 @@ export type RoomActionType =
   | 'PurchaseShopItem'
   | 'SwapPet'
   | 'XPPotion'
-  | 'LogItems';
+  | 'LogItems'
+  | 'RequestPetGreet';
 
 export type WebSocketSendFailureReason =
   | 'no_connection'
@@ -165,6 +166,10 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       return isNonEmptyString(payload.petItemId);
     case 'LogItems':
       return true;
+    case 'RequestPetGreet': {
+      const p = payload as PlayerPositionPayload;
+      return !!p.position && isFiniteNumber(p.position.x) && isFiniteNumber(p.position.y);
+    }
     default:
       return false;
   }
@@ -197,6 +202,8 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'XPPotion':
       return `${type}:${String(payload.petItemId ?? '')}`;
     case 'LogItems':
+      return type;
+    case 'RequestPetGreet':
       return type;
     default:
       return type;

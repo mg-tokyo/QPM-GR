@@ -1,5 +1,6 @@
 // src/ui/hubWindow/hubGroup.ts
 
+import { t } from '../../i18n';
 import type { HubGroupDef, CardConfig } from './cards/types';
 import { renderInlineToggle } from './cards/inlineToggle';
 import { renderExpandableCard, type ExpandableCardResult } from './cards/expandableCard';
@@ -40,12 +41,12 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
 
   const countBadge = document.createElement('span');
   countBadge.style.cssText = 'font-size:10px;color:#776ea8;';
-  countBadge.textContent = `${group.cards.length} features`;
+  countBadge.textContent = `${group.cards.length} ${t('common.features')}`;
 
   // Visibility toggle button (pushed right) — sliders icon
   const toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
-  toggleBtn.title = 'Show/Hide features';
+  toggleBtn.title = t('common.showHideFeatures');
   toggleBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M2 4h5M11 4h3M9 2v4M2 8h1M7 8h7M5 6v4M2 12h7M13 12h1M11 10v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
   </svg>`;
@@ -216,7 +217,7 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
       .sort((a, b) => sortOrder[a.tier] - sortOrder[b.tier]);
 
     // Update count badge
-    countBadge.textContent = `${sorted.length}/${group.cards.length} features`;
+    countBadge.textContent = t('common.featuresCount', { visible: sorted.length, total: group.cards.length });
 
     for (const card of sorted) {
       if (card.tier === 'inline-toggle') {

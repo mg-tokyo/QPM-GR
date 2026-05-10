@@ -3,6 +3,7 @@
 
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';
+import { areCatalogsReady, getAllPetSpecies, onCatalogsReady } from '../catalogs/gameCatalogs';
 
 const STORAGE_KEY = 'qpm.hatchStats.v1';
 const MAX_EVENTS = 100;
@@ -33,7 +34,7 @@ export interface HatchStatsState {
   session: HatchBucket & { start: number };
   recentEvents: HatchEvent[];
   seededPetIds: string[]; // pet IDs already seeded — prevents double-counts on re-seed
-  meta: { version: number; updatedAt: number };
+  meta: { version: number; updatedAt: number; cleanedAt?: number };
 }
 
 export interface PetSeedInput {
@@ -83,6 +84,77 @@ function persist(): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// One-time data cleanup — removes inflated/corrupted entries
+// ---------------------------------------------------------------------------
+
+/** Heuristic: does a species key look like a real species name (not a pet nickname)? */
+function looksLikeSpeciesName(key: string): boolean {
+  // Real species are short alpha strings like "Turtle", "Butterfly", "Rose"
+  // Nicknames contain spaces, special chars, numbers in parens, etc.
+  if (key === 'Unknown') return false;
+  if (/[()$+#@!&]/.test(key)) return false;
+  if (/\d/.test(key)) return false;
+  if (key.length > 30) return false;
+  return true;
+}
+
+function runCleanup(): void {
+  if (state.meta.cleanedAt) return; // Already cleaned
+
+  const bucket = state.lifetime;
+  const originalTotal = bucket.totalHatched;
+  const originalSpeciesCount = Object.keys(bucket.bySpecies).length;
+
+  // Build a set of known valid species from catalogs (if available)
+  let validSpecies: Set<string> | null = null;
+  if (areCatalogsReady()) {
+    const all = getAllPetSpecies();
+    if (all.length > 0) {
+      validSpecies = new Set(all.map(s => s.toLowerCase()));
+    }
+  }
+
+  // Filter species entries
+  const cleanedSpecies: Record<string, SpeciesCounts> = {};
+  let cleanedTotal = 0;
+
+  for (const [species, counts] of Object.entries(bucket.bySpecies)) {
+    // Always remove "Unknown" entries — they're from extraction failures
+    if (species === 'Unknown') continue;
+
+    // If catalogs available, validate against known species
+    if (validSpecies) {
+      if (!validSpecies.has(species.toLowerCase())) continue;
+    } else {
+      // Fallback: heuristic filter for obviously-bad entries
+      if (!looksLikeSpeciesName(species)) continue;
+    }
+
+    cleanedSpecies[species] = counts;
+    cleanedTotal += counts.total;
+  }
+
+  bucket.bySpecies = cleanedSpecies;
+  bucket.totalHatched = cleanedTotal;
+
+  // Reset byAbility (also inflated proportionally) and recentEvents (contain bad data)
+  bucket.byAbility = {};
+  state.recentEvents = [];
+
+  state.meta.cleanedAt = Date.now();
+  state.meta.updatedAt = Date.now();
+
+  const removed = originalTotal - cleanedTotal;
+  const speciesRemoved = originalSpeciesCount - Object.keys(cleanedSpecies).length;
+
+  if (removed > 0 || speciesRemoved > 0) {
+    log(`[HatchStats] Cleanup: removed ${removed} inflated hatches across ${speciesRemoved} invalid species entries`);
+  }
+
+  persist();
+}
+
 export function initHatchStatsStore(): void {
   try {
     const saved = storage.get<HatchStatsState | null>(STORAGE_KEY, null);
@@ -96,6 +168,24 @@ export function initHatchStatsStore(): void {
     } else {
       state = defaultState();
     }
+
+    // Run one-time cleanup of corrupted data
+    if (!state.meta.cleanedAt) {
+      if (areCatalogsReady()) {
+        runCleanup();
+      } else {
+        // Defer cleanup until catalogs are available for species validation
+        onCatalogsReady(() => {
+          if (!state.meta.cleanedAt) {
+            runCleanup();
+          }
+        });
+        // Also run heuristic cleanup immediately as a fallback
+        // (in case catalogs never load, we at least remove obvious junk)
+        runCleanup();
+      }
+    }
+
     log('[HatchStats] Store initialized');
   } catch (error) {
     log('[HatchStats] Failed to load saved stats', error);
@@ -161,6 +251,14 @@ export function resetHatchStatsSession(): void {
   state.meta.updatedAt = Date.now();
   persist();
   notify();
+}
+
+/** Full reset — clears all lifetime + session + recent events + seeded IDs */
+export function resetHatchStats(): void {
+  state = defaultState();
+  persist();
+  notify();
+  log('[HatchStats] Full reset');
 }
 
 // ---------------------------------------------------------------------------

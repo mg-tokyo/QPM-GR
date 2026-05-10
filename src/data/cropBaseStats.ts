@@ -1,6 +1,11 @@
 // src/data/cropBaseStats.ts
 // Crop base statistics from Magic Garden Wiki
 // Source: https://magicgarden.wiki/Crops
+//
+// getCropStats() overlays runtime catalog data when available, keeping
+// hardcoded values as fallback for fields not in the catalog.
+
+import { areCatalogsReady, getFloraBlueprint } from '../catalogs/gameCatalogs';
 
 export interface CropStats {
   name: string;
@@ -428,11 +433,32 @@ export const CROP_BASE_STATS: Record<string, CropStats> = {
 };
 
 /**
- * Get crop stats by name (case-insensitive)
+ * Get crop stats by name (case-insensitive).
+ * Overlays runtime catalog data when available for baseSellPrice, baseWeight, and matureTime.
  */
 export function getCropStats(cropName: string): CropStats | null {
   const normalized = cropName.toLowerCase().replace(/[^a-z]/g, '');
-  return CROP_BASE_STATS[normalized] || null;
+  const hardcoded = CROP_BASE_STATS[normalized] ?? null;
+
+  if (hardcoded && areCatalogsReady()) {
+    // Try PascalCase species name for catalog lookup
+    const pascalName = cropName.replace(/(?:^|\s)\S/g, c => c.toUpperCase()).replace(/\s/g, '');
+    const blueprint = getFloraBlueprint(pascalName) ?? getFloraBlueprint(hardcoded.name);
+    if (blueprint) {
+      const merged: CropStats = {
+        ...hardcoded,
+        baseSellPrice: blueprint.cropBaseSellPrice ?? hardcoded.baseSellPrice,
+        baseWeight: blueprint.cropBaseWeight ?? hardcoded.baseWeight,
+      };
+      const matureTime = blueprint.secondsToMature ?? hardcoded.matureTime;
+      if (matureTime !== undefined) {
+        merged.matureTime = matureTime;
+      }
+      return merged;
+    }
+  }
+
+  return hardcoded;
 }
 
 /**

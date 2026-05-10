@@ -8,6 +8,20 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.9",
+    date: "2026-05-10",
+    notes: [
+      "Added flora blueprint API: runtime catalog access for slot offsets, harvest type, crop scales, and base stats",
+      "Added sprite-v2 helpers: renderBySpriteKey, getMultiHarvestSpriteCanvas, getTextureAnchor",
+      "Added pet greet easter egg on floating card sprite icon",
+      "Added i18n keys for restock alerts, controller labels, and hub group UI",
+      "Improved crop stats to overlay runtime catalog data (sell price, weight, mature time) over hardcoded fallbacks",
+      "Improved plant scale lookups to prefer runtime catalog over hardcoded table",
+      "Fixed hatch stats store: one-time cleanup of inflated/corrupted species entries",
+      "Fixed pet hatching tracker: species extraction now checks nested pet object, stable ID no longer uses mutable name",
+    ],
+  },
+  {
     version: "3.2.8",
     date: "2026-05-10",
     notes: [

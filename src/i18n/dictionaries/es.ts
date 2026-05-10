@@ -16,6 +16,9 @@ const es: Dictionary = {
   'common.enabled': 'Activado',
   'common.disabled': 'Desactivado',
   'common.search': 'Buscar',
+  'common.features': 'funciones',
+  'common.featuresCount': '{visible}/{total} funciones',
+  'common.showHideFeatures': 'Mostrar/Ocultar funciones',
 
   // ── Window chrome ─────────────────────────────────────────────────────────
   'window.chrome.minimize': 'Minimizar',
@@ -632,7 +635,7 @@ const es: Dictionary = {
   'feature.shopRestock.thItem': 'Ítem',
   'feature.shopRestock.thQty': 'Cant',
   'feature.shopRestock.thSeen': 'Visto',
-  'feature.shopRestock.title': 'Restock de tienda',
+  'feature.shopRestock.title': 'Reabastecimiento de tienda',
   'feature.shopRestock.tracked': 'Rastreado',
   'feature.shopRestock.unpinHint': 'Haz clic para quitar el ítem de predicciones activas',
   'feature.shopRestock.updatedAgo': 'Actualizado hace {m}m',
@@ -640,6 +643,35 @@ const es: Dictionary = {
   'feature.shopRestock.updatedNow': 'Actualizado ahora',
   'feature.shopRestock.weatherActive': '{weather} ACTIVO',
   'feature.shopRestock.weatherOnly': 'Solo {weather}',
+
+  // ── Feature: Restock Alerts ────────────────────────────────────────────
+  'feature.restockAlert.pinnedRestocked': 'Ítem fijado reabastecido',
+  'feature.restockAlert.weatherActive': 'Evento climático activo',
+  'feature.restockAlert.dismiss': 'Descartar',
+  'feature.restockAlert.available': '{qty} disponibles',
+  'feature.restockAlert.readyToBuy': 'Listo para comprar',
+  'feature.restockAlert.activeNow': 'Activo ahora',
+  'feature.restockAlert.buyAll': 'Comprar todo',
+  'feature.restockAlert.minEvent': 'Evento de {min} min',
+  'feature.restockAlert.muteSound': 'Silenciar sonido',
+  'feature.restockAlert.unmuteSound': 'Activar sonido',
+
+  // ── Feature: Controller Labels ─────────────────────────────────────────
+  'feature.controller.label.primaryAction': 'Acción principal',
+  'feature.controller.label.back': 'Cerrar / Atrás',
+  'feature.controller.label.inventory': 'Alternar inventario',
+  'feature.controller.label.rotateDecor': 'Rotar decoración',
+  'feature.controller.label.prevHotbarSlot': 'Espacio anterior de barra',
+  'feature.controller.label.nextHotbarSlot': 'Espacio siguiente de barra',
+  'feature.controller.label.prevPetSlot': 'Mascota anterior',
+  'feature.controller.label.nextPetSlot': 'Mascota siguiente',
+  'feature.controller.label.zoomIn': 'Acercar',
+  'feature.controller.label.zoomOut': 'Alejar',
+  'feature.controller.label.cursorClick': 'Clic del cursor',
+  'feature.controller.label.openSettings': 'Ajustes de controlador',
+  'feature.controller.label.deselectSlot': 'Deseleccionar espacio de barra',
+  'feature.controller.label.nextGrowSlot': 'Siguiente espacio de cultivo (dedicado)',
+  'feature.controller.label.prevGrowSlot': 'Espacio de cultivo anterior (dedicado)',
 
   // ── Feature: Item Restock Detail ──────────────────────────────────────
   'feature.itemDetail.accuracy': 'Precisión',
@@ -929,7 +961,7 @@ const es: Dictionary = {
   'feature.abilityTracker.allHidden': 'Todas las habilidades ocultas — clic en la insignia para restaurar',
   'feature.abilityTracker.collapse': 'Colapsar habilidades',
   'feature.abilityTracker.expand': 'Expandir habilidades',
-  'feature.abilityTracker.footerHint': '¡Clic en una habilidad para mostrar/ocultar sus stats!',
+  'feature.abilityTracker.footerHint': '¡Clic en una habilidad para mostrar/ocultar sus estadísticas!',
   'feature.abilityTracker.summaryPet': '{count} mascota',
   'feature.abilityTracker.summaryPets': '{count} mascotas',
   'feature.abilityTracker.summaryAbility': '{count} habilidad',

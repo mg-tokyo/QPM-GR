@@ -14,7 +14,12 @@ import {
   getAbilityDef,
   areCatalogsReady,
   waitForCatalogs,
+  getFloraBlueprint,
+  getSlotOffsets,
+  isMultiHarvest,
+  getCropMaxScale,
 } from '../catalogs/gameCatalogs';
+import type { FloraBlueprint, SlotOffset } from '../catalogs/gameCatalogs';
 
 export { areCatalogsReady, waitForCatalogs };
 
@@ -104,4 +109,36 @@ export function getMutationName(mutationId: string): string {
   if (!areCatalogsReady()) return mutationId;
   const def = getMutation(mutationId);
   return def?.name || mutationId;
+}
+
+// ============================================================================
+// FLORA BLUEPRINT SAFE WRAPPERS
+// ============================================================================
+
+/**
+ * Get flora blueprint with fallback to null when catalogs aren't ready
+ */
+export function getFloraBlueprintSafe(species: string): FloraBlueprint | null {
+  return areCatalogsReady() ? getFloraBlueprint(species) : null;
+}
+
+/**
+ * Get slot offsets with fallback to null when catalogs aren't ready
+ */
+export function getSlotOffsetsSafe(species: string): ReadonlyArray<SlotOffset> | null {
+  return areCatalogsReady() ? getSlotOffsets(species) : null;
+}
+
+/**
+ * Check if a species is multi-harvest with safe fallback
+ */
+export function isMultiHarvestSafe(species: string): boolean {
+  return areCatalogsReady() ? isMultiHarvest(species) : false;
+}
+
+/**
+ * Get crop max scale with safe fallback
+ */
+export function getCropMaxScaleSafe(species: string): number | null {
+  return areCatalogsReady() ? getCropMaxScale(species) : null;
 }

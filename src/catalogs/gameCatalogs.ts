@@ -17,6 +17,7 @@ import type {
   PetCatalogEntry,
   PlantCatalog,
   PlantCatalogEntry,
+  PlantStageInfo,
   EggCatalog,
   EggCatalogEntry,
   ItemCatalog,
@@ -188,6 +189,154 @@ export function getSeedPrice(species: string): { coins: number; credits: number 
     coins: finiteOrZero(plant.seed.coinPrice),
     credits: finiteOrZero(plant.seed.creditPrice),
   };
+}
+
+// ============================================================================
+// FLORA BLUEPRINT ACCESS (multi-harvest plant data)
+// ============================================================================
+
+export interface SlotOffset {
+  readonly x: number;
+  readonly y: number;
+  readonly rotation: number;
+}
+
+export interface FloraBlueprint {
+  species: string;
+  harvestType: 'Single' | 'Multiple';
+  plantBaseTileScale: number;
+  slotOffsets: ReadonlyArray<SlotOffset>;
+  slotCount: number;
+  rotateSlotOffsetsRandomly: boolean;
+  tileTransformOrigin: string | null;
+  secondsToMature: number | null;
+  plantSpriteKey: string | null;
+  cropSpriteKey: string | null;
+  cropBaseTileScale: number | null;
+  cropMaxScale: number | null;
+  cropBaseWeight: number | null;
+  cropBaseSellPrice: number | null;
+}
+
+/** Type-safe number reader from untyped stage info. */
+function stageNum(stage: PlantStageInfo | undefined, key: string): number | null {
+  if (!stage) return null;
+  const v = stage[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/** Type-safe string reader from untyped stage info. */
+function stageStr(stage: PlantStageInfo | undefined, key: string): string | null {
+  if (!stage) return null;
+  const v = stage[key];
+  return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/**
+ * Build a typed FloraBlueprint from a plant catalog entry.
+ * Reads `plant` and `crop` sub-objects defensively since data comes from runtime capture.
+ */
+export function getFloraBlueprint(species: string): FloraBlueprint | null {
+  const entry = getPlantSpecies(species);
+  if (!entry) return null;
+
+  const plant = entry.plant;
+  const crop = entry.crop;
+  if (!plant) return null;
+
+  const harvestTypeRaw = stageStr(plant, 'harvestType');
+  const harvestType: 'Single' | 'Multiple' =
+    harvestTypeRaw === 'Multiple' ? 'Multiple' : 'Single';
+
+  // Validate slot offsets array
+  let slotOffsets: ReadonlyArray<SlotOffset> = [];
+  const rawSlots = plant.slotOffsets;
+  if (Array.isArray(rawSlots)) {
+    slotOffsets = rawSlots.filter(
+      (s): s is SlotOffset =>
+        s != null &&
+        typeof s === 'object' &&
+        typeof (s as Record<string, unknown>).x === 'number' &&
+        typeof (s as Record<string, unknown>).y === 'number' &&
+        typeof (s as Record<string, unknown>).rotation === 'number'
+    );
+  }
+
+  const slotCountMax = stageNum(plant, 'slotCountMax');
+  const slotCount = slotCountMax ?? slotOffsets.length;
+
+  return {
+    species,
+    harvestType,
+    plantBaseTileScale: stageNum(plant, 'baseTileScale') ?? 1,
+    slotOffsets,
+    slotCount,
+    rotateSlotOffsetsRandomly: plant.rotateSlotOffsetsRandomly === true,
+    tileTransformOrigin: stageStr(plant, 'tileTransformOrigin'),
+    secondsToMature: stageNum(crop, 'secondsToMature'),
+    plantSpriteKey: stageStr(plant, 'sprite'),
+    cropSpriteKey: stageStr(crop, 'sprite'),
+    cropBaseTileScale: stageNum(crop, 'baseTileScale'),
+    cropMaxScale: stageNum(crop, 'maxScale'),
+    cropBaseWeight: stageNum(crop, 'baseWeight'),
+    cropBaseSellPrice: stageNum(crop, 'baseSellPrice'),
+  };
+}
+
+/**
+ * Get slot offsets for a plant species.
+ */
+export function getSlotOffsets(species: string): ReadonlyArray<SlotOffset> | null {
+  const bp = getFloraBlueprint(species);
+  return bp?.slotOffsets ?? null;
+}
+
+/**
+ * Check if a plant species is multi-harvest.
+ */
+export function isMultiHarvest(species: string): boolean {
+  const bp = getFloraBlueprint(species);
+  return bp?.harvestType === 'Multiple';
+}
+
+/**
+ * Get the max scale for a crop species from the runtime catalog.
+ */
+export function getCropMaxScale(species: string): number | null {
+  const bp = getFloraBlueprint(species);
+  return bp?.cropMaxScale ?? null;
+}
+
+/**
+ * Get the plant base tile scale from the runtime catalog.
+ */
+export function getPlantBaseTileScale(species: string): number | null {
+  const bp = getFloraBlueprint(species);
+  return bp ? bp.plantBaseTileScale : null;
+}
+
+/**
+ * Get the crop base sell price from the runtime catalog.
+ */
+export function getCropBaseSellPrice(species: string): number | null {
+  const bp = getFloraBlueprint(species);
+  return bp?.cropBaseSellPrice ?? null;
+}
+
+/**
+ * Get the crop base weight from the runtime catalog.
+ */
+export function getCropBaseWeight(species: string): number | null {
+  const bp = getFloraBlueprint(species);
+  return bp?.cropBaseWeight ?? null;
+}
+
+/**
+ * Get seconds to mature for a crop species from the runtime catalog.
+ */
+export function getSecondsToMature(species: string): number | null {
+  const bp = getFloraBlueprint(species);
+  return bp?.secondsToMature ?? null;
 }
 
 // ============================================================================

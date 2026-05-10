@@ -14,7 +14,8 @@
 
 import type { Action, CursorSpeed } from '../../features/controller/bindings';
 import {
-  ACTION_LABELS,
+  ALL_ACTIONS,
+  getActionLabel,
   DEFAULT_BINDINGS,
   loadBindings,
   saveBindings,
@@ -319,7 +320,7 @@ export function createControllerSection(
       .sort((a, b) => a[0] - b[0]);
 
     const boundActionSet = new Set(boundEntries.map(([, a]) => a));
-    const unboundActions = (Object.keys(ACTION_LABELS) as Action[])
+    const unboundActions = (ALL_ACTIONS as readonly Action[])
       .filter((a) => !boundActionSet.has(a));
 
     const hasContextNote = boundEntries.some(([, a]) => CONTEXT_SENSITIVE_ACTIONS.has(a));
@@ -340,7 +341,7 @@ export function createControllerSection(
         'transition:color 0.15s',
         'vertical-align:middle',
       ].join(';');
-      tdAction.innerHTML = ACTION_LABELS[action] +
+      tdAction.innerHTML = getActionLabel(action) +
         (CONTEXT_SENSITIVE_ACTIONS.has(action)
           ? `<span style="font-size:10px;color:#666;margin-left:4px;vertical-align:super;line-height:0;">†</span>`
           : '');
@@ -414,7 +415,7 @@ export function createControllerSection(
           'vertical-align:middle',
         ].join(';');
         const isChordAlso = action === CHORD_ONLY_ACTION;
-        tdAction.textContent = ACTION_LABELS[action];
+        tdAction.textContent = getActionLabel(action);
         if (isChordAlso) {
           const sub = document.createElement('span');
           sub.style.cssText = 'display:block;font-size:11px;color:#444;font-style:italic;margin-top:1px;';

@@ -506,10 +506,51 @@ export function getMultiHarvestSpriteDataUrlWithMutations(
 }
 
 /**
+ * Render a canvas by exact atlas sprite key (e.g. "sprite/plant/SproutFruit").
+ * Uses the "any" category for direct key lookup. Supports mutation overlays.
+ */
+export function renderBySpriteKey(spriteKey: string, mutations: string[] = []): HTMLCanvasElement | null {
+  if (!spriteKey) return null;
+  const normalizedMuts = normalizeMutations(mutations);
+  return tryRenderCanvas('any', spriteKey, normalizedMuts);
+}
+
+/**
+ * Render fruit sprite canvas using MULTIHARVEST_CATEGORIES order.
+ * Returns the crop/fruit sprite for a multi-harvest species (e.g. a strawberry fruit, not the bush).
+ */
+export function getMultiHarvestSpriteCanvas(
+  species: string | number,
+  mutations: string[] = []
+): HTMLCanvasElement | null {
+  const id = normalizeSpeciesName(species);
+  const normalizedMuts = normalizeMutations(mutations);
+  return renderAcrossCategories(MULTIHARVEST_CATEGORIES, id, normalizedMuts, true);
+}
+
+/**
+ * Look up PIXI texture anchor by sprite key. Returns {x, y} or null.
+ * Sprite keys follow the pattern "sprite/plant/Strawberry", "sprite/crop/Strawberry", etc.
+ */
+export function getTextureAnchor(
+  spriteKey: string
+): { x: number; y: number } | null {
+  if (!service) return null;
+  const tex = service.state.tex.get(spriteKey);
+  if (!tex) return null;
+  const anchor = tex.defaultAnchor;
+  if (anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number') {
+    return { x: anchor.x, y: anchor.y };
+  }
+  return null;
+}
+
+/**
  * Composite sprite: plant base (bush/tree) + N fruit canvases at slotOffsets.
  * Used to replicate in-game tile appearance for multi-harvest plants.
  * Returns null if sprites aren't ready or species is unknown.
  * Offsets are normalized (multiply × 256 for pixels, matching TILE_SIZE_WORLD).
+ * @deprecated Use stitchPlantSprite from sprite-v2/stitcher.ts instead.
  */
 export function stitchMultiHarvestCanvas(
   species: string,

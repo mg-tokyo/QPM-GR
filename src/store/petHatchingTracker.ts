@@ -34,10 +34,13 @@ interface PetInfo {
  *  Intentionally does NOT fall back to pet.name/displayName — those are user renames. */
 function extractSpecies(pet: PetInfo): string | null {
   const slot = pet.slot ?? {};
+  const nested = (slot.pet ?? pet.pet) as Record<string, unknown> | undefined;
   const candidates = [
     pet.species,
     slot.species,
     slot.petSpecies,
+    nested?.species,
+    nested?.petSpecies,
     pet.petSpecies,
   ];
   for (const value of candidates) {
@@ -162,8 +165,8 @@ function detectNewPets(pets: PetInfo[]): void {
 
   for (const pet of pets) {
     const species = extractSpecies(pet);
-    // Create stable pet ID - use actual ID or create a stable fallback based on pet properties
-    const petId = pet.id || `${species || 'unknown'}-${pet.name || 'unnamed'}-${pet.targetScale || 1}`;
+    // Stable pet ID — prefer real ID; fallback avoids mutable fields like name
+    const petId = pet.id || `${species || 'unknown'}-${pet.targetScale ?? 1}`;
     currentPetIds.add(petId);
 
     // Check if this is a new pet (not seen before)
@@ -179,13 +182,14 @@ function detectNewPets(pets: PetInfo[]): void {
     }
   }
 
-  // Update known pets
-  knownPetIds = currentPetIds;
-
-  // Save to storage if new pets were detected
-  if (newPetsDetected) {
-    saveKnownPetIds();
+  // Grow-only union — never shrink knownPetIds so pets that leave the
+  // atom (sold, swapped, hutched) are not re-counted when they return.
+  for (const id of currentPetIds) {
+    knownPetIds.add(id);
   }
+
+  // Persist after every update so the set survives reloads monotonically
+  saveKnownPetIds();
 }
 
 function processPetData(value: unknown): void {
@@ -219,7 +223,7 @@ export async function startPetHatchingTracker(): Promise<void> {
           const pets = extractPetInfos(value);
           for (const pet of pets) {
             const species = extractSpecies(pet);
-            const petId = pet.id || `${species || 'unknown'}-${pet.name || 'unnamed'}-${pet.targetScale || 1}`;
+            const petId = pet.id || `${species || 'unknown'}-${pet.targetScale ?? 1}`;
             knownPetIds.add(petId);
           }
           // Save the initial state
