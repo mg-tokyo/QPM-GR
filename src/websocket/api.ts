@@ -17,6 +17,7 @@ export type RoomActionType =
   | 'PurchaseShopItem'
   | 'SwapPet'
   | 'XPPotion'
+  | 'ReplenishPotion'
   | 'LogItems'
   | 'RequestPetGreet';
 
@@ -163,6 +164,7 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       return isNonEmptyString(p.petSlotId) && isNonEmptyString(p.petInventoryId);
     }
     case 'XPPotion':
+    case 'ReplenishPotion':
       return isNonEmptyString(payload.petItemId);
     case 'LogItems':
       return true;
@@ -200,6 +202,7 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'SwapPet':
       return `${type}:${String(payload.petSlotId ?? '')}:${String(payload.petInventoryId ?? '')}`;
     case 'XPPotion':
+    case 'ReplenishPotion':
       return `${type}:${String(payload.petItemId ?? '')}`;
     case 'LogItems':
       return type;

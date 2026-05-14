@@ -8,6 +8,7 @@ import { getGardenSnapshot } from '../gardenBridge';
 import { getSellAllPetsSettings } from '../sellAllPets';
 import { getPetMetadata } from '../../data/petMetadata';
 import { calculateMaxStrength } from '../../store/xpTracker';
+import { getCropMaxScaleSafe } from '../../utils/catalogHelpers';
 import { getLockerConfig } from './state';
 import { evaluateAction, type InventorySnapshot, type TileContext } from './rules';
 import type { GuardResult } from './types';
@@ -174,12 +175,44 @@ function resolveTileContext(slot: unknown, slotsIndex?: unknown): TileContext | 
     }
   }
 
+  // Size percent: convert targetScale → 50–100% using species maxScale
+  let sizePercent: number | undefined;
+  if (species && Array.isArray(tile.slots)) {
+    let targetSlotForSize: Record<string, unknown> | undefined;
+    if (typeof slotsIndex === 'number' && Number.isFinite(slotsIndex)) {
+      for (const s of tile.slots) {
+        if (isRecord(s) && s.slotId === slotsIndex) { targetSlotForSize = s; break; }
+      }
+    }
+    if (!targetSlotForSize && tile.slots.length > 0 && isRecord(tile.slots[0])) {
+      targetSlotForSize = tile.slots[0] as Record<string, unknown>;
+    }
+    if (targetSlotForSize) {
+      const scale = typeof targetSlotForSize.targetScale === 'number' ? targetSlotForSize.targetScale : null;
+      if (scale !== null && Number.isFinite(scale)) {
+        const maxScale = getCropMaxScaleSafe(species);
+        if (maxScale !== null && maxScale > 1) {
+          const clamped = Math.max(1, Math.min(maxScale, scale));
+          sizePercent = Math.max(50, Math.min(100, Math.round(50 + ((clamped - 1) / (maxScale - 1)) * 50)));
+        }
+      }
+    }
+  }
+
   // For decor tiles, the objectType itself is the decor ID
   if (objectType && objectType !== 'plant' && objectType !== 'egg') {
     decorId = objectType;
   }
 
-  return { objectType, species, eggId, decorId, mutations };
+  // Build result without undefined values (exactOptionalPropertyTypes)
+  const ctx: TileContext = {};
+  if (objectType !== undefined) ctx.objectType = objectType;
+  if (species !== undefined) ctx.species = species;
+  if (eggId !== undefined) ctx.eggId = eggId;
+  if (decorId !== undefined) ctx.decorId = decorId;
+  if (mutations !== undefined) ctx.mutations = mutations;
+  if (sizePercent !== undefined) ctx.sizePercent = sizePercent;
+  return ctx;
 }
 
 // ── Pet sell guard ────────────────────────────────────────────────────────

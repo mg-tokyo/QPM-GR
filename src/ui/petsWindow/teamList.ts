@@ -86,6 +86,15 @@ export function renderTeamList(ctx: ManagerContext): void {
 
   const filtered = config.teams.filter((team) => !term || team.name.toLowerCase().includes(term));
 
+  // Pin active team to top for quick access
+  if (detectedId) {
+    const activeIdx = filtered.findIndex((t) => t.id === detectedId);
+    if (activeIdx > 0) {
+      const active = filtered.splice(activeIdx, 1)[0];
+      if (active) filtered.unshift(active);
+    }
+  }
+
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'padding:20px;text-align:center;color:rgba(224,224,224,0.3);font-size:12px;';

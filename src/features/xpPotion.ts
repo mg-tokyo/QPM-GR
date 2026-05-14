@@ -1,111 +1,19 @@
 // src/features/xpPotion.ts — XP Potion feature (inventory check, eligibility, WS send, ghost-step)
 
-import { getInventoryItems, onInventoryChange } from '../store/inventory';
 import { calculateMaxStrength } from '../store/xpTracker';
 import { sendRoomAction, type WebSocketSendResult } from '../websocket/api';
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { ghostStepToPet } from '../utils/ghostStep';
+import { getToolCount, onToolCountChange } from '../utils/toolInventory';
 import type { ActivePetInfo } from '../store/pets';
 
-// ---------------------------------------------------------------------------
-// Position resolution (for ghost-step XP Potion)
-// ---------------------------------------------------------------------------
-
-interface XY { x: number; y: number }
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object';
-}
-
-function asXY(v: unknown): XY | null {
-  if (!isRecord(v)) return null;
-  const x = v.x, y = v.y;
-  if (typeof x !== 'number' || !Number.isFinite(x)) return null;
-  if (typeof y !== 'number' || !Number.isFinite(y)) return null;
-  return { x: Math.round(x), y: Math.round(y) };
-}
-
-/**
- * Compute a pet's current grid tile from its motion state.
- * Simplified port of the game's `petTileAt(motion, nowMs)`.
- */
-function petTileFromMotion(motion: unknown): XY | null {
-  if (!isRecord(motion)) return null;
-
-  if (motion.kind === 'idle') {
-    return asXY(motion.at);
-  }
-
-  if (motion.kind === 'walking') {
-    const path = motion.path as unknown[];
-    const stepMs = motion.stepDurationMs as number;
-    const startMs = motion.startedAtMs as number;
-    if (!Array.isArray(path) || !path.length || typeof stepMs !== 'number' || typeof startMs !== 'number') return null;
-
-    const elapsed = Math.max(0, Date.now() - startMs);
-    const stepIdx = Math.min(Math.floor(elapsed / stepMs), path.length - 1);
-    return asXY(path[stepIdx]);
-  }
-
-  return null;
-}
-
-/**
- * Read the player's current grid position from `playerAtom`.
- */
-async function getPlayerPosition(): Promise<XY | null> {
-  const atom = getAtomByLabel('playerAtom');
-  if (!atom) return null;
-  const player = await readAtomValue<unknown>(atom).catch(() => null);
-  if (!isRecord(player)) return null;
-
-  for (const key of ['position', 'coords', 'playerPosition', 'location'] as const) {
-    const pos = asXY(player[key]);
-    if (pos) return pos;
-  }
-  return null;
-}
-
-/**
- * Read a pet's current grid position from `stateAtom → child.data.userSlots → petSlotInfos`.
- */
-async function getPetPosition(petSlotId: string): Promise<XY | null> {
-  const atom = getAtomByLabel('stateAtom');
-  if (!atom) return null;
-  const state = await readAtomValue<unknown>(atom).catch(() => null);
-  if (!isRecord(state)) return null;
-
-  const child = state.child;
-  if (!isRecord(child)) return null;
-  const data = child.data;
-  if (!isRecord(data)) return null;
-  const userSlots = data.userSlots;
-  if (!Array.isArray(userSlots)) return null;
-
-  for (const slot of userSlots) {
-    if (!isRecord(slot)) continue;
-    const infos = slot.petSlotInfos;
-    if (!isRecord(infos)) continue;
-    const info = infos[petSlotId];
-    if (!isRecord(info)) continue;
-    const pos = petTileFromMotion(info.motion);
-    if (pos) return pos;
-  }
-  return null;
-}
+const XP_POTION_TOOL_ID = 'XPPotion';
 
 /**
  * Get the current number of XP potions in the player's inventory.
  * Looks for items where `raw.toolId === 'XPPotion'`.
  */
 export function getXpPotionCount(): number {
-  const items = getInventoryItems();
-  for (const item of items) {
-    const raw = item.raw as Record<string, unknown> | null;
-    if (raw && raw.toolId === 'XPPotion') {
-      return item.quantity ?? item.count ?? item.amount ?? 1;
-    }
-  }
-  return 0;
+  return getToolCount(XP_POTION_TOOL_ID);
 }
 
 /**
@@ -113,15 +21,7 @@ export function getXpPotionCount(): number {
  * actually differs from the previous value. Returns an unsubscribe function.
  */
 export function onXpPotionCountChange(cb: (count: number) => void): () => void {
-  let lastCount = getXpPotionCount();
-
-  return onInventoryChange(() => {
-    const current = getXpPotionCount();
-    if (current !== lastCount) {
-      lastCount = current;
-      cb(current);
-    }
-  });
+  return onToolCountChange(XP_POTION_TOOL_ID, cb);
 }
 
 /**
@@ -196,24 +96,12 @@ export function projectXpPotion(
  * the action directly (the server will reject if not on the same tile).
  */
 export async function sendUseXpPotion(petSlotId: string): Promise<WebSocketSendResult> {
-  const [playerPos, petPos] = await Promise.all([
-    getPlayerPosition(),
-    getPetPosition(petSlotId),
-  ]);
-
-  const onSameTile = playerPos && petPos &&
-    playerPos.x === petPos.x && playerPos.y === petPos.y;
-
-  // Ghost-step: teleport to pet's tile before sending XPPotion
-  if (petPos && !onSameTile) {
-    sendRoomAction('PlayerPosition', { position: petPos }, { skipThrottle: true });
-  }
+  const step = await ghostStepToPet(petSlotId);
 
   const result = sendRoomAction('XPPotion', { petItemId: petSlotId }, { throttleMs: 200 });
 
-  // Step back to original position
-  if (petPos && !onSameTile && playerPos) {
-    sendRoomAction('PlayerPosition', { position: playerPos }, { skipThrottle: true });
+  if (step) {
+    step.stepBack();
   }
 
   return result;

@@ -11,8 +11,10 @@ import {
   getPetFoodRules,
   type FoodSelection,
   type SpeciesOverride,
+  type EligibleFoodEntry,
 } from './petFoodRules';
 import { hasRoomConnection, sendRoomAction } from '../websocket/api';
+import { isHungerPotionSelection, sendUseHungerPotion } from './hungerPotion';
 
 export interface InstantFeedResult {
   success: boolean;
@@ -54,6 +56,7 @@ export interface InstantFeedPlan {
   avoidFavorited: boolean;
   availableCount: number;
   foodSelection: FoodSelection | null;
+  eligibleFoods: EligibleFoodEntry[];
   error?: string;
 }
 
@@ -140,6 +143,7 @@ function makeMissingPetPlan(petIndex: number, error: string): InstantFeedPlan {
     avoidFavorited: true,
     availableCount: 0,
     foodSelection: null,
+    eligibleFoods: [],
     error,
   };
 }
@@ -167,6 +171,7 @@ async function buildPlanForPet(
       avoidFavorited: rules.avoidFavorited,
       availableCount: 0,
       foodSelection: null,
+      eligibleFoods: [],
       error: 'No feedable produce found in inventory',
     };
   }
@@ -192,6 +197,7 @@ async function buildPlanForPet(
     avoidFavorited: rules.avoidFavorited,
     availableCount: availability.availableCount,
     foodSelection: availability.selected,
+    eligibleFoods: availability.eligibleFoods,
     ...(availability.selected ? {} : { error: 'No suitable food found in inventory' }),
   };
 }
@@ -206,7 +212,7 @@ function resultFromPlanFailure(plan: InstantFeedPlan): InstantFeedResult {
   };
 }
 
-function executeFeedPlan(plan: InstantFeedPlan): InstantFeedResult {
+async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult> {
   if (!plan.ok || !plan.foodSelection) {
     return resultFromPlanFailure(plan);
   }
@@ -218,6 +224,33 @@ function executeFeedPlan(plan: InstantFeedPlan): InstantFeedResult {
       petSpecies: plan.petSpecies,
       foodSpecies: null,
       error: 'Pet has no petId (UUID)',
+    };
+  }
+
+  // Hunger potion branch: ghost-step + ReplenishPotion instead of FeedPet
+  if (isHungerPotionSelection(plan.foodSelection) && plan.slotId) {
+    log(
+      `Attempting to use Replenish Potion on ${plan.petName || plan.petSpecies || 'pet'} ` +
+      `(rules: ${plan.respectFoodRules ? 'on' : 'off'})`,
+    );
+
+    const result = await sendUseHungerPotion(plan.slotId);
+    if (!result.ok) {
+      return {
+        success: false,
+        petName: plan.petName,
+        petSpecies: plan.petSpecies,
+        foodSpecies: 'Replenish Potion',
+        error: `Failed to send ReplenishPotion (${result.reason ?? 'unknown'})`,
+      };
+    }
+
+    log(`Used Replenish Potion on ${plan.petName || plan.petSpecies || 'pet'}`);
+    return {
+      success: true,
+      petName: plan.petName,
+      petSpecies: plan.petSpecies,
+      foodSpecies: 'Replenish Potion',
     };
   }
 
@@ -325,7 +358,7 @@ export async function feedPetInstantly(
 ): Promise<InstantFeedResult> {
   try {
     const plan = await getInstantFeedPlan(petSlotOrIndex, respectFoodRules);
-    return executeFeedPlan(plan);
+    return await executeFeedPlan(plan);
   } catch (error) {
     log('Instant feed error', error);
     return {
@@ -344,7 +377,7 @@ export async function feedPetInstantlyByPetId(
 ): Promise<InstantFeedResult> {
   try {
     const plan = await getInstantFeedPlanByPetId(petId, respectFoodRules);
-    return executeFeedPlan(plan);
+    return await executeFeedPlan(plan);
   } catch (error) {
     log('Instant feed error', error);
     return {
@@ -363,7 +396,7 @@ export async function feedPetInstantlyBySlotId(
 ): Promise<InstantFeedResult> {
   try {
     const plan = await getInstantFeedPlanBySlotId(slotId, respectFoodRules);
-    return executeFeedPlan(plan);
+    return await executeFeedPlan(plan);
   } catch (error) {
     log('Instant feed error', error);
     return {
@@ -508,6 +541,7 @@ async function buildPlanExcluding(
       avoidFavorited: rules.avoidFavorited,
       availableCount: 0,
       foodSelection: null,
+      eligibleFoods: [],
       error: 'No feedable produce found in inventory',
     };
   }
@@ -533,6 +567,7 @@ async function buildPlanExcluding(
     avoidFavorited: rules.avoidFavorited,
     availableCount: availability.availableCount,
     foodSelection: availability.selected,
+    eligibleFoods: availability.eligibleFoods,
     ...(availability.selected ? {} : { error: 'No suitable food found in inventory' }),
   };
 }
@@ -564,7 +599,7 @@ async function drainQueue(): Promise<void> {
       }
 
       const plan = await buildPlanExcluding(pet, claimedCropIds);
-      const result = executeFeedPlan(plan);
+      const result = await executeFeedPlan(plan);
 
       if (result.success && plan.foodSelection?.item.id) {
         claimedCropIds.add(plan.foodSelection.item.id);

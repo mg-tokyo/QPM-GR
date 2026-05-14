@@ -18,15 +18,19 @@ import {
   makeLockTile, makeMutationTile, makeAccentTile, buildRarityGrid,
 } from './lockerPrimitives';
 import { buildCustomRulesCard } from './lockerCustomRules';
+import { buildHarvestFilterCard } from './lockerHarvestFilters';
+import { buildCropOverridesCard } from './lockerCropOverrides';
+import { createInventoryCapacitySection } from './inventoryCapacitySection';
 import { t } from '../../i18n';
+import { log } from '../../utils/logger';
 
-// ── Plants Panel ────────────────────────────────────────────────────────────
+// ── Garden QOL Panel ────────────────────────────────────────────────────────
 
-export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): HTMLElement {
+export function buildGardenQolPanel(config: LockerConfig): HTMLElement {
   const panel = document.createElement('div');
   panel.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
-  // Insta-Harvest card — skip hold-to-harvest delay for Rainbow/Gold plants
+  // 1. Insta-Harvest card
   const { root: instaRoot, body: instaBody } = createCard(t('feature.locker.instaHarvest'), { collapsible: true });
   instaBody.appendChild(makeHint(t('feature.locker.instaHarvestHint')));
   const instaGrid = makeGrid();
@@ -69,8 +73,9 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   });
   rateWrap.append(rateHeader, rateSlider);
   instaBody.appendChild(rateWrap);
+  panel.appendChild(instaRoot);
 
-  // Hold Contexts card
+  // 2. Hold Contexts card
   const { root: ctxRoot, body: ctxBody } = createCard(t('feature.locker.holdContexts'), { collapsible: true, startCollapsed: true });
   ctxBody.appendChild(makeHint(t('feature.locker.holdContextsHint')));
   const ctxKeys: Array<{ key: keyof typeof config.holdContexts; label: string }> = [
@@ -81,23 +86,50 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
     { key: 'hatch',   label: t('feature.locker.ctx.hatch') },
     { key: 'other',   label: t('feature.locker.ctx.other') },
   ];
-  for (const { key, label } of ctxKeys) {
-    ctxBody.appendChild(makeToggleRow(label, config.holdContexts[key], (v) => {
+  for (const { key, label: ctxLabel } of ctxKeys) {
+    ctxBody.appendChild(makeToggleRow(ctxLabel, config.holdContexts[key], (v) => {
       const cur = getLockerConfig();
       updateLockerConfig({ holdContexts: { ...cur.holdContexts, [key]: v } });
     }));
   }
-  panel.appendChild(instaRoot);
   panel.appendChild(ctxRoot);
 
+  // 3. Inventory Capacity card (embedded from inventoryCapacitySection)
+  try {
+    panel.appendChild(createInventoryCapacitySection());
+  } catch (err) {
+    log('[Locker] Failed to load Inventory Capacity', err);
+  }
+
+  // 4. Inventory Reserve card
+  panel.appendChild(buildInventoryReserveCard(config));
+
+  return panel;
+}
+
+// ── Plants Panel ────────────────────────────────────────────────────────────
+
+export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): HTMLElement {
+  const panel = document.createElement('div');
+  panel.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+
+  // 1. Harvest Filter card (expanded by default)
+  panel.appendChild(buildHarvestFilterCard(config));
+
+  // 2. Crop Overrides card (collapsed by default)
+  panel.appendChild(buildCropOverridesCard(config, eligible));
+
+  // 3. Quick Locks card (plant/mutation locks + blanket harvest lock)
   const blockAllCb = makeBlockAllCheckbox(t('feature.locker.blockAll'), config.harvestLock, (v) => {
     updateLockerConfig({ harvestLock: v });
   });
 
-  const { root: lockerRoot, body: lockerBody } = createCard(t('feature.locker.plantLocker'), {
+  const { root: lockerRoot, body: lockerBody } = createCard(t('feature.locker.filter.quickLocks'), {
     collapsible: true,
+    startCollapsed: true,
     headerActions: [blockAllCb],
   });
+  lockerBody.appendChild(makeHint(t('feature.locker.filter.quickLocksHint')));
 
   const showAllBtn = makeShowAllToggle((showAll) => rebuildPlantGrid(showAll));
   lockerBody.appendChild(showAllBtn);
@@ -158,7 +190,7 @@ export function buildPlantsPanel(config: LockerConfig, eligible: EligibleData): 
   if (!config.enabled) lockerRoot.style.opacity = '0.55';
   panel.appendChild(lockerRoot);
 
-  // Custom Rules card
+  // 4. Custom Rules card
   panel.appendChild(buildCustomRulesCard(config, eligible));
 
   return panel;

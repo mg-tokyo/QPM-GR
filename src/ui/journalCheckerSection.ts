@@ -178,7 +178,7 @@ const PET_LAYOUT_ORDER = [
   // Legendary
   'Squirrel', 'Turtle', 'Goat', 'Snow Fox', 'Stoat', 'White Caribou', 'Pony', 'Sheep', 'Horse',
   // Mythic
-  'Hedgehog', 'Fire Horse', 'Butterfly', 'Peacock', 'Capybara',
+  'Hedgehog', 'Fire Horse', 'Butterfly', 'Peacock', 'Capybara', 'Ostrich',
 ];
 const PET_LAYOUT_INDEX = new Map(PET_LAYOUT_ORDER.map((name, idx) => [name.toLowerCase().replace(/[^a-z0-9]/g, ''), idx]));
 

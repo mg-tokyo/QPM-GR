@@ -348,6 +348,130 @@ export function forEachRarityGroup(
   }
 }
 
+// ── Segmented control ─────────────────────────────────────────────────────
+
+export interface SegmentOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+export function makeSegmentedControl<T extends string>(
+  options: SegmentOption<T>[],
+  selected: T,
+  onChange: (value: T) => void,
+): { root: HTMLElement; setSelected: (value: T) => void } {
+  const root = document.createElement('div');
+  root.style.cssText = `display:flex;border-radius:8px;overflow:hidden;border:1px solid ${UNLOCKED_BORDER}`;
+
+  let current = selected;
+  const buttons = new Map<T, HTMLButtonElement>();
+
+  const applyState = (): void => {
+    for (const [val, btn] of buttons) {
+      const active = val === current;
+      btn.style.background = active ? ACCENT_RAW : 'transparent';
+      btn.style.color = active ? '#fff' : TEXT_MUTED as string;
+      btn.style.fontWeight = active ? '700' : '500';
+    }
+  };
+
+  for (const opt of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = opt.label;
+    btn.style.cssText = `flex:1;padding:6px 4px;border:none;font-size:11px;cursor:pointer;transition:background .12s,color .12s;background:transparent;color:${TEXT_MUTED}`;
+    btn.addEventListener('click', () => {
+      if (opt.value === current) return;
+      current = opt.value;
+      applyState();
+      onChange(opt.value);
+    });
+    buttons.set(opt.value, btn);
+    root.appendChild(btn);
+  }
+
+  applyState();
+
+  const setSelected = (value: T): void => { current = value; applyState(); };
+  return { root, setSelected };
+}
+
+// ── Dual range slider ─────────────────────────────────────────────────────
+
+export function makeDualRangeSlider(
+  min: number,
+  max: number,
+  valueLow: number,
+  valueHigh: number,
+  onChange: (low: number, high: number) => void,
+): { root: HTMLElement; setValues: (low: number, high: number) => void } {
+  const root = document.createElement('div');
+  root.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+
+  let curLow = valueLow;
+  let curHigh = valueHigh;
+
+  const labelRow = document.createElement('div');
+  labelRow.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;padding:0 2px';
+  const lowLabel = document.createElement('span');
+  lowLabel.style.cssText = `color:${ACCENT}`;
+  const highLabel = document.createElement('span');
+  highLabel.style.cssText = `color:${ACCENT}`;
+  labelRow.append(lowLabel, highLabel);
+
+  const updateLabels = (): void => {
+    lowLabel.textContent = `Min: ${curLow}%`;
+    highLabel.textContent = `Max: ${curHigh}%`;
+  };
+
+  const sliderLow = document.createElement('input');
+  sliderLow.type = 'range';
+  sliderLow.min = String(min);
+  sliderLow.max = String(max);
+  sliderLow.step = '1';
+  sliderLow.value = String(curLow);
+  sliderLow.style.cssText = 'width:100%;cursor:pointer';
+
+  const sliderHigh = document.createElement('input');
+  sliderHigh.type = 'range';
+  sliderHigh.min = String(min);
+  sliderHigh.max = String(max);
+  sliderHigh.step = '1';
+  sliderHigh.value = String(curHigh);
+  sliderHigh.style.cssText = 'width:100%;cursor:pointer';
+
+  sliderLow.addEventListener('input', () => {
+    let val = Number(sliderLow.value);
+    if (val >= curHigh) val = curHigh - 1;
+    curLow = Math.max(min, val);
+    sliderLow.value = String(curLow);
+    updateLabels();
+  });
+  sliderLow.addEventListener('change', () => onChange(curLow, curHigh));
+
+  sliderHigh.addEventListener('input', () => {
+    let val = Number(sliderHigh.value);
+    if (val <= curLow) val = curLow + 1;
+    curHigh = Math.min(max, val);
+    sliderHigh.value = String(curHigh);
+    updateLabels();
+  });
+  sliderHigh.addEventListener('change', () => onChange(curLow, curHigh));
+
+  updateLabels();
+  root.append(labelRow, sliderLow, sliderHigh);
+
+  const setValues = (low: number, high: number): void => {
+    curLow = low;
+    curHigh = high;
+    sliderLow.value = String(low);
+    sliderHigh.value = String(high);
+    updateLabels();
+  };
+
+  return { root, setValues };
+}
+
 /** Build a rarity-grouped grid of lock tiles for plant species. */
 export function buildRarityGrid(
   speciesList: string[],

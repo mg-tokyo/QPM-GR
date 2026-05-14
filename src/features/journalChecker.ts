@@ -4,7 +4,7 @@
 
 import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
-import { getAllPlantSpecies, getAllPetSpecies, getAllMutations, areCatalogsReady } from '../catalogs/gameCatalogs';
+import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog } from '../catalogs/gameCatalogs';
 
 const JOURNAL_DEBUG_LOGS = false;
 const jdbg = (...args: unknown[]): void => {
@@ -32,14 +32,28 @@ const resolveProduceKey = (raw: string): string => {
   return key;
 };
 
-const VARIANT_KEY_ALIASES: Record<string, string> = {
-  amberlit: 'amberlit',
-  ambershine: 'amberlit',
-};
+let cachedVariantAliases: Record<string, string> | null = null;
+
+function getVariantKeyAliases(): Record<string, string> {
+  if (cachedVariantAliases) return cachedVariantAliases;
+  const aliases: Record<string, string> = {};
+  const mutCatalog = getMutationCatalog();
+  if (!mutCatalog) return aliases;
+  for (const [key, entry] of Object.entries(mutCatalog)) {
+    const name = entry.name || key;
+    const nKey = normalizeKey(key);
+    const nName = normalizeKey(name);
+    aliases[nKey] = nName;
+    aliases[nName] = nName;
+  }
+  cachedVariantAliases = aliases;
+  return aliases;
+}
 
 const resolveVariantKey = (raw: string): string => {
   const key = normalizeKey(raw);
-  return VARIANT_KEY_ALIASES[key] ?? key;
+  const aliases = getVariantKeyAliases();
+  return aliases[key] ?? key;
 };
 
 // ============================================================================
@@ -91,34 +105,26 @@ export type JournalSummary = {
 function getProduceCatalog(): Record<string, string[]> {
   const catalog: Record<string, string[]> = {};
 
-  // Return empty if catalogs aren't ready yet
-  if (!areCatalogsReady()) {
-    return catalog;
-  }
+  // Check the catalogs this function actually needs
+  const mutCatalog = getMutationCatalog();
+  const species = getAllPlantSpecies(); // returns [] if plantCatalog is null
+  if (!mutCatalog || species.length === 0) return catalog;
 
-  // Build variant list dynamically from catalog
+  // Build variant list dynamically using display names from mutation catalog
   const variants: string[] = ['Normal'];
 
-  // Get all mutation names from catalog and add them ALL (FUTUREPROOF!)
-  const mutations = getAllMutations(); // Already returns string[]
-
-  // Add all mutations from catalog (auto-discovers new mutations!)
-  for (const mutationName of mutations) {
-    // Ensure it's a string and skip MaxWeight
-    if (typeof mutationName !== 'string') continue;
-    if (mutationName.toLowerCase().includes('maxweight')) continue;
-    variants.push(mutationName);
+  for (const [key, entry] of Object.entries(mutCatalog)) {
+    if (key.toLowerCase().includes('maxweight')) continue;
+    const displayName = entry.name || key;
+    variants.push(displayName);
   }
 
   // Add max weight (always present in journal system)
   variants.push('Max Weight');
 
-  // Get all plant species from catalog
-  const species = getAllPlantSpecies();
-
   // Assign variants to all species
   for (const speciesName of species) {
-    catalog[speciesName] = variants.slice(); // Use slice() to create a copy
+    catalog[speciesName] = variants.slice();
   }
 
   return catalog;
@@ -133,8 +139,9 @@ const PET_JOURNAL_VARIANTS = ['Normal', 'Gold', 'Rainbow', 'Max Weight'] as cons
  */
 function getPetCatalog(): Record<string, string[]> {
   const catalog: Record<string, string[]> = {};
-  if (!areCatalogsReady()) return catalog;
-  for (const speciesName of getAllPetSpecies()) {
+  const species = getAllPetSpecies(); // returns [] if petCatalog is null
+  if (species.length === 0) return catalog;
+  for (const speciesName of species) {
     catalog[speciesName] = [...PET_JOURNAL_VARIANTS];
   }
   return catalog;

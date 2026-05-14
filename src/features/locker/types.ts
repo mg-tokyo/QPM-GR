@@ -20,6 +20,32 @@ export interface HoldContexts {
   other: boolean;     // any unrecognized action context
 }
 
+// ── Harvest Filter types ──────────────────────────────────────────────────
+
+export type ScaleLockMode = 'RANGE' | 'MINIMUM' | 'MAXIMUM' | 'NONE';
+export type FilterMode = 'LOCK' | 'ALLOW';
+export type WeatherFilterMode = 'ANY' | 'ALL' | 'RECIPES';
+
+export interface HarvestFilterSettings {
+  filterMode: FilterMode;         // LOCK = block matching, ALLOW = only allow matching
+  scaleLockMode: ScaleLockMode;
+  minScalePct: number;            // 50–100
+  maxScalePct: number;            // 51–100
+  colorGold: boolean;             // match Gold mutation
+  colorRainbow: boolean;          // match Rainbow mutation
+  colorNormal: boolean;           // match Normal (no Gold/Rainbow)
+  weatherMode: WeatherFilterMode; // ANY = any tag, ALL = all tags, RECIPES = combo groups
+  weatherTags: string[];          // for ANY/ALL modes
+  weatherRecipes: string[][];     // for RECIPES: each sub-array is AND, arrays are OR'd
+}
+
+export interface CropOverride {
+  enabled: boolean;
+  settings: HarvestFilterSettings;
+}
+
+// ── Main config ───────────────────────────────────────────────────────────
+
 export interface LockerConfig {
   enabled: boolean;              // master switch (off by default)
   inventoryReserve: InventoryReserveConfig;
@@ -39,6 +65,9 @@ export interface LockerConfig {
   ariesHold: boolean;            // rapid-fire hold mode (hold Space → repeat at N Hz)
   holdRateHz: number;            // hold repeat rate in Hz (5–20, default 10)
   holdContexts: HoldContexts;   // per-action-context hold toggles
+  // ── Harvest filters (Aries-style) ──
+  harvestFilter: HarvestFilterSettings;               // global harvest filter
+  cropOverrides: Record<string, CropOverride>;        // per-species filter overrides
 }
 
 export interface GuardResult {

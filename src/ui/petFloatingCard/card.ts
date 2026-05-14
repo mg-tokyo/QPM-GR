@@ -1,16 +1,16 @@
-// src/ui/petFloatingCard.ts
+// src/ui/petFloatingCard/card.ts
 // Detached, draggable feed cards bound to active slot indexes.
 
-import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
+import { storage } from '../../utils/storage';
+import { log } from '../../utils/logger';
 import {
   clampPct,
   pctToPixels as _pctToPixels,
   pixelsToPct as _pixelsToPct,
   clampPixels as _clampPixels,
-} from '../utils/windowPosition';
-import { getActivePetInfos, onActivePetInfos, type ActivePetInfo } from '../store/pets';
-import { onInventoryChange } from '../store/inventory';
+} from '../../utils/windowPosition';
+import { getActivePetInfos, onActivePetInfos, type ActivePetInfo } from '../../store/pets';
+import { onInventoryChange } from '../../store/inventory';
 import {
   getInstantFeedPlan,
   getInstantFeedPlanByPetId,
@@ -22,18 +22,25 @@ import {
   onFeedQueueEvent,
   type InstantFeedPlan,
   type FeedQueueEvent,
-} from '../features/instantFeed';
-import { PET_FOOD_RULES_CHANGED_EVENT } from '../features/petFoodRules';
-import { PET_FEED_POLICY_CHANGED_EVENT } from '../store/petTeams';
-import { getFeedKeybind, setFeedKeybind, clearFeedKeybind } from '../features/feedKeybinds';
-import { createKeybindButton, formatKeybind } from './petsWindow/helpers';
+} from '../../features/instantFeed';
+import { PET_FOOD_RULES_CHANGED_EVENT, type EligibleFoodEntry } from '../../features/petFoodRules';
+import { PET_FEED_POLICY_CHANGED_EVENT } from '../../store/petTeams';
+import { getFeedKeybind, setFeedKeybind, clearFeedKeybind } from '../../features/feedKeybinds';
+import { createKeybindButton, formatKeybind } from '../petsWindow/helpers';
 import {
   getCropSpriteDataUrl,
+  getAnySpriteDataUrl,
   getPetSpriteDataUrlWithMutations,
   isSpritesReady,
-} from '../sprite-v2/compat';
-import { sendRoomAction } from '../websocket/api';
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+} from '../../sprite-v2/compat';
+import { HUNGER_POTION_KEY } from '../../features/hungerPotion';
+import { sendRoomAction } from '../../websocket/api';
+import { getPlayerPosition } from '../../utils/ghostStep';
+import { normalizeSpeciesKey } from '../../utils/helpers';
+import { getCropBaseSellPrice } from '../../catalogs/gameCatalogs';
+import { computeMutationMultiplier } from '../../utils/cropMultipliers';
+import type { FoodSelection } from '../../features/petFoodRules';
+import { STYLES } from './styles';
 
 const STORAGE_KEY = 'qpm.petFloatingCards.v1';
 const FEED_EVENT = 'qpm:feedPet';
@@ -42,191 +49,6 @@ const MAX_SLOTS = 3;
 
 /** Remembers last position per slot so reopening restores placement even after close. */
 const lastKnownPositions = new Map<number, { xPct: number; yPct: number }>();
-
-/** Resolve the player's current grid position (for pet greet). */
-async function resolvePlayerPosition(): Promise<{ x: number; y: number } | null> {
-  // Game stores position in a standalone positionAtom, not nested in playerAtom
-  for (const label of ['positionAtom', 'playerAtom']) {
-    const atom = getAtomByLabel(label);
-    if (!atom) continue;
-    const val = await readAtomValue<unknown>(atom).catch(() => null);
-    if (!val || typeof val !== 'object') continue;
-    const obj = val as Record<string, unknown>;
-    // positionAtom is directly { x, y }; playerAtom may nest it under a key
-    const candidates = 'x' in obj && 'y' in obj
-      ? [obj]
-      : [obj.position, obj.coords, obj.playerPosition].filter(Boolean);
-    for (const c of candidates) {
-      if (!c || typeof c !== 'object') continue;
-      const { x, y } = c as Record<string, unknown>;
-      if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y))
-        return { x: Math.round(x), y: Math.round(y) };
-    }
-  }
-  return null;
-}
-
-const STYLES = `
-.qpm-float-card {
-  position: fixed;
-  background: rgba(18,20,26,0.96);
-  border: 1px solid rgba(143,130,255,0.45);
-  border-radius: 9px;
-  width: 172px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.55);
-  z-index: 999990;
-  font-family: inherit;
-  user-select: none;
-  overflow: hidden;
-}
-.qpm-float-card__header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  cursor: grab;
-  background: rgba(143,130,255,0.08);
-  border-bottom: 1px solid rgba(143,130,255,0.18);
-}
-.qpm-float-card__header:active { cursor: grabbing; }
-.qpm-float-card__sprite-wrap {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: box-shadow 0.15s;
-}
-.qpm-float-card__sprite-wrap:hover {
-  box-shadow: 0 0 0 1px rgba(143,130,255,0.3);
-}
-.qpm-float-card__sprite {
-  width: 24px;
-  height: 24px;
-  image-rendering: pixelated;
-  object-fit: contain;
-}
-.qpm-float-card__name {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: #e0e0e0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.qpm-float-card__close {
-  width: 18px;
-  height: 18px;
-  background: none;
-  border: none;
-  color: rgba(224,224,224,0.45);
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  flex-shrink: 0;
-  padding: 0;
-  line-height: 1;
-  transition: color 0.12s, background 0.12s;
-}
-.qpm-float-card__close:hover { color: #e0e0e0; background: rgba(255,255,255,0.1); }
-.qpm-float-card__body {
-  padding: 7px 9px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.qpm-float-card__hunger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.qpm-float-card__hunger-pct {
-  font-size: 11px;
-  color: rgba(224,224,224,0.55);
-  min-width: 30px;
-  text-align: right;
-}
-.qpm-float-card__hunger-track {
-  flex: 1;
-  height: 5px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.qpm-float-card__hunger-fill {
-  height: 100%;
-  border-radius: 3px;
-}
-.qpm-float-card__feed-btn {
-  width: 100%;
-  background: rgba(143,130,255,0.2);
-  border: 1px solid rgba(143,130,255,0.45);
-  border-radius: 5px;
-  color: #d0c8ff;
-  font-size: 12px;
-  font-weight: 500;
-  min-height: 30px;
-  padding: 5px 42px 5px 0;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.qpm-float-card__feed-btn:hover { background: rgba(143,130,255,0.35); }
-.qpm-float-card__feed-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.qpm-float-card__feed-label { pointer-events: none; }
-.qpm-float-card__food {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(143,130,255,0.09);
-  border: 1px solid rgba(143,130,255,0.22);
-  border-radius: 999px;
-  padding: 1px 6px;
-  font-size: 10px;
-  color: rgba(224,224,224,0.72);
-  pointer-events: none;
-}
-.qpm-float-card__food--overlay {
-  position: absolute;
-  top: 50%;
-  right: 5px;
-  transform: translateY(-50%);
-}
-.qpm-float-card__food-icon {
-  width: 10px;
-  height: 10px;
-  image-rendering: pixelated;
-  object-fit: contain;
-}
-.qpm-float-card__food-fallback {
-  font-size: 10px;
-  min-width: 12px;
-  text-align: center;
-  color: rgba(224,224,224,0.82);
-}
-.qpm-float-card__food-count {
-  font-weight: 700;
-  color: #ecefff;
-}
-.qpm-float-card__no-pet {
-  font-size: 11px;
-  color: rgba(224,224,224,0.35);
-  text-align: center;
-  padding: 4px 0;
-}
-`;
 
 /** Position stored as viewport-ratio (0–1). Survives any resize. */
 interface PersistedFloatingCard {
@@ -267,50 +89,28 @@ function ensureStyles(): void {
   stylesInjected = true;
 }
 
-function clampSlotIndex(slotIndex: number): number | null {
-  if (!Number.isInteger(slotIndex)) return null;
-  if (slotIndex < 0 || slotIndex >= MAX_SLOTS) return null;
-  return slotIndex;
-}
+const clampSlotIndex = (si: number): number | null =>
+  Number.isInteger(si) && si >= 0 && si < MAX_SLOTS ? si : null;
 
-function getCardHeight(el: HTMLElement): number {
-  return el.offsetHeight || CARD_H_FALLBACK;
-}
+const getCardHeight = (el: HTMLElement): number => el.offsetHeight || CARD_H_FALLBACK;
 
-/** Convert viewport ratios → pixel left/top, always within visible viewport. */
-function pctToPixels(xPct: number, yPct: number, cardH: number): { x: number; y: number } {
-  return _pctToPixels(xPct, yPct, CARD_W, cardH);
-}
-
-/** Convert pixel left/top → viewport ratios (0–1). */
-function pixelsToPct(x: number, y: number, cardH: number): { xPct: number; yPct: number } {
-  return _pixelsToPct(x, y, CARD_W, cardH);
-}
-
-/** Clamp pixel position so card stays fully on-screen. */
-function clampPixels(x: number, y: number, cardH: number): { x: number; y: number } {
-  return _clampPixels(x, y, CARD_W, cardH);
-}
+const pctToPixels = (xPct: number, yPct: number, cardH: number) => _pctToPixels(xPct, yPct, CARD_W, cardH);
+const pixelsToPct = (x: number, y: number, cardH: number) => _pixelsToPct(x, y, CARD_W, cardH);
+const clampPixels = (x: number, y: number, cardH: number) => _clampPixels(x, y, CARD_W, cardH);
 
 function getDefaultPct(slotIndex: number): { xPct: number; yPct: number } {
-  const offset = slotIndex * 18;
-  const x = window.innerWidth - 220 - offset;
-  const y = Math.max(16, window.innerHeight - 190 - offset);
-  return pixelsToPct(x, y, CARD_H_FALLBACK);
+  const off = slotIndex * 18;
+  return pixelsToPct(window.innerWidth - 220 - off, Math.max(16, window.innerHeight - 190 - off), CARD_H_FALLBACK);
 }
 
-/** Set card position from ratios. */
 function applyPctPosition(el: HTMLElement, xPct: number, yPct: number): void {
   const { x, y } = pctToPixels(xPct, yPct, getCardHeight(el));
-  el.style.left = `${x}px`;
-  el.style.top = `${y}px`;
+  el.style.left = `${x}px`; el.style.top = `${y}px`;
 }
 
-/** Set card position from pixels, clamped to viewport. Used during drag. */
 function applyPixelPosition(el: HTMLElement, x: number, y: number): void {
   const c = clampPixels(x, y, getCardHeight(el));
-  el.style.left = `${c.x}px`;
-  el.style.top = `${c.y}px`;
+  el.style.left = `${c.x}px`; el.style.top = `${c.y}px`;
 }
 
 /** Reposition all open cards from their stored ratios. Called on viewport resize. */
@@ -329,7 +129,7 @@ function loadPersistedState(): PersistedFloatingCardsState {
   const cards = stored.cards
     .map((entry): PersistedFloatingCard | null => {
       if (!entry || typeof entry !== 'object') return null;
-      const raw = entry as Record<string, unknown>;
+      const raw = entry as unknown as Record<string, unknown>;
       const slotIndex = clampSlotIndex(Number(raw.slotIndex));
       if (slotIndex == null) return null;
 
@@ -370,25 +170,15 @@ function persistRegistryState(): void {
 }
 
 function emitFloatingCardStateChanged(slotIndex: number, open: boolean): void {
-  try {
-    window.dispatchEvent(new CustomEvent(FLOATING_CARD_STATE_EVENT, {
-      detail: { slotIndex, open },
-    }));
-  } catch {
-    // no-op
-  }
+  try { window.dispatchEvent(new CustomEvent(FLOATING_CARD_STATE_EVENT, { detail: { slotIndex, open } })); } catch { /* no-op */ }
 }
 
-function getActivePetForSlot(slotIndex: number): ActivePetInfo | null {
-  const active = getActivePetInfos();
-  return active.find((pet) => pet.slotIndex === slotIndex) ?? null;
-}
+const getActivePetForSlot = (slotIndex: number): ActivePetInfo | null =>
+  getActivePetInfos().find((pet) => pet.slotIndex === slotIndex) ?? null;
 
 function resolveSlotByPetId(petId: string): number | null {
-  const active = getActivePetInfos();
-  const pet = active.find((entry) => entry.petId === petId);
-  if (!pet) return null;
-  return clampSlotIndex(pet.slotIndex);
+  const pet = getActivePetInfos().find((entry) => entry.petId === petId);
+  return pet ? clampSlotIndex(pet.slotIndex) : null;
 }
 
 function setSpriteContent(
@@ -410,43 +200,60 @@ function setSpriteContent(
   }
 
   const fallback = document.createElement('span');
-  fallback.textContent = '•';
+  fallback.textContent = '\u2022';
   fallback.style.color = 'rgba(224,224,224,0.65)';
   fallback.style.fontSize = '13px';
   fallback.style.fontWeight = '700';
   spriteWrap.appendChild(fallback);
 }
 
-function setFoodCounter(
-  iconWrap: HTMLElement,
-  countEl: HTMLElement,
-  foodKey: string | null,
-  count: number,
-): void {
-  iconWrap.innerHTML = '';
+function resolveFoodSprite(foodKey: string): string {
+  // Hunger potion: try item sprite keys instead of crop sprites
+  if (foodKey === HUNGER_POTION_KEY) {
+    return getAnySpriteDataUrl('sprite/item/ReplenishPotion') ||
+           getAnySpriteDataUrl('item/ReplenishPotion') || '';
+  }
+  return getCropSpriteDataUrl(foodKey);
+}
 
-  if (foodKey) {
-    const sprite = getCropSpriteDataUrl(foodKey);
+function renderFoodCounters(
+  container: HTMLElement,
+  foods: EligibleFoodEntry[],
+  selectedKey: string | null,
+  labelEl?: HTMLElement,
+): void {
+  container.innerHTML = '';
+  for (const food of foods) {
+    const pill = document.createElement('div');
+    pill.className = 'qpm-float-card__food';
+    if (food.key === selectedKey) pill.dataset.selected = '1';
+    const sprite = resolveFoodSprite(food.key);
     if (sprite) {
       const img = document.createElement('img');
       img.className = 'qpm-float-card__food-icon';
       img.src = sprite;
-      img.alt = foodKey;
-      iconWrap.appendChild(img);
+      img.alt = food.key;
+      pill.appendChild(img);
     } else {
-      const fallback = document.createElement('span');
-      fallback.className = 'qpm-float-card__food-fallback';
-      fallback.textContent = foodKey.slice(0, 1).toUpperCase();
-      iconWrap.appendChild(fallback);
+      const fb = document.createElement('span');
+      fb.className = 'qpm-float-card__food-fallback';
+      fb.textContent = food.key.slice(0, 1).toUpperCase();
+      pill.appendChild(fb);
     }
-  } else {
-    const fallback = document.createElement('span');
-    fallback.className = 'qpm-float-card__food-fallback';
-    fallback.textContent = '-';
-    iconWrap.appendChild(fallback);
-  }
+    const countEl = document.createElement('span');
+    countEl.className = 'qpm-float-card__food-count';
+    countEl.textContent = String(Math.max(0, food.count));
+    pill.appendChild(countEl);
 
-  countEl.textContent = `${Math.max(0, Math.floor(count))}`;
+    // Hidden +N% label — only populated on the selected food's pill
+    const preview = document.createElement('span');
+    preview.className = 'qpm-float-card__feed-preview';
+    pill.appendChild(preview);
+
+    container.appendChild(pill);
+  }
+  // Hide "Feed" label when 3+ counters to avoid cramping
+  if (labelEl) labelEl.style.display = foods.length >= 3 ? 'none' : '';
 }
 
 function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct: number }): FloatingCardEntry {
@@ -467,7 +274,7 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   spriteWrap.className = 'qpm-float-card__sprite-wrap';
   spriteWrap.addEventListener('click', async () => {
     if (!currentPet) return;
-    const pos = await resolvePlayerPosition();
+    const pos = await getPlayerPosition();
     if (!pos) return;
     sendRoomAction('RequestPetGreet', { position: pos }, { throttleMs: 2000 });
   });
@@ -549,7 +356,10 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   hungerTrack.className = 'qpm-float-card__hunger-track';
   const hungerFill = document.createElement('div');
   hungerFill.className = 'qpm-float-card__hunger-fill';
+  const hungerPreviewFill = document.createElement('div');
+  hungerPreviewFill.className = 'qpm-float-card__hunger-preview';
   hungerTrack.appendChild(hungerFill);
+  hungerTrack.appendChild(hungerPreviewFill);
   hungerRow.append(hungerPct, hungerTrack);
   body.appendChild(hungerRow);
 
@@ -560,13 +370,9 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   feedLabel.textContent = 'Feed';
   feedBtn.appendChild(feedLabel);
 
-  const foodCounter = document.createElement('div');
-  foodCounter.className = 'qpm-float-card__food qpm-float-card__food--overlay';
-  const foodIconWrap = document.createElement('span');
-  const foodCount = document.createElement('span');
-  foodCount.className = 'qpm-float-card__food-count';
-  foodCounter.append(foodIconWrap, foodCount);
-  feedBtn.appendChild(foodCounter);
+  const foodCountersRow = document.createElement('div');
+  foodCountersRow.className = 'qpm-float-card__food-row';
+  feedBtn.appendChild(foodCountersRow);
 
   body.appendChild(feedBtn);
 
@@ -584,6 +390,51 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   let refreshSeq = 0;
   let lastMismatchSignature: string | null = null;
   let lastMismatchRetrySignature: string | null = null;
+  let feedHovered = false;
+  /** The FoodSelection that will actually be fed on next click. Updated by refreshAvailability. */
+  let selectedFood: FoodSelection | null = null;
+
+  /** Compute the actual sell price of the selected food item (baseSellPrice × scale × mutationMultiplier). */
+  const computeSelectedCoinValue = (): number => {
+    if (!selectedFood) return 0;
+    if (selectedFood.isHungerPotion) return Infinity;
+    const item = selectedFood.item;
+    const species = item.species;
+    if (!species) return 0;
+    const baseSellPrice = getCropBaseSellPrice(species);
+    if (baseSellPrice == null || baseSellPrice <= 0) return 0;
+    const scale = item.scale ?? 1;
+    const { totalMultiplier } = computeMutationMultiplier(item.mutations);
+    return Math.round(baseSellPrice * scale * totalMultiplier);
+  };
+
+
+  /** Compute the hunger gain % for the selected food based on its actual sell price and the pet's hungerMax. */
+  const computeSelectedGainPct = (): number => {
+    if (!currentPet || currentPet.hungerPct == null || !selectedFood) return 0;
+    const remaining = Math.round(100 - currentPet.hungerPct);
+    if (remaining <= 0) return 0;
+    if (selectedFood.isHungerPotion) return remaining;
+    const hungerMax = currentPet.hungerMax;
+    const coinValue = computeSelectedCoinValue();
+    if (hungerMax == null || hungerMax <= 0 || coinValue <= 0) return 0;
+    return Math.min(Math.round((coinValue / hungerMax) * 100), remaining);
+  };
+
+  /** Show the +N% preview on the selected pill and the hunger bar preview. */
+  const reapplyHoverPreview = (): void => {
+    if (!feedHovered || !currentPet || currentPet.hungerPct == null || currentPet.hungerPct >= 100 || feedBtn.disabled) return;
+    const selectedPill = foodCountersRow.querySelector('.qpm-float-card__food[data-selected]');
+    const previewEl = selectedPill?.querySelector('.qpm-float-card__feed-preview') as HTMLElement | null;
+    if (!previewEl) return;
+    const gainPct = computeSelectedGainPct();
+    if (gainPct <= 0) return;
+    previewEl.textContent = `+${gainPct}%`;
+    previewEl.style.opacity = '1';
+    hungerPreviewFill.style.left = `${currentPet.hungerPct}%`;
+    hungerPreviewFill.style.width = `${gainPct}%`;
+    hungerPreviewFill.style.opacity = '1';
+  };
 
   const setFeedButtonState = (label: string, disabled: boolean): void => {
     feedLabel.textContent = label;
@@ -599,14 +450,12 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
       hungerRow.style.display = 'none';
       noPetMsg.style.display = '';
       feedBtn.style.display = 'none';
-      foodCounter.style.display = 'none';
       return;
     }
 
     nameEl.textContent = pet.name || pet.species || 'Pet';
     noPetMsg.style.display = 'none';
     feedBtn.style.display = '';
-    foodCounter.style.display = '';
 
     if (pet.hungerPct != null) {
       hungerRow.style.display = '';
@@ -627,7 +476,8 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
     if (destroyed) return;
 
     if (!currentPet) {
-      setFoodCounter(foodIconWrap, foodCount, null, 0);
+      selectedFood = null;
+      renderFoodCounters(foodCountersRow, [], null, feedLabel);
       setFeedButtonState('Feed', true);
       return;
     }
@@ -679,8 +529,10 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
       }
 
       const selected = plan.foodSelection;
-      const foodKey = selected?.item.species ?? selected?.item.name ?? null;
-      setFoodCounter(foodIconWrap, foodCount, foodKey, plan.availableCount);
+      selectedFood = selected;
+      const rawFoodKey = selected?.item.species ?? selected?.item.name ?? null;
+      const foodKey = rawFoodKey ? normalizeSpeciesKey(rawFoodKey) : null;
+      renderFoodCounters(foodCountersRow, plan.eligibleFoods, foodKey, feedLabel);
 
       const pending = getFeedQueueLength(slotIndex);
       if (pending > 0) {
@@ -688,11 +540,13 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
       } else {
         const canFeed = !!plan.petId && !!selected && plan.availableCount > 0;
         setFeedButtonState('Feed', !canFeed);
-        feedBtn.title = canFeed ? `Feed with ${foodKey ?? 'food'}` : (plan.error ?? 'No suitable food');
+        feedBtn.title = canFeed ? `Feed with ${rawFoodKey ?? 'food'}` : (plan.error ?? 'No suitable food');
       }
+      reapplyHoverPreview();
     } catch {
       if (destroyed || seq !== refreshSeq) return;
-      setFoodCounter(foodIconWrap, foodCount, null, 0);
+      selectedFood = null;
+      renderFoodCounters(foodCountersRow, [], null, feedLabel);
       setFeedButtonState('Feed', true);
       feedBtn.title = 'Unable to evaluate food availability';
     }
@@ -739,6 +593,23 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
     if (pending > 0) {
       setFeedButtonState(`Feed (${pending})`, false);
     }
+  });
+
+  // Hover preview: show +N% on selected food pill and green preview bar on hunger track
+  feedBtn.addEventListener('mouseenter', () => {
+    feedHovered = true;
+    reapplyHoverPreview();
+  });
+  feedBtn.addEventListener('mouseleave', () => {
+    feedHovered = false;
+    const selectedPill = foodCountersRow.querySelector('.qpm-float-card__food[data-selected]');
+    const previewEl = selectedPill?.querySelector('.qpm-float-card__feed-preview') as HTMLElement | null;
+    if (previewEl) {
+      previewEl.style.opacity = '0';
+      previewEl.textContent = '';
+    }
+    hungerPreviewFill.style.width = '0';
+    hungerPreviewFill.style.opacity = '0';
   });
 
   const unsubscribeQueue = onFeedQueueEvent((event: FeedQueueEvent) => {

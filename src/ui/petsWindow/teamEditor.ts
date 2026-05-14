@@ -18,7 +18,8 @@ import {
   clearFeedPolicyOverride,
 } from '../../store/petTeams';
 import { getActivePetInfos } from '../../store/pets';
-import { getPetSpriteDataUrlWithMutations, getCropSpriteDataUrl, isSpritesReady } from '../../sprite-v2/compat';
+import { getPetSpriteDataUrlWithMutations, getCropSpriteDataUrl, getAnySpriteDataUrl, isSpritesReady } from '../../sprite-v2/compat';
+import { HUNGER_POTION_KEY } from '../../features/hungerPotion';
 import { getAbilityColor } from '../../utils/petCardRenderer';
 import { getAbilityDefinition } from '../../data/petAbilities';
 import { openPetPicker } from '../petPickerModal';
@@ -146,8 +147,10 @@ function openDietPopover(
     });
     row.appendChild(cb);
 
-    // Crop sprite
-    const cropUrl = getCropSpriteDataUrl(option.key);
+    // Food sprite (crop or potion)
+    const cropUrl = option.key === HUNGER_POTION_KEY
+      ? (getAnySpriteDataUrl('sprite/item/ReplenishPotion') || getAnySpriteDataUrl('item/ReplenishPotion'))
+      : getCropSpriteDataUrl(option.key);
     if (cropUrl) {
       const img = document.createElement('img');
       img.src = cropUrl;

@@ -8,6 +8,25 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.10",
+    date: "2026-05-13",
+    notes: [
+      "Fixed journal checker showing internal mutation keys (Ambershine, Dawncharged) instead of display names (Amberlit, Dawnbound)",
+      "Fixed journal variant matching: aliases now built dynamically from mutation catalog, covering all key-to-display-name mappings",
+      "Fixed catalog readiness in journal checker: produce and pet catalogs now check their own dependencies instead of relying on a single global flag",
+      "Fixed getMutationsSafe() returning array indices instead of mutation names",
+      "Added Ostrich to pet layout order in journal checker",
+      "Added harvest filter system to crop locker: global and per-species filters for scale, color, and weather",
+      "Added i18n keys for harvest filter UI labels",
+      "Improved restock tracker query performance via materialized view (server-side)",
+      "Added Replenish Potion as a toggleable food option in the pet diet system",
+      "Added feed hover preview: green +N% indicator and hunger bar overlay on all feed buttons",
+      "Added potion sprite support in floating card food counter and team editor diet popover",
+      "Refactored petFloatingCard.ts and petFoodRules.ts into subfolder modules for maintainability",
+      "Extracted shared position and tool inventory utilities from xpPotion.ts for reuse",
+    ],
+  },
+  {
     version: "3.2.9",
     date: "2026-05-10",
     notes: [

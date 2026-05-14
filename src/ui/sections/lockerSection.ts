@@ -9,21 +9,22 @@ import {
   getEligibleData,
 } from './lockerPrimitives';
 import {
-  buildPlantsPanel, buildEggsPanel, buildDecorPanel, buildSellPanel,
+  buildGardenQolPanel, buildPlantsPanel, buildEggsPanel, buildDecorPanel, buildSellPanel,
 } from './lockerTabPanels';
 import { t } from '../../i18n';
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 
-type TabId = 'plants' | 'eggs' | 'decor' | 'sell';
+type TabId = 'gardenQol' | 'plants' | 'eggs' | 'decor' | 'sell';
 
 /** Built lazily so t() runs after the locale is set. */
 function getTabDefs(): { id: TabId; label: string }[] {
   return [
-    { id: 'plants', label: `\ud83c\udf31 ${t('feature.locker.tab.plants')}` },
-    { id: 'eggs',   label: `\ud83e\udd5a ${t('feature.locker.tab.eggs')}` },
-    { id: 'decor',  label: `\ud83e\ude91 ${t('feature.locker.tab.decor')}` },
-    { id: 'sell',   label: `\ud83d\udcb0 ${t('feature.locker.tab.sell')}` },
+    { id: 'gardenQol', label: `\u2699\uFE0F ${t('feature.locker.tab.gardenQol')}` },
+    { id: 'plants',    label: `\ud83c\udf31 ${t('feature.locker.tab.plants')}` },
+    { id: 'eggs',      label: `\ud83e\udd5a ${t('feature.locker.tab.eggs')}` },
+    { id: 'decor',     label: `\ud83e\ude91 ${t('feature.locker.tab.decor')}` },
+    { id: 'sell',      label: `\ud83d\udcb0 ${t('feature.locker.tab.sell')}` },
   ];
 }
 
@@ -45,7 +46,7 @@ function buildTabBar(initialTab: TabId, onSwitch: (id: TabId) => void): TabBar {
     const btn = document.createElement('button');
     btn.textContent = tab.label;
     const isActive = tab.id === currentTab;
-    btn.style.cssText = `flex:1;padding:8px 0;background:none;border:none;border-bottom:2px solid ${isActive ? '#8f82ff' : 'transparent'};color:${isActive ? '#8f82ff' : TEXT_MUTED};font-size:12px;font-weight:600;cursor:pointer;transition:color .15s,border-color .15s`;
+    btn.style.cssText = `flex:1;padding:8px 0;background:none;border:none;border-bottom:2px solid ${isActive ? '#8f82ff' : 'transparent'};color:${isActive ? '#8f82ff' : TEXT_MUTED};font-size:11px;font-weight:600;cursor:pointer;transition:color .15s,border-color .15s`;
     btn.addEventListener('mouseenter', () => { if (tab.id !== currentTab) btn.style.color = 'rgba(143,130,255,0.7)'; });
     btn.addEventListener('mouseleave', () => { if (tab.id !== currentTab) btn.style.color = TEXT_MUTED as string; });
     btn.addEventListener('click', () => onSwitch(tab.id));
@@ -93,10 +94,11 @@ export function createLockerSection(): HTMLElement {
     container.appendChild(masterRow);
 
     // ── Tabs ──
-    let activeTab: TabId = 'plants';
+    let activeTab: TabId = 'gardenQol';
     const eligible = getEligibleData();
 
     const panels: Record<TabId, HTMLElement> = {
+      gardenQol: buildGardenQolPanel(cfg),
       plants: buildPlantsPanel(cfg, eligible),
       eggs:   buildEggsPanel(cfg, eligible),
       decor:  buildDecorPanel(cfg, eligible),

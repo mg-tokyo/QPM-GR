@@ -2,7 +2,10 @@
 // Persisted config for the Locker.
 
 import { storage } from '../../utils/storage';
-import type { LockerConfig, CustomRule, HoldContexts } from './types';
+import type {
+  LockerConfig, CustomRule, HoldContexts,
+  HarvestFilterSettings, CropOverride, ScaleLockMode, FilterMode, WeatherFilterMode,
+} from './types';
 
 const STORAGE_KEY = 'qpm.locker.config.v1';
 
@@ -13,6 +16,19 @@ const DEFAULT_HOLD_CONTEXTS: HoldContexts = {
   sell: true,
   hatch: true,
   other: true,
+};
+
+const DEFAULT_HARVEST_FILTER: HarvestFilterSettings = {
+  filterMode: 'LOCK',
+  scaleLockMode: 'NONE',
+  minScalePct: 50,
+  maxScalePct: 100,
+  colorGold: false,
+  colorRainbow: false,
+  colorNormal: false,
+  weatherMode: 'ANY',
+  weatherTags: [],
+  weatherRecipes: [],
 };
 
 const DEFAULT_CONFIG: LockerConfig = {
@@ -34,6 +50,8 @@ const DEFAULT_CONFIG: LockerConfig = {
   ariesHold: false,
   holdRateHz: 10,
   holdContexts: { ...DEFAULT_HOLD_CONTEXTS },
+  harvestFilter: { ...DEFAULT_HARVEST_FILTER, weatherTags: [], weatherRecipes: [] },
+  cropOverrides: {},
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,6 +112,60 @@ function sanitizeHoldContexts(raw: unknown): HoldContexts {
   };
 }
 
+const VALID_SCALE_LOCK_MODES = new Set<ScaleLockMode>(['RANGE', 'MINIMUM', 'MAXIMUM', 'NONE']);
+const VALID_FILTER_MODES = new Set<FilterMode>(['LOCK', 'ALLOW']);
+const VALID_WEATHER_MODES = new Set<WeatherFilterMode>(['ANY', 'ALL', 'RECIPES']);
+
+function sanitizeHarvestFilter(raw: unknown): HarvestFilterSettings {
+  if (!isRecord(raw)) return { ...DEFAULT_HARVEST_FILTER, weatherTags: [], weatherRecipes: [] };
+
+  const filterMode = VALID_FILTER_MODES.has(raw.filterMode as FilterMode)
+    ? (raw.filterMode as FilterMode) : 'LOCK';
+  const scaleLockMode = VALID_SCALE_LOCK_MODES.has(raw.scaleLockMode as ScaleLockMode)
+    ? (raw.scaleLockMode as ScaleLockMode) : 'NONE';
+
+  let minScalePct = toNumber(raw.minScalePct, 50, 50, 100);
+  let maxScalePct = toNumber(raw.maxScalePct, 100, 50, 100);
+  if (scaleLockMode === 'RANGE' && maxScalePct <= minScalePct) {
+    maxScalePct = Math.min(100, minScalePct + 1);
+    if (maxScalePct <= minScalePct) { minScalePct = 99; maxScalePct = 100; }
+  }
+
+  const weatherMode = VALID_WEATHER_MODES.has(raw.weatherMode as WeatherFilterMode)
+    ? (raw.weatherMode as WeatherFilterMode) : 'ANY';
+
+  const weatherTags = Array.isArray(raw.weatherTags)
+    ? raw.weatherTags.filter((t): t is string => typeof t === 'string' && t.length > 0)
+    : [];
+
+  const weatherRecipes = Array.isArray(raw.weatherRecipes)
+    ? raw.weatherRecipes
+        .filter(Array.isArray)
+        .map((recipe: unknown[]) => recipe.filter((t): t is string => typeof t === 'string' && t.length > 0))
+    : [];
+
+  return {
+    filterMode, scaleLockMode, minScalePct, maxScalePct,
+    colorGold: toBoolean(raw.colorGold, false),
+    colorRainbow: toBoolean(raw.colorRainbow, false),
+    colorNormal: toBoolean(raw.colorNormal, false),
+    weatherMode, weatherTags, weatherRecipes,
+  };
+}
+
+function sanitizeCropOverrides(raw: unknown): Record<string, CropOverride> {
+  if (!isRecord(raw)) return {};
+  const out: Record<string, CropOverride> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!key || !isRecord(value)) continue;
+    out[key] = {
+      enabled: toBoolean(value.enabled, false),
+      settings: sanitizeHarvestFilter(value.settings),
+    };
+  }
+  return out;
+}
+
 function sanitizeConfig(raw: unknown): LockerConfig {
   if (!isRecord(raw)) return { ...DEFAULT_CONFIG, holdContexts: { ...DEFAULT_HOLD_CONTEXTS } };
 
@@ -129,6 +201,8 @@ function sanitizeConfig(raw: unknown): LockerConfig {
     ariesHold: toBoolean(raw.ariesHold, DEFAULT_CONFIG.ariesHold),
     holdRateHz: toNumber(raw.holdRateHz, DEFAULT_CONFIG.holdRateHz, 5, 20),
     holdContexts: sanitizeHoldContexts(raw.holdContexts),
+    harvestFilter: sanitizeHarvestFilter(raw.harvestFilter),
+    cropOverrides: sanitizeCropOverrides(raw.cropOverrides),
   };
 }
 
@@ -136,6 +210,22 @@ let config: LockerConfig = sanitizeConfig(storage.get<unknown>(STORAGE_KEY, null
 
 function persist(): void {
   storage.set(STORAGE_KEY, config);
+}
+
+function deepCopyHarvestFilter(f: HarvestFilterSettings): HarvestFilterSettings {
+  return {
+    ...f,
+    weatherTags: [...f.weatherTags],
+    weatherRecipes: f.weatherRecipes.map(r => [...r]),
+  };
+}
+
+function deepCopyCropOverrides(overrides: Record<string, CropOverride>): Record<string, CropOverride> {
+  const out: Record<string, CropOverride> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    out[key] = { enabled: value.enabled, settings: deepCopyHarvestFilter(value.settings) };
+  }
+  return out;
 }
 
 export function getLockerConfig(): LockerConfig {
@@ -149,6 +239,8 @@ export function getLockerConfig(): LockerConfig {
     cropSellLocks: { ...config.cropSellLocks },
     customRules: config.customRules.map(r => ({ ...r })),
     holdContexts: { ...config.holdContexts },
+    harvestFilter: deepCopyHarvestFilter(config.harvestFilter),
+    cropOverrides: deepCopyCropOverrides(config.cropOverrides),
   };
 }
 

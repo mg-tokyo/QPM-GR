@@ -41,7 +41,7 @@ export function getPetSpeciesSafe(): string[] {
  * Get all mutation IDs with fallback to empty array
  */
 export function getMutationsSafe(): string[] {
-  return areCatalogsReady() ? Object.keys(getAllMutations()) : [];
+  return areCatalogsReady() ? getAllMutations() : [];
 }
 
 /**
