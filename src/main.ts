@@ -105,6 +105,7 @@ import { startNativeSendObserver, stopNativeSendObserver } from './websocket/nat
 import { startLocker } from './features/locker/index';
 import { startShopKeybinds, stopShopKeybinds } from './features/shopKeybinds';
 import { stopPanelHotkey } from './features/panelHotkey';
+import { startShopEnhancer, stopShopEnhancer } from './features/shopEnhancer/index';
 // Data Catalog Loader
 import {
   initCatalogLoader,
@@ -1301,6 +1302,7 @@ window.addEventListener('beforeunload', () => {
   window.removeEventListener('error', _errorHandler, true);
   stopController();
   stopShopKeybinds();
+  stopShopEnhancer();
   stopPanelHotkey();
   stopAutoReconnect();
   stopAntiAfk();
@@ -1517,6 +1519,7 @@ async function initialize(): Promise<void> {
   startNativeFeedIntercept();
   startController();
   startShopKeybinds();
+  startShopEnhancer();
   startStorageValue();
   startStorageValueOverlay();
   startInventoryCapacity();

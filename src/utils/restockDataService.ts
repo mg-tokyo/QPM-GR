@@ -3,6 +3,7 @@
 
 import { storage } from './storage';
 import { log } from './logger';
+import { isDebugGlobalsEnabled } from './debugGlobals';
 import {
   canonicalItemId,
   getItemIdVariants,
@@ -98,8 +99,22 @@ const CACHE_KEY = 'qpm.restockCache.v5';
 const REFRESH_BUDGET_KEY = 'qpm.restock.refreshBudget.v1';
 const ALLOWED_SHOP_TYPES = new Set(['seed', 'egg', 'decor', 'tool', 'dawn']);
 
-export const RESTOCK_REFRESH_WINDOW_MS = 2 * 60 * 60 * 1000;
-export const RESTOCK_REFRESH_MAX = 5;
+const RESTOCK_REFRESH_WINDOW_MS_DEFAULT = 2 * 60 * 60 * 1000; // 2 hours
+const RESTOCK_REFRESH_MAX_DEFAULT = 5;
+const RESTOCK_REFRESH_WINDOW_MS_DEBUG = 1 * 60 * 60 * 1000; // 1 hour
+const RESTOCK_REFRESH_MAX_DEBUG = 10;
+
+export function getRestockRefreshLimits(): { windowMs: number; max: number } {
+  const debug = isDebugGlobalsEnabled();
+  return {
+    windowMs: debug ? RESTOCK_REFRESH_WINDOW_MS_DEBUG : RESTOCK_REFRESH_WINDOW_MS_DEFAULT,
+    max: debug ? RESTOCK_REFRESH_MAX_DEBUG : RESTOCK_REFRESH_MAX_DEFAULT,
+  };
+}
+
+// Backward-compatible exports (static defaults for external consumers)
+export const RESTOCK_REFRESH_WINDOW_MS = RESTOCK_REFRESH_WINDOW_MS_DEFAULT;
+export const RESTOCK_REFRESH_MAX = RESTOCK_REFRESH_MAX_DEFAULT;
 export const RESTOCK_DATA_UPDATED_EVENT = 'qpm:restock-data-updated';
 export const RESTOCK_MODEL_ACCURACY_MIN_SCORED = 5;
 
@@ -293,11 +308,12 @@ function readRefreshBudgetRaw(): RefreshBudgetEntry | null {
 }
 
 function normalizeRefreshBudget(now: number): { entry: RefreshBudgetEntry; changed: boolean } {
+  const { windowMs, max } = getRestockRefreshLimits();
   const raw = readRefreshBudgetRaw();
-  if (!raw || raw.windowStartedAt <= 0 || now - raw.windowStartedAt >= RESTOCK_REFRESH_WINDOW_MS) {
+  if (!raw || raw.windowStartedAt <= 0 || now - raw.windowStartedAt >= windowMs) {
     return { entry: { used: 0, windowStartedAt: now }, changed: true };
   }
-  const clampedUsed = Math.min(RESTOCK_REFRESH_MAX, Math.max(0, raw.used));
+  const clampedUsed = Math.min(max, Math.max(0, raw.used));
   return {
     entry: { used: clampedUsed, windowStartedAt: raw.windowStartedAt },
     changed: clampedUsed !== raw.used,
@@ -309,17 +325,18 @@ function writeRefreshBudget(entry: RefreshBudgetEntry): void {
 }
 
 function toRefreshBudgetState(entry: RefreshBudgetEntry): RestockRefreshBudgetState {
-  const used = Math.min(RESTOCK_REFRESH_MAX, Math.max(0, entry.used));
-  const remaining = Math.max(0, RESTOCK_REFRESH_MAX - used);
-  const resetAt = entry.windowStartedAt + RESTOCK_REFRESH_WINDOW_MS;
+  const { windowMs, max } = getRestockRefreshLimits();
+  const used = Math.min(max, Math.max(0, entry.used));
+  const remaining = Math.max(0, max - used);
+  const resetAt = entry.windowStartedAt + windowMs;
   return {
-    max: RESTOCK_REFRESH_MAX,
+    max,
     used,
     remaining,
     windowStartedAt: entry.windowStartedAt,
     resetAt,
     blocked: remaining <= 0,
-    windowMs: RESTOCK_REFRESH_WINDOW_MS,
+    windowMs,
   };
 }
 
@@ -332,9 +349,10 @@ export function getRestockRefreshBudget(now = Date.now()): RestockRefreshBudgetS
 }
 
 export function tryConsumeRestockRefresh(now = Date.now()): RestockRefreshBudgetState {
+  const { max } = getRestockRefreshLimits();
   const normalized = normalizeRefreshBudget(now);
   const entry = normalized.entry;
-  if (entry.used < RESTOCK_REFRESH_MAX) {
+  if (entry.used < max) {
     entry.used += 1;
   }
   writeRefreshBudget(entry);

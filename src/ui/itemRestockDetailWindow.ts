@@ -563,7 +563,7 @@ function makeCardHeader(
 
 interface OverviewHandle {
   container: HTMLElement;
-  setEventCount: (count: number) => void;
+  setEventCount: (count: number, totalSightings?: number) => void;
   setMedianRegularity: (score: number) => void;
   setModelAccuracy: (score: number, detailTitle?: string) => void;
   setLastSeen: (timestamp: number | null) => void;
@@ -906,7 +906,7 @@ function buildOverviewCard(
 
   return {
     container: card,
-    setEventCount: (count: number) => {
+    setEventCount: (count: number, totalSightings?: number) => {
       browseBtn.disabled = count === 0;
       browseBtn.style.opacity = count === 0 ? '0.4' : '1';
       browseBtn.style.cursor = count === 0 ? 'default' : 'pointer';
@@ -914,7 +914,7 @@ function buildOverviewCard(
         ? (count === 1 ? t('feature.itemDetail.browseEvent', { count }) : t('feature.itemDetail.browseEvents', { count }))
         : t('feature.itemDetail.noEventsRecorded');
       const chipValue = eventCountChip.firstElementChild as HTMLElement | null;
-      if (chipValue) chipValue.textContent = String(count);
+      if (chipValue) chipValue.textContent = String(totalSightings ?? count);
     },
     setMedianRegularity: (score: number) => {
       accuracyRow.style.display = '';
@@ -1436,7 +1436,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         })
         .filter((ev): ev is { timestamp: number; quantity: number | null; predicted_next_ms: number | null } => ev !== null);
       const orderedEvents = sortEventsNewestFirst(normalizedEvents);
-      overview.setEventCount(orderedEvents.length);
+      overview.setEventCount(orderedEvents.length, item.total_occurrences ?? undefined);
 
       rows = orderedEvents.map((ev, i): RowData => {
         const prev    = i + 1 < orderedEvents.length ? orderedEvents[i + 1]! : null;

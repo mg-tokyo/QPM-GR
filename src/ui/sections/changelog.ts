@@ -8,6 +8,17 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.11",
+    date: "2026-05-16",
+    notes: [
+      "Added Buy All button to shop expansion panels for in-stock items",
+      "Added shop stock reordering: in-stock items sorted to top of shop lists",
+      "Improved expansion panel layout: Buy All button fits alongside native buy buttons with correct sizing",
+      "Improved shop poll responsiveness: expansion panel enhancements now appear faster after clicking a row",
+      "Fixed expansion panel sort stability: panel stays attached to its row after reordering",
+    ],
+  },
+  {
     version: "3.2.10",
     date: "2026-05-13",
     notes: [
