@@ -13,9 +13,10 @@ import {
   patchCachedItemLastSeen,
   RESTOCK_MODEL_ACCURACY_MIN_SCORED,
 } from '../utils/restockDataService';
-import { getPetSpriteCanvas, getCropSpriteCanvas } from '../sprite-v2/compat';
+import { getPetSpriteCanvas, getCropSpriteCanvas, getAnySpriteDataUrl } from '../sprite-v2/compat';
 import { canvasToDataUrl } from '../utils/canvasHelpers';
 import { storage } from '../utils/storage';
+import { getWeatherDef } from '../catalogs/gameCatalogs';
 import {
   getAccuracyWindows,
   computeEventAccuracy as computeEventAccuracyNew,
@@ -412,6 +413,14 @@ function makeAlgorithmUpdateMarkerEl(slot: AlgorithmMarkerSlot): HTMLElement {
 // ── Sprite helper ────────────────────────────────────────────────────────────
 
 function getItemSpriteUrl(shopType: string, itemId: string): string | null {
+  // Weather events use the weather catalog spriteId
+  if (shopType === 'weather') {
+    const def = getWeatherDef(itemId);
+    const spriteId = def && typeof def.spriteId === 'string' ? def.spriteId : null;
+    if (spriteId) return getAnySpriteDataUrl(spriteId) || null;
+    return null;
+  }
+
   const tryResolve = (candidateId: string): string | null => {
     let url: string | null = null;
     try { url = canvasToDataUrl(getPetSpriteCanvas(candidateId)) || null; } catch { /* */ }
@@ -421,10 +430,13 @@ function getItemSpriteUrl(shopType: string, itemId: string): string | null {
     return url;
   };
 
+  // Dawn shop items are seeds/eggs — resolve using seed/egg sprite lookups
+  const resolveShopType = shopType === 'dawn' ? 'seed' : shopType;
+
   const directUrl = tryResolve(itemId);
   if (directUrl) return directUrl;
 
-  for (const variantId of getItemIdVariants(shopType, itemId)) {
+  for (const variantId of getItemIdVariants(resolveShopType, itemId)) {
     if (!variantId || variantId === itemId) continue;
     const variantUrl = tryResolve(variantId);
     if (variantUrl) return variantUrl;

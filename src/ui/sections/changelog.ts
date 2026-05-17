@@ -8,6 +8,14 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.12",
+    date: "2026-05-17",
+    notes: [
+      "Fixed Dawn weather event detail showing a dawn egg sprite instead of the weather icon",
+      "Fixed item detail sprite resolution for dawn shop items using correct variant lookup",
+    ],
+  },
+  {
     version: "3.2.11",
     date: "2026-05-16",
     notes: [
