@@ -52,7 +52,6 @@ export interface InstantFeedPlan {
   petSpecies: string | null;
   petId: string | null;
   slotId: string | null;
-  respectFoodRules: boolean;
   avoidFavorited: boolean;
   availableCount: number;
   foodSelection: FoodSelection | null;
@@ -139,7 +138,6 @@ function makeMissingPetPlan(petIndex: number, error: string): InstantFeedPlan {
     petSpecies: null,
     petId: null,
     slotId: null,
-    respectFoodRules: false,
     avoidFavorited: true,
     availableCount: 0,
     foodSelection: null,
@@ -151,10 +149,8 @@ function makeMissingPetPlan(petIndex: number, error: string): InstantFeedPlan {
 async function buildPlanForPet(
   pet: ActivePetInfo,
   petSlotOrIndex: number,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedPlan> {
   const rules = getPetFoodRules();
-  const resolvedRespectRules = typeof respectFoodRules === 'boolean' ? respectFoodRules : rules.respectRules;
   const override = toItemOverride(pet);
 
   const inventoryData = await readInventoryDirect();
@@ -167,7 +163,6 @@ async function buildPlanForPet(
       petSpecies: pet.species,
       petId: pet.petId,
       slotId: pet.slotId,
-      respectFoodRules: resolvedRespectRules,
       avoidFavorited: rules.avoidFavorited,
       availableCount: 0,
       foodSelection: null,
@@ -180,7 +175,6 @@ async function buildPlanForPet(
     pet.species,
     snapshot,
     {
-      respectRules: resolvedRespectRules,
       avoidFavorited: rules.avoidFavorited,
       ...(override ? { itemOverride: override } : {}),
     },
@@ -193,7 +187,6 @@ async function buildPlanForPet(
     petSpecies: pet.species,
     petId: pet.petId,
     slotId: pet.slotId,
-    respectFoodRules: resolvedRespectRules,
     avoidFavorited: rules.avoidFavorited,
     availableCount: availability.availableCount,
     foodSelection: availability.selected,
@@ -230,8 +223,7 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
   // Hunger potion branch: ghost-step + ReplenishPotion instead of FeedPet
   if (isHungerPotionSelection(plan.foodSelection) && plan.slotId) {
     log(
-      `Attempting to use Replenish Potion on ${plan.petName || plan.petSpecies || 'pet'} ` +
-      `(rules: ${plan.respectFoodRules ? 'on' : 'off'})`,
+      `Attempting to use Replenish Potion on ${plan.petName || plan.petSpecies || 'pet'}`,
     );
 
     const result = await sendUseHungerPotion(plan.slotId);
@@ -268,7 +260,7 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
   log(
     `Attempting to feed ${plan.petName || plan.petSpecies || 'pet'} ` +
     `with ${crop.species || crop.name || 'food'} ` +
-    `(rules: ${plan.respectFoodRules ? 'on' : 'off'}, available: ${plan.availableCount})`,
+    `(available: ${plan.availableCount})`,
   );
 
   const sent = sendFeedPetMessage(plan.petId, crop.id);
@@ -293,7 +285,6 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
 
 export async function getInstantFeedPlan(
   petSlotOrIndex: number,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedPlan> {
   const pets = getActivePetInfos();
   if (pets.length === 0) {
@@ -308,12 +299,11 @@ export async function getInstantFeedPlan(
     );
   }
 
-  return buildPlanForPet(pet, petSlotOrIndex, respectFoodRules);
+  return buildPlanForPet(pet, petSlotOrIndex);
 }
 
 export async function getInstantFeedPlanByPetId(
   petId: string,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedPlan> {
   const pets = getActivePetInfos();
   if (pets.length === 0) {
@@ -325,12 +315,11 @@ export async function getInstantFeedPlanByPetId(
     return makeMissingPetPlan(-1, `Pet with id ${petId} not found`);
   }
 
-  return buildPlanForPet(pet, pet.slotIndex, respectFoodRules);
+  return buildPlanForPet(pet, pet.slotIndex);
 }
 
 export async function getInstantFeedPlanBySlotId(
   slotId: string,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedPlan> {
   const pets = getActivePetInfos();
   if (pets.length === 0) {
@@ -342,22 +331,20 @@ export async function getInstantFeedPlanBySlotId(
     return makeMissingPetPlan(-1, `Pet with slotId ${slotId} not found`);
   }
 
-  return buildPlanForPet(pet, pet.slotIndex, respectFoodRules);
+  return buildPlanForPet(pet, pet.slotIndex);
 }
 
 /**
  * Feed a pet instantly using WebSocket (bypasses DOM clicks).
  *
  * @param petSlotOrIndex - Active slot index (preferred), with array-index fallback for legacy callers
- * @param respectFoodRules - Whether to respect pet food preferences
  * @returns Result of the feed operation
  */
 export async function feedPetInstantly(
   petSlotOrIndex: number,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedResult> {
   try {
-    const plan = await getInstantFeedPlan(petSlotOrIndex, respectFoodRules);
+    const plan = await getInstantFeedPlan(petSlotOrIndex);
     return await executeFeedPlan(plan);
   } catch (error) {
     log('Instant feed error', error);
@@ -373,10 +360,9 @@ export async function feedPetInstantly(
 
 export async function feedPetInstantlyByPetId(
   petId: string,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedResult> {
   try {
-    const plan = await getInstantFeedPlanByPetId(petId, respectFoodRules);
+    const plan = await getInstantFeedPlanByPetId(petId);
     return await executeFeedPlan(plan);
   } catch (error) {
     log('Instant feed error', error);
@@ -392,10 +378,9 @@ export async function feedPetInstantlyByPetId(
 
 export async function feedPetInstantlyBySlotId(
   slotId: string,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedResult> {
   try {
-    const plan = await getInstantFeedPlanBySlotId(slotId, respectFoodRules);
+    const plan = await getInstantFeedPlanBySlotId(slotId);
     return await executeFeedPlan(plan);
   } catch (error) {
     log('Instant feed error', error);
@@ -455,7 +440,6 @@ export async function feedPetByIds(
  */
 export async function feedAllPetsInstantly(
   hungerThreshold: number = 40,
-  respectFoodRules?: boolean,
 ): Promise<InstantFeedResult[]> {
   const pets = getActivePetInfos();
   const results: InstantFeedResult[] = [];
@@ -471,7 +455,7 @@ export async function feedAllPetsInstantly(
     }
 
     log(`Feeding ${pet.name || pet.species} - hunger ${hungerPct}%`);
-    const result = await feedPetInstantly(pet.slotIndex, respectFoodRules);
+    const result = await feedPetInstantly(pet.slotIndex);
     results.push(result);
 
     // Small delay between feeds to avoid overwhelming the server.
@@ -537,7 +521,6 @@ async function buildPlanExcluding(
       petSpecies: pet.species,
       petId: pet.petId,
       slotId: pet.slotId,
-      respectFoodRules: rules.respectRules,
       avoidFavorited: rules.avoidFavorited,
       availableCount: 0,
       foodSelection: null,
@@ -550,7 +533,6 @@ async function buildPlanExcluding(
     pet.species,
     snapshot,
     {
-      respectRules: rules.respectRules,
       avoidFavorited: rules.avoidFavorited,
       ...(override ? { itemOverride: override } : {}),
     },
@@ -563,7 +545,6 @@ async function buildPlanExcluding(
     petSpecies: pet.species,
     petId: pet.petId,
     slotId: pet.slotId,
-    respectFoodRules: rules.respectRules,
     avoidFavorited: rules.avoidFavorited,
     availableCount: availability.availableCount,
     foodSelection: availability.selected,

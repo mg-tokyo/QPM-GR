@@ -20,8 +20,6 @@ export type {
 export {
   PET_FOOD_RULES_CHANGED_EVENT,
   getPetFoodRules,
-  shouldRespectPetFoodRules,
-  setRespectPetFoodRules,
   setAvoidFavoritedFoods,
   updateSpeciesOverride,
   resetPetFoodRules,

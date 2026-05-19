@@ -10,6 +10,7 @@ export const STYLES = `
   font-family: inherit;
   user-select: none;
   overflow: hidden;
+  transition: width 0.12s ease;
 }
 .qpm-float-card__header {
   display: flex;
@@ -147,18 +148,19 @@ export const STYLES = `
 .qpm-float-card__food-row {
   display: flex;
   flex-wrap: nowrap;
-  gap: 3px;
+  gap: 2px;
   margin-left: auto;
   pointer-events: none;
+  overflow: hidden;
 }
 .qpm-float-card__food {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   background: rgba(143,130,255,0.09);
   border: 1px solid rgba(143,130,255,0.22);
   border-radius: 999px;
-  padding: 1px 5px;
+  padding: 1px 4px;
   font-size: 10px;
   color: rgba(224,224,224,0.72);
   pointer-events: none;

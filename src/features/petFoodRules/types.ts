@@ -8,7 +8,6 @@ export interface SpeciesOverride {
 }
 
 export interface PetFoodRulesState {
-  respectRules: boolean;
   avoidFavorited: boolean;
   overrides: Record<string, SpeciesOverride>;
   updatedAt: number;
@@ -39,7 +38,6 @@ export interface FoodSelection {
 
 export interface FoodSelectionOptions {
   avoidFavorited?: boolean;
-  respectRules?: boolean;
   /**
    * Per-pet-item override. When provided, takes precedence over the species-level override.
    * Callers (e.g. instantFeed.ts) should read this from the Pet Teams feed policy.

@@ -486,52 +486,47 @@ function getFoodRulesContext(
   petSpecies: string | null,
   options: FoodSelectionOptions,
 ): {
-  respectRules: boolean;
   avoidFavorited: boolean;
   preferredNormalized: string | null;
   allowedNormalized: Set<string>;
   forbiddenNormalized: Set<string>;
 } {
   const rulesState = getRulesState();
-  const respectRules = options.respectRules ?? rulesState.respectRules;
   const avoidFavorited = options.avoidFavorited ?? rulesState.avoidFavorited;
 
   const allowedNormalized = new Set<string>();
   const forbiddenNormalized = new Set<string>();
   let preferredNormalized: string | null = null;
 
-  if (respectRules) {
-    const diet = resolveDiet(petSpecies);
-    const override = mergeOverrides(resolveOverride(petSpecies), options.itemOverride);
+  const diet = resolveDiet(petSpecies);
+  const override = mergeOverrides(resolveOverride(petSpecies), options.itemOverride);
 
-    diet.normalized.forEach((entry) => allowedNormalized.add(entry));
+  diet.normalized.forEach((entry) => allowedNormalized.add(entry));
 
-    preferredNormalized = override?.preferred ? normalizeSpeciesKey(override.preferred) : null;
-    if (preferredNormalized) {
-      allowedNormalized.add(preferredNormalized);
-    }
+  preferredNormalized = override?.preferred ? normalizeSpeciesKey(override.preferred) : null;
+  if (preferredNormalized) {
+    allowedNormalized.add(preferredNormalized);
+  }
 
-    if (override?.allowed) {
-      for (const entry of override.allowed) {
-        const normalized = normalizeSpeciesKey(entry);
-        if (normalized) allowedNormalized.add(normalized);
-      }
-    }
-
-    if (override?.forbidden) {
-      for (const entry of override.forbidden) {
-        const normalized = normalizeSpeciesKey(entry);
-        if (normalized) forbiddenNormalized.add(normalized);
-      }
-    }
-
-    if (allowedNormalized.size === 0) {
-      DEFAULT_SAFE_NORMALIZED.forEach((value) => allowedNormalized.add(value));
+  if (override?.allowed) {
+    for (const entry of override.allowed) {
+      const normalized = normalizeSpeciesKey(entry);
+      if (normalized) allowedNormalized.add(normalized);
     }
   }
 
+  if (override?.forbidden) {
+    for (const entry of override.forbidden) {
+      const normalized = normalizeSpeciesKey(entry);
+      if (normalized) forbiddenNormalized.add(normalized);
+    }
+  }
+
+  if (allowedNormalized.size === 0) {
+    DEFAULT_SAFE_NORMALIZED.forEach((value) => allowedNormalized.add(value));
+  }
+
   return {
-    respectRules,
     avoidFavorited,
     preferredNormalized,
     allowedNormalized,
@@ -585,7 +580,6 @@ export function evaluateFoodAvailabilityForPet(
     return normalized === context.preferredNormalized;
   };
   const matchAllowed = (normalized: string): boolean => {
-    if (!context.respectRules) return true;
     return context.allowedNormalized.has(normalized) && !context.forbiddenNormalized.has(normalized);
   };
 
@@ -607,20 +601,14 @@ export function evaluateFoodAvailabilityForPet(
   };
 
   let selected: FoodSelection | null = null;
-  if (context.respectRules) {
-    selected = selectWithFavoritedPolicy((skipFavorited) => findMatchingFood(snapshot, skipFavorited, (normalized) => matchPreferred(normalized)));
-    if (!selected) {
-      selected = selectWithFavoritedPolicy((skipFavorited) => findMatchingFood(snapshot, skipFavorited, (normalized) => matchAllowed(normalized)));
-    }
-  } else {
-    selected = selectWithFavoritedPolicy((skipFavorited) => findMatchingFood(snapshot, skipFavorited, () => true));
+  selected = selectWithFavoritedPolicy((skipFavorited) => findMatchingFood(snapshot, skipFavorited, (normalized) => matchPreferred(normalized)));
+  if (!selected) {
+    selected = selectWithFavoritedPolicy((skipFavorited) => findMatchingFood(snapshot, skipFavorited, (normalized) => matchAllowed(normalized)));
   }
 
   // Check if hunger potion is available and allowed
   const potionCount = getHungerPotionCount();
-  const potionAllowed = !context.respectRules ||
-    (context.allowedNormalized.has(HUNGER_POTION_KEY) && !context.forbiddenNormalized.has(HUNGER_POTION_KEY)) ||
-    (!context.forbiddenNormalized.has(HUNGER_POTION_KEY));
+  const potionAllowed = !context.forbiddenNormalized.has(HUNGER_POTION_KEY);
   const potionIsPreferred = context.preferredNormalized === HUNGER_POTION_KEY;
 
   // If potion is preferred and available, select it over crops
@@ -640,9 +628,9 @@ export function evaluateFoodAvailabilityForPet(
     };
 
     // Count: crop count + potion count
-    const countPredicate = context.respectRules
-      ? (context.preferredNormalized ? ((normalized: string) => matchPreferred(normalized) || matchAllowed(normalized)) : matchAllowed)
-      : (() => true);
+    const countPredicate = context.preferredNormalized
+      ? ((normalized: string) => matchPreferred(normalized) || matchAllowed(normalized))
+      : matchAllowed;
     const countItems = listMatchingFood(snapshot, context.avoidFavorited, (normalized) => countPredicate(normalized));
     return {
       selected: potionSelection,
@@ -676,9 +664,9 @@ export function evaluateFoodAvailabilityForPet(
     return { selected: null, availableCount: 0, eligibleFoods: [] };
   }
 
-  const countPredicate = context.respectRules
-    ? (context.preferredNormalized ? ((normalized: string) => matchPreferred(normalized) || matchAllowed(normalized)) : matchAllowed)
-    : (() => true);
+  const countPredicate = context.preferredNormalized
+    ? ((normalized: string) => matchPreferred(normalized) || matchAllowed(normalized))
+    : matchAllowed;
   const skipFavoritedForCount = context.avoidFavorited;
   const countItems = listMatchingFood(snapshot, skipFavoritedForCount, (normalized) => countPredicate(normalized));
 

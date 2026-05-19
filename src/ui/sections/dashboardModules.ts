@@ -379,7 +379,7 @@ function buildActivePetsModule(
     try {
       const { feedAllPetsInstantly } =
         await import("../../features/instantFeed");
-      await feedAllPetsInstantly(100, false);
+      await feedAllPetsInstantly(100);
     } catch (err) {
       log("⚠️ Feed all failed", err);
     } finally {
@@ -428,7 +428,7 @@ function buildActivePetsModule(
         try {
           const { feedPetInstantly } =
             await import("../../features/instantFeed");
-          await feedPetInstantly(idx, false);
+          await feedPetInstantly(idx);
         } catch (err) {
           log("⚠️ Feed failed", err);
         } finally {

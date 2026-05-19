@@ -8,6 +8,15 @@ import { t } from '../../i18n';
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.14",
+    date: "2026-05-19",
+    notes: [
+      "Fixed floating feed cards showing all crops instead of only the pet's diet, which caused failed feeds",
+      "Fixed food pill overflow on floating feed cards when pets have many eligible foods",
+      "Improved floating card layout: pills now cap at 6 with a +N indicator, and the card widens smoothly when needed",
+    ],
+  },
+  {
     version: "3.2.13",
     date: "2026-05-19",
     notes: [

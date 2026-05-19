@@ -13,7 +13,6 @@ const PET_FOOD_RULES_EVENT = 'qpm:pet-food-rules-changed';
 export const PET_FOOD_RULES_CHANGED_EVENT = PET_FOOD_RULES_EVENT;
 
 const DEFAULT_STATE: PetFoodRulesState = {
-  respectRules: false,
   avoidFavorited: true,
   overrides: {},
   updatedAt: Date.now(),
@@ -43,7 +42,6 @@ function loadState(): PetFoodRulesState {
     return { ...DEFAULT_STATE };
   }
   return {
-    respectRules: typeof stored.respectRules === 'boolean' ? stored.respectRules : DEFAULT_STATE.respectRules,
     avoidFavorited: typeof stored.avoidFavorited === 'boolean' ? stored.avoidFavorited : DEFAULT_STATE.avoidFavorited,
     overrides: typeof stored.overrides === 'object' && stored.overrides
       ? stored.overrides as Record<string, SpeciesOverride>
@@ -60,7 +58,6 @@ function emitRulesChanged(): void {
   try {
     window.dispatchEvent(new CustomEvent(PET_FOOD_RULES_EVENT, {
       detail: {
-        respectRules: rulesState.respectRules,
         avoidFavorited: rulesState.avoidFavorited,
         updatedAt: rulesState.updatedAt,
       },
@@ -72,29 +69,10 @@ function emitRulesChanged(): void {
 
 export function getPetFoodRules(): PetFoodRulesState {
   return {
-    respectRules: rulesState.respectRules,
     avoidFavorited: rulesState.avoidFavorited,
     overrides: { ...rulesState.overrides },
     updatedAt: rulesState.updatedAt,
   };
-}
-
-export function shouldRespectPetFoodRules(): boolean {
-  return rulesState.respectRules;
-}
-
-export function setRespectPetFoodRules(enabled: boolean): void {
-  if (rulesState.respectRules === enabled) {
-    return;
-  }
-  rulesState = {
-    ...rulesState,
-    respectRules: enabled,
-    updatedAt: Date.now(),
-  };
-  saveState();
-  emitRulesChanged();
-  log(enabled ? '⚖️ Pet food rules enabled' : '⚖️ Pet food rules disabled');
 }
 
 export function setAvoidFavoritedFoods(enabled: boolean): void {

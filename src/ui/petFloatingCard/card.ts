@@ -78,7 +78,9 @@ let stylesInjected = false;
 let initialized = false;
 
 const CARD_W = 172;
+const CARD_W_MAX = 220;
 const CARD_H_FALLBACK = 120;
+const MAX_FOOD_PILLS = 6;
 
 function ensureStyles(): void {
   if (stylesInjected) return;
@@ -93,23 +95,24 @@ const clampSlotIndex = (si: number): number | null =>
   Number.isInteger(si) && si >= 0 && si < MAX_SLOTS ? si : null;
 
 const getCardHeight = (el: HTMLElement): number => el.offsetHeight || CARD_H_FALLBACK;
+const getCardWidth = (el: HTMLElement): number => Math.max(CARD_W, el.offsetWidth || CARD_W);
 
-const pctToPixels = (xPct: number, yPct: number, cardH: number) => _pctToPixels(xPct, yPct, CARD_W, cardH);
-const pixelsToPct = (x: number, y: number, cardH: number) => _pixelsToPct(x, y, CARD_W, cardH);
-const clampPixels = (x: number, y: number, cardH: number) => _clampPixels(x, y, CARD_W, cardH);
+const pctToPixels = (xPct: number, yPct: number, cardW: number, cardH: number) => _pctToPixels(xPct, yPct, cardW, cardH);
+const pixelsToPct = (x: number, y: number, cardW: number, cardH: number) => _pixelsToPct(x, y, cardW, cardH);
+const clampPixels = (x: number, y: number, cardW: number, cardH: number) => _clampPixels(x, y, cardW, cardH);
 
 function getDefaultPct(slotIndex: number): { xPct: number; yPct: number } {
   const off = slotIndex * 18;
-  return pixelsToPct(window.innerWidth - 220 - off, Math.max(16, window.innerHeight - 190 - off), CARD_H_FALLBACK);
+  return pixelsToPct(window.innerWidth - 220 - off, Math.max(16, window.innerHeight - 190 - off), CARD_W, CARD_H_FALLBACK);
 }
 
 function applyPctPosition(el: HTMLElement, xPct: number, yPct: number): void {
-  const { x, y } = pctToPixels(xPct, yPct, getCardHeight(el));
+  const { x, y } = pctToPixels(xPct, yPct, getCardWidth(el), getCardHeight(el));
   el.style.left = `${x}px`; el.style.top = `${y}px`;
 }
 
 function applyPixelPosition(el: HTMLElement, x: number, y: number): void {
-  const c = clampPixels(x, y, getCardHeight(el));
+  const c = clampPixels(x, y, getCardWidth(el), getCardHeight(el));
   el.style.left = `${c.x}px`; el.style.top = `${c.y}px`;
 }
 
@@ -142,7 +145,7 @@ function loadPersistedState(): PersistedFloatingCardsState {
       const x = Number(raw.x);
       const y = Number(raw.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-      const pct = pixelsToPct(x, y, CARD_H_FALLBACK);
+      const pct = pixelsToPct(x, y, CARD_W, CARD_H_FALLBACK);
       return { slotIndex, xPct: pct.xPct, yPct: pct.yPct };
     })
     .filter((entry): entry is PersistedFloatingCard => !!entry);
@@ -223,7 +226,11 @@ function renderFoodCounters(
   labelEl?: HTMLElement,
 ): void {
   container.innerHTML = '';
-  for (const food of foods) {
+
+  const overflowCount = foods.length > MAX_FOOD_PILLS ? foods.length - (MAX_FOOD_PILLS - 1) : 0;
+  const visibleFoods = overflowCount > 0 ? foods.slice(0, MAX_FOOD_PILLS - 1) : foods;
+
+  for (const food of visibleFoods) {
     const pill = document.createElement('div');
     pill.className = 'qpm-float-card__food';
     if (food.key === selectedKey) pill.dataset.selected = '1';
@@ -252,8 +259,20 @@ function renderFoodCounters(
 
     container.appendChild(pill);
   }
+
+  // Overflow indicator when >MAX_FOOD_PILLS foods
+  if (overflowCount > 0) {
+    const overflowPill = document.createElement('div');
+    overflowPill.className = 'qpm-float-card__food';
+    const overflowLabel = document.createElement('span');
+    overflowLabel.className = 'qpm-float-card__food-count';
+    overflowLabel.textContent = `+${overflowCount}`;
+    overflowPill.appendChild(overflowLabel);
+    container.appendChild(overflowPill);
+  }
+
   // Hide "Feed" label when 3+ counters to avoid cramping
-  if (labelEl) labelEl.style.display = foods.length >= 3 ? 'none' : '';
+  if (labelEl) labelEl.style.display = visibleFoods.length >= 3 ? 'none' : '';
 }
 
 function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct: number }): FloatingCardEntry {
@@ -478,6 +497,7 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
     if (!currentPet) {
       selectedFood = null;
       renderFoodCounters(foodCountersRow, [], null, feedLabel);
+      card.style.width = '';
       setFeedButtonState('Feed', true);
       return;
     }
@@ -534,6 +554,19 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
       const foodKey = rawFoodKey ? normalizeSpeciesKey(rawFoodKey) : null;
       renderFoodCounters(foodCountersRow, plan.eligibleFoods, foodKey, feedLabel);
 
+      // Measure food row after paint and expand card width if pills overflow
+      requestAnimationFrame(() => {
+        if (destroyed || seq !== refreshSeq) return;
+        const overflow = foodCountersRow.scrollWidth - foodCountersRow.clientWidth;
+        if (overflow > 2) {
+          const currentW = card.offsetWidth;
+          const needed = Math.min(currentW + overflow + 4, CARD_W_MAX);
+          card.style.width = `${needed}px`;
+        } else {
+          card.style.width = '';
+        }
+      });
+
       const pending = getFeedQueueLength(slotIndex);
       if (pending > 0) {
         setFeedButtonState(`Feed (${pending})`, false);
@@ -547,6 +580,7 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
       if (destroyed || seq !== refreshSeq) return;
       selectedFood = null;
       renderFoodCounters(foodCountersRow, [], null, feedLabel);
+      card.style.width = '';
       setFeedButtonState('Feed', true);
       feedBtn.title = 'Unable to evaluate food availability';
     }
@@ -661,7 +695,7 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
     isDragging = false;
     // Read the clamped visual position and convert to viewport ratio.
     const rect = card.getBoundingClientRect();
-    const pct = pixelsToPct(rect.left, rect.top, getCardHeight(card));
+    const pct = pixelsToPct(rect.left, rect.top, getCardWidth(card), getCardHeight(card));
     intendedPos.xPct = pct.xPct;
     intendedPos.yPct = pct.yPct;
     lastKnownPositions.set(slotIndex, { xPct: pct.xPct, yPct: pct.yPct });
