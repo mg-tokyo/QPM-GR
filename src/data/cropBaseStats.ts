@@ -5,7 +5,7 @@
 // getCropStats() overlays runtime catalog data when available, keeping
 // hardcoded values as fallback for fields not in the catalog.
 
-import { areCatalogsReady, getFloraBlueprint } from '../catalogs/gameCatalogs';
+import { areCatalogsReady, getFloraBlueprint, getSeedPrice } from '../catalogs/gameCatalogs';
 
 export interface CropStats {
   name: string;
@@ -433,27 +433,82 @@ export const CROP_BASE_STATS: Record<string, CropStats> = {
 };
 
 /**
+ * Try multiple PascalCase name variations to find a catalog match.
+ * Handles multi-word species like "Dragon Fruit" → "DragonFruit", "Dragonfruit", etc.
+ */
+function resolveSpeciesForCatalog(cropName: string, displayName: string): ReturnType<typeof getFloraBlueprint> {
+  // Try exact display name first (e.g. "Carrot", "Strawberry")
+  let bp = getFloraBlueprint(displayName);
+  if (bp) return bp;
+
+  // PascalCase join: "Dragon Fruit" → "DragonFruit"
+  const pascalJoin = cropName
+    .split(/[\s_-]+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join('');
+  bp = getFloraBlueprint(pascalJoin);
+  if (bp) return bp;
+
+  // First-char-upper join: "dragonfruit" → "Dragonfruit"
+  const stripped = cropName.replace(/[^a-zA-Z]/g, '');
+  const firstUpper = stripped.charAt(0).toUpperCase() + stripped.slice(1).toLowerCase();
+  if (firstUpper !== pascalJoin) {
+    bp = getFloraBlueprint(firstUpper);
+    if (bp) return bp;
+  }
+
+  // Original input as-is (for PascalCase inputs like "DragonFruit")
+  if (cropName !== displayName && cropName !== pascalJoin) {
+    bp = getFloraBlueprint(cropName);
+    if (bp) return bp;
+  }
+
+  return null;
+}
+
+/**
  * Get crop stats by name (case-insensitive).
- * Overlays runtime catalog data when available for baseSellPrice, baseWeight, and matureTime.
+ * Overlays runtime catalog data when available, keeping hardcoded values as fallback.
  */
 export function getCropStats(cropName: string): CropStats | null {
   const normalized = cropName.toLowerCase().replace(/[^a-z]/g, '');
   const hardcoded = CROP_BASE_STATS[normalized] ?? null;
 
   if (hardcoded && areCatalogsReady()) {
-    // Try PascalCase species name for catalog lookup
-    const pascalName = cropName.replace(/(?:^|\s)\S/g, c => c.toUpperCase()).replace(/\s/g, '');
-    const blueprint = getFloraBlueprint(pascalName) ?? getFloraBlueprint(hardcoded.name);
+    const blueprint = resolveSpeciesForCatalog(cropName, hardcoded.name);
     if (blueprint) {
+      // Derive regrow string from catalog harvest data
+      let regrow = hardcoded.regrow;
+      if (blueprint.harvestType === 'Multiple') {
+        const slots = blueprint.slotCount;
+        regrow = `${slots} Slot${slots !== 1 ? 's' : ''}`;
+      } else if (blueprint.harvestType === 'Single') {
+        regrow = 'No';
+      }
+
+      // Compute maxWeight from catalog if possible
+      const baseWeight = blueprint.cropBaseWeight ?? hardcoded.baseWeight;
+      let maxWeight = hardcoded.maxWeight;
+      if (blueprint.cropBaseWeight != null && blueprint.cropMaxScale != null) {
+        maxWeight = blueprint.cropBaseWeight * blueprint.cropMaxScale;
+      }
+
       const merged: CropStats = {
         ...hardcoded,
+        seedPrice: getSeedPrice(blueprint.species)?.coins ?? hardcoded.seedPrice,
         baseSellPrice: blueprint.cropBaseSellPrice ?? hardcoded.baseSellPrice,
-        baseWeight: blueprint.cropBaseWeight ?? hardcoded.baseWeight,
+        cropGrowTime: blueprint.secondsToMature ?? hardcoded.cropGrowTime,
+        regrow,
+        baseWeight,
+        maxWeight,
       };
-      const matureTime = blueprint.secondsToMature ?? hardcoded.matureTime;
+
+      // matureTime = total plant maturation time (for multi-harvest)
+      const matureTime = blueprint.plantSecondsToMature ?? hardcoded.matureTime;
       if (matureTime !== undefined) {
         merged.matureTime = matureTime;
       }
+
       return merged;
     }
   }

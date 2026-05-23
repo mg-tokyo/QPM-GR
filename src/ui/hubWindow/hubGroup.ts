@@ -34,13 +34,13 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
     'font-size:12px',
     'font-weight:600',
     'letter-spacing:1px',
-    'color:#8f82ff',
+    'color:var(--qpm-accent)',
     'text-transform:uppercase',
   ].join(';');
   headerLabel.textContent = group.label;
 
   const countBadge = document.createElement('span');
-  countBadge.style.cssText = 'font-size:10px;color:#776ea8;';
+  countBadge.style.cssText = 'font-size:10px;color:var(--qpm-accent-dim);';
   countBadge.textContent = `${group.cards.length} ${t('common.features')}`;
 
   // Visibility toggle button (pushed right) — sliders icon
@@ -56,9 +56,9 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
     'border:1px solid rgba(143,130,255,0.2)',
     'border-radius:4px',
     'cursor:pointer',
-    'font-size:13px',
+    'font-size:12px',
     'padding:3px 5px',
-    'color:#776ea8',
+    'color:var(--qpm-accent-dim)',
     'transition:background 0.15s,border-color 0.15s',
     'line-height:0',
     'display:flex',
@@ -116,7 +116,7 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
       'right:0',
       'margin-top:4px',
       'background:#1e1b2e',
-      'border:1px solid rgba(143,130,255,0.25)',
+      'border:1px solid var(--qpm-accent-border)',
       'border-radius:8px',
       'padding:8px 0',
       'min-width:220px',
@@ -126,7 +126,7 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
 
     // Title
     const title = document.createElement('div');
-    title.style.cssText = 'padding:4px 12px 8px;font-size:11px;font-weight:600;color:#8f82ff;text-transform:uppercase;letter-spacing:0.5px;';
+    title.style.cssText = 'padding:4px 12px 8px;font-size:12px;font-weight:600;color:var(--qpm-accent);text-transform:uppercase;letter-spacing:0.5px;';
     title.textContent = 'Show/Hide Features';
     popover.appendChild(title);
 
@@ -135,13 +135,13 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
     for (const card of group.cards) {
       const row = document.createElement('label');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;transition:background 0.15s;font-size:12px;color:#e0dce8;';
-      row.addEventListener('mouseenter', () => { row.style.background = 'rgba(143,130,255,0.08)'; });
+      row.addEventListener('mouseenter', () => { row.style.background = 'var(--qpm-accent-tint)'; });
       row.addEventListener('mouseleave', () => { row.style.background = 'transparent'; });
 
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = !hidden.includes(card.key);
-      cb.style.cssText = 'width:14px;height:14px;cursor:pointer;accent-color:#8f82ff;flex-shrink:0;';
+      cb.style.cssText = 'width:14px;height:14px;cursor:pointer;accent-color:var(--qpm-accent);flex-shrink:0;';
       cb.addEventListener('change', () => {
         setCardHidden(group.id, card.key, !cb.checked);
         renderCards();

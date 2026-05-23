@@ -59,8 +59,8 @@ export function renderTileGrid(): TileGridResult {
     'width:100%',
     'box-sizing:border-box',
     'border:1px dashed rgba(143,130,255,0.3)',
-    'border-radius:10px',
-    'padding:12px 11px',
+    'border-radius:12px',
+    'padding:12px',
     'text-align:center',
     'color:rgba(143,130,255,0.5)',
     'font-size:20px',
@@ -100,7 +100,7 @@ export function renderTileGrid(): TileGridResult {
     pickerEl.style.cssText = [
       'background:rgba(26,28,40,0.98)',
       'border:1px solid rgba(143,130,255,0.35)',
-      'border-radius:10px',
+      'border-radius:12px',
       'padding:0',
       'max-height:320px',
       'display:flex',
@@ -110,16 +110,16 @@ export function renderTileGrid(): TileGridResult {
 
     // ── Header ──
     const header = document.createElement('div');
-    header.style.cssText = 'padding:10px 12px 6px;flex-shrink:0;';
+    header.style.cssText = 'padding:12px 12px 6px;flex-shrink:0;';
     const title = document.createElement('div');
-    title.style.cssText = 'font-size:11px;font-weight:700;color:#8f82ff;letter-spacing:0.03em;';
+    title.style.cssText = 'font-size:12px;font-weight:700;color:var(--qpm-accent);letter-spacing:0.03em;';
     title.textContent = t('tile.pickerTitle');
     header.appendChild(title);
     pickerEl.appendChild(header);
 
     // ── Scrollable tile list ──
     const listWrap = document.createElement('div');
-    listWrap.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding:0 10px;display:flex;flex-direction:column;gap:4px;';
+    listWrap.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding:0 12px;display:flex;flex-direction:column;gap:4px;';
 
     const allDefs = getAllTileDefinitions();
     for (const def of allDefs) {
@@ -133,7 +133,7 @@ export function renderTileGrid(): TileGridResult {
         'display:flex',
         'align-items:center',
         'gap:8px',
-        'padding:6px 10px',
+        'padding:6px 12px',
         `background:${rowBg}`,
         `border:1px solid ${rowBorder}`,
         'border-radius:8px',
@@ -145,10 +145,10 @@ export function renderTileGrid(): TileGridResult {
       iconSpan.style.cssText = 'font-size:14px;';
       iconSpan.textContent = def.icon;
       const labelSpan = document.createElement('span');
-      labelSpan.style.cssText = 'flex:1;font-size:11px;font-weight:500;color:#e0e0e0;';
+      labelSpan.style.cssText = 'flex:1;font-size:12px;font-weight:500;color:#e0e0e0;';
       labelSpan.textContent = def.label;
       const actionSpan = document.createElement('span');
-      actionSpan.style.cssText = `font-size:10px;font-weight:600;color:${added ? 'rgba(143,130,255,0.4)' : '#66bb6a'};`;
+      actionSpan.style.cssText = `font-size:10px;font-weight:600;color:${added ? 'rgba(143,130,255,0.4)' : 'var(--qpm-positive)'};`;
       actionSpan.textContent = added ? t('tile.added') : t('tile.add');
 
       row.append(iconSpan, labelSpan, actionSpan);
@@ -180,9 +180,9 @@ export function renderTileGrid(): TileGridResult {
       'flex-shrink:0',
       'border-top:1px solid rgba(143,130,255,0.12)',
       'display:flex',
-      'gap:10px',
+      'gap:12px',
       'font-size:10px',
-      'color:#8f82ff',
+      'color:var(--qpm-accent)',
       'letter-spacing:0.01em',
       'text-shadow:0 0 6px rgba(143,130,255,0.4)',
     ].join(';');

@@ -307,7 +307,7 @@ export function buildDecorShedKeyCounts(myDataValue: unknown): Map<string, numbe
 // Ownership counting and baseline
 // ---------------------------------------------------------------------------
 
-function resolveDawnOwnershipKey(dawnKey: string): string {
+export function resolveDawnOwnershipKey(dawnKey: string): string {
   if (!dawnKey.startsWith('dawn:')) return dawnKey;
   const suffix = dawnKey.slice('dawn:'.length);
   for (const prefix of ['seed', 'tool', 'egg', 'decor'] as const) {

@@ -43,7 +43,7 @@ export function renderInlineToggle(config: InlineToggleConfig): InlineToggleResu
   title.textContent = config.label;
 
   const desc = document.createElement('div');
-  desc.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+  desc.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
   desc.textContent = config.description;
 
   info.append(title, desc);

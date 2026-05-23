@@ -3,7 +3,6 @@
 import { getGardenSnapshot } from './gardenBridge';
 import { getWeatherSnapshot } from '../store/weatherHub';
 import { calculatePlantValue } from './valueCalculator';
-import { normalizeSpeciesKey } from '../utils/helpers';
 import { getWeatherCatalog } from '../catalogs/gameCatalogs';
 import { getMutationApplicationResult } from '../utils/mutationCompatibility';
 import { getFriendBonusMultiplier } from '../store/friendBonus';
@@ -274,9 +273,8 @@ export function analyzeCropMutationPotential(): MutationPotential {
       const fruitCount = extractFruitCount(rawTile);
       if (fruitCount <= 0) continue;
 
-      const normalizedSpecies = normalizeSpeciesKey(species);
-      const currentValue = calculatePlantValue(normalizedSpecies, scale, mutations, getFriendBonusMultiplier());
-      const newValue = calculatePlantValue(normalizedSpecies, scale, nextMutations, getFriendBonusMultiplier());
+      const currentValue = calculatePlantValue(species, scale, mutations, getFriendBonusMultiplier());
+      const newValue = calculatePlantValue(species, scale, nextMutations, getFriendBonusMultiplier());
       const valueGain = newValue - currentValue;
 
       if (!Number.isFinite(valueGain) || valueGain <= 0) continue;

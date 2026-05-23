@@ -3,16 +3,18 @@ import type { NotificationEvent, NotificationLevel } from '../core/notifications
 import { onNotifications, clearNotifications } from '../core/notifications';
 import { storage } from '../utils/storage';
 import { formatSince } from '../utils/helpers';
-import { btn } from './panelHelpers';
+import { createButton, createEmptyState } from './components';
 
 // Module-level uiState reference, set when createNotificationSection is called
 let uiState: UIState | null = null;
 
+// Hex values intentional — used in ${accent}14 alpha-append pattern.
+// Values match: --qpm-info, --qpm-accent, --qpm-warning, --qpm-danger.
 const NOTIFICATION_LEVEL_COLORS: Record<NotificationLevel, string> = {
   info: '#64b5f6',
-  success: 'var(--qpm-accent)',
-  warn: '#ffb74d',
-  error: '#ef5350',
+  success: '#8f82ff',
+  warn: '#ffb347',
+  error: '#f44336',
 };
 
 const NOTIFICATION_LEVEL_ICONS: Record<NotificationLevel, string> = {
@@ -55,13 +57,19 @@ export function createNotificationSection(state: UIState): HTMLElement {
   const controls = document.createElement('div');
   controls.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
 
-  const collapseButton = btn('', () => {
+  const collapseButton = createButton('', { size: 'sm', onClick: () => {
     setNotificationSectionCollapsed(!notificationSectionCollapsed);
     updateCollapseButton();
+  }});
+  // Re-apply active state after createButton's hover cycle resets cssText
+  collapseButton.addEventListener('mouseout', () => {
+    if (notificationSectionCollapsed) {
+      collapseButton.style.background = 'var(--qpm-accent)';
+      collapseButton.style.color = '#fff';
+    }
   });
-  collapseButton.style.fontSize = '10px';
 
-  const detailToggle = btn('', () => {
+  const detailToggle = createButton('', { size: 'sm', onClick: () => {
     notificationDetailExpanded = !notificationDetailExpanded;
     storage.set(NOTIFICATIONS_DETAIL_EXPANDED_KEY, notificationDetailExpanded);
     updateNotificationDetailToggle();
@@ -70,10 +78,16 @@ export function createNotificationSection(state: UIState): HTMLElement {
       : null;
     updateNotificationDetailVisibility(selectedEvent);
     refreshNotificationContainerVisibility();
+  }});
+  // Re-apply active state after createButton's hover cycle resets cssText
+  detailToggle.addEventListener('mouseout', () => {
+    if (notificationDetailExpanded) {
+      detailToggle.style.background = 'var(--qpm-accent)';
+      detailToggle.style.color = '#fff';
+    }
   });
-  detailToggle.style.fontSize = '10px';
 
-  const clearButton = btn('Clear', () => {
+  const clearButton = createButton('Clear', { size: 'sm', onClick: () => {
     clearNotifications();
     resetNotificationFilters();
     notificationSelectedId = null;
@@ -81,8 +95,7 @@ export function createNotificationSection(state: UIState): HTMLElement {
     renderNotificationDetail(null);
     renderNotificationList([]);
     refreshNotificationContainerVisibility();
-  });
-  clearButton.style.fontSize = '10px';
+  }});
 
   controls.append(collapseButton, detailToggle, clearButton);
   headerRow.append(title, controls);
@@ -104,18 +117,16 @@ export function createNotificationSection(state: UIState): HTMLElement {
   list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
   listWrapper.appendChild(list);
 
-  const emptyState = document.createElement('div');
-  emptyState.textContent = 'No notifications yet.';
-  emptyState.style.cssText = 'font-size:11px;color:var(--qpm-text-muted);padding:12px;border:1px dashed rgba(255,255,255,0.1);border-radius:6px;text-align:center;';
+  const emptyState = createEmptyState('No notifications yet.');
   body.appendChild(emptyState);
 
   const detailCard = document.createElement('div');
-  detailCard.style.cssText = 'border:1px solid rgba(255,255,255,0.08);background:rgba(10,12,20,0.72);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:120px';
+  detailCard.style.cssText = 'border:1px solid var(--qpm-border);background:var(--qpm-surface-2);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:120px';
   body.appendChild(detailCard);
 
   const detailPlaceholder = document.createElement('div');
   detailPlaceholder.textContent = 'Select a notification to see full details.';
-  detailPlaceholder.style.cssText = 'font-size:11px;color:var(--qpm-text-muted);text-align:center;';
+  detailPlaceholder.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);text-align:center;';
   detailCard.appendChild(detailPlaceholder);
 
   const detailHeader = document.createElement('div');
@@ -123,11 +134,11 @@ export function createNotificationSection(state: UIState): HTMLElement {
   detailCard.appendChild(detailHeader);
 
   const detailTitle = document.createElement('div');
-  detailTitle.style.cssText = 'font-weight:600;font-size:12px;color:#fff;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;';
+  detailTitle.style.cssText = 'font-weight:600;font-size:12px;color:var(--qpm-text);flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;';
   detailHeader.appendChild(detailTitle);
 
   const detailTimestamp = document.createElement('div');
-  detailTimestamp.style.cssText = 'font-size:10px;color:#ccc;white-space:nowrap;';
+  detailTimestamp.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);white-space:nowrap;';
   detailHeader.appendChild(detailTimestamp);
 
   const detailMeta = document.createElement('div');
@@ -135,7 +146,7 @@ export function createNotificationSection(state: UIState): HTMLElement {
   detailCard.appendChild(detailMeta);
 
   const detailMessage = document.createElement('div');
-  detailMessage.style.cssText = 'display:none;font-size:11px;line-height:1.5;color:#f5f7ff;white-space:pre-wrap;word-break:break-word;';
+  detailMessage.style.cssText = 'display:none;font-size:12px;line-height:1.5;color:var(--qpm-text);white-space:pre-wrap;word-break:break-word;';
   detailCard.appendChild(detailMessage);
 
   const detailActions = document.createElement('div');
@@ -184,7 +195,13 @@ export function createNotificationSection(state: UIState): HTMLElement {
 
   const updateCollapseButton = (): void => {
     collapseButton.textContent = notificationSectionCollapsed ? 'Expand' : 'Collapse';
-    collapseButton.classList.toggle('qpm-button--accent', notificationSectionCollapsed);
+    if (notificationSectionCollapsed) {
+      collapseButton.style.background = 'var(--qpm-accent)';
+      collapseButton.style.color = '#fff';
+    } else {
+      collapseButton.style.background = '';
+      collapseButton.style.color = '';
+    }
   };
 
   updateCollapseButton();
@@ -272,7 +289,13 @@ function updateNotificationDetailToggle(): void {
   const toggle = uiState.notificationsDetailToggle;
   if (!toggle) return;
   toggle.textContent = notificationDetailExpanded ? 'Hide extra info' : 'Show extra info';
-  toggle.classList.toggle('qpm-button--positive', notificationDetailExpanded);
+  if (notificationDetailExpanded) {
+    toggle.style.background = 'var(--qpm-accent)';
+    toggle.style.color = '#fff';
+  } else {
+    toggle.style.background = '';
+    toggle.style.color = '';
+  }
 }
 
 function updateNotificationDetailVisibility(event: NotificationEvent | null): void {
@@ -399,14 +422,14 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
   button.style.cssText = `
     text-align: left;
     background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid var(--qpm-border);
     border-left: 4px solid ${accent};
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    color: #f8f8f8;
+    color: var(--qpm-text);
     cursor: pointer;
     transition: all 0.2s ease;
     backdrop-filter: blur(8px);
@@ -417,20 +440,20 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
   button.addEventListener('mouseenter', () => {
     if (button.dataset.notificationId !== notificationSelectedId) {
       button.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))';
-      button.style.borderColor = 'rgba(255,255,255,0.16)';
+      button.style.borderColor = 'var(--qpm-accent-subtle)';
       button.style.transform = 'translateX(2px)';
     }
   });
   button.addEventListener('mouseleave', () => {
     if (button.dataset.notificationId !== notificationSelectedId) {
       button.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))';
-      button.style.borderColor = 'rgba(255,255,255,0.1)';
+      button.style.borderColor = 'var(--qpm-border)';
       button.style.transform = 'none';
     }
   });
 
   const headerRow = document.createElement('div');
-  headerRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;';
+  headerRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;';
 
   const headerLeft = document.createElement('div');
   headerLeft.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;';
@@ -447,7 +470,7 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
     width: 28px;
     height: 28px;
     background: ${accent}14;
-    border-radius: 6px;
+    border-radius: 8px;
     flex-shrink: 0;
   `;
   headerLeft.appendChild(iconBadge);
@@ -456,10 +479,10 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
   const featureTag = document.createElement('span');
   featureTag.textContent = formatNotificationFeature(event.feature);
   featureTag.style.cssText = `
-    background: rgba(143,130,255,0.12);
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 11px;
+    background: var(--qpm-accent-subtle);
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 12px;
     color: #c7b8ff;
     font-weight: 600;
     letter-spacing: 0.3px;
@@ -471,8 +494,8 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
     const levelTag = document.createElement('span');
     levelTag.textContent = event.level.toUpperCase();
     levelTag.style.cssText = `
-      padding: 3px 8px;
-      border-radius: 6px;
+      padding: 4px 8px;
+      border-radius: 8px;
       background: ${accent}20;
       color: ${accent};
       font-size: 10px;
@@ -487,8 +510,8 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
   time.textContent = formatSince(event.timestamp);
   time.title = new Date(event.timestamp).toLocaleString();
   time.style.cssText = `
-    font-size: 11px;
-    color: rgba(255,255,255,0.4);
+    font-size: 12px;
+    color: var(--qpm-text-muted);
     white-space: nowrap;
     flex-shrink: 0;
     font-weight: 500;
@@ -514,7 +537,7 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
     const hint = document.createElement('div');
     hint.textContent = `⚡ ${event.actions.length} quick action${event.actions.length > 1 ? 's' : ''} available`;
     hint.style.cssText = `
-      font-size: 11px;
+      font-size: 12px;
       color: #90caf9;
       margin-left: 36px;
       font-weight: 500;
@@ -544,7 +567,7 @@ function applyNotificationSelection(): void {
       element.setAttribute('aria-pressed', 'true');
     } else {
       element.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))';
-      element.style.borderColor = 'rgba(255,255,255,0.1)';
+      element.style.borderColor = 'var(--qpm-border)';
       element.style.borderLeftWidth = '4px';
       element.style.boxShadow = 'none';
       element.style.transform = 'none';
@@ -636,7 +659,7 @@ function createNotificationMetaBadge(label: string, value: string): HTMLElement 
 
   const labelEl = document.createElement('span');
   labelEl.textContent = `${label}:`;
-  labelEl.style.cssText = 'font-weight:600;color:#ffffff;';
+  labelEl.style.cssText = 'font-weight:600;color:var(--qpm-text);';
   badge.appendChild(labelEl);
 
   const valueEl = document.createElement('span');

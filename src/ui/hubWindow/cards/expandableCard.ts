@@ -56,7 +56,7 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
   title.textContent = config.label;
 
   const summaryEl = document.createElement('div');
-  summaryEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+  summaryEl.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
   const summaryCleanup = config.renderSummary(summaryEl);
   if (summaryCleanup) cleanups.push(summaryCleanup);
 
@@ -99,10 +99,10 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
   detachBtn.title = t('hub.card.detachTooltip');
   detachBtn.style.cssText = [
     'display:none',
-    'background:rgba(143,130,255,0.08)',
+    'background:var(--qpm-accent-tint)',
     'border:1px solid rgba(143,130,255,0.2)',
-    'color:#8f82ff',
-    'font-size:13px',
+    'color:var(--qpm-accent)',
+    'font-size:12px',
     'cursor:pointer',
     'padding:3px 6px',
     'border-radius:4px',

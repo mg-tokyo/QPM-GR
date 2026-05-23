@@ -104,6 +104,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   const filterGroup = document.createElement('div');
   filterGroup.style.cssText = 'display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;';
+  filterGroup.dataset.tour = 'restock-filters';
 
   let currentFilter = persistedUi.filter;
   const filterBtns: HTMLButtonElement[] = [];
@@ -176,6 +177,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
   searchInput.placeholder = t('feature.shopRestock.searchPlaceholder');
+  searchInput.dataset.tour = 'restock-search';
   searchInput.style.cssText = [
     'padding:4px 10px', 'font-size:12px', 'border-radius:5px', 'flex:1', 'min-width:100px',
     'background:rgba(255,255,255,0.06)', 'border:1px solid rgba(143,130,255,0.25)',
@@ -243,6 +245,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
   // -- Predictions section --
   const predSection = document.createElement('div');
   predSection.style.cssText = 'flex-shrink:0;border-bottom:1px solid rgba(143,130,255,0.15);';
+  predSection.dataset.tour = 'restock-pinned';
 
   const predHeaderRow = document.createElement('div');
   predHeaderRow.style.cssText = [
@@ -346,6 +349,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   const tableWrap = document.createElement('div');
   tableWrap.style.cssText = 'flex:1;overflow-y:auto;min-height:0;';
+  tableWrap.dataset.tour = 'restock-items';
   histSection.append(histHeader, tableWrap);
   body.appendChild(histSection);
 

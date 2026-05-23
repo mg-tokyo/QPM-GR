@@ -75,7 +75,7 @@ export function renderHubSidebar(
   const setActive = (id: HubGroupId): void => {
     for (const [groupId, btn] of buttons) {
       const isActive = groupId === id;
-      btn.style.background = isActive ? 'rgba(143,130,255,0.15)' : 'transparent';
+      btn.style.background = isActive ? 'var(--qpm-accent-subtle)' : 'transparent';
       btn.style.borderColor = isActive ? 'rgba(143,130,255,0.3)' : 'transparent';
       btn.style.opacity = isActive ? '1' : '0.4';
     }

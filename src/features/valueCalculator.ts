@@ -3,7 +3,7 @@
 
 import type { GardenSnapshot } from './gardenBridge';
 import { computeMutationMultiplier } from '../utils/cropMultipliers';
-import { getPlantSpecies } from '../catalogs/gameCatalogs';
+import { getCropBaseSellPrice, getPlantSpecies } from '../catalogs/gameCatalogs';
 
 const SPECIES_VALUES: Record<string, number> = {
   Sunflower: 750000,
@@ -45,48 +45,6 @@ export function calculateMutationMultiplier(mutations: string[] | null | undefin
   return computeMutationMultiplier(mutations).totalMultiplier;
 }
 
-export function calculateGardenValue(snapshot: GardenSnapshot | null | undefined, friendBonus = 1): number {
-  if (!snapshot || !snapshot.tileObjects) {
-    return 0;
-  }
-
-  const now = Date.now();
-  let total = 0;
-
-  for (const tile of Object.values(snapshot.tileObjects)) {
-    if (!tile || typeof tile !== 'object') continue;
-    if ((tile as Record<string, unknown>).objectType !== 'plant') continue;
-
-    const slots = (tile as Record<string, unknown>).slots;
-    if (!Array.isArray(slots)) continue;
-
-    for (const slot of slots) {
-      if (!slot || typeof slot !== 'object') continue;
-      const species = (slot as Record<string, unknown>).species;
-      if (typeof species !== 'string') continue;
-
-      const endTimeRaw = (slot as Record<string, unknown>).endTime;
-      const endTime = typeof endTimeRaw === 'number' ? endTimeRaw : Number(endTimeRaw);
-      if (!Number.isFinite(endTime) || endTime > now) continue;
-
-      const baseValue = SPECIES_VALUES[species];
-      if (!baseValue) continue;
-
-      const mutationsRaw = (slot as Record<string, unknown>).mutations;
-      const mutations = Array.isArray(mutationsRaw) ? (mutationsRaw as string[]) : [];
-      const multiplier = calculateMutationMultiplier(mutations);
-
-      const scaleRaw = (slot as Record<string, unknown>).targetScale;
-      const scale = typeof scaleRaw === 'number' && Number.isFinite(scaleRaw) ? scaleRaw : 1;
-
-      const basePrice = Math.round(multiplier * baseValue * scale);
-      total += Math.round(basePrice * friendBonus);
-    }
-  }
-
-  return total;
-}
-
 export function formatCoins(value: number): string {
   return new Intl.NumberFormat().format(Math.round(value));
 }
@@ -109,17 +67,13 @@ export function formatCoinsAbbreviated(value: number): string {
   }
 }
 
-export function getBaseValue(species: string): number | undefined {
-  return SPECIES_VALUES[species];
-}
-
 export function calculatePlantValue(
   species: string,
   scale = 1,
   mutations: string[] | null | undefined,
   friendBonus = 1,
 ): number {
-  const baseValue = SPECIES_VALUES[species];
+  const baseValue = getCropBaseSellPrice(species) ?? SPECIES_VALUES[species];
   if (!baseValue) return 0;
   const multiplier = calculateMutationMultiplier(mutations ?? []);
   const basePrice = Math.round(baseValue * multiplier * scale);

@@ -1,5 +1,6 @@
 import { t } from '../../i18n';
 import { createCard } from '../panelHelpers';
+import { createToggle } from '../components/toggle';
 import {
   getAutoReconnectConfig,
   updateAutoReconnectConfig,
@@ -31,33 +32,27 @@ export function createAutoReconnectSection(): HTMLElement {
   const { root, body } = createCard(t('hub.config.autoReconnect.label'));
   root.dataset.qpmSection = 'auto-reconnect';
 
-  const toggleRow = document.createElement('label');
+  const toggleRow = document.createElement('div');
   toggleRow.style.cssText = [
     'display:flex',
     'align-items:center',
     'justify-content:space-between',
-    'gap:10px',
-    'padding:8px 10px',
+    'gap:8px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
-    'cursor:pointer',
   ].join(';');
 
-  const toggleTextWrap = document.createElement('div');
-  toggleTextWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
-
   const toggleTitle = document.createElement('div');
-  toggleTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  toggleTitle.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   toggleTitle.textContent = t('feature.autoReconnect.enableToggle');
 
-  toggleTextWrap.append(toggleTitle);
+  const { root: toggleEl, setChecked: setToggleChecked } = createToggle({
+    onChange: (checked) => updateAutoReconnectConfig({ enabled: checked }),
+  });
 
-  const toggleInput = document.createElement('input');
-  toggleInput.type = 'checkbox';
-  toggleInput.style.cssText = 'width:18px;height:18px;cursor:pointer;accent-color:var(--qpm-accent,#8f82ff);';
-
-  toggleRow.append(toggleTextWrap, toggleInput);
+  toggleRow.append(toggleTitle, toggleEl);
   body.appendChild(toggleRow);
 
   const delayWrap = document.createElement('div');
@@ -65,7 +60,7 @@ export function createAutoReconnectSection(): HTMLElement {
     'display:flex',
     'flex-direction:column',
     'gap:6px',
-    'padding:8px 10px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
@@ -75,7 +70,7 @@ export function createAutoReconnectSection(): HTMLElement {
   delayHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;';
 
   const delayLabel = document.createElement('div');
-  delayLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  delayLabel.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   delayLabel.textContent = t('feature.autoReconnect.delayLabel');
 
   const delayValue = document.createElement('div');
@@ -109,8 +104,8 @@ export function createAutoReconnectSection(): HTMLElement {
   delayInput.step = String(DELAY_STEP_SECONDS);
   delayInput.style.cssText = [
     'width:74px',
-    'padding:5px 7px',
-    'border-radius:6px',
+    'padding:4px 8px',
+    'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.18)',
     'background:rgba(0,0,0,0.22)',
     'color:var(--qpm-text,#fff)',
@@ -118,7 +113,7 @@ export function createAutoReconnectSection(): HTMLElement {
   ].join(';');
 
   const inputSuffix = document.createElement('span');
-  inputSuffix.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,rgba(255,255,255,0.65));';
+  inputSuffix.style.cssText = 'font-size:12px;color:var(--qpm-text-muted,rgba(255,255,255,0.65));';
   inputSuffix.textContent = t('feature.autoReconnect.delayHint');
 
   inputRow.append(delayInput, inputSuffix);
@@ -134,7 +129,7 @@ export function createAutoReconnectSection(): HTMLElement {
 
   const syncUi = (nextConfig: AutoReconnectConfig): void => {
     const delaySeconds = clampDelaySeconds(nextConfig.delayMs / 1000);
-    toggleInput.checked = nextConfig.enabled;
+    setToggleChecked(nextConfig.enabled);
     slider.value = String(delaySeconds);
     delayInput.value = String(delaySeconds);
     delayValue.textContent = formatDelayLabel(delaySeconds);
@@ -142,10 +137,6 @@ export function createAutoReconnectSection(): HTMLElement {
     delayInput.disabled = !nextConfig.enabled;
     delayWrap.style.opacity = nextConfig.enabled ? '1' : '0.65';
   };
-
-  toggleInput.addEventListener('change', () => {
-    updateAutoReconnectConfig({ enabled: toggleInput.checked });
-  });
 
   slider.addEventListener('input', () => {
     const seconds = clampDelaySeconds(slider.value);

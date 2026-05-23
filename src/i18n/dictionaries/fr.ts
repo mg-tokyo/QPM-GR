@@ -775,6 +775,7 @@ const fr: Dictionary = {
   'feature.itemDetail.exactMatch': 'Correspondance exacte',
   'feature.itemDetail.finalProbability': 'Probabilité finale',
   'feature.itemDetail.firstRecorded': 'Premier enregistrement — pas de comparaison disponible',
+  'feature.itemDetail.accuracyContext': 'erreur moy. \u00B1{duration} | {count} prédictions',
   'feature.itemDetail.gapConsistency': 'Régularité des intervalles',
   'feature.itemDetail.highProbability': 'Haute probabilité',
   'feature.itemDetail.intervalDistribution': 'Distribution des intervalles',

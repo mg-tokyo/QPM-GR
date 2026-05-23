@@ -1,5 +1,7 @@
 // src/ui/sections/autoFavoriteSection.ts — Auto-Favorite settings section
 import { createCard } from '../panelHelpers';
+import { createToggle } from '../components/toggle';
+import { createSectionHeader } from '../components/sectionHeader';
 import { t } from '../../i18n';
 import { getAutoFavoriteConfig, updateAutoFavoriteConfig, subscribeToAutoFavoriteConfig } from '../../features/autoFavorite';
 import { getAbilityColor } from '../../utils/petCardRenderer';
@@ -26,40 +28,16 @@ function createCollapsibleSection(
   const wrapper = document.createElement('div');
   wrapper.style.cssText = 'margin-bottom:16px;';
 
-  const headerRow = document.createElement('div');
-  headerRow.style.cssText = [
-    'display:flex',
-    'align-items:center',
-    'gap:6px',
-    'cursor:pointer',
-    'user-select:none',
-    'padding:6px 4px',
-    'border-radius:4px',
-    'transition:background 0.15s',
-  ].join(';');
-  headerRow.addEventListener('mouseenter', () => { headerRow.style.background = 'rgba(255,255,255,0.04)'; });
-  headerRow.addEventListener('mouseleave', () => { headerRow.style.background = 'transparent'; });
-
-  const chevron = document.createElement('span');
-  chevron.style.cssText = 'font-size:11px;color:#776ea8;transition:transform 0.15s;';
-  chevron.textContent = defaultOpen ? '\u25BE' : '\u25B8';
-
-  const titleEl = document.createElement('h4');
-  titleEl.textContent = title;
-  titleEl.style.cssText = 'margin:0;font-size:13px;font-weight:600;color:var(--qpm-accent, #4CAF50);';
-
-  headerRow.append(chevron, titleEl);
-
   const contentContainer = document.createElement('div');
   contentContainer.style.cssText = defaultOpen ? 'display:block;margin-top:8px;' : 'display:none;margin-top:8px;';
 
-  headerRow.addEventListener('click', () => {
-    const isOpen = contentContainer.style.display !== 'none';
-    contentContainer.style.display = isOpen ? 'none' : 'block';
-    chevron.textContent = isOpen ? '\u25B8' : '\u25BE';
+  const { root: headerRoot } = createSectionHeader(title, {
+    collapsible: true,
+    collapsed: !defaultOpen,
+    onToggle: (collapsed) => { contentContainer.style.display = collapsed ? 'none' : 'block'; },
   });
 
-  wrapper.append(headerRow, contentContainer);
+  wrapper.append(headerRoot, contentContainer);
   return { wrapper, contentContainer };
 }
 
@@ -72,49 +50,20 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
   const config = getAutoFavoriteConfig();
 
   // Main toggle
-  const enableToggle = document.createElement('label');
-  enableToggle.style.cssText = `
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    background: var(--qpm-surface-1, #1a1a1a);
-    border-radius: 8px;
-    cursor: pointer;
-    margin-bottom: 16px;
-  `;
-
-  const enableCheckbox = document.createElement('input');
-  enableCheckbox.type = 'checkbox';
-  enableCheckbox.checked = config.enabled;
-  enableCheckbox.style.cssText = `
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-  `;
-
-  const enableLabel = document.createElement('span');
-  enableLabel.textContent = t('feature.autoFav.enableToggle');
-  enableLabel.style.cssText = `
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--qpm-text, #fff);
-  `;
-
-  enableCheckbox.addEventListener('change', () => {
-    updateAutoFavoriteConfig({ enabled: enableCheckbox.checked });
+  const { root: enableToggle, setChecked: setEnableChecked } = createToggle({
+    checked: config.enabled,
+    label: t('feature.autoFav.enableToggle'),
+    onChange: (checked) => updateAutoFavoriteConfig({ enabled: checked }),
   });
-
-  enableToggle.appendChild(enableCheckbox);
-  enableToggle.appendChild(enableLabel);
+  enableToggle.style.cssText += 'padding:12px;background:var(--qpm-surface-1, #1a1a1a);border-radius:8px;margin-bottom:16px;';
   body.appendChild(enableToggle);
 
   // Info box
   const infoBox = document.createElement('div');
   infoBox.style.cssText = `
     padding: 12px;
-    background: rgba(76, 175, 80, 0.1);
-    border-left: 3px solid var(--qpm-accent, #4CAF50);
+    background: var(--qpm-accent-tint);
+    border-left: 3px solid var(--qpm-accent, #8f82ff);
     border-radius: 4px;
     margin-bottom: 16px;
     font-size: 12px;
@@ -187,9 +136,9 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
     const abilityPill = document.createElement('span');
     abilityPill.style.cssText = `
       display:inline-block;
-      padding:3px 8px;
+      padding:2px 8px;
       border-radius:4px;
-      font-size:11px;
+      font-size:12px;
       font-weight:500;
       color:${abilityColor.text};
       background:${abilityColor.base};
@@ -268,7 +217,7 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
     const label = document.createElement('span');
     label.textContent = mutationLabel;
-    label.style.cssText = `font-size: 13px; color: var(--qpm-text, #fff);`;
+    label.style.cssText = `font-size: 12px; color: var(--qpm-text, #fff);`;
 
     checkbox.appendChild(input);
     checkbox.appendChild(spriteEl);
@@ -287,12 +236,12 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
   const advancedNote = document.createElement('div');
   advancedNote.style.cssText = `
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    color: var(--qpm-text-muted);
     margin-bottom: 12px;
     padding: 8px;
-    background: rgba(255, 152, 0, 0.1);
-    border-left: 2px solid #FF9800;
+    background: rgba(255, 179, 71, 0.1);
+    border-left: 2px solid var(--qpm-warning, #ffb347);
     border-radius: 4px;
   `;
   advancedNote.textContent = `\u{1F4A1} ${t('feature.autoFav.advancedHint')}`;
@@ -301,8 +250,6 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
   // ── Filter by Abilities sub-section (collapsible) ──
   const abilityFilter = createCollapsibleSection(t('feature.autoFav.filterByAbilities'));
   const abilityFilterContent = abilityFilter.contentContainer;
-  // Style as sub-section
-  abilityFilter.wrapper.querySelector('h4')!.style.cssText = 'margin:0;font-size:12px;font-weight:600;color:rgba(255,255,255,0.8);';
 
   const abilityCheckboxContainer = document.createElement('div');
   abilityCheckboxContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;';
@@ -370,9 +317,9 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
     pill.title = option.label;
     pill.style.cssText = `
       display:inline-block;
-      padding:2px 7px;
+      padding:2px 8px;
       border-radius:4px;
-      font-size:11px;
+      font-size:12px;
       font-weight:500;
       color:${color.text};
       background:${color.base};
@@ -391,7 +338,6 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
   // ── Filter by Ability Count sub-section (collapsible) ──
   const abilityCountFilter = createCollapsibleSection(t('feature.autoFav.filterByAbilityCount'));
-  abilityCountFilter.wrapper.querySelector('h4')!.style.cssText = 'margin:0;font-size:12px;font-weight:600;color:rgba(255,255,255,0.8);';
 
   const abilityCountSelect = document.createElement('select');
   abilityCountSelect.style.cssText = `
@@ -401,7 +347,7 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 4px;
     color: #fff;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
   `;
 
@@ -429,7 +375,6 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
   // ── Filter by Pet Species sub-section (collapsible) ──
   const speciesFilter = createCollapsibleSection(t('feature.autoFav.filterBySpecies'));
-  speciesFilter.wrapper.querySelector('h4')!.style.cssText = 'margin:0;font-size:12px;font-weight:600;color:rgba(255,255,255,0.8);';
 
   const speciesCheckboxContainer = document.createElement('div');
   speciesCheckboxContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;';
@@ -476,7 +421,6 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
   // ── Filter by Crop Type sub-section (collapsible) ──
   const cropTypeFilter = createCollapsibleSection(t('feature.autoFav.filterByCropTypes'));
-  cropTypeFilter.wrapper.querySelector('h4')!.style.cssText = 'margin:0;font-size:12px;font-weight:600;color:rgba(255,255,255,0.8);';
 
   const cropTypeCheckboxContainer = document.createElement('div');
   cropTypeCheckboxContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;';
@@ -522,7 +466,7 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
     const label = document.createElement('span');
     label.textContent = cropName;
-    label.style.cssText = 'color:var(--qpm-text, #fff);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;';
+    label.style.cssText = 'color:var(--qpm-text, #fff);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;';
     label.title = cropName;
 
     checkbox.appendChild(input);
@@ -538,7 +482,7 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
 
   // Subscribe to config changes to update UI
   subscribeToAutoFavoriteConfig((newConfig) => {
-    enableCheckbox.checked = newConfig.enabled;
+    setEnableChecked(newConfig.enabled);
     abilityCountSelect.value = newConfig.filterByAbilityCount != null ? String(newConfig.filterByAbilityCount) : '';
     // Update checkboxes based on config (use data attributes to avoid index-order assumptions)
     abilityCheckboxContainer.querySelectorAll('input[type="checkbox"]').forEach((rawInput) => {

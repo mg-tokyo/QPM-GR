@@ -2,6 +2,7 @@
 // Config UI for Inventory Capacity in the Utility Hub.
 
 import { createCard } from '../panelHelpers';
+import { createToggle } from '../components/toggle';
 import {
   getInventoryCapacityConfig,
   updateInventoryCapacityConfig,
@@ -38,31 +39,31 @@ function ensureSectionStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = [
-    `.qpm-ic-snd-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:rgba(200,192,255,0.72);margin-bottom:2px;}`,
+    `.qpm-ic-snd-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:rgba(200,192,255,0.72);margin-bottom:2px;}`,
     `.qpm-ic-snd-radio{display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;padding-right:4px;}`,
-    `.qpm-ic-snd-radio-item{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;cursor:pointer;transition:background 0.12s;}`,
+    `.qpm-ic-snd-radio-item{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:8px;cursor:pointer;transition:background 0.12s;}`,
     `.qpm-ic-snd-radio-item:hover{background:rgba(143,130,255,0.1);}`,
     `.qpm-ic-snd-radio-item.selected{background:rgba(143,130,255,0.18);border:1px solid rgba(143,130,255,0.4);}`,
     `.qpm-ic-snd-radio-item:not(.selected){border:1px solid transparent;}`,
-    `.qpm-ic-snd-radio-name{font-weight:600;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e8e0ff;}`,
-    `.qpm-ic-snd-del-btn{background:none;border:none;color:rgba(248,113,113,0.7);cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px;flex-shrink:0;}`,
-    `.qpm-ic-snd-del-btn:hover{color:#f87171;background:rgba(248,113,113,0.1);}`,
+    `.qpm-ic-snd-radio-name{font-weight:600;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--qpm-text);}`,
+    `.qpm-ic-snd-del-btn{background:none;border:none;color:rgba(244,67,54,0.7);cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px;flex-shrink:0;}`,
+    `.qpm-ic-snd-del-btn:hover{color:var(--qpm-danger);background:rgba(244,67,54,0.1);}`,
     `.qpm-ic-snd-toggle{display:flex;gap:6px;}`,
-    `.qpm-ic-snd-toggle-btn{flex:1;padding:5px 10px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid rgba(143,130,255,0.3);background:rgba(255,255,255,0.04);color:rgba(232,224,255,0.6);transition:all 0.12s;}`,
+    `.qpm-ic-snd-toggle-btn{flex:1;padding:4px 8px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid rgba(143,130,255,0.3);background:rgba(255,255,255,0.04);color:rgba(232,224,255,0.6);transition:all 0.12s;}`,
     `.qpm-ic-snd-toggle-btn.active{background:rgba(143,130,255,0.2);color:#c8c0ff;border-color:rgba(143,130,255,0.55);}`,
     `.qpm-ic-snd-slider-row{display:flex;align-items:center;gap:8px;}`,
-    `.qpm-ic-snd-slider{flex:1;accent-color:#8f82ff;cursor:pointer;}`,
+    `.qpm-ic-snd-slider{flex:1;accent-color:var(--qpm-accent, #8f82ff);cursor:pointer;}`,
     `.qpm-ic-snd-slider-val{font-size:12px;min-width:32px;text-align:right;font-variant-numeric:tabular-nums;color:rgba(232,224,255,0.7);}`,
-    `.qpm-ic-snd-btn{padding:4px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid rgba(143,130,255,0.35);transition:all 0.12s;}`,
+    `.qpm-ic-snd-btn{padding:4px 8px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid rgba(143,130,255,0.35);transition:all 0.12s;}`,
     `.qpm-ic-snd-btn-primary{background:rgba(143,130,255,0.2);color:#c8c0ff;}`,
     `.qpm-ic-snd-btn-primary:hover{background:rgba(143,130,255,0.32);}`,
     `.qpm-ic-snd-btn-ghost{background:rgba(255,255,255,0.04);color:rgba(232,224,255,0.6);border-color:rgba(229,231,235,0.18);}`,
     `.qpm-ic-snd-btn-ghost:hover{background:rgba(255,255,255,0.08);}`,
-    `.qpm-ic-snd-preview{background:none;border:1px solid rgba(143,130,255,0.3);color:rgba(232,224,255,0.7);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;flex-shrink:0;}`,
+    `.qpm-ic-snd-preview{background:none;border:1px solid rgba(143,130,255,0.3);color:rgba(232,224,255,0.7);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;flex-shrink:0;}`,
     `.qpm-ic-snd-preview:hover{color:#c8c0ff;border-color:rgba(143,130,255,0.5);}`,
-    `.qpm-ic-snd-upload-label{padding:4px 10px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1px dashed rgba(143,130,255,0.35);background:rgba(143,130,255,0.06);color:rgba(200,192,255,0.7);transition:background 0.12s;}`,
+    `.qpm-ic-snd-upload-label{padding:4px 8px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;border:1px dashed rgba(143,130,255,0.35);background:rgba(143,130,255,0.06);color:rgba(200,192,255,0.7);transition:background 0.12s;}`,
     `.qpm-ic-snd-upload-label:hover{background:rgba(143,130,255,0.14);}`,
-    `.qpm-ic-snd-error{font-size:11px;color:#f87171;margin-top:2px;}`,
+    `.qpm-ic-snd-error{font-size:12px;color:var(--qpm-danger);margin-top:2px;}`,
   ].join('\n');
   document.head.appendChild(style);
 }
@@ -82,7 +83,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
     'display:flex',
     'flex-direction:column',
     'gap:8px',
-    'padding:10px',
+    'padding:12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
@@ -100,15 +101,24 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
 
   const headerLabel = document.createElement('div');
-  headerLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  headerLabel.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   headerLabel.textContent = label;
 
-  const headerToggle = document.createElement('input');
-  headerToggle.type = 'checkbox';
-  headerToggle.checked = isEnabled;
-  headerToggle.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:var(--qpm-accent,#8f82ff);';
+  const { root: headerToggleEl, setChecked: setHeaderToggleChecked } = createToggle({
+    checked: isEnabled,
+    size: 'compact',
+    onChange: (checked) => {
+      isEnabled = checked;
+      updateVisibility();
+      if (isEnabled) {
+        save();
+      } else {
+        ops.setConfig(null);
+      }
+    },
+  });
 
-  header.append(headerLabel, headerToggle);
+  header.append(headerLabel, headerToggleEl);
   wrap.appendChild(header);
 
   // -- Content (hidden when disabled) --
@@ -368,7 +378,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   clearBtn.textContent = t('feature.soundConfig.clearSound');
   clearBtn.addEventListener('click', () => {
     isEnabled = false;
-    headerToggle.checked = false;
+    setHeaderToggleChecked(false);
     ops.setConfig(null);
     updateVisibility();
   });
@@ -385,15 +395,6 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
   };
   updateVisibility();
 
-  headerToggle.addEventListener('change', () => {
-    isEnabled = headerToggle.checked;
-    updateVisibility();
-    if (isEnabled) {
-      save();
-    } else {
-      ops.setConfig(null);
-    }
-  });
 
   // -- Save helper --
   function save(): void {
@@ -411,7 +412,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
     const newEnabled = cfg !== null;
     if (newEnabled !== isEnabled) {
       isEnabled = newEnabled;
-      headerToggle.checked = isEnabled;
+      setHeaderToggleChecked(isEnabled);
       updateVisibility();
     }
     if (cfg) {
@@ -452,28 +453,27 @@ export function createInventoryCapacitySection(): HTMLElement {
   root.dataset.qpmSection = 'inv-capacity';
 
   // -- Enable toggle --
-  const toggleRow = document.createElement('label');
+  const toggleRow = document.createElement('div');
   toggleRow.style.cssText = [
     'display:flex',
     'align-items:center',
     'justify-content:space-between',
-    'gap:10px',
-    'padding:8px 10px',
+    'gap:8px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
-    'cursor:pointer',
   ].join(';');
 
   const toggleTitle = document.createElement('div');
-  toggleTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  toggleTitle.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   toggleTitle.textContent = t('feature.invCapacity.enableWarning');
 
-  const toggleInput = document.createElement('input');
-  toggleInput.type = 'checkbox';
-  toggleInput.style.cssText = 'width:18px;height:18px;cursor:pointer;accent-color:var(--qpm-accent,#8f82ff);';
+  const { root: toggleEl, setChecked: setMainToggleChecked } = createToggle({
+    onChange: (checked) => updateInventoryCapacityConfig({ enabled: checked }),
+  });
 
-  toggleRow.append(toggleTitle, toggleInput);
+  toggleRow.append(toggleTitle, toggleEl);
   body.appendChild(toggleRow);
 
   // -- Warning threshold --
@@ -482,15 +482,15 @@ export function createInventoryCapacitySection(): HTMLElement {
     'display:flex',
     'align-items:center',
     'justify-content:space-between',
-    'gap:10px',
-    'padding:8px 10px',
+    'gap:8px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
   ].join(';');
 
   const thresholdLabel = document.createElement('div');
-  thresholdLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  thresholdLabel.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   thresholdLabel.textContent = t('feature.invCapacity.warningThreshold');
 
   const thresholdRight = document.createElement('div');
@@ -503,8 +503,8 @@ export function createInventoryCapacitySection(): HTMLElement {
   thresholdInput.step = '1';
   thresholdInput.style.cssText = [
     'width:56px',
-    'padding:5px 7px',
-    'border-radius:6px',
+    'padding:4px 8px',
+    'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.18)',
     'background:rgba(0,0,0,0.22)',
     'color:var(--qpm-text,#fff)',
@@ -513,7 +513,7 @@ export function createInventoryCapacitySection(): HTMLElement {
   ].join(';');
 
   const thresholdSuffix = document.createElement('span');
-  thresholdSuffix.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,rgba(255,255,255,0.65));';
+  thresholdSuffix.style.cssText = 'font-size:12px;color:var(--qpm-text-muted,rgba(255,255,255,0.65));';
   thresholdSuffix.textContent = t('feature.invCapacity.slotsMax');
 
   thresholdRight.append(thresholdInput, thresholdSuffix);
@@ -526,15 +526,15 @@ export function createInventoryCapacitySection(): HTMLElement {
     'display:flex',
     'align-items:center',
     'justify-content:space-between',
-    'gap:10px',
-    'padding:8px 10px',
+    'gap:8px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
   ].join(';');
 
   const warningColorLabel = document.createElement('div');
-  warningColorLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  warningColorLabel.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   warningColorLabel.textContent = t('feature.invCapacity.warningColor');
 
   const warningColorInput = document.createElement('input');
@@ -550,15 +550,15 @@ export function createInventoryCapacitySection(): HTMLElement {
     'display:flex',
     'align-items:center',
     'justify-content:space-between',
-    'gap:10px',
-    'padding:8px 10px',
+    'gap:8px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
   ].join(';');
 
   const fullColorLabel = document.createElement('div');
-  fullColorLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  fullColorLabel.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   fullColorLabel.textContent = t('feature.invCapacity.fullColor');
 
   const fullColorInput = document.createElement('input');
@@ -585,7 +585,7 @@ export function createInventoryCapacitySection(): HTMLElement {
   const configControls = [thresholdWrap, warningColorWrap, fullColorWrap, warningSoundBlock, fullSoundBlock];
 
   const syncUi = (cfg: InventoryCapacityConfig): void => {
-    toggleInput.checked = cfg.enabled;
+    setMainToggleChecked(cfg.enabled);
     thresholdInput.value = String(cfg.warningThreshold);
     warningColorInput.value = cfg.warningColor;
     fullColorInput.value = cfg.fullColor;
@@ -607,10 +607,6 @@ export function createInventoryCapacitySection(): HTMLElement {
   };
 
   // -- Event handlers --
-  toggleInput.addEventListener('change', () => {
-    updateInventoryCapacityConfig({ enabled: toggleInput.checked });
-  });
-
   const commitThreshold = (): void => {
     updateInventoryCapacityConfig({ warningThreshold: clampThreshold(thresholdInput.value) });
   };

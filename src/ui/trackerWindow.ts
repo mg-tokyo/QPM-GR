@@ -532,6 +532,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
     'overflow:hidden',
     'text-overflow:ellipsis',
   ].join(';');
+  summaryStrip.dataset.tour = 'ability-summary';
   summaryStrip.textContent = t('common.loading');
   container.appendChild(summaryStrip);
 
@@ -544,6 +545,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
 
   const cardsContainer = document.createElement('div');
   cardsContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  cardsContainer.dataset.tour = 'ability-cards';
   contentWrap.appendChild(cardsContainer);
   scrollContent.appendChild(contentWrap);
   container.appendChild(scrollContent);
@@ -560,6 +562,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
     'flex-shrink:0',
     'user-select:none',
   ].join(';');
+  footerHint.dataset.tour = 'ability-hint';
   container.appendChild(footerHint);
 
   // -- Internal state --

@@ -45,24 +45,35 @@ export function getAccuracyWindows(
     const q1 = sorted[Math.floor(sorted.length * 0.25)]!;
     const q3 = sorted[Math.floor(sorted.length * 0.75)]!;
     const iqr = q3 - q1;
-    // Floor at 2 × cycle_ms (~10min) to avoid degenerate zero-IQR items
-    const cycleFloor = 600_000;
+    // Cap scoreScaleMs at the median so high-variance items (IQR > median)
+    // don't get artificially generous scoring from outlier-inflated IQR.
+    const rawScale = iqr * 0.9;
+    const cappedScale = medianMs != null && Number.isFinite(medianMs) && medianMs > 0
+      ? Math.min(rawScale, medianMs * 0.9)
+      : rawScale;
+    // Proportional floor: 10% of median (not absolute) — prevents inflation
+    // for fast-cycling items while staying fair for slow ones.
+    const proportionalFloor = medianMs != null && medianMs > 0 ? medianMs * 0.10 : 60_000;
     return {
-      goodMs: Math.max(iqr * 0.5, cycleFloor * 2),
-      warnMs: Math.max(iqr * 1.5, cycleFloor * 8),
-      scoreScaleMs: Math.max(iqr, cycleFloor * 4),
+      goodMs: Math.max(iqr * 0.5, proportionalFloor, 30_000),
+      warnMs: Math.max(iqr * 1.5, proportionalFloor * 3, 120_000),
+      scoreScaleMs: Math.max(
+        cappedScale,
+        medianMs != null && medianMs > 0 ? medianMs * 0.20 : 120_000,
+        120_000,
+      ),
     };
   }
 
-  // Percentage fallback — NO hard caps (fixes celestial accuracy)
+  // Percentage fallback — proportional floors (no absolute inflation)
   const base = medianMs != null && Number.isFinite(medianMs) && medianMs > 0
     ? medianMs
     : 1_800_000; // 30min default
 
   return {
-    goodMs: Math.max(600_000, base * 0.05),
-    warnMs: Math.max(2_700_000, base * 0.18),
-    scoreScaleMs: Math.max(1_800_000, base * 0.12),
+    goodMs: Math.max(base * 0.10, 30_000),
+    warnMs: Math.max(base * 0.30, 120_000),
+    scoreScaleMs: Math.max(base * 0.40, 120_000),
   };
 }
 
@@ -73,15 +84,15 @@ export function getAccuracyWindows(
  *
  * Replaces the old arbitrary cubic (`100 / (1 + ratio^3.2)`) with a logistic
  * function that has well-defined statistical properties:
- * - score(0) = ~100 (perfect prediction)
- * - score(scoreScaleMs) = ~50 (midpoint)
- * - score(3 × scoreScaleMs) = ~1 (large error)
+ * - score(0) = 100 (perfect prediction)
+ * - score(scoreScaleMs) = 50 (midpoint)
+ * - score(2 × scoreScaleMs) ≈ 0 (large error)
  */
 export function computeAccuracyScore(errorMs: number, windows: AccuracyWindows): number {
   const absError = Math.abs(errorMs);
   if (windows.scoreScaleMs <= 0) return 50;
   const ratio = absError / windows.scoreScaleMs;
-  return Math.round(100 / (1 + Math.exp(2.5 * (ratio - 1))));
+  return Math.round(100 / (1 + Math.exp(5.5 * (ratio - 1))));
 }
 
 // ── Per-event accuracy ───────────────────────────────────────────────────────

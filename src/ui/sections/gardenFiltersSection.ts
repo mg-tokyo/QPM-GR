@@ -1,8 +1,11 @@
 import { getGardenFiltersConfig, updateGardenFiltersConfig, getAllPlantSpecies, getAllEggTypes, applyGardenFiltersNow, resetGardenFiltersNow } from '../../features/gardenFilters';
 import { getMutationCatalog, getEggCatalog, waitForCatalogs } from '../../catalogs/gameCatalogs';
-import { spriteExtractor, getCropSpriteWithMutations } from '../../sprite-v2/compat';
+import { getCropSpriteCanvas, getCropSpriteWithMutations } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/canvasHelpers';
 import { createCard } from '../panelHelpers';
+import { createToggle } from '../components/toggle';
+import { createSectionHeader } from '../components/sectionHeader';
+import { createButton } from '../components/button';
 import { t } from '../../i18n';
 
 export async function createGardenFiltersSection(): Promise<HTMLElement> {
@@ -14,46 +17,25 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   const config = getGardenFiltersConfig();
 
   // === MAIN TOGGLE ===
-  const enableToggle = document.createElement('label');
-  enableToggle.style.cssText = `
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    background: var(--qpm-surface-1, #1a1a1a);
-    border-radius: 8px;
-    cursor: pointer;
-    margin-bottom: 16px;
-  `;
-
-  const enableCheckbox = document.createElement('input');
-  enableCheckbox.type = 'checkbox';
-  enableCheckbox.checked = config.enabled;
-  enableCheckbox.style.cssText = `width: 20px; height: 20px; cursor: pointer;`;
-
-  enableCheckbox.addEventListener('change', () => {
-    updateGardenFiltersConfig({ enabled: enableCheckbox.checked });
+  const { root: enableRow } = createToggle({
+    checked: config.enabled,
+    onChange: (checked) => updateGardenFiltersConfig({ enabled: checked }),
+    label: t('feature.gardenFilters.enableToggle'),
   });
-
-  const enableLabel = document.createElement('span');
-  enableLabel.textContent = t('feature.gardenFilters.enableToggle');
-  enableLabel.style.cssText = `font-weight: 600; font-size: 14px; color: var(--qpm-text, #fff);`;
-
-  enableToggle.appendChild(enableCheckbox);
-  enableToggle.appendChild(enableLabel);
-  body.appendChild(enableToggle);
+  enableRow.style.cssText += 'padding:12px;background:var(--qpm-surface-1);border-radius:8px;margin-bottom:16px;gap:12px;';
+  body.appendChild(enableRow);
 
   // === INFO BOX ===
   const infoBox = document.createElement('div');
   infoBox.style.cssText = `
     padding: 12px;
-    background: rgba(63, 81, 181, 0.1);
-    border-left: 3px solid rgba(63, 81, 181, 0.6);
+    background: var(--qpm-accent-tint);
+    border-left: 3px solid var(--qpm-accent-border);
     border-radius: 4px;
     margin-bottom: 16px;
     font-size: 12px;
     line-height: 1.6;
-    color: var(--qpm-text-muted, #aaa);
+    color: var(--qpm-text-muted);
   `;
   const infoStrong = document.createElement('strong');
   infoStrong.textContent = t('feature.gardenFilters.howItWorks');
@@ -81,47 +63,25 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     margin-bottom: 8px;
   `;
 
-  const mutationsTitle = document.createElement('h4');
-  mutationsTitle.textContent = t('feature.gardenFilters.mutationFilters');
-  mutationsTitle.style.cssText = `
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--qpm-accent, #4CAF50);
-  `;
+  const { root: mutTitle } = createSectionHeader(t('feature.gardenFilters.mutationFilters'));
+  mutTitle.style.borderBottom = 'none';
+  mutTitle.style.padding = '0';
 
-  const filterRemainingToggle = document.createElement('label');
-  filterRemainingToggle.style.cssText = `
-    display: none;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--qpm-text-muted, rgba(232,224,255,0.6));
-    white-space: nowrap;
-  `;
-
-  const filterRemainingInput = document.createElement('input');
-  filterRemainingInput.type = 'checkbox';
-  filterRemainingInput.checked = config.excludeMutations;
-  filterRemainingInput.style.cssText = 'width: 14px; height: 14px; cursor: pointer;';
-  filterRemainingInput.addEventListener('change', () => {
-    updateGardenFiltersConfig({ excludeMutations: filterRemainingInput.checked });
+  const { root: filterRemainRow, input: filterRemainInput } = createToggle({
+    size: 'compact',
+    checked: config.excludeMutations,
+    onChange: (checked) => updateGardenFiltersConfig({ excludeMutations: checked }),
+    label: t('feature.gardenFilters.filterRemaining'),
   });
+  filterRemainRow.style.display = 'none';
 
-  const filterRemainingLabel = document.createElement('span');
-  filterRemainingLabel.textContent = t('feature.gardenFilters.filterRemaining');
-
-  filterRemainingToggle.appendChild(filterRemainingInput);
-  filterRemainingToggle.appendChild(filterRemainingLabel);
-
-  mutationsHeader.appendChild(mutationsTitle);
-  mutationsHeader.appendChild(filterRemainingToggle);
+  mutationsHeader.appendChild(mutTitle);
+  mutationsHeader.appendChild(filterRemainRow);
   mutationsSection.appendChild(mutationsHeader);
 
   function updateFilterRemainingVisibility(): void {
     const hasMutations = getGardenFiltersConfig().mutations.length > 0;
-    filterRemainingToggle.style.display = hasMutations ? 'flex' : 'none';
+    filterRemainRow.style.display = hasMutations ? 'inline-flex' : 'none';
   }
 
   // Get mutations from catalog — wait for catalogs first since the mutation catalog
@@ -148,7 +108,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       transition: background 0.2s;
     `;
     checkbox.addEventListener('mouseenter', () => {
-      checkbox.style.background = 'rgba(255, 255, 255, 0.05)';
+      checkbox.style.background = 'var(--qpm-accent-tint)';
     });
     checkbox.addEventListener('mouseleave', () => {
       checkbox.style.background = 'transparent';
@@ -157,7 +117,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = config.mutations.includes(mutationId);
-    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer;';
+    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().mutations;
@@ -168,7 +128,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       updateFilterRemainingVisibility();
     });
 
-    // Use sprite instead of emoji (VERIFIED working!)
+    // Use sprite instead of emoji
     const spriteCanvas = getCropSpriteWithMutations('Sunflower', [mutationId]);
     const spriteEl = document.createElement('img');
     spriteEl.dataset.qpmSprite = `crop:Sunflower:${mutationId}`;
@@ -187,7 +147,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
     const label = document.createElement('span');
     label.textContent = (mutationData as any).name || mutationId;
-    label.style.cssText = 'font-size: 13px; color: var(--qpm-text, #fff);';
+    label.style.cssText = 'font-size: 12px; color: var(--qpm-text);';
 
     checkbox.appendChild(input);
     checkbox.appendChild(spriteEl);
@@ -202,14 +162,9 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   const cropSection = document.createElement('div');
   cropSection.style.cssText = 'margin-bottom: 16px;';
 
-  const cropTitle = document.createElement('h4');
-  cropTitle.textContent = t('feature.gardenFilters.cropSpeciesFilters');
-  cropTitle.style.cssText = `
-    margin: 0 0 8px 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--qpm-accent, #4CAF50);
-  `;
+  const { root: cropTitle } = createSectionHeader(t('feature.gardenFilters.cropSpeciesFilters'));
+  cropTitle.style.borderBottom = 'none';
+  cropTitle.style.padding = '0 0 8px 0';
   cropSection.appendChild(cropTitle);
 
   // Get plant species from gardenFilters module
@@ -227,7 +182,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       transition: background 0.2s;
     `;
     checkbox.addEventListener('mouseenter', () => {
-      checkbox.style.background = 'rgba(255, 255, 255, 0.05)';
+      checkbox.style.background = 'var(--qpm-accent-tint)';
     });
     checkbox.addEventListener('mouseleave', () => {
       checkbox.style.background = 'transparent';
@@ -236,7 +191,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = config.cropSpecies.includes(species);
-    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer;';
+    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().cropSpecies;
@@ -246,7 +201,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       updateGardenFiltersConfig({ cropSpecies: updated });
     });
 
-    const spriteCanvas = spriteExtractor.getCropSprite(species);
+    const spriteCanvas = getCropSpriteCanvas(species);
     const spriteEl = document.createElement('img');
     spriteEl.dataset.qpmSprite = `crop:${species}`;
     spriteEl.title = species;
@@ -264,7 +219,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
     const label = document.createElement('span');
     label.textContent = species;
-    label.style.cssText = 'font-size: 13px; color: var(--qpm-text, #fff);';
+    label.style.cssText = 'font-size: 12px; color: var(--qpm-text);';
 
     checkbox.appendChild(input);
     checkbox.appendChild(spriteEl);
@@ -278,17 +233,12 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   const eggSection = document.createElement('div');
   eggSection.style.cssText = 'margin-bottom: 16px;';
 
-  const eggTitle = document.createElement('h4');
-  eggTitle.textContent = t('feature.gardenFilters.eggTypeFilters');
-  eggTitle.style.cssText = `
-    margin: 0 0 8px 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--qpm-accent, #4CAF50);
-  `;
+  const { root: eggTitle } = createSectionHeader(t('feature.gardenFilters.eggTypeFilters'));
+  eggTitle.style.borderBottom = 'none';
+  eggTitle.style.padding = '0 0 8px 0';
   eggSection.appendChild(eggTitle);
 
-  // Get egg types from catalog (future-proof!)
+  // Get egg types from catalog
   const eggTypes = getAllEggTypes();
 
   for (const eggType of eggTypes) {
@@ -303,7 +253,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       transition: background 0.2s;
     `;
     checkbox.addEventListener('mouseenter', () => {
-      checkbox.style.background = 'rgba(255, 255, 255, 0.05)';
+      checkbox.style.background = 'var(--qpm-accent-tint)';
     });
     checkbox.addEventListener('mouseleave', () => {
       checkbox.style.background = 'transparent';
@@ -312,7 +262,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = config.eggTypes.includes(eggType);
-    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer;';
+    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().eggTypes;
@@ -329,7 +279,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
     const label = document.createElement('span');
     label.textContent = displayName;
-    label.style.cssText = 'font-size: 13px; color: var(--qpm-text, #fff);';
+    label.style.cssText = 'font-size: 12px; color: var(--qpm-text);';
 
     checkbox.appendChild(input);
     checkbox.appendChild(label);
@@ -342,14 +292,9 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   const growthSection = document.createElement('div');
   growthSection.style.cssText = 'margin-bottom: 16px;';
 
-  const growthTitle = document.createElement('h4');
-  growthTitle.textContent = t('feature.gardenFilters.growthStateFilters');
-  growthTitle.style.cssText = `
-    margin: 0 0 8px 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--qpm-accent, #4CAF50);
-  `;
+  const { root: growthTitle } = createSectionHeader(t('feature.gardenFilters.growthStateFilters'));
+  growthTitle.style.borderBottom = 'none';
+  growthTitle.style.padding = '0 0 8px 0';
   growthSection.appendChild(growthTitle);
 
   const growthStates: Array<{id: 'mature' | 'growing'; label: string}> = [
@@ -369,7 +314,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       transition: background 0.2s;
     `;
     checkbox.addEventListener('mouseenter', () => {
-      checkbox.style.background = 'rgba(255, 255, 255, 0.05)';
+      checkbox.style.background = 'var(--qpm-accent-tint)';
     });
     checkbox.addEventListener('mouseleave', () => {
       checkbox.style.background = 'transparent';
@@ -378,7 +323,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = config.growthStates.includes(state.id);
-    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer;';
+    input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().growthStates;
@@ -390,7 +335,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
     const label = document.createElement('span');
     label.textContent = state.label;
-    label.style.cssText = 'font-size: 13px; color: var(--qpm-text, #fff);';
+    label.style.cssText = 'font-size: 12px; color: var(--qpm-text);';
 
     checkbox.appendChild(input);
     checkbox.appendChild(label);
@@ -403,18 +348,14 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   const actionsRow = document.createElement('div');
   actionsRow.style.cssText = 'display: flex; gap: 8px; margin-top: 16px;';
 
-  const applyButton = document.createElement('button');
-  applyButton.textContent = t('feature.gardenFilters.applyFilters');
-  applyButton.className = 'qpm-button qpm-button--positive';
-  applyButton.addEventListener('click', () => {
-    applyGardenFiltersNow();
+  const applyButton = createButton(t('feature.gardenFilters.applyFilters'), {
+    variant: 'primary',
+    onClick: () => applyGardenFiltersNow(),
   });
 
-  const resetButton = document.createElement('button');
-  resetButton.textContent = t('feature.gardenFilters.resetAll');
-  resetButton.className = 'qpm-button';
-  resetButton.addEventListener('click', () => {
-    resetGardenFiltersNow();
+  const resetButton = createButton(t('feature.gardenFilters.resetAll'), {
+    variant: 'secondary',
+    onClick: () => resetGardenFiltersNow(),
   });
 
   actionsRow.appendChild(applyButton);

@@ -38,6 +38,7 @@ import {
   debugLog,
   debugLogError,
   toCanonicalKey,
+  resolveDawnOwnershipKey,
 } from './ownershipTracker';
 import { setAlertBusy, setAlertPendingConfirmation } from './alertDom';
 import { processShopStock } from './stockProcessor';
@@ -179,6 +180,29 @@ export function resolveAutoStoreTarget(
     }
     debugLog('Auto-store target resolved', { key, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
     return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
+  }
+  if (shopType === 'dawn') {
+    const resolvedKey = resolveDawnOwnershipKey(key);
+    if (resolvedKey.startsWith('seed:')) {
+      const existingCount = alertState.seedSiloKeyCounts.get(resolvedKey) ?? 0;
+      if (existingCount <= 0) {
+        debugLog('Auto-store target skipped for dawn seed', { key, resolvedKey, existingSeedCountInSilo: existingCount });
+        return null;
+      }
+      debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo', existingSeedCountInSilo: existingCount });
+      return { storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo' };
+    }
+    if (resolvedKey.startsWith('decor:')) {
+      const existingCount = alertState.decorShedKeyCounts.get(resolvedKey) ?? 0;
+      if (existingCount <= 0) {
+        debugLog('Auto-store target skipped for dawn decor', { key, resolvedKey, existingDecorCountInShed: existingCount });
+        return null;
+      }
+      debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
+      return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
+    }
+    debugLog('Auto-store target not applicable for dawn item type', { key, resolvedKey });
+    return null;
   }
   debugLog('Auto-store target not applicable for shop type', { key, shopType });
   return null;

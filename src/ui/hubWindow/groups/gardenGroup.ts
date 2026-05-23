@@ -21,7 +21,7 @@ export function getGardenGroup(): HubGroupDef {
     labelColor: '#c084fc',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.gardenFilters.summary');
     },
     renderExpanded: (container) => {
@@ -62,7 +62,7 @@ export function getGardenGroup(): HubGroupDef {
     labelColor: '#34d399',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.reminders.summary');
     },
     renderExpanded: (container) => {
@@ -96,7 +96,7 @@ export function getGardenGroup(): HubGroupDef {
     labelColor: '#93c5fd',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.stats.summary');
     },
     onOpen: () => {

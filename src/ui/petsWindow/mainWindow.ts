@@ -55,6 +55,7 @@ function renderPetsWindow(root: HTMLElement): void {
   // Tabs
   const tabs = document.createElement('div');
   tabs.className = 'qpm-pets__tabs';
+  tabs.dataset.tour = 'pet-hub-tabs';
   container.appendChild(tabs);
 
   const compareStageBadge = document.createElement('div');
@@ -66,6 +67,7 @@ function renderPetsWindow(root: HTMLElement): void {
 
   const settingsWrap = document.createElement('div');
   settingsWrap.className = 'qpm-pets__settings-wrap';
+  settingsWrap.dataset.tour = 'pet-hub-settings';
 
   const settingsBtn = document.createElement('button');
   settingsBtn.type = 'button';
@@ -80,6 +82,7 @@ function renderPetsWindow(root: HTMLElement): void {
 
   const body = document.createElement('div');
   body.className = 'qpm-pets__body';
+  body.dataset.tour = 'pet-hub-body';
   container.appendChild(body);
 
   type TabId = 'manager' | 'pet-optimizer';

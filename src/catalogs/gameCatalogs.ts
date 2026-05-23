@@ -210,6 +210,7 @@ export interface FloraBlueprint {
   rotateSlotOffsetsRandomly: boolean;
   tileTransformOrigin: string | null;
   secondsToMature: number | null;
+  plantSecondsToMature: number | null;
   plantSpriteKey: string | null;
   cropSpriteKey: string | null;
   cropBaseTileScale: number | null;
@@ -274,6 +275,7 @@ export function getFloraBlueprint(species: string): FloraBlueprint | null {
     rotateSlotOffsetsRandomly: plant.rotateSlotOffsetsRandomly === true,
     tileTransformOrigin: stageStr(plant, 'tileTransformOrigin'),
     secondsToMature: stageNum(crop, 'secondsToMature'),
+    plantSecondsToMature: stageNum(plant, 'secondsToMature'),
     plantSpriteKey: stageStr(plant, 'sprite'),
     cropSpriteKey: stageStr(crop, 'sprite'),
     cropBaseTileScale: stageNum(crop, 'baseTileScale'),
@@ -332,11 +334,19 @@ export function getCropBaseWeight(species: string): number | null {
 }
 
 /**
- * Get seconds to mature for a crop species from the runtime catalog.
+ * Get seconds to mature for a crop (per-fruit grow time) from the runtime catalog.
  */
 export function getSecondsToMature(species: string): number | null {
   const bp = getFloraBlueprint(species);
   return bp?.secondsToMature ?? null;
+}
+
+/**
+ * Get seconds to mature for the plant stage (total maturation time) from the runtime catalog.
+ */
+export function getPlantSecondsToMature(species: string): number | null {
+  const bp = getFloraBlueprint(species);
+  return bp?.plantSecondsToMature ?? null;
 }
 
 // ============================================================================

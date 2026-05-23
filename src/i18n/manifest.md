@@ -68,7 +68,7 @@ Ordered by string count (smallest → largest). Each invocation of `/language` p
 | 22 | Turtle Timer Section | `sections/turtleTimerSection.ts` | ~25 | done | done | done |
 | 23 | Locker Section | `sections/lockerSection.ts`, `lockerCustomRules.ts`, `lockerPlantPicker.ts`, `lockerPrimitives.ts`, `lockerTabPanels.ts` | ~25 | done | done | done |
 | 24 | Crop Boost Tracker | `cropBoostTrackerWindow.ts` | ~20 | done | done | done |
-| 25 | Journal Checker | `journalCheckerSection.ts` | ~15 | done | done | done |
+| 25 | Journal Checker | `journalChecker/section.ts`, `tabProduce.ts`, `tabPets.ts`, `tabRecommendations.ts`, `speciesCard.ts`, `constants.ts`, `sprites.ts`, `styles.ts` | ~15 | done | done | done |
 | 26 | Pet Hub Window | `petHubWindow.ts`, `petHutchWindow.ts` | ~15 | done | done | done |
 | 27 | Shop Restock Window | `shopRestockWindow.ts`, `shopRestockWindowConstants.ts`, `shopRestockWindowFormatters.ts`, `shopRestockWindowMeta.ts`, `shopRestockWindowRows.ts` | ~30 | done | done | done |
 | 28 | Item Restock Detail | `itemRestockDetailWindow.ts` | ~20 | done | done | done |

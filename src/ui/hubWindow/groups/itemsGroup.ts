@@ -21,7 +21,7 @@ export function getItemsGroup(): HubGroupDef {
     labelColor: '#f472b6',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.favorites.summary');
     },
     renderExpanded: (container) => {
@@ -66,7 +66,7 @@ export function getItemsGroup(): HubGroupDef {
     labelColor: '#fb923c',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.protection.summary');
     },
     renderExpanded: (container) => {
@@ -111,7 +111,7 @@ export function getItemsGroup(): HubGroupDef {
     labelColor: '#fbbf24',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.calculator.summary');
     },
     renderExpanded: (container) => {
@@ -157,7 +157,7 @@ export function getItemsGroup(): HubGroupDef {
     labelColor: '#818cf8',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.petTeams.summary');
     },
     onOpen: () => {
@@ -175,7 +175,7 @@ export function getItemsGroup(): HubGroupDef {
     labelColor: '#a3e635',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.valueDisplay.summary');
     },
     onOpen: () => {

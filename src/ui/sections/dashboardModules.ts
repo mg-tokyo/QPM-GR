@@ -1,6 +1,7 @@
 // src/ui/sections/dashboardModules.ts — Dashboard feature modules
 
 import { type UIState } from "../panelState";
+import { createToggle } from "../components";
 import { log } from "../../utils/logger";
 import { storage } from "../../utils/storage";
 import { t } from "../../i18n";
@@ -73,7 +74,7 @@ function makeChannelRow(
     "display:flex;align-items:center;justify-content:space-between;gap:4px;";
   const labelEl = document.createElement("span");
   labelEl.style.cssText =
-    "font-size:11px;color:rgba(224,224,224,0.4);white-space:nowrap;";
+    "font-size:12px;color:rgba(224,224,224,0.4);white-space:nowrap;";
   labelEl.textContent = `${icon} ${label}`;
   const val = document.createElement("span");
   val.style.cssText = "font-size:12px;font-weight:600;color:#e0e0e0;";
@@ -93,9 +94,9 @@ function makeBar(pct: number, color: string): HTMLElement {
 }
 
 function hungerColor(pct: number): string {
-  if (pct >= 75) return "#4caf50";
-  if (pct >= 40) return "#ff9800";
-  return "#f44336";
+  if (pct >= 75) return "var(--qpm-hunger-full)";
+  if (pct >= 40) return "var(--qpm-hunger-mid)";
+  return "var(--qpm-hunger-low)";
 }
 
 // ─── Module card dispatcher ─────────────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ function buildModuleCard(
   card.style.cssText = [
     "padding:8px 10px",
     "background:rgba(255,255,255,0.04)",
-    "border:1px solid rgba(143,130,255,0.12)",
+    "border:1px solid var(--qpm-accent-subtle)",
     "border-radius:6px",
     "display:flex",
     "flex-direction:column",
@@ -155,7 +156,7 @@ export function buildModulesSection(uiState: UIState): HTMLElement {
 
   const sectionTitle = document.createElement("div");
   sectionTitle.style.cssText =
-    "font-size:11px;font-weight:600;color:rgba(224,224,224,0.6);text-transform:uppercase;letter-spacing:0.5px;";
+    "font-size:12px;font-weight:600;color:rgba(224,224,224,0.6);text-transform:uppercase;letter-spacing:0.5px;";
   sectionTitle.textContent = `⚡ ${t("feature.dashboard.sectionTitle")}`;
 
   const customizeBtn = document.createElement("button");
@@ -164,8 +165,8 @@ export function buildModulesSection(uiState: UIState): HTMLElement {
   customizeBtn.style.cssText = [
     "font-size:10px",
     "padding:2px 8px",
-    "background:rgba(143,130,255,0.1)",
-    "border:1px solid rgba(143,130,255,0.25)",
+    "background:var(--qpm-accent-tint)",
+    "border:1px solid var(--qpm-accent-border)",
     "border-radius:4px",
     "color:#c8c0ff",
     "cursor:pointer",
@@ -177,7 +178,7 @@ export function buildModulesSection(uiState: UIState): HTMLElement {
   const togglePanel = document.createElement("div");
   togglePanel.style.cssText = [
     "background:rgba(0,0,0,0.25)",
-    "border:1px solid rgba(143,130,255,0.15)",
+    "border:1px solid var(--qpm-accent-subtle)",
     "border-radius:6px",
     "padding:8px 10px",
     "margin-bottom:8px",
@@ -197,21 +198,18 @@ export function buildModulesSection(uiState: UIState): HTMLElement {
   const renderTogglePanel = (): void => {
     togglePanel.innerHTML = "";
     for (const mod of ALL_MODULES) {
-      const chip = document.createElement("label");
-      chip.style.cssText =
-        "display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(224,224,224,0.7);cursor:pointer;";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = enabledModules.has(mod.id);
-      cb.style.accentColor = "#8f82ff";
-      cb.addEventListener("change", () => {
-        if (cb.checked) enabledModules.add(mod.id);
-        else enabledModules.delete(mod.id);
-        saveEnabledModules(enabledModules);
-        renderModuleCards();
+      const { root: toggle } = createToggle({
+        size: "compact",
+        checked: enabledModules.has(mod.id),
+        label: `${mod.icon} ${t(mod.label)}`,
+        onChange: (checked) => {
+          if (checked) enabledModules.add(mod.id);
+          else enabledModules.delete(mod.id);
+          saveEnabledModules(enabledModules);
+          renderModuleCards();
+        },
       });
-      chip.append(cb, document.createTextNode(`${mod.icon} ${t(mod.label)}`));
-      togglePanel.appendChild(chip);
+      togglePanel.appendChild(toggle);
     }
   };
 
@@ -224,7 +222,7 @@ export function buildModulesSection(uiState: UIState): HTMLElement {
     if (enabledModules.size === 0) {
       const hint = document.createElement("div");
       hint.style.cssText =
-        "font-size:11px;color:rgba(224,224,224,0.3);font-style:italic;";
+        "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
       hint.textContent = t("feature.dashboard.noModulesHint");
       moduleCards.appendChild(hint);
       return;
@@ -274,7 +272,7 @@ function buildTurtleTimerModule(
     "border-radius:3px",
     "cursor:pointer",
     "border:1px solid rgba(143,130,255,0.3)",
-    "background:rgba(143,130,255,0.08)",
+    "background:var(--qpm-accent-tint)",
     "color:rgba(224,224,224,0.4)",
     "flex-shrink:0",
   ].join(";");
@@ -317,10 +315,10 @@ function buildTurtleTimerModule(
       currentEnabled = snap.enabled;
       toggleBtn.textContent = snap.enabled ? t("feature.dashboard.toggleOn") : t("feature.dashboard.toggleOff");
       toggleBtn.style.color = snap.enabled
-        ? "#4caf50"
+        ? "var(--qpm-positive)"
         : "rgba(224,224,224,0.4)";
       toggleBtn.style.borderColor = snap.enabled
-        ? "rgba(76,175,80,0.4)"
+        ? "rgba(79,209,139,0.4)"
         : "rgba(143,130,255,0.3)";
       if (!snap.enabled) {
         plantEndTime = eggEndTime = null;
@@ -367,7 +365,7 @@ function buildActivePetsModule(
     "border-radius:3px",
     "cursor:pointer",
     "border:1px solid rgba(143,130,255,0.3)",
-    "background:rgba(143,130,255,0.08)",
+    "background:var(--qpm-accent-tint)",
     "color:#c8c0ff",
     "flex-shrink:0",
   ].join(";");
@@ -375,7 +373,7 @@ function buildActivePetsModule(
 
   feedAllBtn.addEventListener("click", async () => {
     feedAllBtn.disabled = true;
-    feedAllBtn.textContent = "⏳";
+    feedAllBtn.textContent = "…";
     try {
       const { feedAllPetsInstantly } =
         await import("../../features/instantFeed");
@@ -397,7 +395,7 @@ function buildActivePetsModule(
     if (!pets.length) {
       const e = document.createElement("div");
       e.style.cssText =
-        "font-size:11px;color:rgba(224,224,224,0.3);font-style:italic;";
+        "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
       e.textContent = t("feature.dashboard.noActivePets");
       listEl.appendChild(e);
       return;
@@ -407,7 +405,7 @@ function buildActivePetsModule(
       row.style.cssText = "display:flex;align-items:center;gap:5px;";
       const nameEl = document.createElement("span");
       nameEl.style.cssText =
-        "font-size:11px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+        "font-size:12px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
       nameEl.textContent =
         pet.name || pet.species || t("feature.dashboard.petFallback", { index: pet.slotIndex + 1 });
       const pct = pet.hungerPct ?? 0;
@@ -420,11 +418,11 @@ function buildActivePetsModule(
       feedBtn.textContent = "🍖";
       feedBtn.title = t("feature.dashboard.feedTooltip");
       feedBtn.style.cssText =
-        "font-size:11px;padding:0 4px;border-radius:3px;cursor:pointer;border:1px solid rgba(143,130,255,0.2);background:rgba(143,130,255,0.06);flex-shrink:0;line-height:1.5;";
+        "font-size:12px;padding:0 4px;border-radius:3px;cursor:pointer;border:1px solid rgba(143,130,255,0.2);background:rgba(143,130,255,0.06);flex-shrink:0;line-height:1.5;";
       const idx = pet.slotIndex;
       feedBtn.addEventListener("click", async () => {
         feedBtn.disabled = true;
-        feedBtn.textContent = "⏳";
+        feedBtn.textContent = "…";
         try {
           const { feedPetInstantly } =
             await import("../../features/instantFeed");
@@ -477,7 +475,7 @@ function buildXpNearMaxModule(
     if (!withPct.length) {
       const e = document.createElement("div");
       e.style.cssText =
-        "font-size:11px;color:rgba(224,224,224,0.3);font-style:italic;";
+        "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
       e.textContent = t("feature.dashboard.noXpData");
       listEl.appendChild(e);
       return;
@@ -487,11 +485,11 @@ function buildXpNearMaxModule(
       row.style.cssText = "display:flex;align-items:center;gap:5px;";
       const nameEl = document.createElement("span");
       nameEl.style.cssText =
-        "font-size:11px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+        "font-size:12px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
       nameEl.textContent =
         pet.name || pet.species || t("feature.dashboard.petFallback", { index: pet.slotIndex + 1 });
       const clr =
-        pct >= 95 ? "#8f82ff" : pct >= 80 ? "#ff9800" : "rgba(255,255,255,0.5)";
+        pct >= 95 ? "var(--qpm-accent)" : pct >= 80 ? "#ff9800" : "rgba(255,255,255,0.5)";
       const bar = makeBar(pct, clr);
       const pctEl = document.createElement("span");
       pctEl.style.cssText = `font-size:10px;color:${clr};min-width:30px;text-align:right;white-space:nowrap;`;
@@ -548,7 +546,7 @@ function buildNextRestockModule(
     if (!byShop.size) {
       const e = document.createElement("div");
       e.style.cssText =
-        "font-size:11px;color:rgba(224,224,224,0.3);font-style:italic;";
+        "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
       e.textContent = t("feature.dashboard.noData");
       listEl.appendChild(e);
       return;
@@ -578,7 +576,7 @@ function buildNextRestockModule(
       probEl.textContent = `${Math.round(prob * 100)}%`;
       const tsEl = document.createElement("span");
       tsEl.style.cssText =
-        "font-size:10px;color:#8f82ff;min-width:44px;text-align:right;flex-shrink:0;";
+        "font-size:10px;color:var(--qpm-accent);min-width:44px;text-align:right;flex-shrink:0;";
       tsEl.textContent = ts > now ? formatCountdown(ts - now) : t("feature.dashboard.soon");
       shopSlots.set(shopKey, { tsEl, ts });
       row.append(iconEl, nameEl, probEl, tsEl);

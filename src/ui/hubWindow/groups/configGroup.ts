@@ -36,11 +36,11 @@ const KEYBIND_BUTTON_STYLE = [
   'min-width:100px',
   'text-align:center',
   'background:rgba(255,255,255,0.06)',
-  'border:1px solid rgba(143,130,255,0.25)',
+  'border:1px solid var(--qpm-accent-border)',
   'border-radius:5px',
   'color:#e0e0e0',
   'font-family:inherit',
-  'font-size:11px',
+  'font-size:12px',
   'padding:5px 8px',
   'cursor:pointer',
   'white-space:nowrap',
@@ -65,13 +65,13 @@ function buildToggleRow(label: string, checked: boolean, onChange: (v: boolean) 
   ].join(';');
 
   const text = document.createElement('div');
-  text.style.cssText = 'font-size:13px;font-weight:600;color:#e0e0e0;';
+  text.style.cssText = 'font-size:12px;font-weight:600;color:#e0e0e0;';
   text.textContent = label;
 
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.checked = checked;
-  input.style.cssText = 'width:18px;height:18px;cursor:pointer;accent-color:#8f82ff;';
+  input.style.cssText = 'width:18px;height:18px;cursor:pointer;accent-color:var(--qpm-accent);';
   input.addEventListener('change', () => onChange(input.checked));
 
   row.append(text, input);
@@ -111,7 +111,7 @@ export function renderAutoReconnectExpanded(container: HTMLElement): () => void 
   slider.max = '300';
   slider.step = '5';
   slider.value = String(Math.round(cfg.delayMs / 1000));
-  slider.style.cssText = 'width:100%;accent-color:#8f82ff;cursor:pointer;';
+  slider.style.cssText = 'width:100%;accent-color:var(--qpm-accent);cursor:pointer;';
   slider.addEventListener('input', () => {
     const seconds = Number(slider.value);
     sliderLabel.textContent = t('hub.config.autoReconnect.delayLabel', { delay: formatDelay(seconds * 1000) });
@@ -170,7 +170,7 @@ export function renderShopKeybindsExpanded(container: HTMLElement): () => void {
     ].join(';');
 
     const label = document.createElement('div');
-    label.style.cssText = 'font-size:13px;font-weight:600;color:#e0e0e0;';
+    label.style.cssText = 'font-size:12px;font-weight:600;color:#e0e0e0;';
     label.textContent = t(SHOP_I18N_KEYS[shopId]);
 
     const right = document.createElement('div');
@@ -182,11 +182,11 @@ export function renderShopKeybindsExpanded(container: HTMLElement): () => void {
       'min-width:90px',
       'text-align:center',
       'background:rgba(255,255,255,0.06)',
-      'border:1px solid rgba(143,130,255,0.25)',
+      'border:1px solid var(--qpm-accent-border)',
       'border-radius:5px',
       'color:#e0e0e0',
       'font-family:inherit',
-      'font-size:11px',
+      'font-size:12px',
       'padding:5px 8px',
       'cursor:pointer',
       'white-space:nowrap',
@@ -198,7 +198,7 @@ export function renderShopKeybindsExpanded(container: HTMLElement): () => void {
       const binds = getAllShopKeybinds();
       const combo = binds[shopId];
       kbDisplay.textContent = recording ? t('hub.config.pressKeys') : (combo ? formatKeybind(combo) : '\u2014');
-      kbDisplay.style.borderColor = recording ? '#8f82ff' : 'rgba(143,130,255,0.25)';
+      kbDisplay.style.borderColor = recording ? 'var(--qpm-accent)' : 'var(--qpm-accent-border)';
     }
     updateDisplay();
 
@@ -275,7 +275,7 @@ export function renderPanelShortcutExpanded(container: HTMLElement): () => void 
   ].join(';');
 
   const label = document.createElement('div');
-  label.style.cssText = 'font-size:13px;font-weight:600;color:#e0e0e0;';
+  label.style.cssText = 'font-size:12px;font-weight:600;color:#e0e0e0;';
   label.textContent = t('hub.config.panelShortcut.togglePanel');
 
   const right = document.createElement('div');
@@ -312,7 +312,7 @@ export function renderPanelShortcutExpanded(container: HTMLElement): () => void 
   container.appendChild(row);
 
   const note = document.createElement('div');
-  note.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.48);line-height:1.45;padding:0 2px;';
+  note.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.48);line-height:1.45;padding:0 2px;';
   note.textContent = t('hub.config.panelShortcut.note');
   container.appendChild(note);
 
@@ -329,7 +329,7 @@ export function getConfigGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '↻', spriteKey: 'sprite/ui/ProgressStar', fallback: '↻' },
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       function update(): void {
         const cfg = getAutoReconnectConfig();
         const s = Math.round(cfg.delayMs / 1000);
@@ -355,7 +355,7 @@ export function getConfigGroup(): HubGroupDef {
     labelColor: '#60a5fa',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.config.controller.summary');
     },
     renderExpanded: (container) => {
@@ -382,7 +382,7 @@ export function getConfigGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '⌨️', spriteKey: 'sprite/ui/ArrowKeys', fallback: '⌨️' },
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = isShopKeybindsEnabled() ? t('common.enabled') : t('common.disabled');
     },
     renderExpanded: renderShopKeybindsExpanded,
@@ -396,7 +396,7 @@ export function getConfigGroup(): HubGroupDef {
     labelColor: '#a78bfa',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       return onPanelToggleKeybindChange((combo) => {
         el.textContent = t('hub.config.panelShortcut.summary', { keybind: formatKeybind(combo) });
       });

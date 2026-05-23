@@ -41,8 +41,6 @@ const CHORD_ONLY_ACTION: Action = 'deselectSlot';
 
 const ENABLED_KEY = 'qpm.controller.enabled.v1';
 
-const ACCENT = 'rgba(143,130,255,';
-const DARK_BG = 'rgba(14,14,22,0.97)';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -67,9 +65,9 @@ export function createControllerSection(
     'display:flex',
     'flex-direction:column',
     'gap:0',
-    'font-family:system-ui,-apple-system,sans-serif',
-    'font-size:13px',
-    'color:#e0e0e0',
+    'font-family:var(--qpm-font)',
+    'font-size:14px',
+    'color:var(--qpm-text, #eef0ff)',
   ].join(';');
 
   // Prefer the passed instances (opened via Start button); fall back to live
@@ -111,10 +109,10 @@ export function createControllerSection(
     row.style.cssText = [
       'display:flex',
       'align-items:center',
-      'gap:10px',
-      'padding:0 0 14px',
+      'gap:8px',
+      'padding:0 0 12px',
       'border-bottom:1px solid rgba(255,255,255,0.07)',
-      'margin-bottom:14px',
+      'margin-bottom:12px',
     ].join(';');
 
     const profile = resolveProfile();
@@ -122,13 +120,13 @@ export function createControllerSection(
     const badgeText = connected ? t('feature.controller.connected', { name: profile!.name }) : t('feature.controller.noController');
     const badge = document.createElement('span');
     badge.style.cssText = [
-      'font-size:11px',
-      'padding:3px 9px',
-      'border-radius:20px',
+      'font-size:12px',
+      'padding:4px 8px',
+      'border-radius:9999px',
       'white-space:nowrap',
       connected
-        ? 'background:rgba(60,200,100,0.15);border:1px solid rgba(60,200,100,0.35);color:#70e090'
-        : 'background:rgba(120,120,120,0.12);border:1px solid rgba(120,120,120,0.2);color:#777',
+        ? 'background:rgba(76,175,80,0.15);border:1px solid rgba(76,175,80,0.35);color:var(--qpm-positive)'
+        : 'background:rgba(120,120,120,0.12);border:1px solid rgba(120,120,120,0.2);color:var(--qpm-text-muted)',
     ].join(';');
     badge.textContent = badgeText;
 
@@ -137,9 +135,9 @@ export function createControllerSection(
       const p = resolveProfile();
       const c = p !== null;
       badge.textContent = c ? t('feature.controller.connected', { name: p!.name }) : t('feature.controller.noController');
-      badge.style.background = c ? 'rgba(60,200,100,0.15)' : 'rgba(120,120,120,0.12)';
-      badge.style.border = c ? '1px solid rgba(60,200,100,0.35)' : '1px solid rgba(120,120,120,0.2)';
-      badge.style.color = c ? '#70e090' : '#777';
+      badge.style.background = c ? 'rgba(76,175,80,0.15)' : 'rgba(120,120,120,0.12)';
+      badge.style.border = c ? '1px solid rgba(76,175,80,0.35)' : '1px solid rgba(120,120,120,0.2)';
+      badge.style.color = c ? 'var(--qpm-positive)' : 'var(--qpm-text-muted)';
     };
     window.addEventListener('gamepadconnected', updateBadge);
     window.addEventListener('gamepaddisconnected', updateBadge);
@@ -163,14 +161,14 @@ export function createControllerSection(
     toggleBtn.type = 'button';
     toggleBtn.textContent = enabled ? t('common.enabled') : t('common.disabled');
     toggleBtn.style.cssText = [
-      'padding:5px 13px',
-      'border-radius:6px',
+      'padding:6px 12px',
+      'border-radius:8px',
       'font-size:12px',
       'cursor:pointer',
       'transition:background 0.15s,border-color 0.15s',
       enabled
-        ? `background:${ACCENT}0.18);border:1px solid ${ACCENT}0.42);color:#c8c0ff`
-        : 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#666',
+        ? 'background:var(--qpm-accent-subtle);border:1px solid var(--qpm-accent-focus);color:var(--qpm-text)'
+        : 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:var(--qpm-text-muted)',
     ].join(';');
     toggleBtn.addEventListener('click', () => {
       void (async () => {
@@ -212,14 +210,14 @@ export function createControllerSection(
       const isActive = speed === currentSpeed;
       btn.style.cssText = [
         'flex:1',
-        'padding:5px 4px',
-        'border-radius:6px',
+        'padding:6px 4px',
+        'border-radius:8px',
         'font-size:12px',
         'cursor:pointer',
         'transition:background 0.15s,color 0.15s,border-color 0.15s',
         isActive
-          ? `background:${ACCENT}0.22);border:1px solid ${ACCENT}0.5);color:#c0d8ff`
-          : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:#888',
+          ? 'background:var(--qpm-accent-border);border:1px solid var(--qpm-accent-emphasis);color:var(--qpm-text)'
+          : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:var(--qpm-text-muted)',
       ].join(';');
       btn.addEventListener('click', () => {
         currentSpeed = speed;
@@ -255,10 +253,10 @@ export function createControllerSection(
     for (const [input, desc] of rows) {
       const tr = document.createElement('tr');
       const tdInput = document.createElement('td');
-      tdInput.style.cssText = 'padding:5px 8px 5px 0;width:1%;white-space:nowrap;vertical-align:middle;';
+      tdInput.style.cssText = 'padding:4px 8px 4px 0;width:1%;white-space:nowrap;vertical-align:middle;';
       tdInput.appendChild(makePlainInputLabel(typeof input === 'string' ? input : ''));
       const tdDesc = document.createElement('td');
-      tdDesc.style.cssText = 'padding:5px 0;color:#666;font-size:12px;vertical-align:middle;';
+      tdDesc.style.cssText = 'padding:4px 0;color:var(--qpm-text-muted);font-size:12px;vertical-align:middle;';
       tdDesc.textContent = desc;
       tr.append(tdInput, tdDesc);
       table.querySelector('tbody')!.appendChild(tr);
@@ -267,10 +265,10 @@ export function createControllerSection(
     // LB+RB chord row
     const chordTr = document.createElement('tr');
     const chordInput = document.createElement('td');
-    chordInput.style.cssText = 'padding:5px 8px 5px 0;width:1%;white-space:nowrap;vertical-align:middle;';
+    chordInput.style.cssText = 'padding:4px 8px 4px 0;width:1%;white-space:nowrap;vertical-align:middle;';
     chordInput.append(makePill(lb), makeChordPlus(), makePill(rb));
     const chordDesc = document.createElement('td');
-    chordDesc.style.cssText = 'padding:5px 0;color:#666;font-size:12px;vertical-align:middle;';
+    chordDesc.style.cssText = 'padding:4px 0;color:var(--qpm-text-muted);font-size:12px;vertical-align:middle;';
     chordDesc.textContent = t('feature.controller.deselectHotbar');
     chordTr.append(chordInput, chordDesc);
     table.querySelector('tbody')!.appendChild(chordTr);
@@ -293,12 +291,12 @@ export function createControllerSection(
       const warn = document.createElement('div');
       warn.style.cssText = [
         'margin-bottom:8px',
-        'padding:6px 10px',
-        'border-radius:6px',
-        'background:rgba(255,160,50,0.1)',
-        'border:1px solid rgba(255,160,50,0.2)',
-        'color:#c8882a',
-        'font-size:11px',
+        'padding:6px 12px',
+        'border-radius:8px',
+        'background:rgba(255,179,71,0.1)',
+        'border:1px solid rgba(255,179,71,0.2)',
+        'color:var(--qpm-warning)',
+        'font-size:12px',
       ].join(';');
       warn.textContent = `⚠ ${t('feature.controller.nonStandardWarning')}`;
       section.appendChild(warn);
@@ -309,7 +307,7 @@ export function createControllerSection(
     header.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;';
     const label = makeSectionLabel(t('feature.controller.buttonBindings'));
     const hint = document.createElement('span');
-    hint.style.cssText = 'font-size:11px;color:#444;font-style:italic;';
+    hint.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);font-style:italic;';
     hint.textContent = t('feature.controller.rebindHint');
     header.append(label, hint);
     section.appendChild(header);
@@ -329,24 +327,24 @@ export function createControllerSection(
     for (const [btnIdx, action] of boundEntries) {
       const tr = document.createElement('tr');
       const tdInput = document.createElement('td');
-      tdInput.style.cssText = 'padding:5px 8px 5px 0;width:1%;white-space:nowrap;vertical-align:middle;';
+      tdInput.style.cssText = 'padding:4px 8px 4px 0;width:1%;white-space:nowrap;vertical-align:middle;';
       tdInput.appendChild(makePill(btnLabel(profile, btnIdx)));
 
       const tdAction = document.createElement('td');
       tdAction.style.cssText = [
         'cursor:pointer',
-        `color:${ACCENT}0.85)`,
-        'padding:5px 0',
-        'font-size:13px',
+        'color:var(--qpm-accent)',
+        'padding:4px 0',
+        'font-size:12px',
         'transition:color 0.15s',
         'vertical-align:middle',
       ].join(';');
       tdAction.innerHTML = getActionLabel(action) +
         (CONTEXT_SENSITIVE_ACTIONS.has(action)
-          ? `<span style="font-size:10px;color:#666;margin-left:4px;vertical-align:super;line-height:0;">†</span>`
+          ? `<span style="font-size:10px;color:var(--qpm-text-muted);margin-left:4px;vertical-align:super;line-height:0;">†</span>`
           : '');
-      tdAction.addEventListener('mouseenter', () => { tdAction.style.color = `${ACCENT}1)`; });
-      tdAction.addEventListener('mouseleave', () => { tdAction.style.color = `${ACCENT}0.85)`; });
+      tdAction.addEventListener('mouseenter', () => { tdAction.style.color = 'var(--qpm-accent)'; });
+      tdAction.addEventListener('mouseleave', () => { tdAction.style.color = 'var(--qpm-accent)'; });
       tdAction.addEventListener('click', () => startCapture(action, tdAction));
 
       tr.append(tdInput, tdAction);
@@ -356,7 +354,7 @@ export function createControllerSection(
 
     if (hasContextNote) {
       const footnote = document.createElement('div');
-      footnote.style.cssText = 'font-size:11px;color:#484848;font-style:italic;padding:4px 0 8px;';
+      footnote.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);font-style:italic;padding:4px 0 8px;';
       footnote.textContent = t('feature.controller.contextFootnote');
       section.appendChild(footnote);
     }
@@ -368,9 +366,9 @@ export function createControllerSection(
         'display:flex',
         'align-items:baseline',
         'justify-content:space-between',
-        'margin-top:10px',
+        'margin-top:12px',
         'border-top:1px solid rgba(255,255,255,0.05)',
-        'padding-top:10px',
+        'padding-top:12px',
       ].join(';');
       const subLabel = makeSectionLabel(t('feature.controller.unbound'), true);
 
@@ -381,16 +379,16 @@ export function createControllerSection(
       collapseBtn.style.cssText = [
         'background:none',
         'border:none',
-        'color:#484848',
-        'font-size:11px',
+        'color:var(--qpm-text-muted)',
+        'font-size:12px',
         'font-style:italic',
         'font-family:inherit',
         'cursor:pointer',
         'padding:0',
         'transition:color 0.15s',
       ].join(';');
-      collapseBtn.addEventListener('mouseenter', () => { collapseBtn.style.color = '#777'; });
-      collapseBtn.addEventListener('mouseleave', () => { collapseBtn.style.color = '#484848'; });
+      collapseBtn.addEventListener('mouseenter', () => { collapseBtn.style.color = 'var(--qpm-text)'; });
+      collapseBtn.addEventListener('mouseleave', () => { collapseBtn.style.color = 'var(--qpm-text-muted)'; });
 
       subHeader.append(subLabel, collapseBtn);
       section.appendChild(subHeader);
@@ -402,15 +400,15 @@ export function createControllerSection(
       for (const action of unboundActions) {
         const tr = document.createElement('tr');
         const tdInput = document.createElement('td');
-        tdInput.style.cssText = 'padding:5px 8px 5px 0;width:1%;white-space:nowrap;vertical-align:middle;';
+        tdInput.style.cssText = 'padding:4px 8px 4px 0;width:1%;white-space:nowrap;vertical-align:middle;';
         tdInput.appendChild(makePill('—', true));
 
         const tdAction = document.createElement('td');
         tdAction.style.cssText = [
           'cursor:pointer',
-          'color:#555',
-          'padding:5px 0',
-          'font-size:13px',
+          'color:var(--qpm-text-muted)',
+          'padding:4px 0',
+          'font-size:12px',
           'transition:color 0.15s',
           'vertical-align:middle',
         ].join(';');
@@ -418,12 +416,12 @@ export function createControllerSection(
         tdAction.textContent = getActionLabel(action);
         if (isChordAlso) {
           const sub = document.createElement('span');
-          sub.style.cssText = 'display:block;font-size:11px;color:#444;font-style:italic;margin-top:1px;';
+          sub.style.cssText = 'display:block;font-size:12px;color:var(--qpm-text-muted);font-style:italic;margin-top:1px;';
           sub.textContent = t('feature.controller.chordNote', { lb: btnLabel(profile, 4), rb: btnLabel(profile, 5) });
           tdAction.appendChild(sub);
         }
-        tdAction.addEventListener('mouseenter', () => { tdAction.style.color = '#7a9acc'; });
-        tdAction.addEventListener('mouseleave', () => { tdAction.style.color = '#555'; });
+        tdAction.addEventListener('mouseenter', () => { tdAction.style.color = 'var(--qpm-accent)'; });
+        tdAction.addEventListener('mouseleave', () => { tdAction.style.color = 'var(--qpm-text-muted)'; });
         tdAction.addEventListener('click', () => startCapture(action, tdAction));
 
         tr.append(tdInput, tdAction);
@@ -455,17 +453,17 @@ export function createControllerSection(
     resetBtn.type = 'button';
     resetBtn.textContent = t('feature.controller.resetToDefaults');
     resetBtn.style.cssText = [
-      'background:rgba(220,60,60,0.12)',
-      'border:1px solid rgba(220,60,60,0.28)',
-      'color:#cc7070',
-      'padding:5px 14px',
-      'border-radius:6px',
+      'background:rgba(244,67,54,0.12)',
+      'border:1px solid rgba(244,67,54,0.28)',
+      'color:var(--qpm-danger)',
+      'padding:6px 12px',
+      'border-radius:8px',
       'cursor:pointer',
       'font-size:12px',
       'transition:background 0.15s',
     ].join(';');
-    resetBtn.addEventListener('mouseenter', () => { resetBtn.style.background = 'rgba(220,60,60,0.22)'; });
-    resetBtn.addEventListener('mouseleave', () => { resetBtn.style.background = 'rgba(220,60,60,0.12)'; });
+    resetBtn.addEventListener('mouseenter', () => { resetBtn.style.background = 'rgba(244,67,54,0.22)'; });
+    resetBtn.addEventListener('mouseleave', () => { resetBtn.style.background = 'rgba(244,67,54,0.12)'; });
     resetBtn.addEventListener('click', () => {
       captureAbort?.();
       currentBindings = { ...DEFAULT_BINDINGS };
@@ -487,7 +485,7 @@ export function createControllerSection(
 
     const originalHTML = cell.innerHTML;
     cell.textContent = t('feature.controller.pressButton');
-    cell.style.color = '#f0a040';
+    cell.style.color = 'var(--qpm-warning)';
     cell.style.fontStyle = 'italic';
     cell.style.cursor = 'default';
 
@@ -499,7 +497,7 @@ export function createControllerSection(
       aborted = true;
       if (pollId !== null) clearInterval(pollId);
       cell.innerHTML = originalHTML;
-      cell.style.color = `${ACCENT}0.85)`;
+      cell.style.color = 'var(--qpm-accent)';
       cell.style.fontStyle = '';
       cell.style.cursor = 'pointer';
       captureAbort = null;
@@ -568,19 +566,19 @@ export function createControllerSection(
 
 function makeSection(labelText: string): HTMLElement {
   const section = document.createElement('div');
-  section.style.cssText = 'padding:0 0 12px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:14px;';
+  section.style.cssText = 'padding:0 0 12px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:12px;';
   section.appendChild(makeSectionLabel(labelText));
   return section;
 }
 
-function makeSectionLabel(text: string, dim = false): HTMLElement {
+function makeSectionLabel(text: string, _dim = false): HTMLElement {
   const el = document.createElement('div');
   el.style.cssText = [
     'font-size:10px',
     'font-weight:600',
     'letter-spacing:0.08em',
     'text-transform:uppercase',
-    `color:${dim ? '#444' : '#555'}`,
+    `color:var(--qpm-text-muted)`,
     'padding-bottom:8px',
   ].join(';');
   el.textContent = text;
@@ -602,11 +600,11 @@ function makePill(label: string, unbound = false): HTMLElement {
     'align-items:center',
     'justify-content:center',
     'min-width:32px',
-    'padding:2px 7px',
-    'border-radius:5px',
+    'padding:2px 8px',
+    'border-radius:4px',
     unbound
-      ? 'border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#444'
-      : 'border:1px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.09);color:#d8d8d8',
+      ? 'border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:var(--qpm-text-muted)'
+      : 'border:1px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.09);color:var(--qpm-text)',
     'font-size:12px',
     'font-weight:500',
     'white-space:nowrap',
@@ -619,22 +617,18 @@ function makePill(label: string, unbound = false): HTMLElement {
 
 function makeChordPlus(): HTMLElement {
   const el = document.createElement('span');
-  el.style.cssText = 'font-size:11px;color:#555;margin:0 3px;vertical-align:middle;';
+  el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);margin:0 4px;vertical-align:middle;';
   el.textContent = '+';
   return el;
 }
 
 function makePlainInputLabel(text: string): HTMLElement {
   const el = document.createElement('span');
-  el.style.cssText = 'font-size:12px;color:#666;font-style:italic;';
+  el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);font-style:italic;';
   el.textContent = text;
   return el;
 }
 
 function btnLabel(profile: ControllerProfile | null, index: number): string {
   return profile?.buttonLabels[index] ?? t('feature.controller.btnFallback', { index: String(index) });
-}
-
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }

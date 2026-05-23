@@ -269,7 +269,7 @@ function aggregateModelAccuracyMetric(
   aggregate: RestockPredictionAccuracyAggregate | null,
   medianMs: number | null,
   intervals: number[] | null,
-): { score: number; title: string } | null {
+): { score: number; title: string; avgErrorMs: number; count: number } | null {
   if (!aggregate || aggregate.scored_predictions < RESTOCK_MODEL_ACCURACY_MIN_SCORED) return null;
   if (aggregate.median_abs_error_min == null || !Number.isFinite(aggregate.median_abs_error_min)) return null;
   const medianErrorMs = aggregate.median_abs_error_min * 60_000;
@@ -281,6 +281,8 @@ function aggregateModelAccuracyMetric(
   return {
     score: Math.min(100, Math.max(0, score)),
     title: details.join(' | '),
+    avgErrorMs: medianErrorMs,
+    count: aggregate.scored_predictions,
   };
 }
 
@@ -575,8 +577,7 @@ function makeCardHeader(
 interface OverviewHandle {
   container: HTMLElement;
   setEventCount: (count: number, totalSightings?: number) => void;
-  setMedianRegularity: (score: number) => void;
-  setModelAccuracy: (score: number, detailTitle?: string) => void;
+  setModelAccuracy: (score: number, avgErrorMs?: number, predictionCount?: number, detailTitle?: string) => void;
   setLastSeen: (timestamp: number | null) => void;
   browseBtn: HTMLButtonElement;
 }
@@ -848,27 +849,6 @@ function buildOverviewCard(
     infoSection.appendChild(histRow);
   }
 
-  // Median regularity (filled in after events load)
-  const accuracyRow = document.createElement('div');
-  accuracyRow.style.cssText = 'margin-top:4px;display:none;';
-  const accuracyHeader = document.createElement('div');
-  accuracyHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;';
-  const accuracyLabel = document.createElement('span');
-  accuracyLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-  accuracyLabel.textContent = t('feature.itemDetail.gapConsistency');
-  const accuracyValue = document.createElement('span');
-  accuracyValue.style.cssText = 'font-size:16px;font-weight:700;color:#e8e0ff;';
-  accuracyHeader.append(accuracyLabel, accuracyValue);
-  accuracyRow.appendChild(accuracyHeader);
-
-  const accBarTrack = document.createElement('div');
-  accBarTrack.style.cssText = 'width:100%;height:6px;border-radius:3px;background:rgba(143,130,255,0.12);overflow:hidden;';
-  const accBarFill = document.createElement('div');
-  accBarFill.style.cssText = 'height:100%;border-radius:3px;transition:width 0.3s ease;';
-  accBarTrack.appendChild(accBarFill);
-  accuracyRow.appendChild(accBarTrack);
-  infoSection.appendChild(accuracyRow);
-
   const modelAccuracyRow = document.createElement('div');
   modelAccuracyRow.style.cssText = 'margin-top:4px;display:none;';
   const modelAccuracyHeader = document.createElement('div');
@@ -887,6 +867,9 @@ function buildOverviewCard(
   modelAccBarFill.style.cssText = 'height:100%;border-radius:3px;transition:width 0.3s ease;';
   modelAccBarTrack.appendChild(modelAccBarFill);
   modelAccuracyRow.appendChild(modelAccBarTrack);
+  const modelAccContext = document.createElement('div');
+  modelAccContext.style.cssText = 'font-size:10px;color:rgba(232,224,255,0.35);margin-top:4px;display:none;';
+  modelAccuracyRow.appendChild(modelAccContext);
   infoSection.appendChild(modelAccuracyRow);
   card.appendChild(infoSection);
 
@@ -927,22 +910,22 @@ function buildOverviewCard(
       const chipValue = eventCountChip.firstElementChild as HTMLElement | null;
       if (chipValue) chipValue.textContent = String(totalSightings ?? count);
     },
-    setMedianRegularity: (score: number) => {
-      accuracyRow.style.display = '';
-      accuracyValue.textContent = `${Math.round(score)}%`;
-      const color = score >= 70 ? '#4ade80' : score >= 40 ? '#fbbf24' : '#f87171';
-      accBarFill.style.width = `${Math.round(score)}%`;
-      accBarFill.style.background = color;
-      accuracyValue.style.color = color;
-    },
-    setModelAccuracy: (score: number, detailTitle?: string) => {
+    setModelAccuracy: (score: number, avgErrorMs?: number, predictionCount?: number, detailTitle?: string) => {
       modelAccuracyRow.style.display = '';
       modelAccuracyRow.title = detailTitle ?? '';
-      modelAccuracyValue.textContent = `${Math.round(score)}%`;
-      const color = score >= 70 ? '#4ade80' : score >= 40 ? '#fbbf24' : '#f87171';
-      modelAccBarFill.style.width = `${Math.round(score)}%`;
+      const capped = Math.min(99, Math.round(score));
+      modelAccuracyValue.textContent = `${capped}%`;
+      const color = capped >= 70 ? '#4ade80' : capped >= 40 ? '#fbbf24' : '#f87171';
+      modelAccBarFill.style.width = `${capped}%`;
       modelAccBarFill.style.background = color;
       modelAccuracyValue.style.color = color;
+      if (avgErrorMs != null && predictionCount != null) {
+        modelAccContext.style.display = '';
+        modelAccContext.textContent = t('feature.itemDetail.accuracyContext', {
+          duration: fmtDuration(avgErrorMs),
+          count: predictionCount,
+        });
+      }
     },
     setLastSeen,
     browseBtn,
@@ -1116,8 +1099,9 @@ function buildEventCard(
       scoreValue.textContent = '\u2014';
       barFill.style.width = '0%';
     } else {
-      scoreValue.textContent = `${Math.round(acc.score)}%`;
-      barFill.style.width = `${Math.round(acc.score)}%`;
+      const capped = Math.min(99, Math.round(acc.score));
+      scoreValue.textContent = `${capped}%`;
+      barFill.style.width = `${capped}%`;
     }
 
     if (acc.status === 'first') {
@@ -1215,7 +1199,7 @@ function makeRowEl(
   gapEl.style.cssText = 'font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;';
   if (rowAccuracy !== null) {
     gapEl.style.color = color;
-    gapEl.textContent = `${Math.round(rowAccuracy)}%`;
+    gapEl.textContent = `${Math.min(99, Math.round(rowAccuracy))}%`;
   } else {
     gapEl.style.color = 'rgba(232,224,255,0.18)';
     gapEl.textContent = '\u2014';
@@ -1422,7 +1406,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       eventListSection.removeChild(spinner);
       const aggregateModelMetric = aggregateModelAccuracyMetric(modelAccuracyAggregate, medianMs, itemIntervals);
       if (aggregateModelMetric) {
-        overview.setModelAccuracy(aggregateModelMetric.score, aggregateModelMetric.title);
+        overview.setModelAccuracy(aggregateModelMetric.score, aggregateModelMetric.avgErrorMs, aggregateModelMetric.count, aggregateModelMetric.title);
       }
 
       if (!events.length) {
@@ -1471,33 +1455,23 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         overview.setLastSeen(item.last_seen ?? latestEventTs);
       }
 
-      // Median-gap regularity is distinct from logged prediction accuracy.
-      const withComparison = rows.filter((_, i) => i + 1 < rows.length);
-      if (withComparison.length > 0) {
-        const scores = withComparison
-          .map((row, i) => {
-            const prevRow = rows[i + 1]!;
-            return computeMedianRowRegularity(row, prevRow, medianMs, itemIntervals);
-          })
-          .filter((acc) => acc.status !== 'first')
-          .map((acc) => acc.score);
-        if (scores.length > 0) {
-          const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length;
-          overview.setMedianRegularity(avgScore);
-        }
-      }
       if (!aggregateModelMetric) {
-        const modelScores = rows
+        const modelResults = rows
           .map((row, i) => {
             if (row.predicted_next_ms == null) return null;
             const prevRow = i + 1 < rows.length ? rows[i + 1]! : null;
             const acc = computeRowEventAccuracy(row, prevRow, medianMs, itemIntervals);
-            return acc.status === 'first' ? null : acc.score;
+            if (acc.status === 'first') return null;
+            return { score: acc.score, errorMs: Math.abs(acc.diffMs) };
           })
-          .filter((score): score is number => score !== null);
-        if (modelScores.length > 0) {
-          const avgScore = modelScores.reduce((s, v) => s + v, 0) / modelScores.length;
-          overview.setModelAccuracy(avgScore, modelScores.length === 1 ? t('feature.itemDetail.loggedPrediction', { count: modelScores.length }) : t('feature.itemDetail.loggedPredictions', { count: modelScores.length }));
+          .filter((r): r is { score: number; errorMs: number } => r !== null);
+        if (modelResults.length > 0) {
+          const avgScore = modelResults.reduce((s, r) => s + r.score, 0) / modelResults.length;
+          const avgErrorMs = modelResults.reduce((s, r) => s + r.errorMs, 0) / modelResults.length;
+          const detailTitle = modelResults.length === 1
+            ? t('feature.itemDetail.loggedPrediction', { count: modelResults.length })
+            : t('feature.itemDetail.loggedPredictions', { count: modelResults.length });
+          overview.setModelAccuracy(avgScore, avgErrorMs, modelResults.length, detailTitle);
         }
       }
 

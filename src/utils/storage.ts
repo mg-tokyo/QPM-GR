@@ -236,6 +236,9 @@ const QPM_STORAGE_KEYS = [
 
   // Locale
   'qpm.localeOverride.v1',
+
+  // Tour system (dynamic keys: qpm.tour.<windowId>)
+  // Cleared by storage.clear() via the qpm.* prefix match
 ];
 
 /**

@@ -70,7 +70,7 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
   title.textContent = config.label;
 
   const summaryEl = document.createElement('div');
-  summaryEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+  summaryEl.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
   const summaryCleanup = config.renderSummary(summaryEl);
   if (summaryCleanup) cleanups.push(summaryCleanup);
 
@@ -98,7 +98,7 @@ export function renderLauncherCard(config: LauncherCardConfig): LauncherCardResu
     openBtn.style.borderColor = 'rgba(143,130,255,0.5)';
   });
   openBtn.addEventListener('mouseleave', () => {
-    openBtn.style.background = 'rgba(143,130,255,0.15)';
+    openBtn.style.background = 'rgba(143,130,255,0.12)';
     openBtn.style.borderColor = 'rgba(143,130,255,0.3)';
   });
   const activate = (): void => {

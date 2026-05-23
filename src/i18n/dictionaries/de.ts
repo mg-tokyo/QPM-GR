@@ -778,6 +778,7 @@ const de: Dictionary = {
   'feature.itemDetail.exactMatch': 'Genauer Treffer',
   'feature.itemDetail.finalProbability': 'Endwahrscheinlichkeit',
   'feature.itemDetail.firstRecorded': 'Erste Aufzeichnung \u2014 kein Vergleich verfügbar',
+  'feature.itemDetail.accuracyContext': 'Fehler \u00B1{duration} | {count} Vorhersagen',
   'feature.itemDetail.gapConsistency': 'Lücken-Konsistenz',
   'feature.itemDetail.highProbability': 'Hohe Wahrscheinlichkeit',
   'feature.itemDetail.intervalDistribution': 'Intervallverteilung',

@@ -184,67 +184,7 @@ function loadConfig(): void {
 // ============================================================================
 
 /**
- * Get crop stats from catalog (FUTUREPROOF!)
- * Falls back to hardcoded CROP_BASE_STATS if catalog not ready or species not found
- */
-function getCropStatsFromCatalog(species: string): CropStats | null {
-  // If catalogs aren't ready, use hardcoded fallback
-  if (!areCatalogsReady()) {
-    return getCropStats(species);
-  }
-
-  // Try to get species from catalog - try multiple name variations
-  let plantEntry = getPlantSpecies(species);
-
-  // If exact match fails, try variations (handles "pine tree" -> "PineTree", etc.)
-  if (!plantEntry) {
-    const variations = [
-      normalizeSpeciesKey(species),                                          // "pinetree"
-      species.replace(/\s+/g, ''),                                          // "pinetree"
-      species.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''), // "PineTree"
-      species.charAt(0).toUpperCase() + species.slice(1).replace(/\s+/g, ''), // "Pinetree"
-      species.toLowerCase(),                                                  // "pine tree"
-    ];
-
-    for (const variant of variations) {
-      plantEntry = getPlantSpecies(variant);
-      if (plantEntry?.crop) {
-        break;
-      }
-    }
-  }
-
-  if (!plantEntry?.crop) {
-    // Species not in catalog, try hardcoded fallback
-    return getCropStats(species);
-  }
-
-  // Map catalog data to CropStats format (with proper type casting)
-  const baseSellPrice = typeof plantEntry.crop.baseSellPrice === 'number' ? plantEntry.crop.baseSellPrice : 0;
-  const baseWeight = typeof plantEntry.crop.baseWeight === 'number' ? plantEntry.crop.baseWeight : 1.0;
-  const maxScale = typeof plantEntry.crop.maxScale === 'number' ? plantEntry.crop.maxScale : 2.5;
-  const secondsToMature = typeof plantEntry.plant?.secondsToMature === 'number' ? plantEntry.plant.secondsToMature : 0;
-
-  const result: CropStats = {
-    name: plantEntry.crop.name || species,
-    seedPrice: plantEntry.seed?.coinPrice ?? 0,
-    baseSellPrice,
-    cropGrowTime: secondsToMature,
-    regrow: plantEntry.plant?.harvestType === 'Multiple' ? 'Multiple' : 'No',
-    baseWeight,
-    maxWeight: baseWeight * maxScale,
-  };
-
-  // Add optional fields if they exist
-  if (typeof plantEntry.seed?.creditPrice === 'number') {
-    result.rarity = plantEntry.seed.creditPrice;
-  }
-
-  return result;
-}
-
-/**
- * FUTUREPROOF: Get maxScale from catalog first, fallback to hardcoded plantScales.ts
+ * Get maxScale from catalog first, fallback to hardcoded plantScales.ts
  * This ensures the script automatically handles new crops added to the game!
  */
 function getMaxScaleForCrop(species: string, speciesNormalized: string): number {
@@ -292,8 +232,8 @@ function calculateCropSizeInfo(slot: any): { sizePercent: number; scale: number;
     species = mappedSpecies;
   }
 
-  // Get crop base stats from catalog (FUTUREPROOF!)
-  const cropStats = getCropStatsFromCatalog(species);
+  // Get crop base stats — getCropStats overlays catalog data when available
+  const cropStats = getCropStats(species);
   if (!cropStats) return null;
 
   // Calculate CURRENT scale from weight (weight = baseWeight * scale)

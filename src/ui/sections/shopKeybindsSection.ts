@@ -1,4 +1,5 @@
 import { createCard } from '../panelHelpers';
+import { createToggle } from '../components/toggle';
 import { createKeybindButton } from '../petsWindow/helpers';
 import {
   getShopKeybind,
@@ -26,11 +27,11 @@ const KEYBIND_BTN_STYLE = [
   'text-align:center',
   'background:rgba(255,255,255,0.06)',
   'border:1px solid rgba(143,130,255,0.25)',
-  'border-radius:5px',
-  'color:#e0e0e0',
+  'border-radius:4px',
+  'color:var(--qpm-text, #eef0ff)',
   'font-family:inherit',
-  'font-size:11px',
-  'padding:5px 8px',
+  'font-size:12px',
+  'padding:4px 8px',
   'outline:none',
   'cursor:pointer',
   'white-space:nowrap',
@@ -43,29 +44,31 @@ export function createShopKeybindsSection(): HTMLElement {
   root.dataset.qpmSection = 'shop-keybinds';
 
   // Toggle row
-  const toggleRow = document.createElement('label');
+  const toggleRow = document.createElement('div');
   toggleRow.style.cssText = [
     'display:flex',
     'align-items:center',
     'justify-content:space-between',
-    'gap:10px',
-    'padding:8px 10px',
+    'gap:8px',
+    'padding:8px 12px',
     'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.08)',
     'background:rgba(255,255,255,0.03)',
-    'cursor:pointer',
   ].join(';');
 
   const toggleTitle = document.createElement('div');
-  toggleTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+  toggleTitle.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
   toggleTitle.textContent = t('feature.shopKeybinds.enableToggle');
 
-  const toggleInput = document.createElement('input');
-  toggleInput.type = 'checkbox';
-  toggleInput.checked = isShopKeybindsEnabled();
-  toggleInput.style.cssText = 'width:18px;height:18px;cursor:pointer;accent-color:var(--qpm-accent,#8f82ff);';
+  const { root: toggleEl } = createToggle({
+    checked: isShopKeybindsEnabled(),
+    onChange: (checked) => {
+      setShopKeybindsEnabled(checked);
+      syncEnabled();
+    },
+  });
 
-  toggleRow.append(toggleTitle, toggleInput);
+  toggleRow.append(toggleTitle, toggleEl);
   body.appendChild(toggleRow);
 
   // Keybind rows container
@@ -74,15 +77,10 @@ export function createShopKeybindsSection(): HTMLElement {
   body.appendChild(bindsWrap);
 
   function syncEnabled(): void {
-    const on = toggleInput.checked;
+    const on = isShopKeybindsEnabled();
     bindsWrap.style.opacity = on ? '1' : '0.45';
     bindsWrap.style.pointerEvents = on ? '' : 'none';
   }
-
-  toggleInput.addEventListener('change', () => {
-    setShopKeybindsEnabled(toggleInput.checked);
-    syncEnabled();
-  });
 
   for (const shopId of SHOP_IDS) {
     const row = document.createElement('div');
@@ -90,15 +88,15 @@ export function createShopKeybindsSection(): HTMLElement {
       'display:flex',
       'align-items:center',
       'justify-content:space-between',
-      'gap:10px',
-      'padding:8px 10px',
+      'gap:8px',
+      'padding:8px 12px',
       'border-radius:8px',
       'border:1px solid rgba(255,255,255,0.08)',
       'background:rgba(255,255,255,0.03)',
     ].join(';');
 
     const label = document.createElement('div');
-    label.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
+    label.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text,#fff);';
     label.textContent = t(SHOP_I18N_KEYS[shopId]);
 
     const kbBtn = createKeybindButton({

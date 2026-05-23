@@ -24,7 +24,7 @@ export function getToolsGroup(): HubGroupDef {
     labelColor: '#93c5fd',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.tools.guide.summary');
     },
     onOpen: () => {
@@ -45,7 +45,7 @@ export function getToolsGroup(): HubGroupDef {
     labelColor: '#c4b5fd',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.tools.decorLayout.summary');
     },
     onOpen: () => openExternalUrl('https://mg-tokyo.github.io/MG-Decor-Layout-Customiser/'),
@@ -59,7 +59,7 @@ export function getToolsGroup(): HubGroupDef {
     labelColor: '#f9a8d4',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.tools.spriteCustomiser.summary');
     },
     onOpen: () => openExternalUrl('https://mg-tokyo.github.io/MG-Sprite-Customiser-V2/'),
@@ -73,7 +73,7 @@ export function getToolsGroup(): HubGroupDef {
     labelColor: '#fde68a',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.tools.celestial.summary');
     },
     onOpen: () => openExternalUrl('https://mg-tokyo.github.io/Celestial-Position-Layout-Calculator/'),
@@ -90,7 +90,7 @@ export function getToolsGroup(): HubGroupDef {
       labelColor: '#86efac',
       tier: 'launcher',
       renderSummary: (el) => {
-        el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+        el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
         el.textContent = t('hub.tools.textureManipulator.summary');
       },
       onOpen: () => {

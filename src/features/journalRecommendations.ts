@@ -3,7 +3,7 @@
 
 import { log } from '../utils/logger';
 import { getJournalSummary, type JournalSummary } from './journalChecker';
-import { getHarvestStrategy } from '../data/cropOptimization';
+
 import { getVariantTimeEstimate } from '../data/gameData';
 import { readInventoryDirect } from '../store/inventory';
 import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';

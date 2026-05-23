@@ -176,7 +176,7 @@ export function attachTileDrag(
       'flex:0 0 auto',
       `z-index:${DRAG_Z_INDEX}`,
       'pointer-events:none',
-      'border-radius:10px',
+      'border-radius:12px',
     ].join(';');
     document.body.appendChild(dragClone);
 

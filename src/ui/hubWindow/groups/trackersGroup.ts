@@ -94,7 +94,7 @@ export function getTrackersGroup(): HubGroupDef {
     labelColor: '#4ade80',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.ability.summary');
     },
     renderExpanded: makeTrackerExpanded('ability'),
@@ -110,7 +110,7 @@ export function getTrackersGroup(): HubGroupDef {
     labelColor: '#fbbf24',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.xp.summary');
     },
     renderExpanded: makeTrackerExpanded('xp'),
@@ -132,7 +132,7 @@ export function getTrackersGroup(): HubGroupDef {
     labelColor: '#38bdf8',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.turtle.summary');
     },
     renderExpanded: makeTrackerExpanded('turtle'),
@@ -148,7 +148,7 @@ export function getTrackersGroup(): HubGroupDef {
     labelColor: '#a78bfa',
     tier: 'expandable',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.crops.summary');
     },
     renderExpanded: makeTrackerExpanded('crops'),
@@ -172,7 +172,7 @@ export function getTrackersGroup(): HubGroupDef {
     labelColor: '#f9a8d4',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.shopRestock.summary');
     },
     onOpen: () => {
@@ -190,7 +190,7 @@ export function getTrackersGroup(): HubGroupDef {
     labelColor: '#fdba74',
     tier: 'launcher',
     renderSummary: (el) => {
-      el.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.activityLog.summary');
     },
     onOpen: () => {

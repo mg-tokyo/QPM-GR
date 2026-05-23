@@ -2,8 +2,8 @@
 // Tracks weather mutation (Wet, Chilled, Frozen, Amberlit, Amberbound, Dawnlit, Dawnbound) generation rates and value.
 
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from './gardenBridge';
-import { getCropStats, type CropStats } from '../data/cropBaseStats';
-import { BASE_MULTIPLIERS, COMBINED_MULTIPLIERS } from '../data/cropMultipliers';
+import { getCropStats } from '../data/cropBaseStats';
+import { computeMutationMultiplier } from '../utils/cropMultipliers';
 import { storage } from '../utils/storage';
 import { debounce } from '../utils/helpers';
 import { visibleInterval } from '../utils/timerManager';
@@ -11,7 +11,7 @@ import {
   computeSlotStateFromMutationNames,
   type PlantSlotState,
 } from './mutationReminder';
-import { getPlantSpecies, areCatalogsReady } from '../catalogs/gameCatalogs';
+
 
 const STORAGE_KEY = 'qpm.weatherMutationTracking.v1';
 const SAVE_DEBOUNCE_MS = 3000;
@@ -235,103 +235,16 @@ function readSlotSpecies(slot: Record<string, unknown>): string | null {
   return null;
 }
 
-/**
- * Get crop stats from catalog (FUTUREPROOF!)
- * Falls back to hardcoded CROP_BASE_STATS if catalog not ready or species not found
- */
-function getCropStatsFromCatalog(species: string): CropStats | null {
-  // If catalogs aren't ready, use hardcoded fallback
-  if (!areCatalogsReady()) {
-    return getCropStats(species);
-  }
-
-  // Try to get species from catalog
-  const plantEntry = getPlantSpecies(species);
-  if (!plantEntry?.crop) {
-    // Species not in catalog, try hardcoded fallback
-    return getCropStats(species);
-  }
-
-  // Map catalog data to CropStats format (with proper type casting)
-  const baseSellPrice = typeof plantEntry.crop.baseSellPrice === 'number' ? plantEntry.crop.baseSellPrice : 0;
-  const baseWeight = typeof plantEntry.crop.baseWeight === 'number' ? plantEntry.crop.baseWeight : 1.0;
-  const maxScale = typeof plantEntry.crop.maxScale === 'number' ? plantEntry.crop.maxScale : 2.5;
-  const secondsToMature = typeof plantEntry.plant?.secondsToMature === 'number' ? plantEntry.plant.secondsToMature : 0;
-
-  const result: CropStats = {
-    name: plantEntry.crop.name || species,
-    seedPrice: plantEntry.seed?.coinPrice ?? 0,
-    baseSellPrice,
-    cropGrowTime: secondsToMature,
-    regrow: plantEntry.plant?.harvestType === 'Multiple' ? 'Multiple' : 'No',
-    baseWeight,
-    maxWeight: baseWeight * maxScale,
-  };
-
-  // Add optional fields if they exist
-  if (typeof plantEntry.seed?.creditPrice === 'number') {
-    result.rarity = plantEntry.seed.creditPrice;
-  }
-
-  return result;
-}
-
-function calculateSlotValue(cropName: string | null, slotState: PlantSlotState): number {
+function calculateSlotValue(cropName: string | null, mutations: string[]): number {
   if (!cropName) return 0;
 
-  // Get crop stats from catalog (FUTUREPROOF!)
-  const cropStats = getCropStatsFromCatalog(cropName);
+  // Get crop stats — getCropStats overlays catalog data when available
+  const cropStats = getCropStats(cropName);
   if (!cropStats) return 0;
 
-  // Determine mutation multiplier
-  const hasGold = slotState.hasGold;
-  const hasRainbow = slotState.hasRainbow;
-  const hasFrozen = slotState.hasFrozen;
-  const hasWet = slotState.hasWet;
-  const hasChilled = slotState.hasChilled;
-  const hasDawnlit = slotState.hasDawnlit;
-  const hasDawnbound = slotState.hasDawnbound;
-  const hasAmberlit = slotState.hasAmberlit;
-  const hasAmberbound = slotState.hasAmberbound;
-
-  // Build mutation key for combined multipliers
-  const parts: string[] = [];
-  if (hasRainbow) parts.push('rainbow');
-  else if (hasGold) parts.push('golden');
-
-  if (hasFrozen) parts.push('frozen');
-  else if (hasChilled) parts.push('chilled');
-  else if (hasWet) parts.push('wet');
-
-  if (hasAmberbound) parts.push('amberbound');
-  else if (hasAmberlit) parts.push('amberlit');
-
-  if (hasDawnbound) parts.push('dawnbound');
-  else if (hasDawnlit) parts.push('dawnlit');
-
-  const mutationKey = parts.join('+');
-
-  // Check for combined multiplier first
-  let multiplier = COMBINED_MULTIPLIERS[mutationKey];
-
-  if (!multiplier) {
-    // Calculate from base multipliers
-    multiplier = 1;
-    if (hasRainbow) multiplier *= BASE_MULTIPLIERS.rainbow;
-    else if (hasGold) multiplier *= BASE_MULTIPLIERS.golden;
-
-    if (hasFrozen) multiplier *= BASE_MULTIPLIERS.frozen;
-    else if (hasChilled) multiplier *= BASE_MULTIPLIERS.chilled;
-    else if (hasWet) multiplier *= BASE_MULTIPLIERS.wet;
-
-    if (hasAmberbound) multiplier *= BASE_MULTIPLIERS.amberbound;
-    else if (hasAmberlit) multiplier *= BASE_MULTIPLIERS.amberlit;
-
-    if (hasDawnbound) multiplier *= BASE_MULTIPLIERS.dawnbound;
-    else if (hasDawnlit) multiplier *= BASE_MULTIPLIERS.dawnlit;
-  }
-
-  return cropStats.baseSellPrice * multiplier;
+  // Use the correct additive formula from utils/cropMultipliers
+  const { totalMultiplier } = computeMutationMultiplier(mutations);
+  return cropStats.baseSellPrice * totalMultiplier;
 }
 
 function processGardenUpdate(gardenSnapshot: GardenSnapshot | null): void {
@@ -353,7 +266,7 @@ function processGardenUpdate(gardenSnapshot: GardenSnapshot | null): void {
     }
 
     // Calculate the value this slot contributes
-    const slotValue = calculateSlotValue(slot.cropName, slot.slotState);
+    const slotValue = calculateSlotValue(slot.cropName, slot.mutations);
 
     // Check each weather mutation type - count it if we haven't seen it on this slot before
     if (slot.slotState.hasWet && !seenMutations.has('wet')) {

@@ -151,7 +151,6 @@ export const STYLES = `
   gap: 2px;
   margin-left: auto;
   pointer-events: none;
-  overflow: hidden;
 }
 .qpm-float-card__food {
   display: flex;

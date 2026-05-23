@@ -554,16 +554,14 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
       const foodKey = rawFoodKey ? normalizeSpeciesKey(rawFoodKey) : null;
       renderFoodCounters(foodCountersRow, plan.eligibleFoods, foodKey, feedLabel);
 
-      // Measure food row after paint and expand card width if pills overflow
+      // Measure food row after paint and expand card width if pills overflow.
+      // Reset to base width first so measurement is always from CARD_W, not accumulated.
       requestAnimationFrame(() => {
         if (destroyed || seq !== refreshSeq) return;
+        card.style.width = '';
         const overflow = foodCountersRow.scrollWidth - foodCountersRow.clientWidth;
         if (overflow > 2) {
-          const currentW = card.offsetWidth;
-          const needed = Math.min(currentW + overflow + 4, CARD_W_MAX);
-          card.style.width = `${needed}px`;
-        } else {
-          card.style.width = '';
+          card.style.width = `${Math.min(CARD_W + overflow + 4, CARD_W_MAX)}px`;
         }
       });
 

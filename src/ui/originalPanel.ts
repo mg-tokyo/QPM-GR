@@ -498,7 +498,7 @@ export function openPublicRoomsWindow(): void {
 export function openJournalCheckerWindow(): void {
   toggleWindow('journal-checker-window', '📔 Journal Checker', (windowRoot) => {
     windowRoot.style.padding = '0';
-    import('./journalCheckerSection').then(({ createJournalCheckerSection }) => {
+    import('./journalChecker').then(({ createJournalCheckerSection }) => {
       windowRoot.appendChild(createJournalCheckerSection());
     }).catch(e => {
       log('⚠️ Failed to load Journal Checker', e);
