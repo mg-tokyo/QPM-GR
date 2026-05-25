@@ -32,8 +32,7 @@ import { initSpriteSystem, getSpriteBootReport, spriteProbe } from './sprite-v2/
 import type { SpriteService } from './sprite-v2/types';
 import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets, scheduleWarmup } from './sprite-v2/compat';
 import { isSpriteLogsEnabled, printSpriteLogDump, setSpriteLogsEnabled } from './sprite-v2/diagnostics';
-import { initCropSizeIndicator } from './features/cropSizeIndicator';
-import { initTileValueIndicator } from './features/tileValueIndicator';
+import { initTooltipInjection } from './features/tooltipInjection';
 import { startNativeFeedIntercept, stopNativeFeedIntercept } from './features/nativeFeedIntercept';
 import { initializeAntiAfk, stopAntiAfk } from './features/antiAfk';
 import {
@@ -1514,8 +1513,7 @@ async function initialize(): Promise<void> {
   // Phase 8: Non-critical features (can load after UI is visible)
   startCropBoostTracker();
   startPetOptimizer();
-  initCropSizeIndicator();
-  initTileValueIndicator();
+  initTooltipInjection();
   startNativeFeedIntercept();
   startController();
   startShopKeybinds();

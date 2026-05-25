@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.16",
+    date: "2026-05-25",
+    notes: [
+      "Fixed tooltip injection appearing on the nameplate instead of the detail card for celestial plants (Dawnbinder, Moonbinder)",
+      "Removed redundant crop size number from tooltips, the game now shows this natively",
+      "Fixed two independent tooltip observers causing cascading re-injection on every DOM change",
+      "Improved tooltip injection performance: single shared atom subscription and observer replaces duplicate systems",
+      "Fixed storage key for crop size config not following the qpm.* naming convention",
+    ],
+  },
+  {
     version: "3.2.15",
     date: "2026-05-22",
     notes: [

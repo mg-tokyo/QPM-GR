@@ -1,0 +1,155 @@
+// src/features/tooltipInjection/atoms.ts
+// Single shared atom subscription for tooltip injection.
+// Merges the duplicate subscription logic from cropSizeIndicator + tileValueIndicator
+// with retry support (from tileValueIndicator).
+
+import { getAtomByLabel, readAtomValue, subscribeAtom } from '../../core/jotaiBridge';
+import { log } from '../../utils/logger';
+import type { ResolvedSlot } from './types';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const RETRY_DELAY_MS = 2500;
+const MAX_RETRIES = 8;
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let cachedGardenObject: Record<string, unknown> | null = null;
+let cachedSelectedSlotId = 0;
+let retryCount = 0;
+let retryTimer: number | null = null;
+
+const cleanups: Array<() => void> = [];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function parseSlot(raw: unknown): ResolvedSlot | null {
+  if (!isRecord(raw)) return null;
+
+  const species = raw.species;
+  if (typeof species !== 'string' || !species) return null;
+
+  const targetScale = raw.targetScale ?? raw.scale;
+  if (typeof targetScale !== 'number') return null;
+
+  const slotId = typeof raw.slotId === 'number' ? raw.slotId : 0;
+  const endTime = typeof raw.endTime === 'number' ? raw.endTime : 0;
+
+  const mutations = Array.isArray(raw.mutations)
+    ? raw.mutations.filter((m): m is string => typeof m === 'string')
+    : [];
+
+  return { species, targetScale, mutations, slotId, endTime };
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/** Resolve the currently selected slot from the cached garden object + selected slot ID. */
+export function resolveCurrentSlot(): ResolvedSlot | null {
+  if (!cachedGardenObject) return null;
+  if (cachedGardenObject.objectType !== 'plant') return null;
+
+  const slots = cachedGardenObject.slots;
+  if (!Array.isArray(slots) || slots.length === 0) return null;
+
+  // Find slot matching the selected slot ID (C/X key cycling)
+  for (const raw of slots) {
+    if (!isRecord(raw)) continue;
+    if (raw.slotId === cachedSelectedSlotId) {
+      return parseSlot(raw);
+    }
+  }
+
+  // Fallback: first slot (no match means single-harvest or initial state)
+  return parseSlot(slots[0]);
+}
+
+/**
+ * Subscribe to garden object + selected slot ID atoms.
+ * Calls `onChange` whenever slot data changes.
+ * Returns an unsubscribe function.
+ */
+export async function subscribeTooltipAtoms(onChange: () => void): Promise<() => void> {
+  const attemptSubscribe = async (): Promise<void> => {
+    const gardenAtom =
+      getAtomByLabel('myCurrentGardenObjectAtom') ??
+      getAtomByLabel('myOwnCurrentGardenObjectAtom');
+    const slotIdAtom = getAtomByLabel('mySelectedSlotIdAtom');
+
+    if (!gardenAtom) {
+      if (retryCount < MAX_RETRIES) {
+        retryCount++;
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          attemptSubscribe().catch(() => {});
+        }, RETRY_DELAY_MS);
+      } else {
+        log('[TooltipAtoms] Garden object atom not found after retries');
+      }
+      return;
+    }
+
+    log('[TooltipAtoms] Found garden object atom');
+
+    // Read initial values
+    try {
+      const initial = await readAtomValue<unknown>(gardenAtom);
+      cachedGardenObject = isRecord(initial) ? initial : null;
+    } catch { /* ignore */ }
+
+    if (slotIdAtom) {
+      try {
+        const initial = await readAtomValue<unknown>(slotIdAtom);
+        cachedSelectedSlotId = typeof initial === 'number' ? initial : 0;
+      } catch { /* ignore */ }
+      log('[TooltipAtoms] Found mySelectedSlotIdAtom');
+    }
+
+    // Fire initial change
+    onChange();
+
+    // Subscribe to garden object changes
+    const gardenUnsub = await subscribeAtom(gardenAtom, (value: unknown) => {
+      cachedGardenObject = isRecord(value) ? value : null;
+      onChange();
+    });
+    cleanups.push(gardenUnsub);
+
+    // Subscribe to selected slot ID changes (C/X key)
+    if (slotIdAtom) {
+      const slotIdUnsub = await subscribeAtom(slotIdAtom, (value: unknown) => {
+        cachedSelectedSlotId = typeof value === 'number' ? value : 0;
+        onChange();
+      });
+      cleanups.push(slotIdUnsub);
+    }
+  };
+
+  await attemptSubscribe();
+
+  return () => {
+    for (const cleanup of cleanups) {
+      try { cleanup(); } catch { /* ignore */ }
+    }
+    cleanups.length = 0;
+    cachedGardenObject = null;
+    cachedSelectedSlotId = 0;
+    retryCount = 0;
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+}

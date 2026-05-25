@@ -157,6 +157,7 @@ const QPM_STORAGE_KEYS = [
 
   // Crop Boost / Size Indicator / Tile Value
   'cropBoostTracker:config',
+  'qpm.cropSize.v1',
   'cropSizeIndicator:config',
   'qpm.tileValue.v1',
 

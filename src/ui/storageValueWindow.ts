@@ -10,7 +10,7 @@ import {
 import {
   getTileValueConfig,
   setTileValueConfig,
-} from '../features/tileValueIndicator';
+} from '../features/tooltipInjection';
 import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------
