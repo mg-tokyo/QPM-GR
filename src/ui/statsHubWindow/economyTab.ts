@@ -11,7 +11,7 @@ import { onActivePetInfos, getActivePetInfos } from '../../store/pets';
 import { debounceCancelable } from '../../utils/debounce';
 import { toggleValueCard, isValueCardOpen, type ValueCardType } from '../valueFloatingCard';
 import { getFriendBonusMultiplier, onFriendBonusChange } from '../../store/friendBonus';
-import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems, type TopValueItem } from '../../features/topValueItems';
+import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems } from '../../features/topValueItems';
 import { getCachedStorages } from '../../features/storageValue';
 import { subscribeEconomy, getEconomySnapshot, type EconomySnapshot, type Transaction } from '../../store/economyTracker';
 import type { ShopCategoryKey } from '../../store/stats';
@@ -24,20 +24,14 @@ import {
 } from '../../features/roomPlayerEconomy';
 import {
   togglePlayerCompareCard,
-  closePlayerCompareCard,
   isPlayerCompareCardOpen,
   getCompareTargetPlayerId,
   setCompareTarget,
 } from '../playerCompareFloatingCard';
-import {
-  getProduceSpriteDataUrlWithMutations,
-  getPetSpriteDataUrl,
-  getAnySpriteDataUrl,
-  getCropSpriteDataUrl,
-} from '../../sprite-v2/compat';
 import { CURRENCY_LABELS } from './constants';
-import { currencyIcon, chipIcon, getCoinSpriteUrl } from './spriteHelpers';
+import { currencyIcon, chipIcon } from './spriteHelpers';
 import { pillBtnCss, timeAgo, appendSectionHeader, inlineVal } from './styleHelpers';
+import { embedTopDropdown } from './economyTopValue';
 
 // ---------------------------------------------------------------------------
 // Balance chip
@@ -62,7 +56,7 @@ function balanceChip(
 
   const num = document.createElement('div');
   num.setAttribute('data-value-num', '');
-  num.style.cssText = `font-size:15px;font-weight:800;line-height:1;color:${connected ? accentColor : 'rgba(224,224,224,0.4)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+  num.style.cssText = `font-size:15px;font-weight:700;line-height:1;color:${connected ? accentColor : 'rgba(224,224,224,0.4)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
   num.textContent = connected ? value : '\u2014';
   col.appendChild(num);
 
@@ -79,7 +73,7 @@ function balanceChip(
   } else if (rate != null && Math.abs(rate) >= 1) {
     const rateEl = document.createElement('div');
     const sign = rate >= 0 ? '+' : '';
-    const rateColor = rate >= 0 ? '#4caf50' : '#ef5350';
+    const rateColor = rate >= 0 ? 'var(--qpm-positive)' : 'var(--qpm-danger)';
     rateEl.style.cssText = `font-size:9px;color:${rateColor};font-weight:600;white-space:nowrap;`;
     rateEl.textContent = `${sign}${formatCoinsAbbreviated(Math.round(rate))}/hr`;
     col.appendChild(rateEl);
@@ -95,7 +89,7 @@ function balanceChip(
   popBtn.style.cssText = `background:none;border:1px solid rgba(143,130,255,${open ? '0.5' : '0.25'});border-radius:4px;color:rgba(224,224,224,${open ? '0.8' : '0.45'});font-size:11px;cursor:pointer;padding:1px 4px;flex-shrink:0;transition:color 0.12s,border-color 0.12s;line-height:1;`;
   popBtn.textContent = '\u2197';
   popBtn.addEventListener('mouseenter', () => {
-    popBtn.style.color = '#e0e0e0';
+    popBtn.style.color = 'var(--qpm-text)';
     popBtn.style.borderColor = 'rgba(143,130,255,0.6)';
   });
   popBtn.addEventListener('mouseleave', () => {
@@ -169,7 +163,7 @@ function buildTransactionRow(tx: Transaction): HTMLElement {
   // Amount (green for income, red for expense)
   const amountEl = document.createElement('span');
   const sign = isIncome ? '+' : '';
-  amountEl.style.cssText = `font-size:12px;font-weight:700;color:${isIncome ? '#4caf50' : '#ef5350'};white-space:nowrap;`;
+  amountEl.style.cssText = `font-size:12px;font-weight:700;color:${isIncome ? 'var(--qpm-positive)' : 'var(--qpm-danger)'};white-space:nowrap;`;
   amountEl.textContent = `${sign}${formatCoinsAbbreviated(Math.round(tx.amount))}`;
   row.appendChild(amountEl);
 
@@ -183,157 +177,6 @@ function buildTransactionRow(tx: Transaction): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
-// Top-10 dropdown overlay
-// ---------------------------------------------------------------------------
-
-/** Single row in the top-10 dropdown */
-function topValueRow(item: TopValueItem): HTMLElement {
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;align-items:center;gap:5px;height:20px;padding:0 4px;';
-
-  // Sprite
-  const img = document.createElement('img');
-  img.width = 18;
-  img.height = 18;
-  img.style.cssText = 'image-rendering:pixelated;flex-shrink:0;';
-  img.draggable = false;
-
-  if (item.isPet) {
-    const url = getPetSpriteDataUrl(item.species) || getAnySpriteDataUrl(`sprite/pet/${item.species}`) || '';
-    img.src = url;
-  } else if (item.isSeed) {
-    const url = getCropSpriteDataUrl(item.species) || '';
-    img.src = url;
-  } else if (item.isDecor) {
-    const url = getAnySpriteDataUrl(`decor/${item.species}`) || getAnySpriteDataUrl(item.species) || '';
-    img.src = url;
-  } else if (item.isEgg) {
-    const url = getCropSpriteDataUrl(item.species) || getAnySpriteDataUrl(`egg/${item.species}`) || getAnySpriteDataUrl(item.species) || '';
-    img.src = url;
-  } else {
-    const url = getProduceSpriteDataUrlWithMutations(item.species, item.mutations) || getCropSpriteDataUrl(item.species) || '';
-    img.src = url;
-  }
-  if (img.src) {
-    row.appendChild(img);
-  }
-
-  // Species name
-  const name = document.createElement('span');
-  name.style.cssText = 'flex:1;font-size:10px;color:rgba(224,224,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-  let itemLabel = item.species;
-  if (item.isSeed) itemLabel += ` ${t('feature.statsHub.economy.seedsSuffix')}`;
-  if (item.quantity && item.quantity > 1) itemLabel += ` x${item.quantity}`;
-  name.textContent = itemLabel;
-  row.appendChild(name);
-
-  // Value
-  const val = document.createElement('span');
-  val.style.cssText = 'font-size:10px;font-weight:700;color:#ffd600;white-space:nowrap;';
-  val.textContent = formatCoinsAbbreviated(item.value);
-  row.appendChild(val);
-
-  return row;
-}
-
-/** Embed a top-10 overlay dropdown button into a balance chip */
-function embedTopDropdown(chip: HTMLElement): { update: (items: TopValueItem[]) => void; destroy: () => void } {
-  let overlayEl: HTMLElement | null = null;
-  let outsideHandler: ((ev: MouseEvent) => void) | null = null;
-  let cachedItems: TopValueItem[] = [];
-
-  // Toggle arrow button — insert before the pop-out button
-  const arrow = document.createElement('button');
-  arrow.type = 'button';
-  arrow.title = t('feature.statsHub.economy.topItems');
-  arrow.style.cssText = 'background:none;border:none;color:rgba(224,224,255,0.35);font-size:10px;cursor:pointer;padding:0 2px;flex-shrink:0;transition:color 0.12s,transform 0.15s;line-height:1;';
-  arrow.textContent = '\u25BE';
-  const popBtn = chip.querySelector('button[title^="Pop out"]');
-  if (popBtn) chip.insertBefore(arrow, popBtn);
-  else chip.appendChild(arrow);
-
-  function closeOverlay(): void {
-    overlayEl?.remove();
-    overlayEl = null;
-    if (outsideHandler) {
-      document.removeEventListener('click', outsideHandler, true);
-      outsideHandler = null;
-    }
-    arrow.style.transform = '';
-    arrow.style.color = 'rgba(224,224,255,0.35)';
-  }
-
-  function openOverlay(): void {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = [
-      'position:fixed', 'z-index:99998',
-      'background:rgba(14,16,22,0.98)',
-      'border:1px solid rgba(143,130,255,0.35)',
-      'border-radius:8px', 'padding:6px 8px',
-      'min-width:180px', 'max-width:240px',
-      'max-height:260px', 'overflow-y:auto',
-      'box-shadow:0 8px 32px rgba(0,0,0,0.7)',
-      'display:flex', 'flex-direction:column', 'gap:2px',
-    ].join(';');
-
-    if (cachedItems.length === 0) {
-      const empty = document.createElement('div');
-      empty.style.cssText = 'font-size:10px;color:rgba(224,224,255,0.3);padding:2px 0;';
-      empty.textContent = t('feature.statsHub.economy.noItems');
-      overlay.appendChild(empty);
-    } else {
-      for (const item of cachedItems) overlay.appendChild(topValueRow(item));
-    }
-
-    document.body.appendChild(overlay);
-    overlayEl = overlay;
-
-    const r = chip.getBoundingClientRect();
-    overlay.style.top = `${r.bottom + 4}px`;
-    overlay.style.left = `${r.left}px`;
-
-    arrow.style.transform = 'rotate(180deg)';
-    arrow.style.color = 'rgba(224,224,255,0.6)';
-
-    outsideHandler = (ev: MouseEvent) => {
-      if (!overlay.contains(ev.target as Node) && ev.target !== arrow) {
-        closeOverlay();
-      }
-    };
-    setTimeout(() => document.addEventListener('click', outsideHandler!, true), 0);
-  }
-
-  arrow.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    if (overlayEl) closeOverlay();
-    else openOverlay();
-  });
-
-  function update(items: TopValueItem[]): void {
-    cachedItems = items;
-    // If overlay is open, rebuild its content
-    if (overlayEl) {
-      overlayEl.innerHTML = '';
-      if (items.length === 0) {
-        const empty = document.createElement('div');
-        empty.style.cssText = 'font-size:10px;color:rgba(224,224,255,0.3);padding:2px 0;';
-        empty.textContent = t('feature.statsHub.economy.noItems');
-        overlayEl.appendChild(empty);
-      } else {
-        for (const item of items) overlayEl.appendChild(topValueRow(item));
-      }
-    }
-  }
-
-  function destroy(): void {
-    closeOverlay();
-    arrow.remove();
-  }
-
-  return { update, destroy };
-}
-
-// ---------------------------------------------------------------------------
 // Compare grid
 // ---------------------------------------------------------------------------
 
@@ -342,7 +185,7 @@ function buildCompareGrid(self: RoomPlayerEconomy | null, target: RoomPlayerEcon
   if (!target || !self) return;
 
   const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:52px 1fr 1fr 1fr;gap:3px 6px;font-size:11px;margin-top:8px;';
+  grid.style.cssText = 'display:grid;grid-template-columns:52px 1fr 1fr 1fr;gap:3px 6px;font-size:12px;margin-top:8px;';
 
   // Header
   const hdr = document.createElement('div');
@@ -361,7 +204,7 @@ function buildCompareGrid(self: RoomPlayerEconomy | null, target: RoomPlayerEcon
     const fmt = useInt ? (n: number) => String(Math.round(n)) : formatCoinsAbbreviated;
     const diff = myVal - theirVal;
     const deltaSign = diff > 0 ? '+' : '';
-    const deltaColor = Math.abs(diff) < 1 ? 'rgba(224,224,224,0.35)' : diff > 0 ? '#4caf50' : '#ef5350';
+    const deltaColor = Math.abs(diff) < 1 ? 'rgba(224,224,224,0.35)' : diff > 0 ? 'var(--qpm-positive)' : 'var(--qpm-danger)';
     const deltaText = Math.abs(diff) < 1 ? '\u2014' : `${deltaSign}${fmt(Math.round(diff))}`;
 
     const row = document.createElement('div');
@@ -373,12 +216,12 @@ function buildCompareGrid(self: RoomPlayerEconomy | null, target: RoomPlayerEcon
     row.appendChild(metricEl);
 
     const myEl = document.createElement('span');
-    myEl.style.cssText = 'text-align:right;color:#ffd600;font-weight:700;padding:2px 0;';
+    myEl.style.cssText = 'text-align:right;color:var(--qpm-gold);font-weight:700;padding:2px 0;';
     myEl.textContent = fmt(myVal);
     row.appendChild(myEl);
 
     const theirEl = document.createElement('span');
-    theirEl.style.cssText = 'text-align:right;color:#e0e0e0;font-weight:700;padding:2px 0;';
+    theirEl.style.cssText = 'text-align:right;color:var(--qpm-text);font-weight:700;padding:2px 0;';
     theirEl.textContent = fmt(theirVal);
     row.appendChild(theirEl);
 
@@ -537,7 +380,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
       'background:rgba(18,20,26,0.95)',
       'border:1px solid rgba(143,130,255,0.25)',
       'border-radius:6px',
-      'color:#e0e0e0',
+      'color:var(--qpm-text)',
       'font-size:12px',
       'padding:5px 8px',
       'outline:none',
@@ -555,7 +398,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     popBtn.style.cssText = `background:none;border:1px solid rgba(143,130,255,${cardOpen ? '0.5' : '0.25'});border-radius:4px;color:rgba(224,224,224,${cardOpen ? '0.8' : '0.45'});font-size:11px;cursor:pointer;padding:2px 5px;flex-shrink:0;transition:color 0.12s,border-color 0.12s;line-height:1;`;
     popBtn.textContent = '\u2197';
     popBtn.addEventListener('mouseenter', () => {
-      popBtn.style.color = '#e0e0e0';
+      popBtn.style.color = 'var(--qpm-text)';
       popBtn.style.borderColor = 'rgba(143,130,255,0.6)';
     });
     popBtn.addEventListener('mouseleave', () => {

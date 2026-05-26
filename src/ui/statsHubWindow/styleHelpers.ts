@@ -75,7 +75,7 @@ export function mutBadge(mutId: string, grayed = false): HTMLElement {
   span.style.cssText = [
     'border-radius:4px',
     'padding:2px 7px',
-    'font-size:11px',
+    'font-size:12px',
     'font-weight:700',
     'display:inline-flex',
     'align-items:center',
@@ -108,61 +108,12 @@ export function mutBadge(mutId: string, grayed = false): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
-// Toggle switch
-// ---------------------------------------------------------------------------
-
-export function buildToggleSwitch(active: boolean, onChange: (active: boolean) => void, toggleLabel?: string): HTMLElement {
-  const label = document.createElement('label');
-  label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;color:rgba(224,224,224,0.45);';
-  label.title = t('feature.statsHub.filterGardenTooltip');
-
-  const track = document.createElement('div');
-  const applyTrack = (on: boolean) => {
-    track.style.cssText = [
-      'width:28px', 'height:16px', 'border-radius:8px',
-      'position:relative', 'transition:background 0.15s',
-      on ? 'background:#8f82ff' : 'background:rgba(255,255,255,0.12)',
-    ].join(';');
-  };
-
-  const thumb = document.createElement('div');
-  const applyThumb = (on: boolean) => {
-    thumb.style.cssText = [
-      'width:12px', 'height:12px', 'border-radius:50%',
-      'background:#fff', 'position:absolute', 'top:2px',
-      'transition:left 0.15s',
-      on ? 'left:14px' : 'left:2px',
-    ].join(';');
-  };
-
-  let state = active;
-  applyTrack(state);
-  applyThumb(state);
-  track.appendChild(thumb);
-  label.appendChild(track);
-
-  const txt = document.createElement('span');
-  txt.textContent = toggleLabel ?? t('feature.statsHub.filterGarden');
-  label.appendChild(txt);
-
-  label.addEventListener('click', (e) => {
-    e.stopPropagation();
-    state = !state;
-    applyTrack(state);
-    applyThumb(state);
-    onChange(state);
-  });
-
-  return label;
-}
-
-// ---------------------------------------------------------------------------
 // Section layout helpers
 // ---------------------------------------------------------------------------
 
 export function appendEmptyNote(parent: HTMLElement, text: string): void {
   const el = document.createElement('div');
-  el.style.cssText = 'color:rgba(224,224,224,0.35);font-size:13px;padding:30px 20px;text-align:center;';
+  el.style.cssText = 'color:rgba(224,224,224,0.35);font-size:14px;padding:30px 20px;text-align:center;';
   el.textContent = text;
   parent.appendChild(el);
 }
@@ -176,7 +127,7 @@ export function appendSectionHeader(parent: HTMLElement, text: string): void {
 
 export function inlineVal(text: string, color: string): HTMLElement {
   const el = document.createElement('span');
-  el.style.cssText = `color:${color};font-weight:600;font-size:11px;`;
+  el.style.cssText = `color:${color};font-weight:600;font-size:12px;`;
   el.textContent = text;
   return el;
 }
@@ -214,7 +165,7 @@ export function makeCoinValueEl(coins: number, prefix: string, cssExtra: string)
 /** "+X when complete" hint element — coin sprite + abbreviated value, tight spacing. */
 export function makeWhenCompleteHint(gain: number, extraCss = ''): HTMLElement {
   const el = document.createElement('span');
-  el.style.cssText = `display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:700;color:#FFD700;${extraCss}`;
+  el.style.cssText = `display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:700;color:var(--qpm-gold);${extraCss}`;
   el.title = t('feature.statsHub.whenComplete', { value: gain.toLocaleString() });
   const url = getCoinSpriteUrl();
   if (url) {

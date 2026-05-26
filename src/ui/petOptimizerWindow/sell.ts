@@ -39,11 +39,11 @@ function showSellConfirmModal(
 
     const title = document.createElement('div');
     title.textContent = titleText;
-    title.style.cssText = 'font-size:18px;font-weight:800;';
+    title.style.cssText = 'font-size:18px;font-weight:700;';
 
     const desc = document.createElement('div');
     desc.textContent = descText;
-    desc.style.cssText = 'font-size:13px;opacity:0.92;line-height:1.4;';
+    desc.style.cssText = 'font-size:12px;opacity:0.92;line-height:1.4;';
 
     const list = document.createElement('div');
     list.style.cssText = 'display:grid;gap:6px;max-height:400px;overflow-y:auto;padding-right:4px;';
@@ -106,11 +106,11 @@ function showSellConfirmModal(
       info.style.cssText = 'display:grid;gap:2px;min-width:0;';
 
       const nameEl = document.createElement('div');
-      nameEl.style.cssText = 'font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      nameEl.style.cssText = 'font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       nameEl.textContent = pet.name || pet.species || 'Pet';
 
       const meta = document.createElement('div');
-      meta.style.cssText = 'font-size:11px;color:#aaa;';
+      meta.style.cssText = 'font-size:12px;color:#aaa;';
       meta.textContent = `${pet.species ?? '?'} • STR ${pet.strength}${pet.maxStrength ? `/${pet.maxStrength}` : ''} • ${pet.location}`;
 
       info.append(nameEl, meta);
@@ -135,7 +135,7 @@ function showSellConfirmModal(
 
     const sellBtn = document.createElement('button');
     sellBtn.type = 'button';
-    sellBtn.style.cssText = 'padding:8px 14px;border-radius:10px;border:1px solid rgba(122,162,255,0.7);background:#1a2644;color:#ffffff;cursor:pointer;font-weight:700;font-size:13px;transition:opacity 0.15s;';
+    sellBtn.style.cssText = 'padding:8px 14px;border-radius:10px;border:1px solid rgba(122,162,255,0.7);background:#1a2644;color:#ffffff;cursor:pointer;font-weight:700;font-size:14px;transition:opacity 0.15s;';
 
     const updateCounts = (): void => {
       if (hasCheckboxes) {
@@ -158,7 +158,7 @@ function showSellConfirmModal(
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.textContent = t('feature.petOptimizer.cancel');
-    cancelBtn.style.cssText = 'padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#ffffff;cursor:pointer;font-size:13px;';
+    cancelBtn.style.cssText = 'padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#ffffff;cursor:pointer;font-size:12px;';
 
     let settled = false;
     const close = (result: CollectedPet[] | null): void => {
@@ -266,16 +266,16 @@ function executeBulkSell(pets: CollectedPet[], onDone: () => void): void {
 
   const title = document.createElement('div');
   title.textContent = t('feature.petOptimizer.sellingPets');
-  title.style.cssText = 'font-size:18px;font-weight:800;';
+  title.style.cssText = 'font-size:18px;font-weight:700;';
 
   const progressText = document.createElement('div');
-  progressText.style.cssText = 'font-size:14px;color:#42A5F5;font-weight:600;';
+  progressText.style.cssText = 'font-size:14px;color:var(--qpm-accent);font-weight:600;';
   progressText.textContent = `0 / ${pets.length}`;
 
   const progressBar = document.createElement('div');
   progressBar.style.cssText = 'height:6px;border-radius:3px;background:rgba(255,255,255,0.1);overflow:hidden;';
   const progressFill = document.createElement('div');
-  progressFill.style.cssText = 'height:100%;border-radius:3px;background:#42A5F5;transition:width 0.2s;width:0%;';
+  progressFill.style.cssText = 'height:100%;border-radius:3px;background:var(--qpm-accent);transition:width 0.2s;width:0%;';
   progressBar.appendChild(progressFill);
 
   card.append(title, progressText, progressBar);
@@ -305,13 +305,13 @@ function executeBulkSell(pets: CollectedPet[], onDone: () => void): void {
     if (failCount === 0) {
       title.textContent = t('feature.petOptimizer.done');
       progressText.textContent = soldCount === 1 ? t('feature.petOptimizer.soldPet', { count: '1' }) : t('feature.petOptimizer.soldPets', { count: String(soldCount) });
-      progressText.style.color = '#4CAF50';
-      progressFill.style.background = '#4CAF50';
+      progressText.style.color = 'var(--qpm-positive)';
+      progressFill.style.background = 'var(--qpm-positive)';
     } else {
       title.textContent = t('feature.petOptimizer.completed');
       progressText.textContent = t('feature.petOptimizer.soldFailed', { sold: String(soldCount), failed: String(failCount) });
-      progressText.style.color = '#FF9800';
-      progressFill.style.background = '#FF9800';
+      progressText.style.color = 'var(--qpm-warning)';
+      progressFill.style.background = 'var(--qpm-warning)';
     }
 
     setTimeout(() => {

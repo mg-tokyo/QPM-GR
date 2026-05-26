@@ -150,6 +150,11 @@ export async function createOriginalUI(): Promise<HTMLElement> {
       content.appendChild(viewSwitcherResult.navElement);
       content.appendChild(viewSwitcherResult.viewElement);
       content.appendChild(viewSwitcherResult.footerElement);
+
+      // Tour: check panel-home tour once the view switcher content is ready
+      import('./tour').then(({ checkTour }) => {
+        checkTour('panel-home', content);
+      });
     } catch (e) {
       log('⚠️ Failed to load panel view switcher', e);
       content.textContent = `❌ ${t('panel.loadError')}`;
@@ -444,6 +449,11 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   document.body.appendChild(panel);
   setPanelHidden(false);
   startPanelHotkey(() => setPanelHidden(!isPanelHidden));
+
+  // Tour: check panel-shell tour after the panel is in the DOM
+  import('./tour').then(({ checkTour }) => {
+    checkTour('panel-shell', panel);
+  });
 
   uiState.panel = panel;
   uiState.content = content;

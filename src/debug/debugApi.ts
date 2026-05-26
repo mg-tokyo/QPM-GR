@@ -44,8 +44,8 @@ type DebugApiType = {
   scanSeeds: () => Promise<any>;
   auditRainbowPets: () => Promise<any>;
   openPetHub3v3: () => Promise<boolean>;
-  resetTutorial: () => Promise<void>;
-  showTutorial: () => Promise<void>;
+  resetTutorials: () => Promise<void>;
+  showTour: (windowId?: string) => Promise<void>;
   inspectGarden?: () => any;
   exposeGarden?: () => any;
   currentTile?: () => any;
@@ -450,15 +450,16 @@ export async function createDebugApi(): Promise<DebugApiType> {
       }
     },
 
-    resetTutorial: async () => {
-      const { resetTutorial } = await import('../ui/tutorialPopup');
-      resetTutorial();
-      console.log('Tutorial reset. Reload to see it again.');
+    resetTutorials: async () => {
+      const { resetAllTours } = await import('../ui/tour');
+      resetAllTours();
+      console.log('All tour progress reset. Reload to see tours again.');
     },
 
-    showTutorial: async () => {
-      const { showTutorialPopup } = await import('../ui/tutorialPopup');
-      showTutorialPopup();
+    showTour: async (windowId?: string) => {
+      const { checkTour } = await import('../ui/tour');
+      const target = document.querySelector('.qpm-panel') as HTMLElement | null;
+      if (target) checkTour(windowId ?? 'welcome', target);
     },
 
     verifyBulkFavorite: async () => {
@@ -641,7 +642,7 @@ export function createLazyDebugProxy(): Record<string, any> {
     'searchPageWindow', 'inspectPetCards', 'findPetDataInDOM', 'extractStrengthFromUI',
     'debugLevels', 'debugInventory', 'testPetData', 'testComparePets', 'testAbilityDefinitions',
     'debugAriesIntegration', 'debugInventoryAtoms', 'scanSeeds',
-    'auditRainbowPets', 'openPetHub3v3', 'resetTutorial', 'showTutorial',
+    'auditRainbowPets', 'openPetHub3v3', 'resetTutorials', 'showTour',
     'inspectGarden', 'exposeGarden', 'currentTile', 'verifyBulkFavorite', 'inspectJournal',
   ];
 

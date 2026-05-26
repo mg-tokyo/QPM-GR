@@ -77,7 +77,7 @@ export function renderFamilyNav(
     'border:1px solid rgba(143,130,255,0.3)',
     'background:rgba(143,130,255,0.08)',
     'color:#d8d1ff',
-    'font-size:11px',
+    'font-size:12px',
     'font-weight:600',
     'cursor:pointer',
     'transition:all 0.15s',

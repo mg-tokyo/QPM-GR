@@ -1,12 +1,10 @@
-// src/ui/tour/tours/pets/hub.ts
-
 import type { TourDefinition } from '../../types';
 
 export const petHubTour: TourDefinition = {
   windowId: 'qpm-pets-window',
   label: 'Pet Hub',
   category: 'pets',
-  version: 1,
+  version: 2,
   steps: [
     {
       id: 'tabs',
@@ -21,13 +19,6 @@ export const petHubTour: TourDefinition = {
       title: 'Your active team',
       body: 'This shows your current pet slots. Create teams, assign pets, and apply them with one click.',
       placement: 'top',
-    },
-    {
-      id: 'settings',
-      selector: '[data-tour="pet-hub-settings"]',
-      title: 'Sell & keybind settings',
-      body: 'Open the gear icon for sell-all-pets settings, protection rules, and feed keybind configuration.',
-      placement: 'left',
     },
   ],
 };

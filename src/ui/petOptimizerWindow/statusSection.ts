@@ -29,26 +29,42 @@ function colorWithAlpha(color: string, alpha: number): string {
   return `rgba(143,130,255,${alpha})`;
 }
 
-function getStatusConfig(status: StatusSectionId): { icon: string; title: string; color: string; bgColor: string; desc: string } {
-  const configs: Record<StatusSectionId, { icon: string; title: string; color: string; bgColor: string; desc: string }> = {
+interface StatusConfig {
+  icon: string;
+  title: string;
+  color: string;
+  borderColor: string;
+  badgeBg: string;
+  bgColor: string;
+  desc: string;
+}
+
+function getStatusConfig(status: StatusSectionId): StatusConfig {
+  const configs: Record<StatusSectionId, StatusConfig> = {
     review: {
       icon: '📝',
       title: t('feature.petOptimizer.reviewNeeded'),
       color: '#FFC107',
+      borderColor: 'rgba(255,193,7,0.27)',
+      badgeBg: 'rgba(255,193,7,0.2)',
       bgColor: 'rgba(255, 193, 7, 0.1)',
       desc: t('feature.petOptimizer.reviewDesc'),
     },
     sell: {
       icon: '💰',
       title: t('feature.petOptimizer.sellPets'),
-      color: '#f44336',
+      color: 'var(--qpm-danger)',
+      borderColor: 'rgba(244,67,54,0.27)',
+      badgeBg: 'rgba(244,67,54,0.2)',
       bgColor: 'rgba(244, 67, 54, 0.1)',
       desc: t('feature.petOptimizer.sellDesc'),
     },
     keep: {
       icon: '✅',
       title: t('feature.petOptimizer.keepThese'),
-      color: '#4CAF50',
+      color: 'var(--qpm-positive)',
+      borderColor: 'rgba(76,175,80,0.27)',
+      badgeBg: 'rgba(76,175,80,0.2)',
       bgColor: 'rgba(76, 175, 80, 0.1)',
       desc: t('feature.petOptimizer.keepDesc'),
     },
@@ -87,13 +103,13 @@ export function createStatusSection(
     margin-bottom: 16px;
     background: ${sectionConfig.bgColor};
     border-radius: 8px;
-    border: 1px solid ${sectionConfig.color}44;
+    border: 1px solid ${sectionConfig.borderColor};
     overflow: hidden;
   `;
 
   const header = document.createElement('div');
   header.style.cssText = `
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: ${sectionConfig.color};
     padding: 12px 16px;
@@ -111,15 +127,15 @@ export function createStatusSection(
     <span style="font-size: 16px; margin-right: 8px;">${sectionConfig.icon}</span>
     <span>${sectionConfig.title}</span>
     <span style="
-      background: ${sectionConfig.color}33;
+      background: ${sectionConfig.badgeBg};
       color: ${sectionConfig.color};
       padding: 2px 8px;
       border-radius: 12px;
-      font-size: 11px;
+      font-size: 12px;
       margin-left: 8px;
       font-weight: 700;
     ">${comparisons.length}</span>
-    <span style="font-size: 11px; color: #888; font-weight: normal; margin-left: 12px;">${sectionConfig.desc}</span>
+    <span style="font-size: 12px; color: #888; font-weight: normal; margin-left: 12px;">${sectionConfig.desc}</span>
   `;
 
   const collapseIcon = document.createElement('span');
@@ -187,7 +203,7 @@ export function createStatusSection(
       createBtn.textContent = t('feature.petOptimizer.createTeam');
       createBtn.style.cssText = [
         'padding:4px 9px',
-        'font-size:11px',
+        'font-size:12px',
         'font-weight:600',
         'border-radius:6px',
         'border:1px solid rgba(143,130,255,0.45)',
@@ -219,7 +235,7 @@ export function createStatusSection(
       familySellBtn.textContent = t('feature.petOptimizer.sell');
       familySellBtn.style.cssText = [
         'padding:4px 9px',
-        'font-size:11px',
+        'font-size:12px',
         'font-weight:600',
         'border-radius:6px',
         'border:1px solid rgba(244,67,54,0.45)',

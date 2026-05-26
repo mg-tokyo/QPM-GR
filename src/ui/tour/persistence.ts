@@ -48,3 +48,42 @@ export function migrateLegacyTutorial(welcomeVersion: number): void {
 
   storage.remove(LEGACY_TUTORIAL_KEY);
 }
+
+// ── Discovery persistence ──────────────────────────────────
+
+const DISCOVERY_KEY_PREFIX = 'qpm.discovered.';
+
+function discoveryKey(windowId: string): string {
+  return `${DISCOVERY_KEY_PREFIX}${windowId}`;
+}
+
+/** Read discovered element IDs for a window. Returns empty array if none. */
+export function readDiscoveredIds(windowId: string): string[] {
+  return storage.get<string[]>(discoveryKey(windowId), []);
+}
+
+/** Mark an element as discovered for a window. */
+export function markDiscovered(windowId: string, itemId: string): void {
+  const existing = readDiscoveredIds(windowId);
+  if (existing.includes(itemId)) return;
+  storage.set(discoveryKey(windowId), [...existing, itemId]);
+}
+
+/** Clear all discovery progress for a window. */
+export function clearDiscoveryProgress(windowId: string): void {
+  storage.remove(discoveryKey(windowId));
+}
+
+// ── Global tour toggle ─────────────────────────────────────
+
+const TOURS_ENABLED_KEY = 'qpm.tours.enabled';
+
+/** Check if tours/discovery are globally enabled. Default: true. */
+export function areToursEnabled(): boolean {
+  return storage.get<boolean>(TOURS_ENABLED_KEY, true);
+}
+
+/** Set the global tours enabled toggle. */
+export function setToursEnabled(enabled: boolean): void {
+  storage.set(TOURS_ENABLED_KEY, enabled);
+}

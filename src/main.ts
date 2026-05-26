@@ -1093,15 +1093,18 @@ const QPM_DEBUG_API = {
       return false;
     }
   },
-  resetTutorial: async () => {
-    const { resetTutorial } = await import('./ui/tutorialPopup');
-    resetTutorial();
-    console.log('Tutorial reset. Reload the page to see it again.');
+  resetTutorials: async () => {
+    const { resetAllTours } = await import('./ui/tour');
+    resetAllTours();
+    console.log('All tour progress reset. Reload to see tours again.');
   },
 
-  showTutorial: async () => {
-    const { showTutorialPopup } = await import('./ui/tutorialPopup');
-    showTutorialPopup();
+  showTour: async (windowId?: string) => {
+    const { checkTour } = await import('./ui/tour');
+    const target = document.querySelector('.qpm-panel') as HTMLElement | null;
+    if (target) {
+      checkTour(windowId ?? 'welcome', target);
+    }
   },
 
   // Pet Teams debug helpers
@@ -1707,11 +1710,16 @@ async function initialize(): Promise<void> {
   // Start version checker (checks for updates periodically)
   startVersionChecker();
 
-  // Show tutorial popup on first load
-  const { showTutorialPopup } = await import('./ui/tutorialPopup');
+  // Initialize tour system and show welcome tour on first load
+  const { initTourSystem, checkTour } = await import('./ui/tour');
+  await initTourSystem();
+  // Check welcome tour after UI settles (same timing as old tutorialPopup)
   setTimeout(() => {
-    showTutorialPopup();
-  }, 1500); // Delay to let UI settle
+    const panel = document.querySelector('.qpm-panel') as HTMLElement | null;
+    if (panel) {
+      checkTour('welcome', panel);
+    }
+  }, 1500);
 
   importantLog('Quinoa Pet Manager initialized successfully');
 

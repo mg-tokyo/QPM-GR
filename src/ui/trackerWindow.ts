@@ -639,6 +639,12 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   }, TICKER_INTERVAL_MS);
   cleanups.push(tickerCleanup);
 
+  // Tour system: check for first-time tour and inject replay button
+  import('./tour').then(({ checkTour, injectReplayButton }) => {
+    checkTour('trackers-v2-ability', container);
+    injectReplayButton('trackers-v2-ability');
+  });
+
   // -- Idempotent cleanup --
   return () => {
     if (cleaned) return;

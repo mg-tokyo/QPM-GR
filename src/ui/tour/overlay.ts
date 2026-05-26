@@ -94,7 +94,7 @@ export function createOverlay(): OverlayRefs {
   svg.appendChild(defs);
 
   const dimRect = document.createElementNS(SVG_NS, 'rect');
-  dimRect.setAttribute('fill', 'rgba(0,0,0,0.6)');
+  dimRect.setAttribute('fill', 'rgba(0,0,0,0.78)');
   dimRect.setAttribute('mask', 'url(#qpm-tour-spotlight-mask)');
   dimRect.setAttribute('width', '100%');
   dimRect.setAttribute('height', '100%');
@@ -180,10 +180,13 @@ export interface UpdateStepParams {
 /**
  * Compute the best placement for the tooltip given the target rect.
  * Prefers the step's declared placement; falls back to whichever side has the most space.
+ * If the preferred placement would cause the tooltip to overlap the target, flips to the opposite side.
  */
 function computePlacement(targetRect: Rect, preferred: TourPlacement | undefined): Exclude<TourPlacement, 'auto'> {
   if (preferred && preferred !== 'auto') {
-    return preferred;
+    const MIN_SPACE = 140;
+    const hasRoom = checkSpaceForPlacement(targetRect, preferred, MIN_SPACE);
+    if (hasRoom) return preferred;
   }
 
   const spaceTop = targetRect.y;
@@ -198,9 +201,25 @@ function computePlacement(targetRect: Rect, preferred: TourPlacement | undefined
   return 'left';
 }
 
+/** Check if there's enough space on a given side for a tooltip. */
+function checkSpaceForPlacement(
+  targetRect: Rect,
+  placement: Exclude<TourPlacement, 'auto'>,
+  minSpace: number,
+): boolean {
+  switch (placement) {
+    case 'top': return targetRect.y >= minSpace;
+    case 'bottom': return (window.innerHeight - (targetRect.y + targetRect.height)) >= minSpace;
+    case 'left': return targetRect.x >= minSpace;
+    case 'right': return (window.innerWidth - (targetRect.x + targetRect.width)) >= minSpace;
+  }
+}
+
 /**
  * Position the tooltip relative to the target rect and placement.
  * Clamps to viewport. Adjusts arrow offset to maintain visual connection.
+ * For oversized targets (taller/wider than half the viewport), positions
+ * the tooltip inside the target rather than outside.
  */
 function positionTooltip(
   tooltip: HTMLElement,
@@ -210,55 +229,75 @@ function positionTooltip(
 ): void {
   tooltip.setAttribute('data-placement', placement);
 
-  // Measure tooltip (needs to be visible for dimensions)
-  const tw = tooltip.offsetWidth;
-  const th = tooltip.offsetHeight;
+  // Force a reflow to get accurate dimensions
+  tooltip.style.left = '0px';
+  tooltip.style.top = '0px';
+  const tw = tooltip.offsetWidth || 220;
+  const th = tooltip.offsetHeight || 80;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const margin = 12;
+
+  // Detect oversized targets — tooltip should float inside them
+  const targetIsOversized =
+    targetRect.width > vw * 0.5 || targetRect.height > vh * 0.5;
 
   let left = 0;
   let top = 0;
 
-  switch (placement) {
-    case 'bottom':
-      left = targetRect.x + targetRect.width / 2 - tw / 2;
-      top = targetRect.y + targetRect.height + TOOLTIP_GAP;
-      break;
-    case 'top':
-      left = targetRect.x + targetRect.width / 2 - tw / 2;
-      top = targetRect.y - th - TOOLTIP_GAP;
-      break;
-    case 'right':
-      left = targetRect.x + targetRect.width + TOOLTIP_GAP;
-      top = targetRect.y + targetRect.height / 2 - th / 2;
-      break;
-    case 'left':
-      left = targetRect.x - tw - TOOLTIP_GAP;
-      top = targetRect.y + targetRect.height / 2 - th / 2;
-      break;
+  if (targetIsOversized) {
+    // Position inside the target, near the top-center
+    left = targetRect.x + targetRect.width / 2 - tw / 2;
+    top = targetRect.y + Math.min(24, targetRect.height * 0.15);
+    // Hide arrow for oversized targets — it doesn't point at an edge
+    arrow.style.display = 'none';
+  } else {
+    arrow.style.display = '';
+    switch (placement) {
+      case 'bottom':
+        left = targetRect.x + targetRect.width / 2 - tw / 2;
+        top = targetRect.y + targetRect.height + TOOLTIP_GAP;
+        break;
+      case 'top':
+        left = targetRect.x + targetRect.width / 2 - tw / 2;
+        top = targetRect.y - th - TOOLTIP_GAP;
+        break;
+      case 'right':
+        left = targetRect.x + targetRect.width + TOOLTIP_GAP;
+        top = targetRect.y + targetRect.height / 2 - th / 2;
+        break;
+      case 'left':
+        left = targetRect.x - tw - TOOLTIP_GAP;
+        top = targetRect.y + targetRect.height / 2 - th / 2;
+        break;
+    }
   }
 
   // Clamp to viewport
-  const margin = 8;
-  const clampedLeft = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
-  const clampedTop = Math.max(margin, Math.min(top, window.innerHeight - th - margin));
+  const clampedLeft = Math.max(margin, Math.min(left, vw - tw - margin));
+  const clampedTop = Math.max(margin, Math.min(top, vh - th - margin));
 
   tooltip.style.left = `${clampedLeft}px`;
   tooltip.style.top = `${clampedTop}px`;
 
-  // Arrow position: centered on the target's edge, adjusted for tooltip clamping
-  const arrowOffset = (placement === 'top' || placement === 'bottom')
-    ? Math.max(16, Math.min(targetRect.x + targetRect.width / 2 - clampedLeft - ARROW_SIZE / 2, tw - 28))
-    : Math.max(16, Math.min(targetRect.y + targetRect.height / 2 - clampedTop - ARROW_SIZE / 2, th - 28));
+  if (!targetIsOversized) {
+    // Arrow position: centered on the target's edge, adjusted for tooltip clamping
+    const arrowOffset = (placement === 'top' || placement === 'bottom')
+      ? Math.max(16, Math.min(targetRect.x + targetRect.width / 2 - clampedLeft - ARROW_SIZE / 2, tw - 28))
+      : Math.max(16, Math.min(targetRect.y + targetRect.height / 2 - clampedTop - ARROW_SIZE / 2, th - 28));
 
-  if (placement === 'top' || placement === 'bottom') {
-    arrow.style.left = `${arrowOffset}px`;
-    arrow.style.top = '';
-    arrow.style.right = '';
-    arrow.style.bottom = '';
-  } else {
-    arrow.style.top = `${arrowOffset}px`;
-    arrow.style.left = '';
-    arrow.style.right = '';
-    arrow.style.bottom = '';
+    if (placement === 'top' || placement === 'bottom') {
+      arrow.style.left = `${arrowOffset}px`;
+      arrow.style.top = '';
+      arrow.style.right = '';
+      arrow.style.bottom = '';
+    } else {
+      arrow.style.top = `${arrowOffset}px`;
+      arrow.style.left = '';
+      arrow.style.right = '';
+      arrow.style.bottom = '';
+    }
   }
 }
 

@@ -8,9 +8,9 @@ function resolveLocationSpriteUrl(location: string): string {
 
   let url = '';
   if (location === 'inventory') {
-    url = getAnySpriteDataUrl('sprite/item/InventoryBag') || getAnySpriteDataUrl('item/InventoryBag');
+    url = getAnySpriteDataUrl('sprite/ui/InventoryBag');
   } else if (location === 'hutch') {
-    url = getAnySpriteDataUrl('decor/PetHutch') || getAnySpriteDataUrl('sprite/decor/PetHutch');
+    url = getAnySpriteDataUrl('sprite/decor/PetHutch');
   }
 
   if (url) locationSpriteCache.set(location, url);
@@ -22,7 +22,7 @@ export function getLocationIcon(location: string): HTMLElement {
 
   if (loc === 'active') {
     const dot = document.createElement('span');
-    dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:#4CAF50;flex-shrink:0;';
+    dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--qpm-positive);flex-shrink:0;';
     dot.title = 'Active';
     return dot;
   }

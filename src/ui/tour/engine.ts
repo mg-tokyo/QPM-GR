@@ -1,7 +1,7 @@
 // src/ui/tour/engine.ts
 
 import type { TourDefinition, TourStep } from './types';
-import { readTourProgress, writeTourProgress } from './persistence';
+import { readTourProgress, writeTourProgress, areToursEnabled } from './persistence';
 import { createOverlay, updateOverlayStep, updateSpotlightPosition, destroyOverlay } from './overlay';
 import { lookupTour } from './registry';
 import { log } from '../../utils/logger';
@@ -190,9 +190,9 @@ async function showStep(index: number): Promise<void> {
 
   // Resolve target (with waitFor if needed)
   const target = await waitForElement(step, windowBody);
-  if (!target) {
-    // Skip this step, try next
-    log(`[Tour] Target not found for step "${step.id}", skipping`);
+  if (!target || !isTargetAlive(target)) {
+    // Skip this step — target missing or hidden (e.g., inactive tab)
+    log(`[Tour] Target not found or hidden for step "${step.id}", skipping`);
     await showStep(index + 1);
     return;
   }
@@ -302,6 +302,9 @@ function processQueue(): void {
   const progress = readTourProgress(next.windowId);
   if (progress?.completed && progress.version === definition.version) return;
 
+  // Don't start a queued tour for a hidden container
+  if (!isTargetAlive(next.windowBody)) return;
+
   const startStep = progress ? progress.lastCompletedStep + 1 : 0;
   void startTour(definition, next.windowBody, startStep);
 }
@@ -311,6 +314,12 @@ function processQueue(): void {
  * Called from window render callbacks. This is the main integration point.
  */
 export function check(windowId: string, windowBody: HTMLElement): void {
+  // Global toggle — when disabled, auto-tours don't start
+  if (!areToursEnabled()) return;
+
+  // Don't start a tour for a hidden container (e.g., inactive tab panel)
+  if (!isTargetAlive(windowBody)) return;
+
   const definition = lookupTour(windowId);
   if (!definition) return;
 

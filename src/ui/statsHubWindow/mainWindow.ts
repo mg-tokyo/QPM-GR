@@ -39,7 +39,7 @@ export function renderStatsHub(root: HTMLElement): void {
     btn.textContent = label;
     btn.style.cssText = [
       'padding:7px 16px',
-      'font-size:13px',
+      'font-size:14px',
       'font-weight:600',
       'border:none',
       'border-bottom:3px solid transparent',
@@ -70,8 +70,8 @@ export function renderStatsHub(root: HTMLElement): void {
     economyCleanup?.(); economyCleanup = null;
 
     for (const [id, btn] of Object.entries(tabBtns)) {
-      btn.style.color = id === tab ? '#c8c0ff' : 'rgba(224,224,224,0.55)';
-      btn.style.borderBottomColor = id === tab ? '#8f82ff' : 'transparent';
+      btn.style.color = id === tab ? 'var(--qpm-accent-hover)' : 'rgba(224,224,224,0.55)';
+      btn.style.borderBottomColor = id === tab ? 'var(--qpm-accent)' : 'transparent';
     }
 
     const panel = document.createElement('div');
@@ -87,7 +87,7 @@ export function renderStatsHub(root: HTMLElement): void {
     } catch (error) {
       log('[StatsHub] Tab build error', error);
       const errDiv = document.createElement('div');
-      errDiv.style.cssText = 'padding:20px;color:rgba(224,224,224,0.4);font-size:13px;';
+      errDiv.style.cssText = 'padding:20px;color:rgba(224,224,224,0.4);font-size:14px;';
       errDiv.textContent = t('feature.statsHub.tabLoadError');
       panel.appendChild(errDiv);
     }

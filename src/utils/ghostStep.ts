@@ -43,16 +43,19 @@ export function petTileFromMotion(motion: unknown): XY | null {
 }
 
 /**
- * Read the player's current grid position from `playerAtom`.
+ * Read the player's current grid position from `positionAtom`.
+ *
+ * The game stores position in a standalone `positionAtom` (GridPosition | null),
+ * NOT as a sub-property of `playerAtom` (which holds id/name/cosmetic only).
+ * Falls back to `localPlayerPositionAtom` (slot-aware derived atom) if the
+ * primary atom is missing or null.
  */
 export async function getPlayerPosition(): Promise<XY | null> {
-  const atom = getAtomByLabel('playerAtom');
-  if (!atom) return null;
-  const player = await readAtomValue<unknown>(atom).catch(() => null);
-  if (!isRecord(player)) return null;
-
-  for (const key of ['position', 'coords', 'playerPosition', 'location'] as const) {
-    const pos = asXY(player[key]);
+  for (const label of ['positionAtom', 'localPlayerPositionAtom'] as const) {
+    const atom = getAtomByLabel(label);
+    if (!atom) continue;
+    const value = await readAtomValue<unknown>(atom).catch(() => null);
+    const pos = asXY(value);
     if (pos) return pos;
   }
   return null;

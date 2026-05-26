@@ -404,10 +404,101 @@ export function getConfigGroup(): HubGroupDef {
     renderExpanded: renderPanelShortcutExpanded,
   };
 
+  const resetToursCard: ExpandableCardConfig = {
+    key: 'reset-tours',
+    label: t('hub.config.resetTours.label', undefined, 'Tutorials'),
+    description: t('hub.config.resetTours.description', undefined, 'Reset all guided tours so they show again'),
+    icon: { kind: 'emoji', value: '?' },
+    tier: 'expandable',
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.textContent = t('hub.config.resetTours.summary', undefined, 'Replay first-time walkthroughs');
+    },
+    renderExpanded: (container) => {
+      container.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
+
+      // ── Toggle row ──
+      const toggleRow = document.createElement('div');
+      toggleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0 2px;';
+
+      const toggleLabel = document.createElement('div');
+      toggleLabel.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+      const toggleTitle = document.createElement('span');
+      toggleTitle.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.9);font-weight:500;';
+      toggleTitle.textContent = 'Show guided tours';
+      const toggleSub = document.createElement('span');
+      toggleSub.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.45);';
+      toggleSub.textContent = 'Auto-play walkthroughs when opening features for the first time';
+      toggleLabel.appendChild(toggleTitle);
+      toggleLabel.appendChild(toggleSub);
+
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox';
+      toggle.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:#8f82ff;';
+
+      import('../../tour').then(({ getToursEnabled, setToursEnabled }) => {
+        toggle.checked = getToursEnabled();
+        toggle.addEventListener('change', () => {
+          setToursEnabled(toggle.checked);
+        });
+      });
+
+      toggleRow.appendChild(toggleLabel);
+      toggleRow.appendChild(toggle);
+      container.appendChild(toggleRow);
+
+      // ── Divider ──
+      const divider = document.createElement('div');
+      divider.style.cssText = 'height:1px;background:rgba(120,130,170,0.15);';
+      container.appendChild(divider);
+
+      // ── Note ──
+      const note = document.createElement('div');
+      note.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.6);line-height:1.45;padding:0 2px;';
+      note.textContent = t('hub.config.resetTours.note', undefined, 'This resets progress for all guided tours. They will show again the next time you open each window.');
+      container.appendChild(note);
+
+      // ── Reset button ──
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = t('hub.config.resetTours.button', undefined, 'Reset all tutorials');
+      btn.style.cssText = [
+        'padding:8px 16px',
+        'font-size:13px',
+        'font-weight:600',
+        'border-radius:8px',
+        'cursor:pointer',
+        'border:1px solid rgba(255,100,100,0.35)',
+        'background:rgba(255,100,100,0.12)',
+        'color:#ff8888',
+        'transition:all 0.15s',
+        'align-self:flex-start',
+      ].join(';');
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = 'rgba(255,100,100,0.2)';
+        btn.style.borderColor = 'rgba(255,100,100,0.5)';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = 'rgba(255,100,100,0.12)';
+        btn.style.borderColor = 'rgba(255,100,100,0.35)';
+      });
+      btn.addEventListener('click', () => {
+        import('../../tour').then(({ resetAllTours }) => {
+          resetAllTours();
+          btn.textContent = t('hub.config.resetTours.done', undefined, 'Done — tours will replay on next open');
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'default';
+        });
+      });
+      container.appendChild(btn);
+    },
+  };
+
   return {
     id: 'config',
     label: t('hub.config.label'),
     icon: { kind: 'emoji', value: '⚙️' },
-    cards: [autoReconnectCard, controllerCard, panelShortcutCard, shopKeybindsCard],
+    cards: [autoReconnectCard, controllerCard, panelShortcutCard, shopKeybindsCard, resetToursCard],
   };
 }

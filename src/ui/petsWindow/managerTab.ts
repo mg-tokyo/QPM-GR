@@ -47,6 +47,7 @@ export function buildManagerTab(
 
   const listTop = document.createElement('div');
   listTop.className = 'qpm-mgr__list-top';
+  listTop.dataset.tour = 'mgr-toolbar';
   listHeader.appendChild(listTop);
 
   const newTeamBtn = btn(t('feature.petsWindow.newTeam'), 'sm');
@@ -67,6 +68,7 @@ export function buildManagerTab(
 
   const teamsContainer = document.createElement('div');
   teamsContainer.className = 'qpm-mgr__teams';
+  teamsContainer.dataset.tour = 'mgr-teams';
   listPanel.appendChild(teamsContainer);
 
   // --- Right: team editor ---
@@ -76,6 +78,7 @@ export function buildManagerTab(
 
   const editor = document.createElement('div');
   editor.className = 'qpm-editor';
+  editor.dataset.tour = 'mgr-editor';
   editorPanel.appendChild(editor);
 
   const savedCompare = loadPetTeamsUiState().compare ?? {};
@@ -220,6 +223,9 @@ export function buildManagerTab(
 
   ctx.renderTeamList();
   ctx.renderEditor();
+
+  // Manager tab tour is accessible via the ? button on the hub window.
+  // It does not auto-fire — the hub tour covers the initial introduction.
 
   state.selectTeam = (teamId: string | null): void => {
     const teams = getTeamsConfig().teams;

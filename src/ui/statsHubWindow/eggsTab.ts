@@ -55,12 +55,12 @@ function buildSpeciesCard(species: string, counts: SpeciesCounts): HTMLElement {
   card.appendChild(petSprite(species, 48));
 
   const nameEl = document.createElement('div');
-  nameEl.style.cssText = 'font-size:11px;font-weight:600;color:#e0e0e0;word-break:break-word;';
+  nameEl.style.cssText = 'font-size:12px;font-weight:600;color:var(--qpm-text);word-break:break-word;';
   nameEl.textContent = species;
   card.appendChild(nameEl);
 
   const countEl = document.createElement('div');
-  countEl.style.cssText = 'font-size:18px;font-weight:800;color:#e0e0e0;line-height:1;';
+  countEl.style.cssText = 'font-size:18px;font-weight:700;color:var(--qpm-text);line-height:1;';
   countEl.textContent = String(counts.total);
   card.appendChild(countEl);
 
@@ -103,7 +103,7 @@ function buildEventRow(event: HatchEvent): HTMLElement {
   row.appendChild(petSprite(event.species, 24));
 
   const nameEl = document.createElement('span');
-  nameEl.style.cssText = 'font-size:12px;color:#e0e0e0;font-weight:600;min-width:60px;';
+  nameEl.style.cssText = 'font-size:12px;color:var(--qpm-text);font-weight:600;min-width:60px;';
   nameEl.textContent = event.species;
   row.appendChild(nameEl);
 
@@ -142,7 +142,7 @@ function buildEggCard(egg: EggAnalysis): HTMLElement {
 
   // Egg name
   const nameEl = document.createElement('div');
-  nameEl.style.cssText = 'font-size:11px;font-weight:600;color:#e0e0e0;word-break:break-word;line-height:1.3;';
+  nameEl.style.cssText = 'font-size:12px;font-weight:600;color:var(--qpm-text);word-break:break-word;line-height:1.3;';
   nameEl.textContent = egg.eggName;
   card.appendChild(nameEl);
 
@@ -170,7 +170,7 @@ function buildEggCard(egg: EggAnalysis): HTMLElement {
 
   if (egg.eggCost > 0) {
     const costEl = document.createElement('div');
-    costEl.style.cssText = 'color:#ffd600;font-weight:600;font-size:11px;';
+    costEl.style.cssText = 'color:#ffd600;font-weight:600;font-size:12px;';
     costEl.textContent = formatCoinsAbbreviated(egg.eggCost);
     stats.appendChild(costEl);
   }
@@ -302,7 +302,7 @@ export function buildEggsTab(container: HTMLElement): () => void {
 
     // Section header with inline totals
     const hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;align-items:baseline;gap:10px;font-size:13px;font-weight:700;color:rgba(224,224,224,0.85);';
+    hdr.style.cssText = 'display:flex;align-items:baseline;gap:10px;font-size:14px;font-weight:700;color:rgba(224,224,224,0.85);';
     hdr.textContent = t('feature.statsHub.eggs.hatched', { count: String(bucket.totalHatched) });
     if (goldTotal > 0) {
       const g = document.createElement('span');

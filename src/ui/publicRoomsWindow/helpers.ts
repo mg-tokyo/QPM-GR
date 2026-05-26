@@ -2,6 +2,7 @@ import type { Room, PlayerView } from '../../types/publicRooms';
 import { escapeHtml } from '../panelHelpers';
 import { storage } from '../../utils/storage';
 import { getState } from '../../features/publicRooms';
+import { createEmptyState } from '../components/emptyState';
 
 export function sanitizeImageUrl(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -34,10 +35,7 @@ export function setPanePlaceholder(id: string, text: string): void {
   const el = document.getElementById(id);
   if (el) {
     clearNode(el);
-    const placeholder = document.createElement('div');
-    placeholder.className = 'pr-pane-placeholder';
-    placeholder.textContent = text;
-    el.appendChild(placeholder);
+    el.appendChild(createEmptyState(text));
   }
 }
 

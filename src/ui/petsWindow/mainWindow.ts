@@ -447,6 +447,12 @@ function renderPetsWindow(root: HTMLElement): void {
   window.addEventListener(PETS_WINDOW_SWITCH_TAB_EVENT, onPetsWindowSwitchTab as EventListener);
   allCleanups.push(() => window.removeEventListener(PETS_WINDOW_SWITCH_TAB_EVENT, onPetsWindowSwitchTab as EventListener));
 
+  // Tour system: check for first-time tour and inject replay button
+  import('../tour').then(({ checkTour, injectReplayButton }) => {
+    checkTour(WINDOW_ID, root);
+    injectReplayButton(WINDOW_ID);
+  });
+
   // Cleanup on window root removal (MutationObserver)
   const observer = new MutationObserver(() => {
     if (!root.isConnected) {

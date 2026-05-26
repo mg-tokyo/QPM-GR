@@ -11,19 +11,6 @@ export type SpriteFilterConfig = {
   masked?: boolean;
 };
 
-export const ABILITY_COLOR_MAP = {
-  plantGrowth: { base: '#2E7D32', glow: 'rgba(46,125,50,0.65)', text: '#C8E6C9' },
-  eggGrowth: { base: '#FF7043', glow: 'rgba(255,112,67,0.65)', text: '#FFE0B2' },
-  xp: { base: '#7C4DFF', glow: 'rgba(124,77,255,0.65)', text: '#EDE7F6' },
-  coins: { base: '#FFB300', glow: 'rgba(255,179,0,0.65)', text: '#FFF8E1' },
-  misc: { base: '#90A4AE', glow: 'rgba(144,164,174,0.6)', text: '#ECEFF1' },
-  hunger: { base: '#26C6DA', glow: 'rgba(38,198,218,0.65)', text: '#E0F7FA' },
-  mutation: { base: '#EC407A', glow: 'rgba(236,64,122,0.6)', text: '#FCE4EC' },
-  rainbow: { base: '#7C4DFF', glow: 'rgba(124,77,255,0.7)', text: '#F3E5F5' },
-  gold: { base: '#FDD835', glow: 'rgba(253,216,53,0.75)', text: '#FFFDE7' },
-  default: { base: '#5E5CE6', glow: 'rgba(94,92,230,0.5)', text: '#E0E7FF' },
-};
-
 export const mutationFilters: Record<string, SpriteFilterConfig> = {
   gold: { blendMode: 'source-atop', colors: ['rgb(255, 215, 0)'], alpha: 0.7 },
   rainbow: { blendMode: 'color', colors: ['#FF1744', '#FF9100', '#FFEA00', '#00E676', '#2979FF', '#D500F9'], gradientAngle: 130, masked: true },

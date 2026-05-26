@@ -11,6 +11,7 @@ import {
   showToast,
 } from './helpers';
 import { openInspector } from './inspectorShell';
+import { createEmptyState } from '../components/emptyState';
 import { t } from '../../i18n';
 
 export function setRoomStatPills(totalRooms: number, visibleRooms: number, lastUpdatedAt?: string | null): void {
@@ -69,11 +70,11 @@ export function createAppContainer(): HTMLElement {
     <div class="pr-controls">
       <div class="pr-control">
         <label>🔎 ${t('feature.publicRooms.searchLabel')}</label>
-        <input type="text" id="pr-search-input" placeholder="${t('feature.publicRooms.searchPlaceholder')}" />
+        <input type="text" id="pr-search-input" class="qpm-input" placeholder="${t('feature.publicRooms.searchPlaceholder')}" />
       </div>
       <div class="pr-control">
         <label>👥 ${t('feature.publicRooms.playerCountLabel')}</label>
-        <select id="pr-player-filter">
+        <select id="pr-player-filter" class="qpm-select">
           <option value="all">${t('feature.publicRooms.allRooms')}</option>
           <option value="low">${t('feature.publicRooms.fewPlayers')}</option>
           <option value="medium">${t('feature.publicRooms.somePlayers')}</option>
@@ -82,7 +83,7 @@ export function createAppContainer(): HTMLElement {
       </div>
       <div class="pr-control">
         <label>📊 ${t('feature.publicRooms.sortByLabel')}</label>
-        <select id="pr-sort-by">
+        <select id="pr-sort-by" class="qpm-select">
           <option value="name">${t('feature.publicRooms.sortRoomCode')}</option>
           <option value="players-desc" selected>${t('feature.publicRooms.sortMostPlayers')}</option>
           <option value="players-asc">${t('feature.publicRooms.sortLeastPlayers')}</option>
@@ -148,10 +149,7 @@ export function openPlayersModal(room: Room): void {
   body.style.cssText = 'display: flex; flex-direction: column; gap: 10px;';
 
   if (players.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'color: #9CA3AF; font-size: 13px; text-align: center; padding: 20px;';
-    empty.textContent = t('feature.publicRooms.noPlayersModal');
-    body.appendChild(empty);
+    body.appendChild(createEmptyState(t('feature.publicRooms.noPlayersModal')));
   } else {
     players.forEach((slot) => {
       const row = document.createElement('div');
@@ -178,7 +176,7 @@ export function openPlayersModal(room: Room): void {
       playerName.style.cssText = 'font-size: 14px; font-weight: 700;';
       playerName.textContent = slot.name || t('feature.publicRooms.unknownPlayer');
       const hint = document.createElement('div');
-      hint.style.cssText = 'font-size: 11px; color: #9CA3AF;';
+      hint.style.cssText = 'font-size: 12px; color: #9CA3AF;';
       hint.textContent = t('feature.publicRooms.tapToSearch');
       info.append(playerName, hint);
       row.appendChild(info);
@@ -237,17 +235,17 @@ export function renderRooms(rooms: RoomsMap): void {
     let playerBgColor = 'rgba(102, 102, 102, 0.2)';
     const isFull = playerCount >= 6;
     if (isFull) {
-      playerBadgeColor = '#E53935';
-      playerBgColor = 'rgba(229, 57, 53, 0.25)';
+      playerBadgeColor = '#f44336';
+      playerBgColor = 'rgba(244, 67, 54, 0.25)';
     } else if (playerCount >= 5) {
-      playerBadgeColor = '#4CAF50';
-      playerBgColor = 'rgba(76, 175, 80, 0.2)';
+      playerBadgeColor = '#4fd18b';
+      playerBgColor = 'rgba(79, 209, 139, 0.2)';
     } else if (playerCount >= 3) {
-      playerBadgeColor = '#FF9800';
-      playerBgColor = 'rgba(255, 152, 0, 0.2)';
+      playerBadgeColor = '#ffb347';
+      playerBgColor = 'rgba(255, 179, 71, 0.2)';
     } else if (playerCount >= 1) {
-      playerBadgeColor = '#42A5F5';
-      playerBgColor = 'rgba(66, 165, 245, 0.2)';
+      playerBadgeColor = '#8f82ff';
+      playerBgColor = 'rgba(143, 130, 255, 0.2)';
     }
 
     const roomLabel = formatRoomLabel(room.id);
@@ -356,7 +354,7 @@ export function renderRooms(rooms: RoomsMap): void {
 
     const joinBtn = document.createElement('button');
     joinBtn.className = `qpm-button ${isFull ? 'qpm-button--negative' : 'qpm-button--positive'} pr-join-btn`;
-    joinBtn.style.cssText = `flex: 1; padding: 10px; font-size: 13px; font-weight: 700; ${isFull ? 'background: linear-gradient(135deg, rgba(229,57,53,0.85), rgba(183,28,28,0.9)); border: 2px solid rgba(229,57,53,0.9); color: #fff;' : ''}`;
+    joinBtn.style.cssText = `flex: 1; padding: 10px; font-size: 14px; font-weight: 700; ${isFull ? 'background: linear-gradient(135deg, rgba(229,57,53,0.85), rgba(183,28,28,0.9)); border: 2px solid rgba(229,57,53,0.9); color: #fff;' : ''}`;
     joinBtn.textContent = isFull ? t('feature.publicRooms.fullBtn') : t('feature.publicRooms.joinBtn');
     joinBtn.addEventListener('click', () => {
       if (/^[a-zA-Z0-9_-]{1,64}$/.test(roomCode)) {
@@ -366,7 +364,7 @@ export function renderRooms(rooms: RoomsMap): void {
 
     const viewBtn = document.createElement('button');
     viewBtn.className = 'qpm-button qpm-button--neutral pr-view-btn';
-    viewBtn.style.cssText = 'padding: 10px; font-size: 13px; font-weight: 700;';
+    viewBtn.style.cssText = 'padding: 10px; font-size: 14px; font-weight: 700;';
     viewBtn.textContent = t('feature.publicRooms.players');
     viewBtn.addEventListener('click', () => {
       if (!room.userSlots || room.userSlots.length === 0) {
@@ -390,7 +388,7 @@ export function showRoomsError(message: string): void {
 
   clearNode(roomsList);
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'text-align: center; color: #ff4d4d; grid-column: 1/-1; padding: 40px;';
+  wrapper.style.cssText = 'text-align: center; color: var(--qpm-danger); grid-column: 1/-1; padding: 40px;';
 
   const icon = document.createElement('div');
   icon.style.cssText = 'font-size: 32px; margin-bottom: 16px;';
@@ -402,7 +400,7 @@ export function showRoomsError(message: string): void {
 
   const retryBtn = document.createElement('button');
   retryBtn.id = 'pr-retry-fetch-btn';
-  retryBtn.style.cssText = 'padding: 10px 20px; background: rgba(66, 165, 245, 0.2); border: 2px solid #42A5F5; border-radius: 6px; color: #42A5F5; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;';
+  retryBtn.style.cssText = 'padding: 10px 20px; background: var(--qpm-accent-subtle); border: 2px solid var(--qpm-accent); border-radius: 6px; color: var(--qpm-accent); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;';
   retryBtn.textContent = t('feature.publicRooms.retry');
   retryBtn.addEventListener('click', () => {
     clearNode(roomsList);
@@ -422,10 +420,10 @@ export function updateConnectionStatus(status: PublicRoomsState['connectionStatu
   const roomsList = document.getElementById('pr-rooms-list');
 
   const statusConfig = {
-    connecting: { text: `🔄 ${t('feature.publicRooms.statusConnecting')}`, color: '#42A5F5' },
-    connected: { text: `✅ ${t('feature.publicRooms.statusConnected')}`, color: '#4CAF50' },
-    failed: { text: `❌ ${t('feature.publicRooms.statusFailed')}`, color: '#ff4d4d' },
-    retrying: { text: `🔄 ${t('feature.publicRooms.statusRetrying')}`, color: '#FF9800' },
+    connecting: { text: `🔄 ${t('feature.publicRooms.statusConnecting')}`, color: '#8f82ff' },
+    connected: { text: `✅ ${t('feature.publicRooms.statusConnected')}`, color: '#4fd18b' },
+    failed: { text: `❌ ${t('feature.publicRooms.statusFailed')}`, color: '#f44336' },
+    retrying: { text: `🔄 ${t('feature.publicRooms.statusRetrying')}`, color: '#ffb347' },
   };
 
   if (statusEl) {

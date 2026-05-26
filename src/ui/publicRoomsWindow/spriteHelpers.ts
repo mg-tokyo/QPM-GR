@@ -4,11 +4,9 @@ import {
   getCropSpriteWithMutations,
   getPetSpriteCanvas,
   getPetSpriteWithMutations,
-  getMutationOverlayDataUrl,
   spriteExtractor,
 } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/canvasHelpers';
-import { findVariantBadge } from '../../data/variantBadges';
 import { getAbilityColor, mutationFilters, itemTileMap, ITEM_SHEET } from './constants';
 import type { SpriteFilterConfig } from './constants';
 import { spriteService, spriteNameLookup, spriteUrlCache, normalizeSpriteLookupKey } from './state';
@@ -128,34 +126,6 @@ export function getSeedSpriteUrl(seedName: string): string | null {
   return url;
 }
 
-export function overlayMutationSprites(base: HTMLCanvasElement, mutations: string[]): HTMLCanvasElement | null {
-  if (!mutations.length) return base;
-  const w = base.width;
-  const h = base.height;
-  const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return base;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(base, 0, 0);
-
-  for (const mutRaw of mutations) {
-    const mut = String(mutRaw || '').toLowerCase();
-    const overlayUrl = getMutationOverlayDataUrl(mut);
-    if (overlayUrl) {
-      const img = new Image();
-      img.src = overlayUrl;
-      if (img.complete) {
-        ctx.drawImage(img, 0, 0, w, h);
-      } else {
-        img.onload = () => ctx.drawImage(img, 0, 0, w, h);
-      }
-    }
-  }
-  return out;
-}
-
 export function drawGradient(ctx: CanvasRenderingContext2D, w: number, h: number, cfg: SpriteFilterConfig): void {
   const angle = (cfg.gradientAngle ?? 90) * Math.PI / 180;
   const half = Math.sqrt(w * w + h * h) / 2;
@@ -215,16 +185,3 @@ export function renderAbilitySquares(abilities: string[]): string {
   }).join('');
 }
 
-export function renderMutationBadges(mutations: unknown[]): string {
-  if (!mutations || mutations.length === 0) return '';
-  const badges = mutations.slice(0, 4).map(mut => {
-    const variant = findVariantBadge(String(mut));
-    if (!variant) return '';
-    const colorStyle = variant.gradient
-      ? `background: ${variant.gradient}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;`
-      : `color: ${variant.color || '#aaa'};`;
-    const weight = variant.bold ? 'font-weight: 700;' : '';
-    return `<span class="pr-mut-badge" style="${colorStyle} ${weight}">${variant.label}</span>`;
-  }).filter(Boolean).join('');
-  return badges ? `<div class="pr-mut-badges">${badges}</div>` : '';
-}

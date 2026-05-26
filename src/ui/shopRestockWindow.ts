@@ -777,6 +777,12 @@ function renderShopRestockWindow(root: HTMLElement): void {
     scheduleRender(true, true);
   });
   void load(false);
+
+  // Tour system: check for first-time tour and inject replay button
+  import('./tour').then(({ checkTour, injectReplayButton }) => {
+    checkTour('shop-restock', root);
+    injectReplayButton('shop-restock');
+  });
 }
 
 // ---------------------------------------------------------------------------

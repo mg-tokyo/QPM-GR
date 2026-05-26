@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.17",
+    date: "2026-05-26",
+    notes: [
+      "Fixed pet greet not triggering when clicking a pet sprite on floating feed cards",
+    ],
+  },
+  {
     version: "3.2.16",
     date: "2026-05-25",
     notes: [

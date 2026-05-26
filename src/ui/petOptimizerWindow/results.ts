@@ -95,6 +95,6 @@ export function renderResults(
     }
   } catch (error) {
     console.error('[Pet Optimizer] Error rendering results:', error);
-    globalState.resultsContainer.innerHTML = `<div style="color: #f44336;">Error rendering results: ${error instanceof Error ? error.message : 'Unknown'}</div>`;
+    globalState.resultsContainer.innerHTML = `<div style="color: var(--qpm-danger);">Error rendering results: ${error instanceof Error ? error.message : 'Unknown'}</div>`;
   }
 }

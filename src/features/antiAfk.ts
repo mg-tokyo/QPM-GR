@@ -102,22 +102,18 @@ function findUserSlotByPlayerId(userSlots: unknown, playerId: string): unknown {
 
 async function resolvePositionFromPlayerAtom(): Promise<{ player: unknown; position: XY | null }> {
   const playerAtom = getAtomByLabel('playerAtom');
-  if (!playerAtom) return { player: null, position: null };
+  const player = playerAtom ? await readAtomValue<unknown>(playerAtom).catch(() => null) : null;
 
-  const player = await readAtomValue<unknown>(playerAtom).catch(() => null);
-  if (!player) return { player: null, position: null };
+  // Position lives in a standalone positionAtom, not inside playerAtom.
+  for (const label of ['positionAtom', 'localPlayerPositionAtom'] as const) {
+    const atom = getAtomByLabel(label);
+    if (!atom) continue;
+    const value = await readAtomValue<unknown>(atom).catch(() => null);
+    const position = asPosition(value);
+    if (position) return { player, position };
+  }
 
-  const position = findPosition(player, [
-    ['position'],
-    ['coords'],
-    ['playerPosition'],
-    ['location'],
-    ['state', 'position'],
-    ['state', 'coords'],
-    [],
-  ]);
-
-  return { player, position };
+  return { player, position: null };
 }
 
 function resolvePositionFromMyData(): XY | null {

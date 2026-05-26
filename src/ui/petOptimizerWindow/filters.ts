@@ -6,6 +6,7 @@ import {
 } from '../../features/petOptimizer';
 import { COMPARE_GROUP_FILTER_OPTIONS } from '../../data/petCompareRules';
 import { t } from '../../i18n';
+import { createButton, createToggle } from '../components';
 import {
   clearFiltersCleanup,
   getGlobalState,
@@ -27,6 +28,7 @@ export function renderFilters(
   filtersDiv.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;';
 
   const groupWrap = document.createElement('div');
+  groupWrap.dataset.tour = 'optimizer-group-filter';
   groupWrap.style.cssText = 'position:relative; min-width:190px;';
   const groupBtn = document.createElement('button');
   groupBtn.type = 'button';
@@ -84,7 +86,7 @@ export function renderFilters(
       'border-radius:6px',
       'border:1px solid transparent',
       'background:transparent',
-      `color:${option.id === config.selectedStrategy ? '#cfc6ff' : '#e0e0e0'}`,
+      `color:${option.id === config.selectedStrategy ? '#cfc6ff' : 'var(--qpm-text)'}`,
       'font-size:12px',
       'text-align:left',
       'cursor:pointer',
@@ -116,6 +118,7 @@ export function renderFilters(
   filtersDiv.appendChild(groupWrap);
 
   const modeWrap = document.createElement('div');
+  modeWrap.dataset.tour = 'optimizer-mode';
   modeWrap.style.cssText = 'display:inline-flex;align-items:center;border:1px solid rgba(143,130,255,0.4);border-radius:8px;overflow:hidden;background:rgba(10,14,22,0.75);';
   const modeOptions: Array<{ id: RecommendationMode; label: string }> = [
     { id: 'specialist', label: t('feature.petOptimizer.specialist') },
@@ -147,78 +150,55 @@ export function renderFilters(
   }
   filtersDiv.appendChild(modeWrap);
 
-  const sellCheckbox = document.createElement('input');
-  sellCheckbox.type = 'checkbox';
-  sellCheckbox.checked = config.showSell;
-  sellCheckbox.id = 'show-sell-checkbox';
-  sellCheckbox.style.cssText = 'cursor: pointer;';
-  sellCheckbox.addEventListener('change', () => {
-    setOptimizerConfig({ showSell: sellCheckbox.checked });
-    onRenderCurrentAnalysis();
+  const sellToggle = createToggle({
+    size: 'compact',
+    checked: config.showSell,
+    label: t('feature.petOptimizer.showSell'),
+    onChange: (checked) => {
+      setOptimizerConfig({ showSell: checked });
+      onRenderCurrentAnalysis();
+    },
   });
-  const sellLabel = document.createElement('label');
-  sellLabel.htmlFor = 'show-sell-checkbox';
-  sellLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  sellLabel.textContent = t('feature.petOptimizer.showSell');
-  filtersDiv.append(sellCheckbox, sellLabel);
+  filtersDiv.appendChild(sellToggle.root);
 
-  const reviewCheckbox = document.createElement('input');
-  reviewCheckbox.type = 'checkbox';
-  reviewCheckbox.checked = config.showReview;
-  reviewCheckbox.id = 'show-review-checkbox';
-  reviewCheckbox.style.cssText = 'cursor: pointer;';
-  reviewCheckbox.addEventListener('change', () => {
-    setOptimizerConfig({ showReview: reviewCheckbox.checked });
-    onRenderCurrentAnalysis();
+  const reviewToggle = createToggle({
+    size: 'compact',
+    checked: config.showReview,
+    label: t('feature.petOptimizer.showReview'),
+    onChange: (checked) => {
+      setOptimizerConfig({ showReview: checked });
+      onRenderCurrentAnalysis();
+    },
   });
-  const reviewLabel = document.createElement('label');
-  reviewLabel.htmlFor = 'show-review-checkbox';
-  reviewLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  reviewLabel.textContent = t('feature.petOptimizer.showReview');
-  filtersDiv.append(reviewCheckbox, reviewLabel);
+  filtersDiv.appendChild(reviewToggle.root);
 
-  const keepsCheckbox = document.createElement('input');
-  keepsCheckbox.type = 'checkbox';
-  keepsCheckbox.checked = config.showAllKeeps;
-  keepsCheckbox.id = 'show-all-keeps-checkbox';
-  keepsCheckbox.style.cssText = 'cursor: pointer;';
-  keepsCheckbox.addEventListener('change', () => {
-    setOptimizerConfig({ showAllKeeps: keepsCheckbox.checked });
-    onRenderCurrentAnalysis();
+  const keepsToggle = createToggle({
+    size: 'compact',
+    checked: config.showAllKeeps,
+    label: t('feature.petOptimizer.showAllKeeps'),
+    onChange: (checked) => {
+      setOptimizerConfig({ showAllKeeps: checked });
+      onRenderCurrentAnalysis();
+    },
   });
-  const keepsLabel = document.createElement('label');
-  keepsLabel.htmlFor = 'show-all-keeps-checkbox';
-  keepsLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  keepsLabel.textContent = t('feature.petOptimizer.showAllKeeps');
-  filtersDiv.append(keepsCheckbox, keepsLabel);
+  filtersDiv.appendChild(keepsToggle.root);
 
-  const dislikeGoldCheckbox = document.createElement('input');
-  dislikeGoldCheckbox.type = 'checkbox';
-  dislikeGoldCheckbox.checked = config.dislikeGold;
-  dislikeGoldCheckbox.id = 'dislike-gold-checkbox';
-  dislikeGoldCheckbox.style.cssText = 'cursor: pointer;';
-  dislikeGoldCheckbox.addEventListener('change', () => {
-    setOptimizerConfig({ dislikeGold: dislikeGoldCheckbox.checked });
-    onRefreshAnalysis(true);
+  const dislikeGoldToggle = createToggle({
+    size: 'compact',
+    checked: config.dislikeGold,
+    label: t('feature.petOptimizer.dislikeGold'),
+    onChange: (checked) => {
+      setOptimizerConfig({ dislikeGold: checked });
+      onRefreshAnalysis(true);
+    },
   });
-  const dislikeGoldLabel = document.createElement('label');
-  dislikeGoldLabel.htmlFor = 'dislike-gold-checkbox';
-  dislikeGoldLabel.style.cssText = 'font-size:12px; cursor:pointer;';
-  dislikeGoldLabel.textContent = t('feature.petOptimizer.dislikeGold');
-  filtersDiv.append(dislikeGoldCheckbox, dislikeGoldLabel);
+  filtersDiv.appendChild(dislikeGoldToggle.root);
 
-  const refreshButton = document.createElement('button');
-  refreshButton.textContent = t('feature.petOptimizer.refresh');
-  refreshButton.style.cssText = `
-    padding: 5px 11px;
-    background: rgba(66, 165, 245, 0.15);
-    border: 1px solid rgba(66,165,245,0.4);
-    border-radius: 5px;
-    color: #42A5F5;
-    cursor: pointer;
-    font-size: 12px;
-  `;
-  refreshButton.addEventListener('click', () => onRefreshAnalysis(true));
+  const refreshButton = createButton(t('feature.petOptimizer.refresh'), {
+    variant: 'secondary',
+    size: 'sm',
+    onClick: () => onRefreshAnalysis(true),
+  });
   filtersDiv.appendChild(refreshButton);
 
   globalState.filtersContainer.innerHTML = '';

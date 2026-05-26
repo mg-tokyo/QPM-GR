@@ -7,12 +7,13 @@ import { onGardenSnapshot, getGardenSnapshot, type GardenSnapshot } from '../../
 import { getPlantSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 import { computeMutationMultiplier } from '../../utils/cropMultipliers';
 import { visibleInterval } from '../../utils/timerManager';
+import { createToggle } from '../components';
 import { setStatsHubSpeciesOverride, setStatsHubExcludeMutationsOverride, setStatsHubTileOverride, setStatsHubExcludeMutationsAllMode } from '../../features/gardenFilters';
 import type { TileEntry, StatsHubFilters, SectionFilterSource } from './types';
 import { STATS_HUB_FILTERS_KEY, FILTER_MUTATIONS_FALLBACK } from './constants';
 import { plantSprite } from './spriteHelpers';
-import { pillBtnCss, mutBadge, buildToggleSwitch, makeCoinValueEl, makeWhenCompleteHint } from './styleHelpers';
-import { extractTiles, tileSpecies, tileMutations, tileFruitCount, tileValue, tilesToKeys } from './tileHelpers';
+import { pillBtnCss, makeCoinValueEl } from './styleHelpers';
+import { extractTiles, tileSpecies, tileValue, tilesToKeys } from './tileHelpers';
 import {
   mutsMatch,
   filterCompatibleMutations,
@@ -21,6 +22,8 @@ import {
   countActionableFruits,
   countMaxSizeRemainingFruits,
 } from './mutationCompat';
+import { closePopover } from './gardenPopover';
+import { buildTileSection } from './gardenTileCard';
 
 // ---------------------------------------------------------------------------
 // Filter persistence
@@ -53,74 +56,6 @@ function getFilterMutations(): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Floating popover — used for tile slot detail on multi-harvest cards
-// ---------------------------------------------------------------------------
-
-let _activePopover: HTMLElement | null = null;
-let _popoverCleanup: (() => void) | null = null;
-
-function closePopover(): void {
-  _activePopover?.remove();
-  _activePopover = null;
-  _popoverCleanup?.();
-  _popoverCleanup = null;
-}
-
-function openPopover(anchor: HTMLElement, content: HTMLElement): void {
-  closePopover();
-
-  const pop = document.createElement('div');
-  pop.style.cssText = [
-    'position:fixed',
-    'z-index:99999',
-    'background:rgba(14,16,22,0.98)',
-    'border:1px solid rgba(143,130,255,0.45)',
-    'border-radius:10px',
-    'padding:10px 12px',
-    'min-width:180px',
-    'max-width:260px',
-    'box-shadow:0 8px 32px rgba(0,0,0,0.7)',
-    'backdrop-filter:blur(6px)',
-  ].join(';');
-  pop.appendChild(content);
-  document.body.appendChild(pop);
-  _activePopover = pop;
-
-  // Position: prefer below-right of anchor, flip if near viewport edge
-  const r = anchor.getBoundingClientRect();
-  const gap = 8;
-  const popW = 260;
-  const spaceBelow = window.innerHeight - r.bottom;
-  const spaceRight = window.innerWidth - r.right;
-
-  pop.style.top  = spaceBelow >= 120 ? `${r.bottom + gap}px` : '';
-  pop.style.bottom = spaceBelow < 120 ? `${window.innerHeight - r.top + gap}px` : '';
-  pop.style.left  = spaceRight >= popW ? `${r.left}px` : '';
-  pop.style.right = spaceRight < popW ? `${window.innerWidth - r.right}px` : '';
-
-  const onOutside = (e: MouseEvent) => {
-    if (!pop.contains(e.target as Node) && !anchor.contains(e.target as Node)) {
-      closePopover();
-    }
-  };
-  const onEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') closePopover();
-  };
-
-  // Slight delay so this click doesn't immediately close the popover
-  const t = setTimeout(() => {
-    document.addEventListener('click', onOutside, true);
-    document.addEventListener('keydown', onEscape);
-  }, 0);
-
-  _popoverCleanup = () => {
-    clearTimeout(t);
-    document.removeEventListener('click', onOutside, true);
-    document.removeEventListener('keydown', onEscape);
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Garden value computation
 // ---------------------------------------------------------------------------
 
@@ -137,7 +72,6 @@ function computeGardenValue(
       ? plantSpec.crop.baseSellPrice : 0;
     if (base <= 0) continue;
 
-    // Tiles where no mutations can be applied contribute no gain.
     const tileIsComplete = selectedMutations.length > 0 ? !isTileActionable(tile, selectedMutations) : true;
 
     for (const slot of tile.slots) {
@@ -145,10 +79,8 @@ function computeGardenValue(
       const slotCurrent = Math.round(base * slot.targetScale * mutMult);
       current += slotCurrent;
 
-      // Scale potential: use maxScale if filter active and slot hasn't reached it yet
       const potentialScale = (maxSizeOnly && slot.sizePercent < 100) ? slot.maxScale : slot.targetScale;
 
-      // Mutation potential: add all compatible selected mutations the slot is still missing
       let potentialMutMult = mutMult;
       if (selectedMutations.length > 0 && !tileIsComplete) {
         const slotMissing = selectedMutations.filter(
@@ -159,7 +91,6 @@ function computeGardenValue(
         potentialMutMult = computeMutationMultiplier(withSelected).totalMultiplier;
       }
 
-      // Combined: full potential is max scale × best reachable mutation set
       potential += Math.round(base * potentialScale * potentialMutMult);
     }
   }
@@ -167,392 +98,33 @@ function computeGardenValue(
 }
 
 // ---------------------------------------------------------------------------
-// Tile card
+// Species filter dropdown
 // ---------------------------------------------------------------------------
 
-function buildSlotDetailContent(tile: TileEntry, selectedMutations: string[] = []): HTMLElement {
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
-
-  // When filtering, only show slots that are missing at least one compatible filter mutation
-  const visibleSlots = selectedMutations.length === 0
-    ? tile.slots
-    : tile.slots.filter((slot) => {
-        const missing = selectedMutations.filter((sel) => !slot.mutations.some((m) => mutsMatch(m, sel)));
-        return filterCompatibleMutations(slot.mutations, missing).length > 0;
-      });
-
-  const title = document.createElement('div');
-  title.style.cssText = 'font-size:11px;font-weight:700;color:rgba(224,224,224,0.55);margin-bottom:2px;';
-  title.textContent = selectedMutations.length > 0
-    ? t('feature.statsHub.garden.slotsEligible', { visible: String(visibleSlots.length), total: String(tile.slots.length) })
-    : t('feature.statsHub.garden.slotCount', { count: String(tile.slots.length) });
-  wrap.appendChild(title);
-
-  if (visibleSlots.length === 0) {
-    const none = document.createElement('div');
-    none.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.3);padding:2px 0;';
-    none.textContent = t('feature.statsHub.garden.allSlotsHaveMutations');
-    wrap.appendChild(none);
-    return wrap;
-  }
-
-  for (const slot of visibleSlots) {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:flex-start;gap:8px;';
-    row.appendChild(plantSprite(slot.species, slot.mutations, 32, true));
-
-    const info = document.createElement('div');
-    info.style.cssText = 'flex:1;min-width:0;';
-
-    const nameEl = document.createElement('div');
-    nameEl.style.cssText = 'font-size:11px;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    nameEl.textContent = slot.fruitCount > 1 ? `${slot.species} ×${slot.fruitCount}` : slot.species;
-    info.appendChild(nameEl);
-
-    if (slot.mutations.length > 0) {
-      const mutRow = document.createElement('div');
-      mutRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;margin-top:3px;';
-      for (const m of slot.mutations) {
-        const b = mutBadge(m);
-        b.style.fontSize = '9px';
-        b.style.padding = '1px 5px';
-        mutRow.appendChild(b);
-      }
-      info.appendChild(mutRow);
-    }
-
-    // Current slot value (always shown)
-    try {
-      const plantSpec = getPlantSpecies(slot.species);
-      const baseSell = typeof plantSpec?.crop?.baseSellPrice === 'number' ? plantSpec.crop.baseSellPrice : 0;
-      if (baseSell > 0) {
-        const slotVal = Math.round(baseSell * slot.targetScale * computeMutationMultiplier(slot.mutations).totalMultiplier);
-        if (slotVal > 0) {
-          const valEl = makeCoinValueEl(slotVal, '', 'font-size:10px;color:rgba(255,215,0,0.7);margin-top:3px;');
-          info.appendChild(valEl);
-        }
-
-        // Per-slot gain hint — only when a mutation filter is active and slot is missing it
-        if (selectedMutations.length > 0) {
-          const missing = selectedMutations.filter(
-            (sel) => !slot.mutations.some((m) => mutsMatch(m, sel)),
-          );
-          if (missing.length > 0) {
-            const toAdd = filterCompatibleMutations(slot.mutations, missing);
-            if (toAdd.length > 0) {
-              const withMissing = simulateMutationsAfterApplying(slot.mutations, toAdd);
-              const potentialVal = Math.round(baseSell * slot.targetScale * computeMutationMultiplier(withMissing).totalMultiplier);
-              const slotGain = potentialVal - slotVal;
-              if (slotGain > 0) {
-                info.appendChild(makeWhenCompleteHint(slotGain, 'margin-top:2px;'));
-              }
-            }
-          }
-        }
-      }
-    } catch { /* ignore */ }
-
-    row.appendChild(info);
-    wrap.appendChild(row);
-  }
-  return wrap;
-}
-
-function buildTileCard(
-  tile: TileEntry,
-  selectedMutations: string[],
-  isComplete: boolean,
-  tileFilter: { active: boolean; onFilter: () => void } = { active: false, onFilter: () => {} },
+function buildSpeciesCheckRow(
+  label: string,
+  checked: boolean,
+  onChange: (checked: boolean) => void,
+  species?: string,
 ): HTMLElement {
-  const species = tileSpecies(tile);
-  const mutations = tileMutations(tile);
-  const fruitCount = tileFruitCount(tile);
-  const isMulti = tile.slots.length > 1 || fruitCount > 1;
+  const row = document.createElement('label');
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--qpm-text);';
+  row.addEventListener('mouseenter', () => { row.style.background = 'rgba(143,130,255,0.1)'; });
+  row.addEventListener('mouseleave', () => { row.style.background = ''; });
 
-  const outer = document.createElement('div');
-  outer.style.cssText = [
-    'display:flex',
-    'flex-direction:column',
-    'align-items:center',
-    'border-radius:10px',
-    'border:1px solid rgba(143,130,255,0.14)',
-    'background:rgba(255,255,255,0.03)',
-    'overflow:hidden',
-    'width:100%',   // fills the CSS grid cell — grid sets column width
-    'cursor:pointer',
-    'transition:border-color 0.12s,background 0.12s,box-shadow 0.12s',
-  ].join(';');
+  const toggle = createToggle({ checked, onChange, size: 'compact' });
+  row.appendChild(toggle.root);
 
-  if (tileFilter.active) {
-    outer.style.borderColor = 'rgba(143,130,255,0.6)';
-    outer.style.background = 'rgba(143,130,255,0.1)';
-    outer.style.boxShadow = '0 0 0 2px rgba(143,130,255,0.35)';
+  if (species) {
+    const spriteWrap = plantSprite(species, [], 20, false);
+    spriteWrap.style.flexShrink = '0';
+    row.appendChild(spriteWrap);
   }
 
-  outer.addEventListener('mouseenter', () => {
-    if (!tileFilter.active) {
-      outer.style.borderColor = 'rgba(143,130,255,0.35)';
-      outer.style.background = 'rgba(143,130,255,0.07)';
-    }
-  });
-  outer.addEventListener('mouseleave', () => {
-    if (!tileFilter.active) {
-      outer.style.borderColor = 'rgba(143,130,255,0.14)';
-      outer.style.background = 'rgba(255,255,255,0.03)';
-    }
-  });
-  // Single-harvest cards: full card click = highlight toggle in stats window (no in-game garden filter)
-  if (!isMulti) {
-    outer.addEventListener('click', (e) => {
-      e.stopPropagation();
-      tileFilter.onFilter();
-    });
-  }
-
-  // Store earliest ready time for live badge updates
-  const earliestReady = tile.slots.reduce<number>(
-    (min, s) => s.endTime !== null && s.endTime < min ? s.endTime : min,
-    Infinity,
-  );
-  if (Number.isFinite(earliestReady)) {
-    outer.dataset.readyAt = String(earliestReady);
-  }
-
-  // Card content
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 8px;text-align:center;';
-
-  // Ready badge — set initial state immediately so it doesn't flash on render
-  const readyBadge = document.createElement('div');
-  readyBadge.dataset.readyBadge = '1';
-  const isAlreadyReady = Number.isFinite(earliestReady) && earliestReady <= Date.now();
-  readyBadge.style.cssText = [
-    isAlreadyReady ? 'display:flex' : 'display:none',
-    'align-items:center',
-    'gap:4px',
-    'padding:2px 8px',
-    'border-radius:20px',
-    'font-size:10px',
-    'font-weight:700',
-    'background:rgba(74,222,128,0.18)',
-    'border:1px solid rgba(74,222,128,0.45)',
-    'color:#4ade80',
-    'white-space:nowrap',
-  ].join(';');
-  readyBadge.textContent = `✓ ${t('feature.statsHub.garden.ready')}`;
-  header.appendChild(readyBadge);
-
-  // Sprite: use plant-first (bush/tree) for the tile card.
-  // Individual slot popovers use crop-first (fruit) — see buildSlotDetailContent.
-  header.appendChild(plantSprite(species, mutations, 56, false));
-
-  const nameEl = document.createElement('div');
-  nameEl.style.cssText = 'font-size:11px;font-weight:600;color:#e0e0e0;word-break:break-word;';
-  nameEl.textContent = species;
-  header.appendChild(nameEl);
-
-  if (isMulti) {
-    const countEl = document.createElement('div');
-    countEl.style.cssText = 'font-size:10px;font-weight:600;color:rgba(143,130,255,0.75);';
-    countEl.textContent = t('feature.statsHub.garden.slotsTap', { count: String(fruitCount) });
-    header.appendChild(countEl);
-  }
-
-  // Tile value
-  const val = tileValue(tile);
-  if (val > 0) {
-    const valEl = makeCoinValueEl(val, '', 'font-size:10px;color:rgba(255,215,0,0.65);');
-    header.appendChild(valEl);
-  }
-
-  if (mutations.length > 0) {
-    const mutRow = document.createElement('div');
-    mutRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;justify-content:center;';
-    for (const m of mutations) mutRow.appendChild(mutBadge(m));
-    header.appendChild(mutRow);
-  }
-
-  if (!isComplete && selectedMutations.length > 0) {
-    const missing = selectedMutations.filter(
-      (sel) => !mutations.some((m) => mutsMatch(m, sel)),
-    );
-    if (missing.length > 0) {
-      const misRow = document.createElement('div');
-      misRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;justify-content:center;';
-      for (const m of missing) misRow.appendChild(mutBadge(m, true));
-      header.appendChild(misRow);
-
-      try {
-        const plantSpec = getPlantSpecies(species);
-        const baseSell = typeof plantSpec?.crop?.baseSellPrice === 'number' ? plantSpec.crop.baseSellPrice : 0;
-        if (baseSell > 0) {
-          // Sum the proper multiplier differential across every slot (accounts for existing mutations + multi-slot)
-          let gain = 0;
-          for (const slotData of tile.slots) {
-            const currentMult = computeMutationMultiplier(slotData.mutations).totalMultiplier;
-            const slotMissing = missing.filter(
-              (sel) => !slotData.mutations.some((m) => mutsMatch(m, sel)),
-            );
-            const toAdd = filterCompatibleMutations(slotData.mutations, slotMissing);
-            if (toAdd.length === 0) continue;
-            // Use game's upgrade mechanics for accurate value (e.g. Dawnlit→Dawnbound removes Dawnlit)
-            const withAll = simulateMutationsAfterApplying(slotData.mutations, toAdd);
-            const potentialMult = computeMutationMultiplier(withAll).totalMultiplier;
-            gain += Math.round(baseSell * slotData.targetScale * potentialMult) - Math.round(baseSell * slotData.targetScale * currentMult);
-          }
-          if (gain > 0) {
-            header.appendChild(makeWhenCompleteHint(gain));
-          }
-        }
-      } catch { /* ignore */ }
-    }
-  }
-
-  // Multi-harvest: small garden filter button in header corner
-  if (isMulti) {
-    header.style.position = 'relative';
-    const filterBtn = document.createElement('button');
-    filterBtn.type = 'button';
-    filterBtn.title = tileFilter.active ? t('feature.statsHub.garden.clearFilter') : t('feature.statsHub.garden.filterSpecies');
-    filterBtn.textContent = '◎';
-    filterBtn.style.cssText = [
-      'position:absolute', 'top:4px', 'right:4px',
-      'background:none', 'border:none', 'cursor:pointer',
-      'font-size:11px', 'padding:2px', 'line-height:1',
-      tileFilter.active ? 'opacity:1;color:#8f82ff' : 'opacity:0.3;color:inherit',
-    ].join(';');
-    filterBtn.addEventListener('mouseenter', () => { filterBtn.style.opacity = '0.8'; });
-    filterBtn.addEventListener('mouseleave', () => { filterBtn.style.opacity = tileFilter.active ? '1' : '0.3'; });
-    filterBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      tileFilter.onFilter();
-    });
-    header.appendChild(filterBtn);
-  }
-
-  outer.appendChild(header);
-
-  // Multi-harvest: open floating popover on click
-  if (isMulti) {
-    outer.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // If this card's popover is already open, close it
-      if (_activePopover && outer.dataset.popoverOpen === '1') {
-        closePopover();
-        outer.dataset.popoverOpen = '0';
-        return;
-      }
-      outer.dataset.popoverOpen = '1';
-      const prev = _popoverCleanup;
-      openPopover(outer, buildSlotDetailContent(tile, selectedMutations));
-      // Track when our popover closes
-      const origCleanup = _popoverCleanup;
-      _popoverCleanup = () => {
-        outer.dataset.popoverOpen = '0';
-        origCleanup?.();
-        prev?.();
-      };
-    });
-  }
-
-  return outer;
-}
-
-// ---------------------------------------------------------------------------
-// Tile section
-// ---------------------------------------------------------------------------
-
-function buildTileSection(
-  title: string,
-  tiles: TileEntry[],
-  selectedMutations: string[],
-  isComplete: boolean,
-  sectionFilterProps: {
-    active: boolean;
-    onToggle: (active: boolean) => void;
-  } | null = null,
-  tileFilterProps: {
-    activeTileFilterKey: string | null;
-    onFilter: (tile: TileEntry) => void;
-  } | null = null,
-  extraSectionFilterProps: {
-    label: string;
-    active: boolean;
-    onToggle: (active: boolean) => void;
-    subToggle?: {
-      label: string;
-      active: boolean;
-      onToggle: (active: boolean) => void;
-    } | null;
-  } | null = null,
-): HTMLElement {
-  const section = document.createElement('div');
-
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
-
-  const hdrText = document.createElement('div');
-  hdrText.style.cssText = 'font-size:13px;font-weight:700;color:rgba(224,224,224,0.85);';
-  hdrText.textContent = title;
-  hdr.appendChild(hdrText);
-
-  if (sectionFilterProps || extraSectionFilterProps) {
-    const togglesGroup = document.createElement('div');
-    togglesGroup.style.cssText = 'display:flex;align-items:center;gap:12px;';
-    if (extraSectionFilterProps) {
-      if (extraSectionFilterProps.subToggle) {
-        const subTog = buildToggleSwitch(
-          extraSectionFilterProps.subToggle.active,
-          extraSectionFilterProps.subToggle.onToggle,
-          extraSectionFilterProps.subToggle.label,
-        );
-        togglesGroup.appendChild(subTog);
-      }
-      const extraToggle = buildToggleSwitch(
-        extraSectionFilterProps.active,
-        extraSectionFilterProps.onToggle,
-        extraSectionFilterProps.label,
-      );
-      togglesGroup.appendChild(extraToggle);
-    }
-    if (sectionFilterProps) {
-      const toggle = buildToggleSwitch(sectionFilterProps.active, (active) => {
-        sectionFilterProps.onToggle(active);
-      });
-      togglesGroup.appendChild(toggle);
-    }
-    hdr.appendChild(togglesGroup);
-  }
-  section.appendChild(hdr);
-
-  if (tiles.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.3);padding:4px 0;';
-    empty.textContent = isComplete ? t('feature.statsHub.garden.noTilesMatch') : t('feature.statsHub.garden.allComplete');
-    section.appendChild(empty);
-    return section;
-  }
-
-  // Sort: species alphabetically, then by tile value descending within each species
-  const sorted = [...tiles].sort((a, b) => {
-    const spA = tileSpecies(a);
-    const spB = tileSpecies(b);
-    if (spA !== spB) return spA.localeCompare(spB);
-    return tileValue(b) - tileValue(a);
-  });
-
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;';
-  for (const tile of sorted) {
-    const isFilterActive = tileFilterProps?.activeTileFilterKey === tile.tileKey;
-    grid.appendChild(buildTileCard(tile, selectedMutations, isComplete, {
-      active: isFilterActive,
-      onFilter: () => tileFilterProps?.onFilter(tile),
-    }));
-  }
-  section.appendChild(grid);
-  return section;
+  const txt = document.createElement('span');
+  txt.textContent = label;
+  row.appendChild(txt);
+  return row;
 }
 
 // ---------------------------------------------------------------------------
@@ -574,7 +146,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   // Active per-tile garden filter key (TileEntry.tileKey, null = no filter)
   let activeTileFilterKey: string | null = null;
 
-  // Clear any stale override from a previous session — never touches the main Garden Filters config
+  // Clear any stale override from a previous session
   setStatsHubSpeciesOverride(null);
   setStatsHubExcludeMutationsOverride(null);
   setStatsHubTileOverride(null);
@@ -585,7 +157,6 @@ export function buildGardenTab(container: HTMLElement): () => void {
   function applyFilterRemaining(on: boolean): void {
     filterRemainingActive = on;
     if (on) {
-      // Deactivate species-based section filter when switching to exclude mode
       activeSectionFilterSource = null;
       activeTileFilterKey = null;
       setStatsHubTileOverride(null);
@@ -598,8 +169,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     }
   }
 
-  // Pre-built array of ready-badge entries — populated at the end of renderContent() so the
-  // 1s interval tick doesn't need to do a querySelectorAll DOM scan every second.
+  // Pre-built array of ready-badge entries
   let readyBadgeEntries: Array<{ endTime: number; badge: HTMLElement }> = [];
 
   function disableGardenFilter(): void {
@@ -653,41 +223,10 @@ export function buildGardenTab(container: HTMLElement): () => void {
     plantFilterBtn.style.cssText = pillBtnCss(activeSpeciesFilters.size > 0);
   }
 
-  function buildSpeciesCheckRow(
-    label: string,
-    checked: boolean,
-    onChange: (checked: boolean) => void,
-    species?: string,
-  ): HTMLElement {
-    const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:12px;color:#e0e0e0;';
-    row.addEventListener('mouseenter', () => { row.style.background = 'rgba(143,130,255,0.1)'; });
-    row.addEventListener('mouseleave', () => { row.style.background = ''; });
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = checked;
-    cb.style.cssText = 'accent-color:#8f82ff;cursor:pointer;flex-shrink:0;';
-    cb.addEventListener('change', () => onChange(cb.checked));
-    row.appendChild(cb);
-
-    if (species) {
-      const spriteWrap = plantSprite(species, [], 20, false);
-      spriteWrap.style.flexShrink = '0';
-      row.appendChild(spriteWrap);
-    }
-
-    const txt = document.createElement('span');
-    txt.textContent = label;
-    row.appendChild(txt);
-    return row;
-  }
-
   plantFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (plantDropdownEl) { closePlantDropdown(); return; }
 
-    // Build species list from the current tiles (not a hardcoded catalog)
     const currentTiles = extractTiles(currentSnapshot);
     const speciesInGarden = Array.from(new Set(currentTiles.map(tileSpecies))).sort();
 
@@ -765,7 +304,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   ].join(';');
 
   const filterLabel = document.createElement('span');
-  filterLabel.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.38);white-space:nowrap;';
+  filterLabel.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.38);white-space:nowrap;';
   filterLabel.textContent = t('feature.statsHub.garden.mutations');
   filterBar.appendChild(filterLabel);
 
@@ -832,7 +371,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   content.style.cssText = 'flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px;';
   container.appendChild(content);
 
-  // Seeded immediately from the bridge cache; kept in sync by the subscription below.
+  // Seeded immediately from the bridge cache
   let currentSnapshot: GardenSnapshot = getGardenSnapshot();
 
   function updateValueSummary(tiles: TileEntry[], selected: string[], maxSize = false): void {
@@ -845,7 +384,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     valueSummaryBar.innerHTML = '';
 
     valueSummaryBar.appendChild(
-      makeCoinValueEl(current, t('feature.statsHub.garden.current'), 'font-size:13px;font-weight:700;color:#FFD700;')
+      makeCoinValueEl(current, t('feature.statsHub.garden.current'), 'font-size:14px;font-weight:700;color:var(--qpm-gold);')
     );
 
     if ((selected.length > 0 || maxSize) && potential > current) {
@@ -855,28 +394,26 @@ export function buildGardenTab(container: HTMLElement): () => void {
       arrowSep.textContent = '→';
       valueSummaryBar.appendChild(arrowSep);
       valueSummaryBar.appendChild(
-        makeCoinValueEl(gain, '+', 'font-size:13px;font-weight:700;color:rgba(100,230,150,0.9);')
+        makeCoinValueEl(gain, '+', 'font-size:14px;font-weight:700;color:rgba(100,230,150,0.9);')
       );
       const gainLbl = document.createElement('span');
-      gainLbl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.38);';
+      gainLbl.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.38);';
       gainLbl.textContent = t('feature.statsHub.garden.ifCompleted');
       valueSummaryBar.appendChild(gainLbl);
     }
   }
 
   function renderContent(): void {
-    // Persist filter state on every re-render (triggered by any filter change)
     saveStatsHubFilters({
       speciesFilters: activeSpeciesFilters.size > 0 ? Array.from(activeSpeciesFilters) : [],
       mutationFilters: activeFilters.size > 0 ? Array.from(activeFilters) : [],
       maxSizeOnly,
     });
     content.innerHTML = '';
-    readyBadgeEntries = []; // Clear stale refs whenever cards are rebuilt
+    readyBadgeEntries = [];
     const allTiles = extractTiles(currentSnapshot);
     const selected = Array.from(activeFilters);
 
-    // Keep exclude override in sync if filter remaining is active
     if (filterRemainingActive) {
       if (selected.length > 0) {
         setStatsHubExcludeMutationsOverride(selected);
@@ -886,14 +423,13 @@ export function buildGardenTab(container: HTMLElement): () => void {
       }
     }
 
-    // Apply stats-window species filter
     const tiles = activeSpeciesFilters.size > 0
       ? allTiles.filter((t) => activeSpeciesFilters.has(tileSpecies(t)))
       : allTiles;
 
     if (tiles.length === 0) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'color:rgba(224,224,224,0.3);font-size:13px;padding:32px 0;text-align:center;';
+      empty.style.cssText = 'color:rgba(224,224,224,0.3);font-size:14px;padding:32px 0;text-align:center;';
       empty.textContent = allTiles.length === 0 ? t('feature.statsHub.garden.noPlants') : t('feature.statsHub.garden.noMatch');
       content.appendChild(empty);
       updateValueSummary([], selected);
@@ -908,7 +444,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     }
 
     const gardenHint = document.createElement('div');
-    gardenHint.style.cssText = 'color:rgba(224,224,224,0.25);font-size:11px;padding:0 0 4px;';
+    gardenHint.style.cssText = 'color:rgba(224,224,224,0.25);font-size:12px;padding:0 0 4px;';
     gardenHint.textContent = t('feature.statsHub.garden.clickPlantHint');
     content.appendChild(gardenHint);
 
@@ -920,8 +456,6 @@ export function buildGardenTab(container: HTMLElement): () => void {
       if (!isAnyFilterActive) {
         complete.push(tile);
       } else {
-        // A tile is "remaining" if it can receive a selected mutation OR hasn't reached max size.
-        // Mutation-blocked tiles (e.g. Amberbound + Amberlit filter) are not actionable → complete.
         const needsMutation = selected.length > 0 && isTileActionable(tile, selected);
         const needsSize = maxSizeOnly && tile.slots.some((s) => s.sizePercent < 100);
         (needsMutation || needsSize ? remaining : complete).push(tile);
@@ -977,7 +511,6 @@ export function buildGardenTab(container: HTMLElement): () => void {
         } : null,
       ));
 
-      // Visual divider between Remaining and Complete
       const divider = document.createElement('div');
       divider.style.cssText = 'height:1px;background:rgba(143,130,255,0.18);margin:20px 0 16px;flex-shrink:0;';
       content.appendChild(divider);
@@ -997,7 +530,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
 
     updateValueSummary(tiles, selected, maxSizeOnly);
 
-    // Collect ready-badge elements from the freshly-built DOM (once per render, not every 1s)
+    // Collect ready-badge elements
     for (const el of content.querySelectorAll<HTMLElement>('[data-ready-at]')) {
       const t = parseInt(el.dataset.readyAt ?? '0', 10);
       const badge = el.querySelector<HTMLElement>('[data-ready-badge]');
@@ -1005,12 +538,10 @@ export function buildGardenTab(container: HTMLElement): () => void {
     }
   }
 
-  // Keep currentSnapshot in sync with the atom — but do NOT trigger renderContent() here.
   const unsubscribe = onGardenSnapshot((snap) => {
     currentSnapshot = snap;
-  }, false); // fireImmediately=false: snapshot already seeded via getGardenSnapshot() above
+  }, false);
 
-  // Live readiness badges — iterate the pre-built array instead of a DOM scan every second
   const readyCleanup = visibleInterval('garden-ready-badges', () => {
     const now = Date.now();
     for (const { endTime, badge } of readyBadgeEntries) {
@@ -1023,7 +554,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     unsubscribe();
     readyCleanup();
     closePlantDropdown();
-    disableGardenFilter(); // clears both tile and species overrides
+    disableGardenFilter();
     setStatsHubExcludeMutationsOverride(null);
   };
 }

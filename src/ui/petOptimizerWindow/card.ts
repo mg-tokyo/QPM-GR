@@ -13,8 +13,8 @@ import { getLocationIcon, getPetSprite, renderAbilitySquares } from './sprites';
 import type { FamilyPetEntry } from './types';
 
 function getRankColor(rank: number): string {
-  if (rank === 1) return '#FFD700';
-  if (rank <= 3) return '#4CAF50';
+  if (rank === 1) return 'var(--qpm-gold)';
+  if (rank <= 3) return 'var(--qpm-positive)';
   if (rank <= 6) return '#e8e0ff';
   return 'rgba(255,255,255,0.4)';
 }
@@ -142,20 +142,20 @@ export function createPetCard(
 
   const card = document.createElement('div');
   card.style.cssText = `
-    background: linear-gradient(135deg, #1f1f1f, #1a1a1a);
+    background: var(--qpm-surface-2);
     border-radius: 8px;
     padding: 14px;
-    border: 1px solid #333;
+    border: 1px solid var(--qpm-border);
     transition: all 0.2s;
     position: relative;
   `;
 
   card.addEventListener('mouseenter', () => {
-    card.style.borderColor = '#555';
+    card.style.borderColor = 'var(--qpm-accent-subtle)';
     card.style.transform = 'translateX(4px)';
   });
   card.addEventListener('mouseleave', () => {
-    card.style.borderColor = '#333';
+    card.style.borderColor = 'var(--qpm-border)';
     card.style.transform = 'translateX(0)';
   });
 
@@ -196,8 +196,8 @@ export function createPetCard(
       <div style="flex: 1; min-width: 0;">
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
           <span style="font-size: 14px; font-weight: 600; color: #fff;">${displayName}</span>
-          ${showSpeciesSubtitle ? `<span style="font-size: 11px; color: #666;">${pet.species}</span>` : ''}
-          <span style="font-size: 11px; color: #888;">${formatStrength(pet.strength, pet.maxStrength)}</span>
+          ${showSpeciesSubtitle ? `<span style="font-size: 12px; color: #666;">${pet.species}</span>` : ''}
+          <span style="font-size: 12px; color: #888;">${formatStrength(pet.strength, pet.maxStrength)}</span>
           <span data-location-icon style="display:flex;align-items:center;"></span>
         </div>
 
@@ -229,7 +229,7 @@ export function createPetCard(
             const rankBadge = (rank != null && Number.isFinite(rank) && rank < Number.MAX_SAFE_INTEGER)
               ? `<span style="
                   position:absolute;top:-7px;right:-6px;
-                  font-size:11px;font-weight:800;
+                  font-size:12px;font-weight:800;
                   color:${getRankColor(rank)};
                   transform:rotate(12deg);
                   font-variant-numeric:tabular-nums;
@@ -243,7 +243,7 @@ export function createPetCard(
                 position: relative;
                 padding: 4px 10px;
                 border-radius: 4px;
-                font-size: 11px;
+                font-size: 12px;
                 background: ${background};
                 ${(isRainbowGranter || isGoldGranter) ? 'background-size: 200% 200%; animation: shimmer 3s ease infinite;' : ''}
                 color: ${textColor};
@@ -259,8 +259,8 @@ export function createPetCard(
             ${reason}
           </div>
           <div style="flex-shrink:0;display:flex;align-items:center;gap:4px;">
-            <span style="font-size:10px;color:#555;">${t('feature.petOptimizer.score')}</span>
-            <span style="font-size:15px;font-weight:bold;color:#42A5F5;">${Math.round(score.total - score.granterBonus)}</span>
+            <span style="font-size:10px;color:var(--qpm-text-muted);">${t('feature.petOptimizer.score')}</span>
+            <span style="font-size:14px;font-weight:bold;color:var(--qpm-credits);">${Math.round(score.total - score.granterBonus)}</span>
             ${score.granterBonus > 0 ? `
               <span style="
                 font-size:12px;font-weight:600;
@@ -274,7 +274,7 @@ export function createPetCard(
         </div>
 
         ${betterAlternatives.length > 0 ? `
-          <div style="font-size: 11px; color: #888; margin-top: 6px; padding-top: 6px; border-top: 1px solid #333;">
+          <div style="font-size: 12px; color: #888; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--qpm-border);">
             <button
               type="button"
               data-better-compare="true"
