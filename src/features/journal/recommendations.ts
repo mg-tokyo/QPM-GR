@@ -1,14 +1,14 @@
 // src/features/journalRecommendations.ts
 // Smart recommendations for completing journal collection
 
-import { log } from '../utils/logger';
-import { getJournalSummary, type JournalSummary } from './journalChecker';
+import { log } from '../../utils/logger';
+import { getJournalSummary, type JournalSummary } from './checker';
 
-import { getVariantTimeEstimate } from '../data/gameData';
-import { readInventoryDirect } from '../store/inventory';
-import { readAtomValue } from '../core/atomRegistry';
-import { getActivePetInfos } from '../store/pets';
-import { t } from '../i18n';
+import { getVariantTimeEstimate } from '../../data/gameData';
+import { readInventoryDirect } from '../../store/inventory';
+import { readAtomValue } from '../../core/atomRegistry';
+import { getActivePetInfos } from '../../store/pets';
+import { t } from '../../i18n';
 
 // ============================================================================
 // Types

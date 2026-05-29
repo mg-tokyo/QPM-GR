@@ -79,7 +79,7 @@ export function registerBuiltinTiles(): void {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('journal-checker-window', `📔 ${t('tile.journalChecker.label')}`, (root) => {
           root.style.padding = '0';
-          import('../journalChecker').then(({ createJournalCheckerSection }) => {
+          import('../journalChecker/index').then(({ createJournalCheckerSection }) => {
             root.appendChild(createJournalCheckerSection());
           }).catch(e => log('⚠️ Failed to load Journal Checker', e));
         }, '900px', '90vh');

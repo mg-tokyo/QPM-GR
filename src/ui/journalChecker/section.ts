@@ -183,7 +183,7 @@ export function createJournalCheckerSection(): HTMLElement {
     onClick: () => {
       refreshBtn.textContent = t('common.loading');
       refreshBtn.disabled = true;
-      import('../../features/journalChecker').then(m => {
+      import('../../features/journal/checker').then(m => {
         m.refreshJournalCache();
         updateDisplay().then(() => {
           refreshBtn.textContent = `🔄 ${t('feature.journal.refresh')}`;
@@ -214,8 +214,8 @@ export function createJournalCheckerSection(): HTMLElement {
     catalogRetries = 0;
 
     const [summary, stats] = await Promise.all([
-      import('../../features/journalChecker').then(m => m.getJournalSummary()),
-      import('../../features/journalChecker').then(m => m.getJournalStats()),
+      import('../../features/journal/checker').then(m => m.getJournalSummary()),
+      import('../../features/journal/checker').then(m => m.getJournalStats()),
     ]);
 
     if (!summary || !stats) {

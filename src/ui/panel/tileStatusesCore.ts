@@ -179,7 +179,7 @@ export function startJournalStatus(getStatusEl: GetStatusEl, addLiveCleanup: Add
   const journalStatus = getStatusEl('journal-checker');
   if (!journalStatus) return;
 
-  import('../../features/journalChecker').then(({ getJournalStats }) => {
+  import('../../features/journal/checker').then(({ getJournalStats }) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
       getJournalStats().then((stats) => {

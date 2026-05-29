@@ -7,7 +7,7 @@ import { log } from '../utils/logger';
 import { delay } from '../utils/scheduling';
 import { isRecord } from '../utils/typeGuards';
 import { sendRoomAction } from '../websocket/api';
-import { ensureJournalLogged } from './journalGuard';
+import { ensureJournalLogged } from './journal/guard';
 
 export type SellAllPetsRunStatus = 'success' | 'partial' | 'noop' | 'cancelled' | 'busy' | 'failed';
 

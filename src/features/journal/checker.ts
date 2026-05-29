@@ -2,10 +2,10 @@
 // Journal Checker: Shows what's missing from the player's journal
 // Organized by categories (produce variants, pet variants, pet abilities)
 
-import { readAtomValue } from '../core/atomRegistry';
-import { getPlayerId } from '../core/playerContext';
-import { log } from '../utils/logger';
-import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog } from '../catalogs/gameCatalogs';
+import { readAtomValue } from '../../core/atomRegistry';
+import { getPlayerId } from '../../core/playerContext';
+import { log } from '../../utils/logger';
+import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 
 const JOURNAL_DEBUG_LOGS = false;
 const jdbg = (...args: unknown[]): void => {

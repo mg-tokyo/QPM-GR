@@ -9,7 +9,7 @@ export async function renderRecommendationsTab(container: HTMLElement): Promise<
     generateJournalStrategy,
     getDifficultyEmoji,
     getDifficultyDescription,
-  } = await import('../../features/journalRecommendations');
+  } = await import('../../features/journal/recommendations');
 
   const strategy = await generateJournalStrategy();
 

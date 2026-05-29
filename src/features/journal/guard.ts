@@ -1,11 +1,11 @@
 // src/features/journalGuard.ts
 // Pre-sell journal variant detection: auto-sends LogItems for unlogged pet variants.
 
-import { getJournal, type Journal } from './journalChecker';
-import { getPetMaxScale } from '../catalogs/gameCatalogs';
-import { sendRoomAction } from '../websocket/api';
-import { notify } from '../core/notifications';
-import { log } from '../utils/logger';
+import { getJournal, type Journal } from './checker';
+import { getPetMaxScale } from '../../catalogs/gameCatalogs';
+import { sendRoomAction } from '../../websocket/api';
+import { notify } from '../../core/notifications';
+import { log } from '../../utils/logger';
 
 export interface PetVariantInfo {
   species: string | null;

@@ -10,7 +10,7 @@ import { sendRoomAction } from '../websocket/api';
 import { delay } from '../utils/scheduling';
 import { log } from '../utils/logger';
 import type { CollectedPet } from './petOptimizer';
-import { ensureJournalLogged } from './journalGuard';
+import { ensureJournalLogged } from './journal/guard';
 
 export interface SellPipelineResult {
   ok: boolean;
