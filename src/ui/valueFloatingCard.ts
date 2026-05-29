@@ -257,7 +257,7 @@ function overlappingIcons(urls: string[], size: number): HTMLElement {
   if (valid.length <= 1) {
     if (valid.length === 1) {
       const img = document.createElement('img');
-      img.src = valid[0];
+      img.src = valid[0]!;
       img.alt = '';
       img.style.cssText = `width:${size}px;height:${size}px;object-fit:contain;image-rendering:pixelated;display:block;flex-shrink:0;`;
       return img;
@@ -278,7 +278,7 @@ function overlappingIcons(urls: string[], size: number): HTMLElement {
 
   for (let i = 0; i < count; i++) {
     const img = document.createElement('img');
-    img.src = valid[i];
+    img.src = valid[i]!;
     img.alt = '';
     const left = i * (itemSize - overlap);
     img.style.cssText = [
@@ -361,7 +361,7 @@ function buildCardIcon(type: ValueCardType, size: number): HTMLElement {
     if (urls.length === 1) {
       const img = document.createElement('img');
       img.style.cssText = `width:${size}px;height:${size}px;object-fit:contain;image-rendering:pixelated;display:block;flex-shrink:0;`;
-      img.src = urls[0];
+      img.src = urls[0]!;
       img.alt = 'inventory';
       return img;
     }

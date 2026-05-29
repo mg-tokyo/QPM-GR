@@ -910,16 +910,17 @@ function debouncedMutationHandler(): void {
 
 function shouldIgnoreMutations(records: MutationRecord[]): boolean {
   if (!sidebar) return false;
+  const sb = sidebar;
 
   return records.every((record) => {
     const target = record.target;
-    const targetInsideSidebar = target instanceof Node && sidebar.contains(target);
+    const targetInsideSidebar = target instanceof Node && sb.contains(target);
     if (!targetInsideSidebar) return false;
 
-    const addedInsideSidebar = Array.from(record.addedNodes).every((node) => sidebar.contains(node));
+    const addedInsideSidebar = Array.from(record.addedNodes).every((node) => sb.contains(node));
     const removedInsideSidebar = Array.from(record.removedNodes).every((node) => {
       // Removed nodes might no longer be connected, so fallback to previous-parent target check.
-      return sidebar.contains(node) || targetInsideSidebar;
+      return sb.contains(node) || targetInsideSidebar;
     });
 
     return addedInsideSidebar && removedInsideSidebar;

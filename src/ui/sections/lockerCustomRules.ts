@@ -70,7 +70,7 @@ function renderRuleRow(rule: CustomRule, index: number, onDelete: () => void): H
   const mutsWrap = document.createElement('div');
   mutsWrap.style.cssText = 'display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex:1;min-width:0';
   for (let i = 0; i < rule.mutations.length; i++) {
-    const mut = rule.mutations[i];
+    const mut = rule.mutations[i]!;
     const vb = findVariantBadge(mut);
     const dotColor = vb?.color ?? '#888';
     const dotGradient = vb?.gradient;
@@ -208,7 +208,7 @@ export function buildCustomRulesCard(config: LockerConfig, eligible: EligibleDat
     } else {
       for (let i = 0; i < cur.customRules.length; i++) {
         const index = i;
-        ruleList.appendChild(renderRuleRow(cur.customRules[i], i, () => {
+        ruleList.appendChild(renderRuleRow(cur.customRules[i]!, i, () => {
           const latest = getLockerConfig();
           const next = latest.customRules.filter((_, j) => j !== index);
           updateLockerConfig({ customRules: next });

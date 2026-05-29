@@ -35,7 +35,7 @@ export function fetchImageUrl(url: string): Promise<string> {
         ontimeout() {
           resolve(url);
         },
-      } as unknown as Record<string, unknown>);
+      } as never);
     } catch {
       resolve(url);
     }

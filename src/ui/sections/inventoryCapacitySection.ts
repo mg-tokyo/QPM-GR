@@ -437,7 +437,7 @@ function buildSoundConfigBlock(label: string, ops: SoundBlockOps): HTMLElement {
     }
   }
 
-  (wrap as HTMLElement & { _syncFromConfig: typeof syncFromConfig })._syncFromConfig = syncFromConfig;
+  (wrap as unknown as HTMLElement & { _syncFromConfig: typeof syncFromConfig })._syncFromConfig = syncFromConfig;
 
   return wrap;
 }

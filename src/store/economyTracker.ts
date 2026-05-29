@@ -105,7 +105,7 @@ const PENDING_ACTION_WINDOW_MS = 3_000;
 
 function pruneStaleActions(): void {
   const cutoff = Date.now() - PENDING_ACTION_WINDOW_MS;
-  while (pendingActions.length > 0 && pendingActions[0].timestamp < cutoff) {
+  while (pendingActions.length > 0 && pendingActions[0]!.timestamp < cutoff) {
     pendingActions.shift();
   }
 }
@@ -133,7 +133,7 @@ function buildTransactionContext(currency: CurrencyType, amount: number): string
         if (idx >= 0) pendingActions.splice(idx, 1);
       }
       if (purchases.length === 1) {
-        const p = purchases[0];
+        const p = purchases[0]!;
         const itemKey = (p.payload.species ?? p.payload.eggId ?? p.payload.toolId ?? p.payload.decorId) as string | undefined;
         return itemKey ? `Purchased ${itemKey}` : 'Purchase';
       }
@@ -157,7 +157,7 @@ function flushTransaction(currency: CurrencyType): void {
     amount: pending.totalDelta,
     balanceAfter: pending.latestBalance,
     timestamp: Date.now(),
-    context,
+    ...(context != null ? { context } : {}),
   });
   if (transactions.length > MAX_TRANSACTIONS) transactions.length = MAX_TRANSACTIONS;
   notifyListeners();

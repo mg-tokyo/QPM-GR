@@ -301,6 +301,9 @@ export function processShopStock(state: ShopStockState): void {
       }
 
       const raw = item.raw as Record<string, unknown> | undefined;
+      const resolvedItemType = shopType === 'dawn' && raw
+        ? detectDawnItemType(raw)
+        : raw?.itemType as string | undefined;
       upsertAlert({
         key: canonicalKey,
         shopType,
@@ -309,9 +312,7 @@ export function processShopStock(state: ShopStockState): void {
         label: item.label || canonicalId,
         quantity: currentQty,
         priceCoins: item.priceCoins ?? null,
-        itemType: shopType === 'dawn' && raw
-          ? detectDawnItemType(raw)
-          : raw?.itemType as string | undefined,
+        ...(resolvedItemType != null ? { itemType: resolvedItemType } : {}),
       });
 
       const active = activeAlerts.get(canonicalKey);

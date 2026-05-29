@@ -110,7 +110,7 @@ function defaultState(): WindowState {
 
 export function openTextureSwapperWindow(): void {
   if (!TEXTURE_MANIPULATOR_ENABLED) {
-    notify({ feature: 'textureSwapper', level: 'warning', message: t('feature.textureSwapper.disabledNotice') });
+    notify({ feature: 'textureSwapper', level: 'warn', message: t('feature.textureSwapper.disabledNotice') });
     return;
   }
   toggleWindow(WINDOW_ID, t('feature.textureSwapper.title'), (root) => renderWindow(root), '920px', '88vh');

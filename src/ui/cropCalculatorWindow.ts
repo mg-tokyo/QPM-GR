@@ -233,7 +233,7 @@ function getSourceEggForSpecies(speciesKey: string): { eggId: string; spawnWeigh
     if (!(speciesKey in weights)) continue;
     const total = Object.values(weights).reduce((sum, w) => sum + w, 0);
     if (total <= 0) continue;
-    return { eggId, spawnWeightPct: (weights[speciesKey] / total) * 100 };
+    return { eggId, spawnWeightPct: ((weights[speciesKey] ?? 0) / total) * 100 };
   }
   return null;
 }

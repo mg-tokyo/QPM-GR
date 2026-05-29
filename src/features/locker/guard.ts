@@ -347,7 +347,7 @@ export function lockerPreflight(
   if (result.rule && result.reason) {
     throttledNotify(result.rule, result.reason);
   }
-  return { ok: false, reason: result.reason };
+  return result.reason != null ? { ok: false, reason: result.reason } : { ok: false };
 }
 
 // ── Native sendMessage hook ────────────────────────────────────────────────

@@ -655,7 +655,9 @@ export function clearFeedQueue(slotIndex?: number): void {
     return;
   }
   for (let i = feedQueue.length - 1; i >= 0; i--) {
-    const pet = resolveQueuedPet(feedQueue[i]);
+    const entry = feedQueue[i];
+    if (!entry) continue;
+    const pet = resolveQueuedPet(entry);
     if (pet != null && pet.slotIndex === slotIndex) {
       feedQueue.splice(i, 1);
     }
