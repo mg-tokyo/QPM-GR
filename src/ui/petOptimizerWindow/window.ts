@@ -204,6 +204,4 @@ export function renderPetOptimizerWindow(body: HTMLElement): void {
   );
   void refreshAnalysis();
 
-  // Optimizer tab tour is accessible via the ? button on the hub window.
-  // It does not auto-fire — the hub tour covers the initial introduction.
 }

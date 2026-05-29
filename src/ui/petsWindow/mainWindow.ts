@@ -55,7 +55,6 @@ function renderPetsWindow(root: HTMLElement): void {
   // Tabs
   const tabs = document.createElement('div');
   tabs.className = 'qpm-pets__tabs';
-  tabs.dataset.tour = 'pet-hub-tabs';
   container.appendChild(tabs);
 
   const compareStageBadge = document.createElement('div');
@@ -67,8 +66,6 @@ function renderPetsWindow(root: HTMLElement): void {
 
   const settingsWrap = document.createElement('div');
   settingsWrap.className = 'qpm-pets__settings-wrap';
-  settingsWrap.dataset.tour = 'pet-hub-settings';
-
   const settingsBtn = document.createElement('button');
   settingsBtn.type = 'button';
   settingsBtn.className = 'qpm-pets__settings-btn';
@@ -82,7 +79,6 @@ function renderPetsWindow(root: HTMLElement): void {
 
   const body = document.createElement('div');
   body.className = 'qpm-pets__body';
-  body.dataset.tour = 'pet-hub-body';
   container.appendChild(body);
 
   type TabId = 'manager' | 'pet-optimizer';
@@ -382,17 +378,41 @@ function renderPetsWindow(root: HTMLElement): void {
       import('../petOptimizerWindow').then(({ renderPetOptimizerWindow }) => {
         panel.innerHTML = '';
         renderPetOptimizerWindow(panel);
-      }).catch(() => {
+        // Tour + discovery after content is rendered
+        if (tourApi) {
+          tourApi.checkTour(tabToWindowId['pet-optimizer'], panel);
+          tourApi.startDiscovery(tabToWindowId['pet-optimizer'], panel);
+        }
+      }).catch((err) => {
+        console.error('[QPM] Pet Optimizer load failed:', err);
         panel.textContent = '';
         const errDiv = document.createElement('div');
         errDiv.style.cssText = 'padding:20px;color:#ff6b6b;';
         errDiv.textContent = t('feature.petsWindow.optimizerLoadError');
         panel.appendChild(errDiv);
       });
+    } else {
+      // Non-lazy tab or already loaded — check tour + start discovery
+      const panel = panels[id];
+      const wid = tabToWindowId[id];
+      if (tourApi && panel && wid) {
+        tourApi.checkTour(wid, panel);
+        tourApi.startDiscovery(wid, panel);
+      }
     }
 
     renderCompareStageBadge();
     requestAnimationFrame(() => reassertScrollChain(panels[id]));
+
+    // Stop discovery for inactive tabs
+    if (tourApi) {
+      for (const def of tabDefs) {
+        if (def.id !== id) {
+          const wid = tabToWindowId[def.id];
+          if (wid) tourApi.stopDiscovery(wid);
+        }
+      }
+    }
   }
 
   let managerState: ManagerState | null = null;
@@ -424,6 +444,20 @@ function renderPetsWindow(root: HTMLElement): void {
   tabsRight.append(compareStageBadge, settingsWrap);
   tabs.appendChild(tabsRight);
 
+  // Map tab IDs to tour window IDs for discovery / help panel.
+  // Must be defined before switchTab() since it reads this map.
+  const tabToWindowId: Record<TabId, string> = {
+    'manager': 'qpm-pets-manager',
+    'pet-optimizer': 'qpm-pets-optimizer',
+  };
+
+  type TourApi = {
+    checkTour: (wid: string, body: HTMLElement) => void;
+    startDiscovery: (wid: string, body: HTMLElement) => void;
+    stopDiscovery: (wid: string) => void;
+  };
+  let tourApi: TourApi | null = null;
+
   // Normalize initial panel visibility through the same switch path.
   switchTab(activeTab);
 
@@ -447,10 +481,31 @@ function renderPetsWindow(root: HTMLElement): void {
   window.addEventListener(PETS_WINDOW_SWITCH_TAB_EVENT, onPetsWindowSwitchTab as EventListener);
   allCleanups.push(() => window.removeEventListener(PETS_WINDOW_SWITCH_TAB_EVENT, onPetsWindowSwitchTab as EventListener));
 
-  // Tour system: check for first-time tour and inject replay button
-  import('../tour').then(({ checkTour, injectReplayButton }) => {
-    checkTour(WINDOW_ID, root);
-    injectReplayButton(WINDOW_ID);
+  // Tour system: per-tab auto-tour, replay button, discovery
+  import('../tour').then(({ checkTour, injectReplayButton, startDiscovery, stopDiscovery, rescanDiscovery }) => {
+    tourApi = { checkTour, startDiscovery, stopDiscovery };
+    injectReplayButton(WINDOW_ID, () => tabToWindowId[activeTab]);
+
+    // Re-scan discovery dots after every manager editor re-render
+    if (managerState) {
+      managerState.onEditorRender = () => rescanDiscovery(tabToWindowId['manager']);
+    }
+
+    // Auto-fire tour + discovery for the initially active tab
+    const activePanel = panels[activeTab];
+    const subWid = tabToWindowId[activeTab];
+    if (activePanel && subWid) {
+      checkTour(subWid, activePanel);
+      startDiscovery(subWid, activePanel);
+    }
+  });
+
+  allCleanups.push(() => {
+    if (tourApi) {
+      for (const wid of Object.values(tabToWindowId)) {
+        tourApi.stopDiscovery(wid);
+      }
+    }
   });
 
   // Cleanup on window root removal (MutationObserver)

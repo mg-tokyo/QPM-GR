@@ -2,7 +2,7 @@
 // Storage Value feature — pure computation layer (no DOM)
 // Computes total sell/shop value of items in Seed Silo, Pet Hutch, Decor Shed, and Inventory
 
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { getFriendBonusMultiplier } from '../store/friendBonus';
 import { getInventoryItems, onInventoryChange } from '../store/inventory';
 import { getActivePetInfos } from '../store/pets';
@@ -492,17 +492,14 @@ function recompute(): void {
 async function trySubscribeModalAtom(): Promise<boolean> {
   if (modalAtomUnsub) return true;
 
-  const atom = getAtomByLabel('activeModalAtom');
-  if (!atom) return false;
-
   try {
-    const unsub = await subscribeAtom<string | null>(atom, (value) => {
+    const unsub = await subscribeAtomValue('activeModal', (value) => {
       currentModalId = typeof value === 'string' && TARGET_MODALS.has(value) ? value : null;
       recompute();
     });
+    if (!unsub) return false;
     modalAtomUnsub = unsub;
-    // Kill retry timer — atom found
-    timerManager.destroy(MODAL_RETRY_TIMER_ID);
+    timerManager.unregister(MODAL_RETRY_TIMER_ID);
     stopRetryTimer = null;
     log('Subscribed to activeModalAtom');
     return true;
@@ -514,14 +511,10 @@ async function trySubscribeModalAtom(): Promise<boolean> {
 
 async function initDataAtomSubscription(): Promise<void> {
   if (dataAtomUnsub) return;
-  const atom = getAtomByLabel('myDataAtom');
-  if (!atom) {
-    log('myDataAtom not found — storage detection unavailable');
-    return;
-  }
   try {
-    const unsub = await subscribeAtom<Record<string, unknown> | null>(atom, (value) => {
-      const inv = value?.inventory as Record<string, unknown> | undefined;
+    const unsub = await subscribeAtomValue('myData', (value) => {
+      const rec = value as Record<string, unknown> | null;
+      const inv = rec?.inventory as Record<string, unknown> | undefined;
       cachedStorages = Array.isArray(inv?.storages) ? (inv!.storages as unknown[]) : [];
       if (currentModalId && TARGET_MODALS.has(currentModalId)) {
         debouncedRecompute?.();
@@ -530,6 +523,10 @@ async function initDataAtomSubscription(): Promise<void> {
         try { cb(); } catch { /* ignore */ }
       }
     });
+    if (!unsub) {
+      log('myDataAtom not found — storage detection unavailable');
+      return;
+    }
     dataAtomUnsub = unsub;
     log('Subscribed to myDataAtom');
   } catch (err) {
@@ -587,13 +584,13 @@ export function startStorageValue(): void {
   // Retry every second until found (handles minified label-less builds)
   stopRetryTimer = criticalInterval(MODAL_RETRY_TIMER_ID, () => {
     if (modalAtomUnsub) {
-      timerManager.destroy(MODAL_RETRY_TIMER_ID);
+      timerManager.unregister(MODAL_RETRY_TIMER_ID);
       stopRetryTimer = null;
       return;
     }
     modalAtomRetryCount++;
     if (modalAtomRetryCount >= MODAL_RETRY_MAX) {
-      timerManager.destroy(MODAL_RETRY_TIMER_ID);
+      timerManager.unregister(MODAL_RETRY_TIMER_ID);
       stopRetryTimer = null;
       return;
     }
@@ -625,7 +622,7 @@ export function stopStorageValue(): void {
   debouncedRecompute?.cancel();
   debouncedRecompute = null;
 
-  timerManager.destroy(MODAL_RETRY_TIMER_ID);
+  timerManager.unregister(MODAL_RETRY_TIMER_ID);
   stopRetryTimer = null;
 
   modalAtomUnsub?.();

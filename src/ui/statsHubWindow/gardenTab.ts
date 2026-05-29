@@ -206,6 +206,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   // ---- Plants dropdown ----
   const plantFilterBtn = document.createElement('button');
   plantFilterBtn.type = 'button';
+  plantFilterBtn.dataset.tour = 'stats-plant-filter';
   plantFilterBtn.style.cssText = pillBtnCss(false);
   plantFilterBtn.textContent = `${t('feature.statsHub.garden.allPlants')} ▾`;
 
@@ -293,6 +294,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
 
   // ---- Mutation filter bar ----
   const filterBar = document.createElement('div');
+  filterBar.dataset.tour = 'stats-mutation-filters';
   filterBar.style.cssText = [
     'display:flex',
     'flex-wrap:wrap',
@@ -341,6 +343,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   let maxSizeOnly = savedFilters.maxSizeOnly ?? false;
   const maxSizePillBtn = document.createElement('button');
   maxSizePillBtn.type = 'button';
+  maxSizePillBtn.dataset.tour = 'stats-max-size';
   maxSizePillBtn.style.cssText = pillBtnCss(maxSizeOnly);
   maxSizePillBtn.textContent = t('feature.statsHub.garden.maxSize');
   maxSizePillBtn.title = t('feature.statsHub.garden.maxSizeTooltip');
@@ -368,6 +371,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
 
   // Scrollable content
   const content = document.createElement('div');
+  content.dataset.tour = 'stats-tile-grid';
   content.style.cssText = 'flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px;';
   container.appendChild(content);
 

@@ -141,34 +141,6 @@ export function estimatePetLevel(pet: ActivePetInfo): LevelEstimate {
 }
 
 /**
- * Alternative: Estimate level from strength values
- * If we know current strength and max strength, we can estimate level
- */
-export function estimateLevelFromStrength(
-  currentStrength: number,
-  maxStrength: number,
-  baseStrength: number = 60, // Midpoint of 50-70 range
-): number | null {
-  if (currentStrength < baseStrength || maxStrength <= baseStrength) {
-    return null;
-  }
-
-  // Strength progression: base → max over 30 levels
-  // Level = (current - base) / (max - base) × 30
-  const strengthProgress = (currentStrength - baseStrength) / (maxStrength - baseStrength);
-  const level = strengthProgress * TOTAL_LEVELS;
-
-  return Math.max(0, Math.min(TOTAL_LEVELS, Math.round(level)));
-}
-
-/**
- * Clear XP history for a pet
- */
-export function clearPetXPHistory(petId: string): void {
-  xpHistory.delete(petId);
-}
-
-/**
  * Get XP history for debugging
  */
 export function getPetXPHistory(petId: string): XPSnapshot[] {

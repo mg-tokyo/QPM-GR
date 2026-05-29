@@ -2,13 +2,12 @@
 // Tracks pet hatching events by monitoring pet collection changes
 // Integrates with auto-favorite to favorite rare pets
 
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { recordPetHatch } from './stats';
 import { recordDetailedHatch } from './hatchStatsStore';
 import { log } from '../utils/logger';
 import { storage } from '../utils/storage';
 
-const PET_INFOS_LABEL = 'myPetInventoryAtom'; // Contains all owned pets
 const STORAGE_KEY = 'qpm.petHatchingTracker.knownPetIds.v1';
 let started = false;
 let unsubscribe: (() => void) | null = null;
@@ -206,19 +205,12 @@ export async function startPetHatchingTracker(): Promise<void> {
   // Load known pet IDs from storage first
   loadKnownPetIds();
 
-  const atom = getAtomByLabel(PET_INFOS_LABEL);
-  if (!atom) {
-    log('⚠️ Pet infos atom not found, pet hatching tracking disabled');
-    return;
-  }
-
   let isFirstCall = true;
 
   try {
-    unsubscribe = await subscribeAtom(atom, (value) => {
+    const unsub = await subscribeAtomValue('petInventory', (value) => {
       try {
         if (isFirstCall) {
-          // On first call, initialize known pets without recording hatches
           isFirstCall = false;
           const pets = extractPetInfos(value);
           for (const pet of pets) {
@@ -226,17 +218,21 @@ export async function startPetHatchingTracker(): Promise<void> {
             const petId = pet.id || `${species || 'unknown'}-${pet.targetScale ?? 1}`;
             knownPetIds.add(petId);
           }
-          // Save the initial state
           saveKnownPetIds();
           log(`✅ Pet hatching tracker initialized with ${knownPetIds.size} existing pets`);
         } else {
-          // On subsequent calls, detect new pets
           processPetData(value);
         }
       } catch (error) {
         log('⚠️ Failed processing pet hatching data', error);
       }
     });
+
+    if (!unsub) {
+      log('⚠️ Pet infos atom not found, pet hatching tracking disabled');
+      return;
+    }
+    unsubscribe = unsub;
 
     started = true;
     log('✅ Pet hatching tracker started');

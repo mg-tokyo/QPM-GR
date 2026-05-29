@@ -1,7 +1,7 @@
 // src/features/shopEnhancer/detection.ts
 // Detects shop modal open/close via activeModalAtom subscription.
 
-import { getAtomByLabel, subscribeAtom } from '../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../core/atomRegistry';
 import { createLogger } from '../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
@@ -43,16 +43,14 @@ function handleModalChange(value: unknown): void {
 async function trySubscribe(): Promise<boolean> {
   if (modalAtomUnsub) return true;
 
-  const atom = getAtomByLabel('activeModalAtom');
-  if (!atom) {
-    if (retryCount % 10 === 0) {
-      log(`[ShopEnhancer] activeModalAtom not found (attempt ${retryCount}). This is normal — atom is only discoverable when a modal is open.`);
-    }
-    return false;
-  }
-
   try {
-    const unsub = await subscribeAtom<unknown>(atom, handleModalChange);
+    const unsub = await subscribeAtomValue('activeModal', (value: unknown) => handleModalChange(value));
+    if (!unsub) {
+      if (retryCount % 10 === 0) {
+        log(`[ShopEnhancer] activeModalAtom not found (attempt ${retryCount}). This is normal — atom is only discoverable when a modal is open.`);
+      }
+      return false;
+    }
     modalAtomUnsub = unsub;
     timerManager.unregister(MODAL_RETRY_TIMER_ID);
     log('[ShopEnhancer] Subscribed to activeModalAtom');

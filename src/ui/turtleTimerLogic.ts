@@ -1,4 +1,4 @@
-import type { TurtleTimerState, TurtleTimerChannel } from '../features/turtleTimer.ts';
+import type { TurtleTimerState, TurtleTimerChannel, TurtleContribution } from '../features/turtleTimer.ts';
 import type { UIState } from './panelState';
 import { formatDurationPretty, formatRatePretty, formatHungerPretty, createEditablePetValue, formatPercentPretty, formatFeedsPerHour, formatMinutesWithUnit, formatMinutesPerHour, formatCompletionTime } from './panelHelpers';
 import { renderCompactPetSprite } from '../utils/petCardRenderer';
@@ -91,6 +91,53 @@ export function computeTimingSpread(channel: TurtleTimerChannel): {
   };
 }
 
+function buildContributionTable(
+  container: HTMLElement,
+  contributions: TurtleContribution[],
+  enabled: boolean,
+  emptyText: string,
+  minActiveHungerPct: number,
+): void {
+  container.textContent = '';
+  const placeholderText = !enabled ? 'Timer disabled.' : contributions.length === 0 ? emptyText : null;
+  if (placeholderText) {
+    const el = document.createElement('div');
+    el.textContent = placeholderText;
+    el.style.cssText = 'font-size:10px;color:#90a4ae;font-style:italic;';
+    container.appendChild(el);
+    return;
+  }
+  for (const entry of contributions) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1.4fr 0.7fr 0.6fr 0.8fr;gap:6px;font-size:10px;padding:2px 0;';
+
+    const nameCell = document.createElement('div');
+    nameCell.textContent = (entry.name && entry.name.trim()) || entry.species || `Slot ${entry.slotIndex + 1}`;
+    nameCell.style.color = entry.missingStats ? '#ffcc80' : '#e0f2f1';
+
+    const hungerCell = document.createElement('div');
+    hungerCell.textContent = formatHungerPretty(entry.hungerPct);
+    hungerCell.style.color = entry.hungerPct != null && entry.hungerPct < minActiveHungerPct ? '#ff8a80' : '#b2dfdb';
+
+    const rateCell = document.createElement('div');
+    rateCell.textContent = `${entry.perHourReduction.toFixed(1)} min/hr`;
+    rateCell.style.color = '#aed581';
+
+    const xpCell = document.createElement('div');
+    xpCell.style.color = entry.missingStats ? '#ffcc80' : '#c5cae9';
+    const xpEditableValue = createEditablePetValue(
+      { species: entry.species, slotIndex: entry.slotIndex },
+      'xp',
+      entry.xp,
+      (val) => val != null ? `${Math.round(val / 1000)}k xp` : '—'
+    );
+    xpCell.appendChild(xpEditableValue);
+
+    row.append(nameCell, hungerCell, rateCell, xpCell);
+    container.appendChild(row);
+  }
+}
+
 export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerState): void {
   const plant = snapshot.plant;
   const egg = snapshot.egg;
@@ -132,8 +179,8 @@ export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerSt
     if (!button) continue;
     if (snapshot.enabled) {
       button.textContent = 'Enabled';
-      button.style.background = 'rgba(56, 142, 60, 0.28)';
-      button.style.borderColor = 'rgba(56, 142, 60, 0.55)';
+      button.style.background = 'rgba(79, 209, 139, 0.2)';
+      button.style.borderColor = 'rgba(79, 209, 139, 0.4)';
       button.style.color = '#e8f5e9';
     } else {
       button.textContent = 'Disabled';
@@ -334,7 +381,7 @@ export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerSt
     // Create detailed second line with unlucky time in red
     let detailHTML = `${turtleSummary} • ${cropsText}`;
     if (unluckyText) {
-      detailHTML += ` • <span style="color:#ff5252;font-size:9px;">(${unluckyText})</span>`;
+      detailHTML += ` • <span style="color:var(--qpm-danger);font-size:9px;">(${unluckyText})</span>`;
     }
 
     setSummary(`${cropName} • ${etaText}${finishTime}`, detailHTML, '', true);
@@ -346,17 +393,17 @@ export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerSt
   const plantSummary = uiState.turtlePlantSummary;
   if (plantSummary) {
     if (!snapshot.enabled) {
-      plantSummary.innerHTML = '<div style="font-size:11px;color:#ef5350;">⏸️ Timer disabled</div>';
+      plantSummary.innerHTML = '<div style="font-size:12px;color:var(--qpm-danger);">⏸️ Timer disabled</div>';
     } else if (plant.status === 'no-data') {
       plantSummary.innerHTML = plantFocusEnabled && !snapshot.focusTargetAvailable && hasPlantTargets
-        ? '<div style="font-size:11px;color:#FFB74D;">🎯 Select target plant</div>'
-        : '<div style="font-size:11px;color:#9E9E9E;">⏳ Waiting...</div>';
+        ? '<div style="font-size:12px;color:var(--qpm-warning);">🎯 Select target plant</div>'
+        : '<div style="font-size:12px;color:#9E9E9E;">⏳ Waiting...</div>';
     } else if (plant.status === 'no-crops') {
-      plantSummary.innerHTML = '<div style="font-size:11px;color:#9E9E9E;">🌾 No crops</div>';
+      plantSummary.innerHTML = '<div style="font-size:12px;color:#9E9E9E;">🌾 No crops</div>';
     } else {
       const cropName = plant.focusSlot?.species || 'Unknown';
       const boosterCount = plant.contributions.length;
-      plantSummary.innerHTML = `<div style="font-size:11px;font-weight:600;color:#4CAF50;">🌱 ${cropName}</div><div style="font-size:10px;color:#81C784;">⚡ ${boosterCount} booster${boosterCount === 1 ? '' : 's'}</div>`;
+      plantSummary.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--qpm-positive);">🌱 ${cropName}</div><div style="font-size:10px;color:#81C784;">⚡ ${boosterCount} booster${boosterCount === 1 ? '' : 's'}</div>`;
     }
   }
 
@@ -393,11 +440,11 @@ export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerSt
       plantTotals.innerHTML = '<div style="font-size:10px;color:#9E9E9E;">🌾 No crops</div>';
     } else if (plant.status === 'no-turtles') {
       const naturalText = plantNaturalMinutes != null ? formatMinutesWithUnit(plantNaturalMinutes) : '—';
-      plantTotals.innerHTML = `<div style="font-size:10px;font-weight:600;color:#FFB74D;">⚠️ No boost</div><div style="font-size:9px;color:#BDBDBD;">Normal: ${naturalText}</div>`;
+      plantTotals.innerHTML = `<div style="font-size:10px;font-weight:600;color:var(--qpm-warning);">⚠️ No boost</div><div style="font-size:9px;color:#BDBDBD;">Normal: ${naturalText}</div>`;
     } else {
       const naturalText = plantNaturalMinutes != null ? formatMinutesWithUnit(plantNaturalMinutes) : '—';
       const savedText = plantMinutesSaved != null ? formatMinutesWithUnit(plantMinutesSaved) : '—';
-      plantTotals.innerHTML = `<div style="font-size:10px;font-weight:600;color:#4CAF50;">⚡ Boost: ${formatMinutesPerHour(plantPerHourReduction)}</div><div style="font-size:9px;color:#81C784;">✂️ Cut: ${savedText}</div><div style="font-size:9px;color:#BDBDBD;">📅 Normal: ${naturalText}</div>`;
+      plantTotals.innerHTML = `<div style="font-size:10px;font-weight:600;color:var(--qpm-positive);">⚡ Boost: ${formatMinutesPerHour(plantPerHourReduction)}</div><div style="font-size:9px;color:#81C784;">✂️ Cut: ${savedText}</div><div style="font-size:9px;color:#BDBDBD;">📅 Normal: ${naturalText}</div>`;
     }
   }
 
@@ -417,7 +464,7 @@ export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerSt
       plantSimple.innerHTML = `<span style="font-size:16px;">⏱️</span><span>Matures in ${formatDurationPretty(plant.naturalMsRemaining)} <span style="color:#9E9E9E;">(no boost)</span></span>`;
     } else {
       const savedText = plantMinutesSaved != null ? formatMinutesWithUnit(plantMinutesSaved) : '—';
-      plantSimple.innerHTML = `<span style="font-size:16px;">✨</span><span>Matures in <strong>${formatDurationPretty(plant.adjustedMsRemaining)}</strong> • <span style="color:#4CAF50;font-weight:600;">✂️ ${savedText} saved</span></span>`;
+      plantSimple.innerHTML = `<span style="font-size:16px;">✨</span><span>Matures in <strong>${formatDurationPretty(plant.adjustedMsRemaining)}</strong> • <span style="color:var(--qpm-positive);font-weight:600;">✂️ ${savedText} saved</span></span>`;
     }
   }
 
@@ -686,84 +733,13 @@ export function updateTurtleTimerViews(uiState: UIState, snapshot: TurtleTimerSt
 
   const plantTable = uiState.turtlePlantTable;
   if (plantTable) {
-    plantTable.textContent = '';
-    if (!snapshot.enabled) {
-      plantTable.appendChild(createPlaceholder('Timer disabled.'));
-    } else if (plant.contributions.length === 0) {
-      plantTable.appendChild(createPlaceholder('No growth turtles contributing yet.'));
-    } else {
-      for (const entry of plant.contributions) {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:grid;grid-template-columns:1.4fr 0.7fr 0.6fr 0.8fr;gap:6px;font-size:10px;padding:2px 0;';
-
-        const nameCell = document.createElement('div');
-        // Prioritize actual pet NAME (user's custom name), fallback to species, then slot number
-        nameCell.textContent = (entry.name && entry.name.trim()) || entry.species || `Slot ${entry.slotIndex + 1}`;
-        nameCell.style.color = entry.missingStats ? '#ffcc80' : '#e0f2f1';
-
-        const hungerCell = document.createElement('div');
-        hungerCell.textContent = formatHungerPretty(entry.hungerPct);
-        hungerCell.style.color = entry.hungerPct != null && entry.hungerPct < snapshot.minActiveHungerPct ? '#ff8a80' : '#b2dfdb';
-
-        const rateCell = document.createElement('div');
-        rateCell.textContent = `${entry.perHourReduction.toFixed(1)} min/hr`;
-        rateCell.style.color = '#aed581';
-
-        const xpCell = document.createElement('div');
-        xpCell.style.color = entry.missingStats ? '#ffcc80' : '#c5cae9';
-        const xpEditableValue = createEditablePetValue(
-          { species: entry.species, slotIndex: entry.slotIndex },
-          'xp',
-          entry.xp,
-          (val) => val != null ? `${Math.round(val / 1000)}k xp` : '—'
-        );
-        xpCell.appendChild(xpEditableValue);
-
-        row.append(nameCell, hungerCell, rateCell, xpCell);
-        plantTable.appendChild(row);
-      }
-    }
+    buildContributionTable(plantTable, plant.contributions, snapshot.enabled,
+      'No growth turtles contributing yet.', snapshot.minActiveHungerPct);
   }
 
   const eggTable = uiState.turtleEggTable;
   if (eggTable) {
-    eggTable.textContent = '';
-    if (!snapshot.enabled) {
-      eggTable.appendChild(createPlaceholder('Timer disabled.'));
-    } else if (egg.contributions.length === 0) {
-      eggTable.appendChild(createPlaceholder('No egg boosters contributing yet.'));
-    } else {
-      for (const entry of egg.contributions) {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:grid;grid-template-columns:1.4fr 0.7fr 0.6fr 0.8fr;gap:6px;font-size:10px;padding:2px 0;';
-
-        const nameCell = document.createElement('div');
-        // Prioritize actual pet NAME (user's custom name), fallback to species, then slot number
-        nameCell.textContent = (entry.name && entry.name.trim()) || entry.species || `Slot ${entry.slotIndex + 1}`;
-        nameCell.style.color = entry.missingStats ? '#ffcc80' : '#e0f2f1';
-
-        const hungerCell = document.createElement('div');
-        hungerCell.textContent = formatHungerPretty(entry.hungerPct);
-        hungerCell.style.color = entry.hungerPct != null && entry.hungerPct < snapshot.minActiveHungerPct ? '#ff8a80' : '#b2dfdb';
-
-        const rateCell = document.createElement('div');
-        rateCell.textContent = `${entry.perHourReduction.toFixed(1)} min/hr`;
-        rateCell.style.color = '#aed581';
-
-        const xpCell = document.createElement('div');
-        xpCell.style.color = entry.missingStats ? '#ffcc80' : '#c5cae9';
-        const xpEditableValue = createEditablePetValue(
-          { species: entry.species, slotIndex: entry.slotIndex },
-          'xp',
-          entry.xp,
-          (val) => val != null ? `${Math.round(val / 1000)}k xp` : '—'
-        );
-        xpCell.appendChild(xpEditableValue);
-
-        row.append(nameCell, hungerCell, rateCell, xpCell);
-        eggTable.appendChild(row);
-      }
-    }
+    buildContributionTable(eggTable, egg.contributions, snapshot.enabled,
+      'No egg boosters contributing yet.', snapshot.minActiveHungerPct);
   }
 }
-

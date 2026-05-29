@@ -4,7 +4,7 @@
 // (planting, harvesting, interacting, collecting, etc.).
 
 import { pageWindow } from '../../core/pageContext';
-import { getAtomByLabel, getCachedStore } from '../../core/jotaiBridge';
+import { readAtomValueSync } from '../../core/atomRegistry';
 import { getLockerConfig } from './state';
 import type { HoldContexts } from './types';
 
@@ -66,17 +66,8 @@ function dispatchKey(type: 'keydown' | 'keyup', repeat: boolean): void {
 
 // ── Action context detection ──────────────────────────────────────────────
 
-let cachedActionAtom: unknown = null;
-
 function getActionContext(): keyof HoldContexts {
-  if (!cachedActionAtom) {
-    cachedActionAtom = getAtomByLabel('actionAtom');
-  }
-  const store = getCachedStore();
-  if (!store || !cachedActionAtom) return 'other';
-
-  let action: unknown;
-  try { action = store.get(cachedActionAtom); } catch { return 'other'; }
+  const action = readAtomValueSync('action');
   if (typeof action !== 'string' || action.length === 0) return 'other';
 
   const lower = action.toLowerCase();
@@ -178,5 +169,4 @@ export function stopAriesHold(): void {
   pw.removeEventListener('keyup', onKeyUp as EventListener, true);
   pw.removeEventListener('blur', onBlur);
   lastTarget = null;
-  cachedActionAtom = null;
 }

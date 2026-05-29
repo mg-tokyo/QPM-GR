@@ -14,9 +14,18 @@ type JotaiDebugApi = {
   captureInfo: () => any;
 };
 
+type AtomsDebugApi = {
+  discover: (filter?: string) => Array<{ label: string; registered: boolean; registryKey: string | null; populated: boolean }>;
+  health: () => import('../core/atomRegistry').AtomHealthCheckResult;
+  read: (key: string) => Promise<unknown>;
+  list: () => Array<{ key: string; resolved: boolean; label: string | null; via: string | null }>;
+  status: () => string;
+};
+
 type DebugApiType = {
   storage: typeof storage;
   jotai: JotaiDebugApi;
+  atoms: AtomsDebugApi;
   debugPets: () => any;
   debugAllAtoms: () => any;
   debugCatalogs: () => any;
@@ -69,6 +78,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
     { toggleWindow },
     spriteCompat,
     { inspectJournal },
+    atomRegistryMod,
   ] = await Promise.all([
     import('../store/pets'),
     import('../store/petLevelCalculator'),
@@ -78,6 +88,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
     import('../ui/modalWindow'),
     import('../sprite-v2/compat'),
     import('./inspectJournal'),
+    import('../core/atomRegistry'),
   ]);
 
   const {
@@ -124,9 +135,57 @@ export async function createDebugApi(): Promise<DebugApiType> {
     captureInfo: () => getCapturedInfo(),
   };
 
+  const atomsDebug: AtomsDebugApi = {
+    discover: (filter?: string) => {
+      const health = atomRegistryMod.runAtomHealthCheck();
+      const registeredMap = new Map(health.registered.map((r) => [r.label, r.key]));
+      const all: Array<{ label: string; registered: boolean; registryKey: string | null; populated: boolean }> = [];
+
+      for (const r of health.registered) {
+        if (filter && !r.label.toLowerCase().includes(filter.toLowerCase()) && !r.key.toLowerCase().includes(filter.toLowerCase())) continue;
+        all.push({ label: r.label, registered: true, registryKey: r.key, populated: true });
+      }
+      for (const u of health.unregistered) {
+        if (filter && !u.label.toLowerCase().includes(filter.toLowerCase())) continue;
+        all.push({ label: u.label, registered: false, registryKey: null, populated: u.populated });
+      }
+
+      console.table(all);
+      return all;
+    },
+    health: () => {
+      const result = atomRegistryMod.runAtomHealthCheck();
+      console.log(`Registered: ${result.registered.length} found, ${result.missing.length} missing`);
+      if (result.missing.length > 0) console.warn('Missing:', result.missing);
+      console.log(`Unregistered: ${result.unregistered.length} discovered`);
+      return result;
+    },
+    read: async (key: string) => {
+      try {
+        const value = await atomRegistryMod.readAtomValue(key as any);
+        console.log(`atoms.read('${key}'):`, value);
+        return value;
+      } catch (e) {
+        console.error(`atoms.read('${key}') failed:`, e);
+        return null;
+      }
+    },
+    list: () => {
+      const keys = atomRegistryMod.getRegisteredKeys();
+      console.table(keys);
+      return keys;
+    },
+    status: () => {
+      const s = atomRegistryMod.getRegistryStatus();
+      console.log(s);
+      return s;
+    },
+  };
+
   const debugApi: DebugApiType = {
     storage,
     jotai: jotaiDebug,
+    atoms: atomsDebug,
 
     debugPets: () => {
       const pets = getActivePetsDebug();
@@ -633,6 +692,23 @@ export function createLazyDebugProxy(): Record<string, any> {
     });
   }
   proxy.jotai = jotaiProxy;
+
+  // atoms namespace — same lazy pattern as jotai
+  const atomsProxy: Record<string, any> = {};
+  for (const method of ['discover', 'health', 'read', 'list', 'status'] as const) {
+    Object.defineProperty(atomsProxy, method, {
+      get() {
+        return async (...args: any[]) => {
+          const api = await getDebugApi();
+          const fn = (api.atoms as any)[method];
+          return typeof fn === 'function' ? fn(...args) : fn;
+        };
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  proxy.atoms = atomsProxy;
 
   // Create lazy getters for all debug functions
   const lazyMethods = [

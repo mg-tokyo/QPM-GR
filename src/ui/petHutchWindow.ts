@@ -1,7 +1,7 @@
 // Pet Hutch Window - displays all pets from hutch and inventory
 
 import { log } from '../utils/logger';
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue } from '../core/atomRegistry';
 import { getPetSpriteCanvas } from '../sprite-v2/compat';
 import { getMutationSpriteDataUrl } from '../utils/petMutationRenderer';
 import { storage } from '../utils/storage';
@@ -41,25 +41,22 @@ async function getAllPets(): Promise<PetItem[]> {
 
   // Get hutch pets
   try {
-    const hutchAtom = getAtomByLabel('myPetHutchPetItemsAtom');
-    if (hutchAtom) {
-      const hutchData = await readAtomValue(hutchAtom) as any;
-      if (Array.isArray(hutchData)) {
-        for (const item of hutchData) {
-          const species = item.petSpecies || item.species;
-          if (!species) continue;
+    const hutchData = await readAtomValue('hutchPets') as any;
+    if (Array.isArray(hutchData)) {
+      for (const item of hutchData) {
+        const species = item.petSpecies || item.species;
+        if (!species) continue;
 
-          pets.push({
-            name: item.name || species,
-            species,
-            petSpecies: item.petSpecies,
-            xp: item.xp || 0,
-            strength: item.strength,
-            level: item.level,
-            mutation: item.mutation,
-            location: 'hutch'
-          });
-        }
+        pets.push({
+          name: item.name || species,
+          species,
+          petSpecies: item.petSpecies,
+          xp: item.xp || 0,
+          strength: item.strength,
+          level: item.level,
+          mutation: item.mutation,
+          location: 'hutch'
+        });
       }
     }
   } catch (error) {
@@ -68,26 +65,22 @@ async function getAllPets(): Promise<PetItem[]> {
 
   // Get inventory pets
   try {
-    const inventoryAtom = getAtomByLabel('myPetInventoryAtom');
-    if (inventoryAtom) {
-      const inventoryData = await readAtomValue(inventoryAtom) as any;
+    const inventoryData = await readAtomValue('petInventory') as any;
+    if (Array.isArray(inventoryData)) {
+      for (const item of inventoryData) {
+        const species = item.petSpecies || item.species;
+        if (!species || item.itemType !== 'pet') continue;
 
-      if (Array.isArray(inventoryData)) {
-        for (const item of inventoryData) {
-          const species = item.petSpecies || item.species;
-          if (!species || item.itemType !== 'pet') continue;
-
-          pets.push({
-            name: item.name || species,
-            species,
-            petSpecies: item.petSpecies,
-            xp: item.xp || 0,
-            strength: item.strength,
-            level: item.level,
-            mutation: item.mutation,
-            location: 'inventory'
-          });
-        }
+        pets.push({
+          name: item.name || species,
+          species,
+          petSpecies: item.petSpecies,
+          xp: item.xp || 0,
+          strength: item.strength,
+          level: item.level,
+          mutation: item.mutation,
+          location: 'inventory'
+        });
       }
     }
   } catch (error) {

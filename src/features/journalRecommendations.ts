@@ -6,7 +6,7 @@ import { getJournalSummary, type JournalSummary } from './journalChecker';
 
 import { getVariantTimeEstimate } from '../data/gameData';
 import { readInventoryDirect } from '../store/inventory';
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue } from '../core/atomRegistry';
 import { getActivePetInfos } from '../store/pets';
 import { t } from '../i18n';
 
@@ -153,9 +153,8 @@ async function detectPlayerResources(): Promise<PlayerResources> {
     }
 
     // Check hutch for pets (only check for ability availability, not counting)
-    const hutchAtom = getAtomByLabel('myPetHutchAtom');
-    if (hutchAtom) {
-      const hutch = await readAtomValue<any>(hutchAtom);
+    const hutch = await readAtomValue('petHutch') as any;
+    if (hutch) {
       const hutchPets = hutch?.pets || [];
       log(`[JOURNAL-GRANTER] Checking ${hutchPets.length} pets in hutch`);
 

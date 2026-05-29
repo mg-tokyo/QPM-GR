@@ -16,9 +16,11 @@ import { initializeAutoFavorite } from './features/autoFavorite';
 import { startBulkFavorite } from './features/bulkFavorite';
 import { initializeAutoReconnect, stopAutoReconnect } from './features/autoReconnect';
 import { initializeGardenFilters } from './features/gardenFilters';
-import { getActivePetsDebug, startPetInfoStore } from './store/pets';
-import { startInventoryStore, readInventoryDirect, getInventoryItems } from './store/inventory';
-import { startHutchStore } from './store/hutch';
+import { getActivePetsDebug, startPetInfoStore, stopPetInfoStore } from './store/pets';
+import { startInventoryStore, readInventoryDirect, getInventoryItems, stopInventoryStore } from './store/inventory';
+import { startHutchStore, stopHutchStore } from './store/hutch';
+import { stopWeatherHub } from './store/weatherHub';
+import { destroyEconomyTracker, initEconomyTracker } from './store/economyTracker';
 import { startSeedSiloStore, stopSeedSiloStore } from './store/seedSilo';
 import { startSellSnapshotWatcher } from './store/sellSnapshot';
 import { shareGlobal } from './core/pageContext';
@@ -77,6 +79,7 @@ import {
 } from './features/petOptimizer';
 import { exposeAriesBridge } from './integrations/ariesBridge';
 import { getAtomByLabel, readAtomValue } from './core/jotaiBridge';
+import { runAtomHealthCheck } from './core/atomRegistry';
 import { openInspectorDirect, setupGardenInspector } from './ui/publicRoomsWindow';
 import { resetFriendsCache } from './services/ariesPlayers';
 import { exposeValidationCommands } from './utils/validationCommands';
@@ -100,7 +103,8 @@ import { startCapsuleTracker, stopCapsuleTracker } from './features/dawnCapsule'
 import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawnCapture';
 import { initDawnEconomy, destroyDawnEconomy } from './store/dawnEconomy';
 import { initGmExportBridge } from './utils/gmExportBridge';
-import { startNativeSendObserver, stopNativeSendObserver } from './websocket/nativeSendObserver';
+import { stopNativeSendObserver } from './websocket/nativeSendObserver';
+import { startMountStateTracker, stopMountStateTracker } from './store/mountState';
 import { startLocker } from './features/locker/index';
 import { startShopKeybinds, stopShopKeybinds } from './features/shopKeybinds';
 import { stopPanelHotkey } from './features/panelHotkey';
@@ -1324,6 +1328,12 @@ window.addEventListener('beforeunload', () => {
   stopCapsuleTracker();
   stopDawnCaptureTracker();
   destroyDawnEconomy();
+  stopMountStateTracker();
+  stopPetInfoStore();
+  stopInventoryStore();
+  stopHutchStore();
+  stopWeatherHub();
+  destroyEconomyTracker();
   stopNativeSendObserver();
 }, { once: true });
 
@@ -1411,6 +1421,10 @@ async function initialize(): Promise<void> {
 
   // Wait for game to be ready (parallel with sprite init)
   await waitForGame();
+
+  // Atom registry health check — diagnostic only, non-blocking
+  try { runAtomHealthCheck(); } catch (e) { log('Atom health check failed', e); }
+
   await initializeAntiAfk().catch((error) => {
     log('Anti-AFK initialization failed', error);
   });
@@ -1449,7 +1463,6 @@ async function initialize(): Promise<void> {
   initializeMutationValueTracking();
   const { initHatchStatsStore } = await import('./store/hatchStatsStore');
   initHatchStatsStore();
-  const { initEconomyTracker } = await import('./store/economyTracker');
   initEconomyTracker().catch((error) => {
     log('Economy tracker init failed', error);
   });
@@ -1506,8 +1519,8 @@ async function initialize(): Promise<void> {
   configureTurtleTimer(cfg.turtleTimer);
   await yieldToBrowser();
 
-  // Phase 7b: Native send observer (must start before locker so it wraps first)
-  startNativeSendObserver();
+  // Phase 7b: nativeSendObserver starts on-demand via first onNativeSend() call
+  startMountStateTracker();
 
   // Phase 7c: Action guard
   startLocker();
@@ -1582,6 +1595,24 @@ async function initialize(): Promise<void> {
     });
   }
   (QPM_DEBUG_API as any).jotai = jotaiNs;
+
+  // Expose atoms debug namespace (lazy — loads full debug API on first method call)
+  const atomsNs: Record<string, unknown> = {};
+  for (const method of ['discover', 'health', 'read', 'list', 'status'] as const) {
+    Object.defineProperty(atomsNs, method, {
+      get() {
+        return async (...args: unknown[]) => {
+          const { getDebugApi } = await import('./debug/debugApi');
+          const api = await getDebugApi();
+          const fn = (api.atoms as Record<string, unknown>)[method];
+          return typeof fn === 'function' ? (fn as Function)(...args) : fn;
+        };
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  (QPM_DEBUG_API as any).atoms = atomsNs;
 
   // Expose catalog functions to global debug API
   (QPM_DEBUG_API as any).getCatalogs = getCatalogs;
@@ -1705,14 +1736,17 @@ async function initialize(): Promise<void> {
   ]);
 
   registerPersistedItemRestockDetailOpeners();
+
+  // Initialize tour system BEFORE restoring windows so that tour definitions
+  // are registered when restored windows call checkTour.
+  const { initTourSystem, checkTour } = await import('./ui/tour');
+  await initTourSystem();
+
   restoreOpenWindows();
 
   // Start version checker (checks for updates periodically)
   startVersionChecker();
 
-  // Initialize tour system and show welcome tour on first load
-  const { initTourSystem, checkTour } = await import('./ui/tour');
-  await initTourSystem();
   // Check welcome tour after UI settles (same timing as old tutorialPopup)
   setTimeout(() => {
     const panel = document.querySelector('.qpm-panel') as HTMLElement | null;

@@ -308,6 +308,7 @@ export function renderEditor(ctx: ManagerContext): void {
   // Slot cards
   const slotsEl = document.createElement('div');
   slotsEl.className = 'qpm-slots';
+  slotsEl.dataset.tour = 'mgr-slots';
 
   for (let i = 0; i < 3; i++) {
     const slotId = team.slots[i as 0 | 1 | 2];
@@ -447,6 +448,7 @@ export function renderEditor(ctx: ManagerContext): void {
         if (isActiveTeam) {
           const feedBtn = document.createElement('button');
           feedBtn.className = 'qpm-slot__feed-btn';
+          feedBtn.dataset.tour = 'mgr-feed';
           if (hasFloatingCardForSlot(i)) feedBtn.classList.add('qpm-slot__feed-btn--active');
           feedBtn.textContent = '\uD83C\uDF56';
           feedBtn.title = t('feature.petsWindow.feedPet');
@@ -464,6 +466,7 @@ export function renderEditor(ctx: ManagerContext): void {
         // Diet gear
         const dietBtn = document.createElement('button');
         dietBtn.className = 'qpm-slot__diet-btn';
+        dietBtn.dataset.tour = 'mgr-diet';
         dietBtn.textContent = '\u2699';
         dietBtn.title = t('feature.petsWindow.dietSettings');
         dietBtn.addEventListener('click', (e) => {
@@ -565,6 +568,7 @@ export function renderEditor(ctx: ManagerContext): void {
   // Keybind config
   const keybindRow = document.createElement('div');
   keybindRow.className = 'qpm-editor__keybind-row';
+  keybindRow.dataset.tour = 'mgr-keybind';
   keybindRow.appendChild(Object.assign(document.createElement('span'), { textContent: t('feature.petsWindow.keybindColon') }));
 
   const teamId = team.id;

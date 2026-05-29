@@ -455,6 +455,7 @@ export function buildEconomyTab(container: HTMLElement): () => void {
 
     // --- All value chips in a grid (3 cols → balances on row 1, assets on row 2) ---
     const chips = document.createElement('div');
+    chips.dataset.tour = 'stats-balance-chips';
     chips.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;';
 
     chips.appendChild(balanceChip(

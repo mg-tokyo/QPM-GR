@@ -5,6 +5,7 @@ import { getWeatherSnapshot } from '../store/weatherHub';
 import { calculatePlantValue } from './valueCalculator';
 import { getWeatherCatalog } from '../catalogs/gameCatalogs';
 import { getMutationApplicationResult } from '../utils/mutationCompatibility';
+import { isRecord } from '../utils/typeGuards';
 import { getFriendBonusMultiplier } from '../store/friendBonus';
 const HYDRO_EVENT_DURATION_MINUTES = 5;
 const LUNAR_EVENT_DURATION_MINUTES = 10;
@@ -49,10 +50,6 @@ function emptyMutationPotential(): MutationPotential {
     projectedMutationsPerEvent: 0,
     baseMutationChance: 0,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
 }
 
 function toFiniteNumber(value: unknown): number | null {

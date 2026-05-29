@@ -76,15 +76,21 @@ function ensurePatched(): void {
   }
 }
 
-/** Register a callback that fires for every outgoing WS message. Returns unsubscribe. */
+/**
+ * Register a callback that fires for every outgoing WS message. Returns unsubscribe.
+ * Auto-starts the observer on first listener registration (on-demand).
+ */
 export function onNativeSend(listener: NativeSendListener): () => void {
+  if (!started) {
+    startNativeSendObserver();
+  }
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-/** Start the observer. Must be called before the locker's startNativeHook so it wraps first. */
+/** Start the observer. Called automatically by onNativeSend on first registration. */
 export function startNativeSendObserver(): void {
   if (started) return;
   started = true;

@@ -87,6 +87,17 @@ export function stopDiscovery(windowId: string): void {
   sessions.delete(windowId);
 }
 
+/**
+ * Re-scan for discovery dots in an active session. Call after dynamic
+ * content renders new discoverable elements (e.g., team editor re-render).
+ * No-op if the session doesn't exist or all slots are filled.
+ */
+export function rescanDiscovery(windowId: string): void {
+  const session = sessions.get(windowId);
+  if (!session) return;
+  renderDots(session);
+}
+
 // ── Internal ──────────────────────────────────────────────────
 
 function renderDots(session: DiscoverySession): void {
@@ -148,6 +159,8 @@ function startTracking(session: DiscoverySession): void {
     }
     if (toRemove.length > 0) {
       session.activeDots = session.activeDots.filter((d) => !toRemove.includes(d));
+      // Targets were removed (e.g., editor re-render) — backfill with new targets
+      renderDots(session);
     }
 
     session.rafId = requestAnimationFrame(track);

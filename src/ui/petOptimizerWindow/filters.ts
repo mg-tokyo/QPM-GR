@@ -159,6 +159,7 @@ export function renderFilters(
       onRenderCurrentAnalysis();
     },
   });
+  sellToggle.root.dataset.tour = 'optimizer-sell-toggle';
   filtersDiv.appendChild(sellToggle.root);
 
   const reviewToggle = createToggle({
@@ -192,6 +193,7 @@ export function renderFilters(
       onRefreshAnalysis(true);
     },
   });
+  dislikeGoldToggle.root.dataset.tour = 'optimizer-dislike-gold';
   filtersDiv.appendChild(dislikeGoldToggle.root);
 
   const refreshButton = createButton(t('feature.petOptimizer.refresh'), {

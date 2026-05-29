@@ -49,7 +49,7 @@ function ensureInspectorShell(): HTMLDivElement {
           <button id="pr-inspector-close" class="qpm-button qpm-button--negative" title="${t('feature.publicRooms.closeInspector')}">✕</button>
         </div>
       </div>
-      <div class="pr-inspector-tabs">
+      <div class="pr-inspector-tabs" data-tour="pr-inspector-tabs">
         <button class="pr-inspector-tab active" data-tab="player">${t('feature.publicRooms.playerLabel')}</button>
         <button class="pr-inspector-tab" data-tab="compare">${t('feature.publicRooms.compareTab')}</button>
       </div>

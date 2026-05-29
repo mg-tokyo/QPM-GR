@@ -6,7 +6,8 @@ import { log } from '../utils/logger';
 import { sendRoomAction, type WebSocketSendResult } from '../websocket/api';
 import { getMapSnapshot, getGardenSnapshot } from './gardenBridge';
 import { getActivePetInfos } from '../store/pets';
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { isRecord } from '../utils/typeGuards';
+import { getMyUserSlotIdx } from '../core/playerContext';
 
 function sendAction(type: 'StorePet' | 'PlacePet' | 'ToggleFavoriteItem' | 'ToggleLockItem' | 'SellPet', payload: Record<string, unknown>): WebSocketSendResult {
   const sent = sendRoomAction(type, payload, { throttleMs: 90 });
@@ -81,10 +82,6 @@ export const PLACE_PET_DEFAULTS = {
 // User slot index resolution (player's garden slot in multiplayer)
 // ---------------------------------------------------------------------------
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
 /**
  * Derive userSlotIdx from an active pet's known position on the map.
  * Returns null when there are no active pets or the map data isn't available.
@@ -114,56 +111,11 @@ function deriveSlotIdxFromActivePets(): number | null {
  * 3. Derive from active pet positions on the map (existing fallback)
  */
 export async function resolveMyUserSlotIdx(): Promise<number | null> {
-  // Strategy 1: direct atom
-  try {
-    const atom = getAtomByLabel('myUserSlotIdxAtom');
-    if (atom) {
-      const value = await readAtomValue<unknown>(atom);
-      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-        return value;
-      }
-    }
-  } catch {
-    // atom not available — continue
-  }
+  // Strategies 1 + 2: direct atom + player slot lookup (via shared helper)
+  const idx = await getMyUserSlotIdx();
+  if (idx != null) return idx;
 
-  // Strategy 2: compute from playerAtom + stateAtom.child.data.userSlots
-  try {
-    const playerAtom = getAtomByLabel('playerAtom');
-    const stateAtom = getAtomByLabel('stateAtom');
-    if (playerAtom && stateAtom) {
-      const player = await readAtomValue<unknown>(playerAtom);
-      const state = await readAtomValue<unknown>(stateAtom);
-
-      let playerId: string | null = null;
-      if (isRecord(player)) {
-        for (const key of ['id', 'playerId', 'userId'] as const) {
-          const v = (player as Record<string, unknown>)[key];
-          if (typeof v === 'string' && v.trim().length > 0) {
-            playerId = v.trim();
-            break;
-          }
-        }
-      }
-
-      if (playerId && isRecord(state)) {
-        const child = (state as Record<string, unknown>).child;
-        const data = isRecord(child) ? (child as Record<string, unknown>).data : undefined;
-        const userSlots = isRecord(data) ? (data as Record<string, unknown>).userSlots : undefined;
-
-        if (Array.isArray(userSlots)) {
-          const idx = userSlots.findIndex(
-            (slot) => isRecord(slot) && String((slot as Record<string, unknown>).playerId ?? '').trim() === playerId,
-          );
-          if (idx >= 0) return idx;
-        }
-      }
-    }
-  } catch {
-    // atom read failed — continue
-  }
-
-  // Strategy 3: derive from active pet positions
+  // Strategy 3: derive from active pet positions on the map
   return deriveSlotIdxFromActivePets();
 }
 

@@ -25,6 +25,7 @@ export function renderStatsHub(root: HTMLElement): void {
 
   // Tab bar
   const tabBar = document.createElement('div');
+  tabBar.dataset.tour = 'stats-tab-bar';
   tabBar.style.cssText = [
     'display:flex',
     'gap:4px',
@@ -107,4 +108,10 @@ export function renderStatsHub(root: HTMLElement): void {
   observer.observe(document.body, { childList: true, subtree: true });
 
   setActiveTab(activeTab);
+
+  // Tour system — auto-fire on first open + inject help button
+  import('../tour').then(({ checkTour, injectReplayButton }) => {
+    checkTour('stats-hub', root);
+    injectReplayButton('stats-hub');
+  });
 }

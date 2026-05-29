@@ -111,8 +111,36 @@ export const STYLES = `
   opacity: 0;
   pointer-events: none;
 }
+.qpm-float-card__btn-row {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+.qpm-float-card__mount-btn {
+  width: 30px;
+  min-height: 30px;
+  flex-shrink: 0;
+  background: rgba(143,130,255,0.2);
+  border: 1px solid rgba(143,130,255,0.45);
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  transition: background 0.15s;
+}
+.qpm-float-card__mount-btn:hover { background: rgba(143,130,255,0.35); }
+.qpm-float-card__mount-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.qpm-float-card__mount-icon {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
 .qpm-float-card__feed-btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: rgba(143,130,255,0.2);
   border: 1px solid rgba(143,130,255,0.45);
   border-radius: 5px;

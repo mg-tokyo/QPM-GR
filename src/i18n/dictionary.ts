@@ -6,6 +6,7 @@ import en from './dictionaries/en';
 import es from './dictionaries/es';
 import de from './dictionaries/de';
 import fr from './dictionaries/fr';
+import pt from './dictionaries/pt';
 
 /** Registry of loaded dictionaries keyed by locale code. */
 const dictionaries = new Map<string, Dictionary>();
@@ -15,6 +16,7 @@ dictionaries.set('en', en);
 dictionaries.set('es', es);
 dictionaries.set('de', de);
 dictionaries.set('fr', fr);
+dictionaries.set('pt', pt);
 
 /**
  * Register a dictionary for a locale.

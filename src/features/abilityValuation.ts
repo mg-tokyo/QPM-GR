@@ -10,6 +10,7 @@ import { normalizeSpeciesKey } from '../utils/helpers';
 import { lookupMaxScale } from '../utils/plantScales';
 import { analyzeCropMutationPotential } from './cropMutationAnalytics';
 import { isDebugGlobalsEnabled } from '../utils/debugGlobals';
+import { isRecord } from '../utils/typeGuards';
 import { getAbilityDef } from '../catalogs/gameCatalogs';
 import { getWeatherSnapshot } from '../store/weatherHub';
 import { getAbilityDefinition } from '../data/petAbilities';
@@ -82,10 +83,6 @@ export interface AbilityValuationContext {
 export interface DynamicAbilityEffect {
   effectPerProc: number;
   detail: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function coercePositiveInteger(value: unknown): number | null {

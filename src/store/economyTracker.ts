@@ -300,7 +300,7 @@ export async function initEconomyTracker(): Promise<void> {
       }
       notifyListeners();
     });
-    cleanups.push(unsubCoins);
+    if (unsubCoins) cleanups.push(unsubCoins);
   } catch { log('[EconomyTracker] coinsBalance atom not found — balance unavailable'); }
 
   try {
@@ -313,7 +313,7 @@ export async function initEconomyTracker(): Promise<void> {
       }
       notifyListeners();
     });
-    cleanups.push(unsubCredits);
+    if (unsubCredits) cleanups.push(unsubCredits);
   } catch { log('[EconomyTracker] creditsBalance atom not found'); }
 
   try {
@@ -327,7 +327,7 @@ export async function initEconomyTracker(): Promise<void> {
       }
       notifyListeners();
     });
-    cleanups.push(unsubDust);
+    if (unsubDust) cleanups.push(unsubDust);
   } catch { log('[EconomyTracker] magicDustBalance atom not found'); }
 
   // Periodic sampling as a floor — ensures rate doesn't stall during idle periods

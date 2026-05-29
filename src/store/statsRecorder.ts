@@ -7,7 +7,7 @@
 // The game's activity log uses action strings like 'feedPet', 'harvest',
 // 'purchaseSeed', 'plantSeed', etc. We map these to stats.ts record functions.
 
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { ACTION_MAP } from '../features/activityLogNativeEnhancer/constants';
 import { onAbilityHistoryUpdate, type AbilityHistory } from './abilityLogs';
 import {
@@ -20,9 +20,9 @@ import {
   recordAbilityProc,
   type ShopCategoryKey,
 } from './stats';
+import { recordXpProc } from './xpTracker';
+import { getActivePetInfos } from './pets';
 import { log } from '../utils/logger';
-
-const MY_DATA_ATOM_LABEL = 'myDataAtom';
 
 const cleanups: Array<() => void> = [];
 let started = false;
@@ -175,20 +175,18 @@ function processActivityLog(rawValue: unknown): void {
 }
 
 async function subscribeToActivityLog(): Promise<void> {
-  const atom = getAtomByLabel(MY_DATA_ATOM_LABEL);
-  if (!atom) {
-    log('[StatsRecorder] myDataAtom not found — activity log stats disabled');
-    return;
-  }
-
   try {
-    const unsub = await subscribeAtom(atom, (value) => {
+    const unsub = await subscribeAtomValue('myData', (value) => {
       try {
         processActivityLog(value);
       } catch (error) {
         log('[StatsRecorder] Error processing activity log', error);
       }
     });
+    if (!unsub) {
+      log('[StatsRecorder] myDataAtom not found — activity log stats disabled');
+      return;
+    }
     cleanups.push(unsub);
     log('[StatsRecorder] Subscribed to myDataAtom activity log');
   } catch (error) {
@@ -210,6 +208,18 @@ function handleAbilityUpdate(snapshot: ReadonlyMap<string, AbilityHistory>): voi
       if (event.performedAt > lastSeen) {
         recordAbilityProc(history.abilityId, 0, event.performedAt);
         activityLogCounts.ability++;
+
+        // Wire XP proc tracking — look up pet info for name/species
+        if (history.petId) {
+          const pet = getActivePetInfos().find(p => p.petId === history.petId);
+          recordXpProc(
+            history.petId,
+            pet?.name ?? 'Unknown',
+            pet?.species ?? 'Unknown',
+            history.abilityId,
+            0,
+          );
+        }
       }
     }
 

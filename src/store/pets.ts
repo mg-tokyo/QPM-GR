@@ -1,7 +1,7 @@
 // src/store/pets.ts
 // Bridge for active pet information via myPrimitivePetSlotsAtom.
 
-import { getAtomByLabel, subscribeAtom, getCachedStore } from '../core/jotaiBridge';
+import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../data/petHungerCaps';
 import { log } from '../utils/logger';
 import { recordPetXP, estimatePetLevel } from './petLevelCalculator';
@@ -25,6 +25,8 @@ export interface ActivePetInfo {
   level: number | null;
   levelRaw: string | null;
   strength: number | null;
+  /** First ability ID from abilityCooldowns (charged/activatable ability), or null. */
+  chargedAbilityId: string | null;
   position: { x: number | null; y: number | null } | null;
   updatedAt: number;
   raw: unknown;
@@ -560,6 +562,19 @@ function extractAbilities(entry: RawPetInfo): string[] {
   return dedupeStrings(combined);
 }
 
+function extractChargedAbilityId(entry: RawPetInfo): string | null {
+  const slot = getSlotRecord(entry);
+  const nested = (slot.pet as RawPetSlot | undefined) ?? (entry.pet as RawPetSlot | undefined) ?? null;
+  const candidates = [entry.abilityCooldowns, slot.abilityCooldowns, nested?.abilityCooldowns];
+  for (const cd of candidates) {
+    if (cd && typeof cd === 'object' && !Array.isArray(cd)) {
+      const keys = Object.keys(cd as Record<string, unknown>);
+      if (keys.length > 0) return keys[0]!;
+    }
+  }
+  return null;
+}
+
 function extractPosition(entry: RawPetInfo): { x: number | null; y: number | null } | null {
   const slot = getSlotRecord(entry);
   const candidates = [entry.position, entry.pos, slot.position, slot.pos];
@@ -756,6 +771,7 @@ function normalizePetInfos(raw: unknown): ActivePetInfo[] {
       targetScale,
       mutations: extractMutations(rawInfo),
       abilities: extractAbilities(rawInfo),
+      chargedAbilityId: extractChargedAbilityId(rawInfo),
       xp,
       level,
       levelRaw,
@@ -830,26 +846,6 @@ export function stopPetInfoStore(): void {
   petInfosAtomRef = null;
   catalogReadyHooked = false;
   clearStartRetry();
-}
-
-/**
- * Re-read pet atom directly via store.get() and rebuild if changed.
- * Used by the background atom poller to detect changes when native
- * Jotai subscriptions don't fire (background tabs).
- */
-export function forceRefreshPetInfos(): void {
-  if (!petInfosAtomRef) return;
-  const store = getCachedStore();
-  if (!store || store.__polyfill) return;
-
-  try {
-    const fresh = store.get(petInfosAtomRef);
-    if (fresh !== lastRawValue) {
-      lastRawValue = fresh;
-      cachedInfos = normalizePetInfos(fresh);
-      notify();
-    }
-  } catch {}
 }
 
 /**

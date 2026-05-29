@@ -3,8 +3,9 @@
 // Merges the duplicate subscription logic from cropSizeIndicator + tileValueIndicator
 // with retry support (from tileValueIndicator).
 
-import { getAtomByLabel, readAtomValue, subscribeAtom } from '../../core/jotaiBridge';
+import { readAtomValue, subscribeAtomValue } from '../../core/atomRegistry';
 import { log } from '../../utils/logger';
+import { isRecord } from '../../utils/typeGuards';
 import type { ResolvedSlot } from './types';
 
 // ---------------------------------------------------------------------------
@@ -28,10 +29,6 @@ const cleanups: Array<() => void> = [];
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
 
 function parseSlot(raw: unknown): ResolvedSlot | null {
   if (!isRecord(raw)) return null;
@@ -83,12 +80,19 @@ export function resolveCurrentSlot(): ResolvedSlot | null {
  */
 export async function subscribeTooltipAtoms(onChange: () => void): Promise<() => void> {
   const attemptSubscribe = async (): Promise<void> => {
-    const gardenAtom =
-      getAtomByLabel('myCurrentGardenObjectAtom') ??
-      getAtomByLabel('myOwnCurrentGardenObjectAtom');
-    const slotIdAtom = getAtomByLabel('mySelectedSlotIdAtom');
+    // Try gardenObject first, fall back to ownGardenObject
+    let gardenUnsub = await subscribeAtomValue('gardenObject', (value) => {
+      cachedGardenObject = isRecord(value) ? value : null;
+      onChange();
+    });
+    if (!gardenUnsub) {
+      gardenUnsub = await subscribeAtomValue('ownGardenObject', (value) => {
+        cachedGardenObject = isRecord(value) ? value : null;
+        onChange();
+      });
+    }
 
-    if (!gardenAtom) {
+    if (!gardenUnsub) {
       if (retryCount < MAX_RETRIES) {
         retryCount++;
         retryTimer = window.setTimeout(() => {
@@ -102,16 +106,24 @@ export async function subscribeTooltipAtoms(onChange: () => void): Promise<() =>
     }
 
     log('[TooltipAtoms] Found garden object atom');
+    cleanups.push(gardenUnsub);
 
-    // Read initial values
+    // Read initial garden value
     try {
-      const initial = await readAtomValue<unknown>(gardenAtom);
+      let initial = await readAtomValue('gardenObject');
+      if (initial == null) initial = await readAtomValue('ownGardenObject');
       cachedGardenObject = isRecord(initial) ? initial : null;
     } catch { /* ignore */ }
 
-    if (slotIdAtom) {
+    // Subscribe to selected slot ID changes (C/X key)
+    const slotIdUnsub = await subscribeAtomValue('selectedSlotId', (value) => {
+      cachedSelectedSlotId = typeof value === 'number' ? value : 0;
+      onChange();
+    });
+    if (slotIdUnsub) {
+      cleanups.push(slotIdUnsub);
       try {
-        const initial = await readAtomValue<unknown>(slotIdAtom);
+        const initial = await readAtomValue('selectedSlotId');
         cachedSelectedSlotId = typeof initial === 'number' ? initial : 0;
       } catch { /* ignore */ }
       log('[TooltipAtoms] Found mySelectedSlotIdAtom');
@@ -119,22 +131,6 @@ export async function subscribeTooltipAtoms(onChange: () => void): Promise<() =>
 
     // Fire initial change
     onChange();
-
-    // Subscribe to garden object changes
-    const gardenUnsub = await subscribeAtom(gardenAtom, (value: unknown) => {
-      cachedGardenObject = isRecord(value) ? value : null;
-      onChange();
-    });
-    cleanups.push(gardenUnsub);
-
-    // Subscribe to selected slot ID changes (C/X key)
-    if (slotIdAtom) {
-      const slotIdUnsub = await subscribeAtom(slotIdAtom, (value: unknown) => {
-        cachedSelectedSlotId = typeof value === 'number' ? value : 0;
-        onChange();
-      });
-      cleanups.push(slotIdUnsub);
-    }
   };
 
   await attemptSubscribe();

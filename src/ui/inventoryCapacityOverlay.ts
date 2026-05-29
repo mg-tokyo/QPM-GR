@@ -21,7 +21,7 @@ import {
   subscribeToInventoryCapacityConfig,
 } from '../features/inventoryCapacity';
 import { pageWindow } from '../core/pageContext';
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 
 const OVERLAY_ID = 'qpm-inv-capacity-overlay';
 const FLASH_STYLE_ID = 'qpm-inv-capacity-flash-style';
@@ -227,20 +227,20 @@ function onModalChange(value: string | null): void {
 function trySubscribeModal(retriesLeft = 15): void {
   if (modalUnsub) return;
 
-  const atom = getAtomByLabel('activeModalAtom');
-  if (!atom) {
-    if (retriesLeft > 0) {
-      modalRetryTimer = setTimeout(() => {
-        modalRetryTimer = null;
-        trySubscribeModal(retriesLeft - 1);
-      }, 1000);
-    }
-    return;
-  }
-
-  subscribeAtom<string | null>(atom, onModalChange).then(unsub => {
-    modalUnsub = unsub;
-  }).catch(() => {});
+  subscribeAtomValue('activeModal', (value) => onModalChange(value as string | null))
+    .then(unsub => {
+      if (!unsub) {
+        if (retriesLeft > 0) {
+          modalRetryTimer = setTimeout(() => {
+            modalRetryTimer = null;
+            trySubscribeModal(retriesLeft - 1);
+          }, 1000);
+        }
+        return;
+      }
+      modalUnsub = unsub;
+    })
+    .catch(() => {});
 }
 
 function cleanupModalSubscription(): void {

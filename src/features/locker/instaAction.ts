@@ -21,7 +21,7 @@
 //   wish                          — disabled in game (hidden)
 
 import { pageWindow } from '../../core/pageContext';
-import { getAtomByLabel, getCachedStore } from '../../core/jotaiBridge';
+import { readAtomValueSync } from '../../core/atomRegistry';
 import { getLockerConfig } from './state';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -47,35 +47,6 @@ const HANDLED_ACTIONS: ReadonlySet<string> = new Set([
   'mutationpotion',
 ]);
 
-// ── Cached atom refs ───────────────────────────────────────────────────────
-
-let actionAtom: unknown = null;
-let dirtTileIndexAtom: unknown = null;
-let gardenTileAtom: unknown = null;
-let growSlotIndexAtom: unknown = null;
-let selectedItemAtom: unknown = null;
-
-function ensureAtoms(): boolean {
-  if (!actionAtom) actionAtom = getAtomByLabel('actionAtom');
-  if (!dirtTileIndexAtom) dirtTileIndexAtom = getAtomByLabel('myOwnCurrentDirtTileIndexAtom');
-  if (!gardenTileAtom) gardenTileAtom = getAtomByLabel('myCurrentGardenTileAtom');
-  if (!growSlotIndexAtom) growSlotIndexAtom = getAtomByLabel('myCurrentGrowSlotIndexAtom');
-  if (!selectedItemAtom) selectedItemAtom = getAtomByLabel('mySelectedItemAtom');
-  return actionAtom != null;
-}
-
-// ── Synchronous atom reads ─────────────────────────────────────────────────
-
-function readAtomSync<T>(atom: unknown): T | null {
-  const store = getCachedStore();
-  if (!store || !atom) return null;
-  try {
-    return store.get(atom) as T;
-  } catch {
-    return null;
-  }
-}
-
 // ── WS send ────────────────────────────────────────────────────────────────
 
 const DEFAULT_SCOPE_PATH = ['Room', 'Quinoa'];
@@ -100,7 +71,7 @@ function sendMessage(payload: Record<string, unknown>): boolean {
 // ── Action handlers ────────────────────────────────────────────────────────
 
 function handleRemoveGardenObject(): boolean {
-  const tile = readAtomSync<{ localTileIndex: number; tileType: string } | null>(gardenTileAtom);
+  const tile = readAtomValueSync('gardenTile') as { localTileIndex?: number; tileType?: string } | null;
   if (!tile || typeof tile.localTileIndex !== 'number' || typeof tile.tileType !== 'string') {
     return false;
   }
@@ -112,9 +83,9 @@ function handleRemoveGardenObject(): boolean {
 }
 
 function handleCropCleanser(): boolean {
-  const tileIdx = readAtomSync<number | null>(dirtTileIndexAtom);
+  const tileIdx = readAtomValueSync('dirtTileIndex');
   if (tileIdx == null) return false;
-  const slotIdx = readAtomSync<number | null>(growSlotIndexAtom);
+  const slotIdx = readAtomValueSync('growSlotIndex');
   if (slotIdx == null) return false;
   return sendMessage({
     type: 'CropCleanser',
@@ -124,14 +95,14 @@ function handleCropCleanser(): boolean {
 }
 
 function handleMutationPotion(): boolean {
-  const tileIdx = readAtomSync<number | null>(dirtTileIndexAtom);
+  const tileIdx = readAtomValueSync('dirtTileIndex');
   if (tileIdx == null) return false;
-  const slotIdx = readAtomSync<number | null>(growSlotIndexAtom);
+  const slotIdx = readAtomValueSync('growSlotIndex');
   if (slotIdx == null) return false;
   // Read the selected item to resolve the toolId → mutation mapping.
   // Game tool IDs for potions follow the pattern <Mutation>Potion
   // (e.g. WetPotion → Wet, FrozenPotion → Frozen, AmberlitPotion → Amberlit).
-  const selectedItem = readAtomSync<{ toolId?: string } | null>(selectedItemAtom);
+  const selectedItem = readAtomValueSync('selectedItem') as { toolId?: string } | null;
   if (!selectedItem || typeof selectedItem.toolId !== 'string') return false;
   const mutation = resolveGrantedMutation(selectedItem.toolId);
   if (!mutation) return false;
@@ -178,9 +149,8 @@ function onKeyDownCapture(event: KeyboardEvent): void {
   const config = getLockerConfig();
   if (!config.ariesHold) return;
 
-  if (!ensureAtoms()) return;
-
-  const action = readAtomSync<string | null>(actionAtom);
+  const actionRaw = readAtomValueSync('action');
+  const action = typeof actionRaw === 'string' ? actionRaw : null;
   if (!action) return;
 
   if (!HANDLED_ACTIONS.has(action.toLowerCase())) return;
@@ -222,9 +192,4 @@ export function stopInstaAction(): void {
   (pageWindow as unknown as Window).removeEventListener(
     'keydown', onKeyDownCapture as EventListener, true,
   );
-  actionAtom = null;
-  dirtTileIndexAtom = null;
-  gardenTileAtom = null;
-  growSlotIndexAtom = null;
-  selectedItemAtom = null;
 }

@@ -2,7 +2,7 @@
 
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';
-import { debounce } from '../utils/helpers';
+import { debounce } from '../utils/debounce';
 import type { ActivePetInfo } from './pets';
 import { getAllPetXpEstimates, inferXpPerLevel } from '../utils/xpInference';
 import { areCatalogsReady, onCatalogsReady, getPetMaxScale } from '../catalogs/gameCatalogs';
@@ -221,16 +221,6 @@ export function getCombinedXpStats(stats: XpAbilityStats[]): {
 }
 
 /**
- * Set XP required per level for a species
- */
-export function setSpeciesXpPerLevel(species: string, xpPerLevel: number): void {
-  configData.speciesXpPerLevel[species] = xpPerLevel;
-  scheduleSaveConfig();
-  notifyListeners();
-}
-
-
-/**
  * Get XP required per level for a species
  * Automatically calculated based on hours to mature
  */
@@ -248,13 +238,6 @@ export function getSpeciesXpPerLevel(species: string): number | null {
 
   // Priority 3: Unknown
   return null;
-}
-
-/**
- * Get all configured species XP per level
- */
-export function getAllSpeciesXpConfig(): Record<string, number> {
-  return { ...configData.speciesXpPerLevel };
 }
 
 /**
@@ -380,15 +363,6 @@ export function initializeXpTracker(): void {
       autoPopulateXpEstimates();
     });
   }
-}
-
-/**
- * Clear all XP proc history
- */
-export function clearXpProcHistory(): void {
-  procHistory.splice(0, procHistory.length);
-  scheduleSaveProcs();
-  notifyListeners();
 }
 
 /**

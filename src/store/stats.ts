@@ -20,13 +20,11 @@ interface ShopItemEntry {
 export interface StatsSnapshot {
   feed: {
     totalFeeds: number;
-    manualFeeds: number;
     perPet: Record<string, FeedEntry>;
     lastFeedAt: number | null;
     sessionStart: number;
   };
   weather: {
-    cooldownBlocks: number;
     timeByKind: Record<string, number>;
     activeKind: string;
   };
@@ -57,8 +55,6 @@ export interface StatsSnapshot {
       magicDust: number;
       timestamp: number;
     } | null;
-    totalFailures: number;
-    failuresByCategory: Record<ShopCategoryKey, number>;
   };
   garden: {
     totalPlanted: number;
@@ -120,13 +116,11 @@ function createDefaultState(now: number): StatsState {
   return {
     feed: {
       totalFeeds: 0,
-      manualFeeds: 0,
       perPet: {},
       lastFeedAt: null,
       sessionStart: now,
     },
     weather: {
-      cooldownBlocks: 0,
       timeByKind: {},
       activeKind: 'unknown',
       lastSnapshotAt: now,
@@ -146,14 +140,6 @@ function createDefaultState(now: number): StatsState {
       items: {},
       history: [],
       lastPurchase: null,
-      totalFailures: 0,
-      failuresByCategory: {
-        seeds: 0,
-        eggs: 0,
-        tools: 0,
-        decor: 0,
-        dawn: 0,
-      },
     },
     garden: {
       totalPlanted: 0,
@@ -219,7 +205,6 @@ function hydrateState(): StatsState {
 
   // Weather
   if (stored.weather) {
-    base.weather.cooldownBlocks = Number(stored.weather.cooldownBlocks ?? 0);
     base.weather.activeKind = stored.weather.activeKind ?? base.weather.activeKind;
     base.weather.lastSnapshotAt = stored.weather.lastSnapshotAt ?? now;
 
@@ -269,18 +254,6 @@ function hydrateState(): StatsState {
           failureReason: row.failureReason,
         }))
         .slice(-MAX_HISTORY);
-    }
-    if (typeof stored.shop.totalFailures === 'number') {
-      base.shop.totalFailures = stored.shop.totalFailures;
-    }
-    if (stored.shop.failuresByCategory && typeof stored.shop.failuresByCategory === 'object') {
-      base.shop.failuresByCategory = {
-        seeds: Number(stored.shop.failuresByCategory.seeds ?? 0),
-        eggs: Number(stored.shop.failuresByCategory.eggs ?? 0),
-        tools: Number(stored.shop.failuresByCategory.tools ?? 0),
-        decor: Number(stored.shop.failuresByCategory.decor ?? 0),
-        dawn: Number((stored.shop.failuresByCategory as Record<string, unknown>).dawn ?? 0),
-      };
     }
     if (stored.shop.lastPurchase) {
       base.shop.lastPurchase = {
@@ -357,7 +330,6 @@ function emitSnapshot(): void {
   const snapshot: StatsSnapshot = {
     feed: {
       totalFeeds: state.feed.totalFeeds,
-      manualFeeds: state.feed.manualFeeds,
       perPet: Object.fromEntries(
         Object.entries(state.feed.perPet).map(([key, value]) => [key, { ...value }])
       ),
@@ -365,7 +337,6 @@ function emitSnapshot(): void {
       sessionStart: state.feed.sessionStart,
     },
     weather: {
-      cooldownBlocks: state.weather.cooldownBlocks,
       timeByKind: { ...state.weather.timeByKind },
       activeKind: state.weather.activeKind,
     },
@@ -380,8 +351,6 @@ function emitSnapshot(): void {
       ),
       history: state.shop.history.map((row) => ({ ...row })),
       lastPurchase: state.shop.lastPurchase ? { ...state.shop.lastPurchase } : null,
-      totalFailures: state.shop.totalFailures,
-      failuresByCategory: { ...state.shop.failuresByCategory },
     },
     garden: {
       totalPlanted: state.garden.totalPlanted,
@@ -513,7 +482,6 @@ export function getStatsSnapshot(): StatsSnapshot {
   return {
     feed: {
       totalFeeds: state.feed.totalFeeds,
-      manualFeeds: state.feed.manualFeeds,
       perPet: Object.fromEntries(
         Object.entries(state.feed.perPet).map(([key, value]) => [key, { ...value }])
       ),
@@ -521,7 +489,6 @@ export function getStatsSnapshot(): StatsSnapshot {
       sessionStart: state.feed.sessionStart,
     },
     weather: {
-      cooldownBlocks: state.weather.cooldownBlocks,
       timeByKind: { ...state.weather.timeByKind },
       activeKind: state.weather.activeKind,
     },
@@ -536,8 +503,6 @@ export function getStatsSnapshot(): StatsSnapshot {
       ),
       history: state.shop.history.map((row) => ({ ...row })),
       lastPurchase: state.shop.lastPurchase ? { ...state.shop.lastPurchase } : null,
-      totalFailures: state.shop.totalFailures,
-      failuresByCategory: { ...state.shop.failuresByCategory },
     },
     garden: {
       totalPlanted: state.garden.totalPlanted,
@@ -593,19 +558,6 @@ export function recordFeedEvent(petName: string, timestamp = Date.now()): void {
   commitState();
 }
 
-export function recordFeedManual(timestamp = Date.now()): void {
-  ensureInitialized();
-  state.feed.manualFeeds += 1;
-  state.feed.totalFeeds += 1;
-  state.feed.lastFeedAt = timestamp;
-  commitState();
-}
-
-export function recordWeatherCooldownBlock(): void {
-  ensureInitialized();
-  state.weather.cooldownBlocks += 1;
-  commitState();
-}
 
 export function recordShopPurchase(
   category: ShopCategoryKey,
@@ -667,36 +619,6 @@ export function recordShopPurchase(
     magicDust: safeDust,
     timestamp,
     success: true,
-  });
-  if (state.shop.history.length > MAX_HISTORY) {
-    state.shop.history.splice(0, state.shop.history.length - MAX_HISTORY);
-  }
-
-  commitState();
-}
-
-export function recordShopFailure(
-  category: ShopCategoryKey,
-  itemName: string,
-  reason: string,
-  timestamp = Date.now(),
-): void {
-  ensureInitialized();
-  const label = itemName || 'Unknown Item';
-
-  state.shop.totalFailures += 1;
-  state.shop.failuresByCategory[category] = (state.shop.failuresByCategory[category] ?? 0) + 1;
-
-  state.shop.history.push({
-    itemName: label,
-    category,
-    count: 0,
-    coins: 0,
-    credits: 0,
-    magicDust: 0,
-    timestamp,
-    success: false,
-    failureReason: reason,
   });
   if (state.shop.history.length > MAX_HISTORY) {
     state.shop.history.splice(0, state.shop.history.length - MAX_HISTORY);

@@ -251,23 +251,6 @@ export function findAllByLabel(
   return results;
 }
 
-/** Find the largest (by area) node matching a label criterion. */
-export function findLargest(root: unknown, matcher: LabelMatcher): PixiNodeMatch | null {
-  let best: PixiNodeMatch | null = null;
-  let bestArea = 0;
-  walkScene(root, (node): boolean | void => {
-    if (!matchLabel(getLabel(node), matcher)) return;
-    const b = getBounds(node);
-    if (!b) return;
-    const area = b.width * b.height;
-    if (area > bestArea) {
-      bestArea = area;
-      best = { node, bounds: b, area };
-    }
-  }, { visibleOnly: true });
-  return best;
-}
-
 // ---------------------------------------------------------------------------
 // Constructor Extraction
 // ---------------------------------------------------------------------------

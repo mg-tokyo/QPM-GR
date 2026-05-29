@@ -13,7 +13,7 @@ export function ensureTourStyles(): void {
     #qpm-tour-overlay {
       position: fixed;
       inset: 0;
-      z-index: 999998;
+      z-index: 2147483647;
       pointer-events: none;
       transition: opacity 200ms ease;
     }

@@ -2,7 +2,8 @@
 // Journal Checker: Shows what's missing from the player's journal
 // Organized by categories (produce variants, pet variants, pet abilities)
 
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue } from '../core/atomRegistry';
+import { getPlayerId } from '../core/playerContext';
 import { log } from '../utils/logger';
 import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog } from '../catalogs/gameCatalogs';
 
@@ -164,27 +165,13 @@ const CACHE_DURATION_MS = 5000; // Cache for 5 seconds
  */
 async function fetchJournalFromState(): Promise<Journal | null> {
   try {
-    const stateAtom = getAtomByLabel('stateAtom');
-    if (!stateAtom) {
-      log('⚠️ stateAtom not found');
-      return null;
-    }
-
-    const state = await readAtomValue<any>(stateAtom);
+    const state = await readAtomValue('state') as any;
     if (!state) {
       log('⚠️ State is null');
       return null;
     }
 
-    // Get player atom to find current player ID
-    const playerAtom = getAtomByLabel('playerAtom');
-    if (!playerAtom) {
-      log('⚠️ playerAtom not found');
-      return null;
-    }
-
-    const player = await readAtomValue<any>(playerAtom);
-    const playerId = player?.id;
+    const playerId = await getPlayerId();
     if (!playerId) {
       log('⚠️ Player ID not found');
       return null;

@@ -22,6 +22,7 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
 
   // Group header
   const header = document.createElement('div');
+  header.dataset.tour = 'hub-group-header';
   header.style.cssText = [
     'display:flex',
     'align-items:center',
@@ -46,6 +47,7 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
   // Visibility toggle button (pushed right) — sliders icon
   const toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
+  toggleBtn.dataset.tour = 'hub-visibility';
   toggleBtn.title = t('common.showHideFeatures');
   toggleBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M2 4h5M11 4h3M9 2v4M2 8h1M7 8h7M5 6v4M2 12h7M13 12h1M11 10v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -74,7 +76,48 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
     toggleBtn.style.borderColor = 'rgba(143,130,255,0.2)';
   });
 
-  header.append(headerLabel, countBadge, toggleBtn);
+  // Help button — opens help panel for the hub
+  const helpBtn = document.createElement('button');
+  helpBtn.type = 'button';
+  helpBtn.textContent = '?';
+  helpBtn.title = 'Help & tips';
+  helpBtn.style.cssText = [
+    'background:none',
+    'border:1px solid rgba(143,130,255,0.2)',
+    'border-radius:4px',
+    'cursor:pointer',
+    'font-size:12px',
+    'font-weight:600',
+    'padding:3px 6px',
+    'color:var(--qpm-accent-dim)',
+    'transition:background 0.15s,border-color 0.15s',
+    'line-height:1',
+    'display:flex',
+    'align-items:center',
+    'justify-content:center',
+  ].join(';');
+  helpBtn.addEventListener('mouseenter', () => {
+    helpBtn.style.background = 'rgba(143,130,255,0.12)';
+    helpBtn.style.borderColor = 'rgba(143,130,255,0.4)';
+  });
+  helpBtn.addEventListener('mouseleave', () => {
+    helpBtn.style.background = 'none';
+    helpBtn.style.borderColor = 'rgba(143,130,255,0.2)';
+  });
+  helpBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const viewContainer = container.parentElement;
+    if (!viewContainer) return;
+    import('../tour/help/panel').then(({ openHelpPanel, isHelpPanelOpen, closeHelpPanel }) => {
+      if (isHelpPanelOpen()) {
+        closeHelpPanel();
+      } else {
+        openHelpPanel(viewContainer, () => 'qpm-hub');
+      }
+    });
+  });
+
+  header.append(headerLabel, countBadge, toggleBtn, helpBtn);
   container.appendChild(header);
 
   // Popover for visibility toggles
@@ -194,6 +237,7 @@ export function renderHubGroup(group: HubGroupDef): HubGroupResult {
 
   // Cards container (separate from header so we can re-render)
   const cardsContainer = document.createElement('div');
+  cardsContainer.dataset.tour = 'hub-cards';
   cardsContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
   container.appendChild(cardsContainer);
 

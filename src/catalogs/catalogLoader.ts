@@ -48,8 +48,9 @@ let catalogsReady = false;
 const readyCallbacks: Array<(catalogs: GameCatalogs) => void> = [];
 const errorCallbacks: Array<(error: Error) => void> = [];
 
-// Store original Object methods before any interception
-const NativeObject = Object;
+// Use the page window's Object constructor so hooks intercept game-context calls,
+// not just sandbox-context calls (Tampermonkey isolates the userscript when @grant is used).
+const NativeObject = (pageWindow as unknown as { Object: typeof Object }).Object;
 const originalKeys = NativeObject.keys;
 const originalValues = NativeObject.values;
 const originalEntries = NativeObject.entries;

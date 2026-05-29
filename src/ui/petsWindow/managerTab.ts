@@ -55,10 +55,12 @@ export function buildManagerTab(
 
   const compareTeamsBtn = btn(`\u2696 ${t('feature.petsWindow.compare')}`, 'sm');
   compareTeamsBtn.title = t('feature.petsWindow.compareTooltip');
+  compareTeamsBtn.dataset.tour = 'mgr-compare';
   listTop.appendChild(compareTeamsBtn);
 
   const importBtn = btn('\u2B07', 'sm');
   importBtn.title = t('feature.petsWindow.importAriesTooltip');
+  importBtn.dataset.tour = 'mgr-import';
   listTop.appendChild(importBtn);
 
   const search = document.createElement('input');
@@ -128,7 +130,7 @@ export function buildManagerTab(
       comparePanel.setPair(compareTeamAId, compareTeamBId);
     },
     renderTeamList(): void { renderTeamList(ctx); },
-    renderEditor(): void { renderEditor(ctx); },
+    renderEditor(): void { renderEditor(ctx); state.onEditorRender?.(); },
   };
 
   // --- Async init ---
@@ -223,9 +225,6 @@ export function buildManagerTab(
 
   ctx.renderTeamList();
   ctx.renderEditor();
-
-  // Manager tab tour is accessible via the ? button on the hub window.
-  // It does not auto-fire — the hub tour covers the initial introduction.
 
   state.selectTeam = (teamId: string | null): void => {
     const teams = getTeamsConfig().teams;

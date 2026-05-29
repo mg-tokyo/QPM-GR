@@ -1,13 +1,13 @@
 // src/utils/ghostStep.ts — Shared ghost-step utilities for walking to a pet's tile via WS.
 
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue } from '../core/atomRegistry';
+import { getPlayerPosition as getPlayerPos } from '../core/playerContext';
 import { sendRoomAction } from '../websocket/api';
+import { isRecord } from './typeGuards';
+
+export { isRecord } from './typeGuards';
 
 export interface XY { x: number; y: number }
-
-export function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object';
-}
 
 export function asXY(v: unknown): XY | null {
   if (!isRecord(v)) return null;
@@ -51,23 +51,15 @@ export function petTileFromMotion(motion: unknown): XY | null {
  * primary atom is missing or null.
  */
 export async function getPlayerPosition(): Promise<XY | null> {
-  for (const label of ['positionAtom', 'localPlayerPositionAtom'] as const) {
-    const atom = getAtomByLabel(label);
-    if (!atom) continue;
-    const value = await readAtomValue<unknown>(atom).catch(() => null);
-    const pos = asXY(value);
-    if (pos) return pos;
-  }
-  return null;
+  const pos = await getPlayerPos();
+  return pos ? { x: Math.round(pos.x), y: Math.round(pos.y) } : null;
 }
 
 /**
  * Read a pet's current grid position from `stateAtom → child.data.userSlots → petSlotInfos`.
  */
 export async function getPetPosition(petSlotId: string): Promise<XY | null> {
-  const atom = getAtomByLabel('stateAtom');
-  if (!atom) return null;
-  const state = await readAtomValue<unknown>(atom).catch(() => null);
+  const state = await readAtomValue('state');
   if (!isRecord(state)) return null;
 
   const child = state.child;

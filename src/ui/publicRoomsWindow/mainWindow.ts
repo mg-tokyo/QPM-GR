@@ -81,4 +81,10 @@ export function renderPublicRoomsWindow(root: HTMLElement): void {
   if (!(window as any).QPM_INSPECT_PLAYER) {
     (window as any).QPM_INSPECT_PLAYER = (playerId: string, playerName?: string): void => openInspectorDirect(playerId, playerName);
   }
+
+  // Tour system — lazy-loaded
+  import('../tour').then(({ checkTour, injectReplayButton }) => {
+    checkTour('public-rooms', root);
+    injectReplayButton('public-rooms');
+  });
 }

@@ -3,7 +3,7 @@
 // friend bonus multiplier.  Formula (from game source):
 //   Math.min(2.0, 1.0 + Math.max(0, Math.floor(filledSlots - 1)) * 0.1)
 
-import { getAtomByLabel, subscribeAtom, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue, subscribeAtomValue } from '../core/atomRegistry';
 import { criticalInterval, timerManager } from '../utils/timerManager';
 import { createLogger } from '../utils/logger';
 
@@ -13,7 +13,6 @@ const log = createLogger('QPM:FriendBonus');
 // Constants
 // ---------------------------------------------------------------------------
 
-const USER_SLOTS_ATOM_LABEL = 'userSlotsAtom';
 const RETRY_TIMER_ID = 'friendBonus:atomRetry';
 const RETRY_MAX = 30;
 
@@ -74,16 +73,15 @@ function applySlotData(value: unknown): void {
 async function trySubscribe(): Promise<boolean> {
   if (atomUnsub) return true;
 
-  const atom = getAtomByLabel(USER_SLOTS_ATOM_LABEL);
-  if (!atom) return false;
-
   try {
-    // Read initial value
-    const initial = await readAtomValue<unknown>(atom);
-    applySlotData(initial);
+    const unsub = await subscribeAtomValue('userSlots', applySlotData);
+    if (!unsub) return false;
 
-    const unsub = await subscribeAtom<unknown>(atom, applySlotData);
     atomUnsub = unsub;
+
+    // Read initial value
+    const initial = await readAtomValue('userSlots');
+    applySlotData(initial);
 
     timerManager.unregister(RETRY_TIMER_ID);
     stopRetryTimer = null;

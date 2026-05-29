@@ -11,6 +11,7 @@ import { calculateMaxStrength } from '../../store/xpTracker';
 import { getCropMaxScaleSafe } from '../../utils/catalogHelpers';
 import { getLockerConfig } from './state';
 import { evaluateAction, type InventorySnapshot, type TileContext } from './rules';
+import { isRecord } from '../../utils/typeGuards';
 import type { GuardResult } from './types';
 import { criticalInterval } from '../../utils/timerManager';
 
@@ -90,10 +91,6 @@ function getInventorySnapshot(
 }
 
 // ── Tile context resolution ────────────────────────────────────────────────
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 /**
  * Extract mutations from a single grow slot record.

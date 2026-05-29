@@ -33,10 +33,6 @@ function emit(): void {
   }
 }
 
-export function getNotifications(): NotificationEvent[] {
-  return notifications.slice();
-}
-
 export function notify(evt: Omit<NotificationEvent, 'id' | 'timestamp'>): NotificationEvent {
   const event: NotificationEvent = {
     ...evt,
@@ -56,20 +52,13 @@ export function notify(evt: Omit<NotificationEvent, 'id' | 'timestamp'>): Notifi
 export function onNotifications(callback: NotificationSubscriber): () => void {
   subscribers.add(callback);
   try {
-    callback(getNotifications());
+    callback(notifications.slice());
   } catch (error) {
     console.error('[notifications] initial subscriber error', error);
   }
   return () => {
     subscribers.delete(callback);
   };
-}
-
-export function removeNotification(id: string): void {
-  const index = notifications.findIndex(event => event.id === id);
-  if (index === -1) return;
-  notifications.splice(index, 1);
-  emit();
 }
 
 export function clearNotifications(feature?: string): void {

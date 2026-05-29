@@ -3,6 +3,20 @@
 
 export type WeatherAtomValue = string | null | undefined;
 
+export interface GridPosition {
+  x: number;
+  y: number;
+}
+
+export interface PlayerAtomValue {
+  id?: string;
+  name?: string;
+  cosmetic?: unknown;
+  discordUserId?: string;
+  databaseUserId?: string;
+  [key: string]: unknown;
+}
+
 export interface ShopInventoryEntry {
   species?: string;
   eggId?: string;

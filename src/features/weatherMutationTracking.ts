@@ -5,7 +5,7 @@ import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from './gard
 import { getCropStats } from '../data/cropBaseStats';
 import { computeMutationMultiplier } from '../utils/cropMultipliers';
 import { storage } from '../utils/storage';
-import { debounce } from '../utils/helpers';
+import { debounce } from '../utils/debounce';
 import { visibleInterval } from '../utils/timerManager';
 import {
   computeSlotStateFromMutationNames,

@@ -21,43 +21,8 @@ export { openHelpPanel, closeHelpPanel } from './help/panel';
  * Registers all core tour definitions and injects replay buttons.
  */
 export async function initTourSystem(): Promise<void> {
-  // TODO: v2 tour system disabled pending final QA — remove this return to re-enable
+  // Tour system disabled pending final QA
   return;
-
-  ensureTourStyles();
-
-  // Import and register all core tour definitions
-  const [
-    { welcomeTour },
-    { panelShellTour },
-    { panelHomeTour },
-    { petHubTour },
-    { petManagerTour },
-    { petOptimizerTour },
-    { shopRestockTour },
-    { abilityTrackerTour },
-  ] = await Promise.all([
-    import('./tours/welcome'),
-    import('./tours/panel/shell'),
-    import('./tours/panel/home'),
-    import('./tours/pets/hub'),
-    import('./tours/pets/manager'),
-    import('./tours/pets/optimizer'),
-    import('./tours/shops/restock'),
-    import('./tours/trackers/ability'),
-  ]);
-
-  registerTour(welcomeTour);
-  registerTour(panelShellTour);
-  registerTour(panelHomeTour);
-  registerTour(petHubTour);
-  registerTour(petManagerTour);
-  registerTour(petOptimizerTour);
-  registerTour(shopRestockTour);
-  registerTour(abilityTrackerTour);
-
-  // Migrate legacy tutorial key
-  migrateLegacyTutorial(welcomeTour.version);
 }
 
 /**

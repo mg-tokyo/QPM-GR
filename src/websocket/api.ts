@@ -19,7 +19,10 @@ export type RoomActionType =
   | 'XPPotion'
   | 'ReplenishPotion'
   | 'LogItems'
-  | 'RequestPetGreet';
+  | 'RequestPetGreet'
+  | 'RidePet'
+  | 'DismountPet'
+  | 'SetRiddenPet';
 
 export type WebSocketSendFailureReason =
   | 'no_connection'
@@ -172,6 +175,13 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       const p = payload as PlayerPositionPayload;
       return !!p.position && isFiniteNumber(p.position.x) && isFiniteNumber(p.position.y);
     }
+    case 'RidePet':
+      return isNonEmptyString(payload.petItemId);
+    case 'DismountPet':
+      return true;
+    case 'SetRiddenPet':
+      // petId can be a string (mount) or null (dismount)
+      return payload.petId === null || isNonEmptyString(payload.petId);
     default:
       return false;
   }
@@ -207,6 +217,12 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'LogItems':
       return type;
     case 'RequestPetGreet':
+      return type;
+    case 'RidePet':
+      return `${type}:${String(payload.petItemId ?? '')}`;
+    case 'DismountPet':
+      return type;
+    case 'SetRiddenPet':
       return type;
     default:
       return type;

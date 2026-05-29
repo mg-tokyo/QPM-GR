@@ -1,6 +1,8 @@
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { getPlayerPosition as getPlayerPosFromContext } from '../core/playerContext';
+import { readAtomValue as readRegistryAtom } from '../core/atomRegistry';
 import { pageWindow } from '../core/pageContext';
 import { log } from '../utils/logger';
+import { isRecord } from '../utils/typeGuards';
 import { sendRoomAction } from '../websocket/api';
 
 type XY = { x: number; y: number };
@@ -36,10 +38,6 @@ let audioResumeHandler: (() => void) | null = null;
 let heartbeatTimer: number | null = null;
 let pingTimer: number | null = null;
 let lastKnownPosition: XY | null = null;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
-}
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -101,19 +99,10 @@ function findUserSlotByPlayerId(userSlots: unknown, playerId: string): unknown {
 }
 
 async function resolvePositionFromPlayerAtom(): Promise<{ player: unknown; position: XY | null }> {
-  const playerAtom = getAtomByLabel('playerAtom');
-  const player = playerAtom ? await readAtomValue<unknown>(playerAtom).catch(() => null) : null;
-
-  // Position lives in a standalone positionAtom, not inside playerAtom.
-  for (const label of ['positionAtom', 'localPlayerPositionAtom'] as const) {
-    const atom = getAtomByLabel(label);
-    if (!atom) continue;
-    const value = await readAtomValue<unknown>(atom).catch(() => null);
-    const position = asPosition(value);
-    if (position) return { player, position };
-  }
-
-  return { player, position: null };
+  const player = await readRegistryAtom('player');
+  const pos = await getPlayerPosFromContext();
+  const position = pos ? asPosition(pos) : null;
+  return { player, position };
 }
 
 function resolvePositionFromMyData(): XY | null {
@@ -134,10 +123,7 @@ function resolvePositionFromMyData(): XY | null {
 }
 
 async function resolvePositionFromStateAtom(player: unknown): Promise<XY | null> {
-  const stateAtom = getAtomByLabel('stateAtom');
-  if (!stateAtom) return null;
-
-  const state = await readAtomValue<unknown>(stateAtom).catch(() => null);
+  const state = await readRegistryAtom('state');
   if (!state) return null;
 
   const playerId = getPlayerId(player);

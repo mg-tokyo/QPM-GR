@@ -3,7 +3,7 @@
 
 import { getAbilityHistorySnapshot } from '../store/abilityLogs';
 import { storage } from '../utils/storage';
-import { debounce } from '../utils/helpers';
+import { debounce } from '../utils/debounce';
 import { log } from '../utils/logger';
 import { visibleInterval } from '../utils/timerManager';
 import { resetWeatherMutationTracking } from './weatherMutationTracking';
@@ -576,10 +576,6 @@ export function subscribeToMutationValueTracking(
   return () => listeners.delete(listener);
 }
 
-export function forceRecalculateMutationValue(): void {
-  recalculateStats();
-}
-
 export function resetMutationValueTracking(): void {
   endCurrentSession(); // Save current session before reset
 
@@ -627,33 +623,4 @@ export function resetMutationValueTracking(): void {
   notifyListeners();
 
   log('✅ [MUTATION-VALUE] Reset complete - session stats cleared');
-}
-
-export function getWeekTrend(): { current: number; previous: number; percentChange: number } {
-  const now = Date.now();
-  const currentWeekStart = now - (7 * DAY_MS);
-  const previousWeekStart = currentWeekStart - (7 * DAY_MS);
-
-  const currentWeekSessions = snapshot.sessions.filter(s => {
-    const sessionTime = new Date(s.date).getTime();
-    return sessionTime >= currentWeekStart && sessionTime < now;
-  });
-
-  const previousWeekSessions = snapshot.sessions.filter(s => {
-    const sessionTime = new Date(s.date).getTime();
-    return sessionTime >= previousWeekStart && sessionTime < currentWeekStart;
-  });
-
-  const currentValue = currentWeekSessions.reduce((sum, s) => sum + s.value, 0);
-  const previousValue = previousWeekSessions.reduce((sum, s) => sum + s.value, 0);
-
-  const percentChange = previousValue > 0
-    ? ((currentValue - previousValue) / previousValue) * 100
-    : 0;
-
-  return {
-    current: currentValue,
-    previous: previousValue,
-    percentChange,
-  };
 }

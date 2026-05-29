@@ -17,10 +17,9 @@ import {
   TOOLBAR_ATTR,
   RARITY_ORDER,
 } from './constants';
+import { isRecord } from '../../utils/typeGuards';
 
-export function isRecord(value: unknown): value is UnknownRecord {
-  return !!value && typeof value === 'object';
-}
+export { isRecord };
 
 export function readString(value: unknown): string | null {
   if (typeof value !== 'string') return null;

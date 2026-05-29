@@ -9,7 +9,7 @@ import {
 
 export type AbilityCategory = 'plantGrowth' | 'eggGrowth' | 'xp' | 'coins' | 'misc';
 
-type AbilityTrigger = 'continuous' | 'hatchEgg' | 'sellAllCrops' | 'sellPet' | 'harvest';
+type AbilityTrigger = 'continuous' | 'hatchEgg' | 'sellAllCrops' | 'sellPet' | 'harvest' | 'playerActivated';
 
 export interface AbilityDefinition {
   id: string;
@@ -607,7 +607,7 @@ function attachWeatherConstraint(raw: string, definition: AbilityDefinition): Ab
 }
 
 function normalizeCatalogTrigger(trigger: unknown): AbilityDefinition['trigger'] {
-  if (trigger === 'hatchEgg' || trigger === 'sellAllCrops' || trigger === 'sellPet' || trigger === 'harvest') {
+  if (trigger === 'hatchEgg' || trigger === 'sellAllCrops' || trigger === 'sellPet' || trigger === 'harvest' || trigger === 'playerActivated') {
     return trigger;
   }
   return 'continuous';
@@ -940,4 +940,18 @@ export function computeEffectPerHour(
 }
 
 export const abilityDefinitions = ABILITY_DEFINITIONS;
+
+/** Returns true if the ability has trigger 'playerActivated' (e.g. DawnCapture). */
+export function isChargedAbility(abilityId: string): boolean {
+  const def = getAbilityDef(abilityId);
+  return def?.trigger === 'playerActivated';
+}
+
+/** Returns the first charged ability ID from the list, or null if none. */
+export function getPetChargedAbility(abilities: readonly string[]): string | null {
+  for (const id of abilities) {
+    if (isChargedAbility(id)) return id;
+  }
+  return null;
+}
 

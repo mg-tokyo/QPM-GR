@@ -2,6 +2,22 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.18",
+    date: "2026-05-29",
+    notes: [
+      "Rewrote atom registry with regex finders, structural fallback matching, and self-healing resolution for resilience to game updates",
+      "Added mount/dismount button to floating pet cards for pets with charged abilities",
+      "Added Portuguese language support",
+      "Added atom health check diagnostic and atoms debug namespace (QPM_DEBUG_API.atoms)",
+      "Improved store cleanup: all stores now properly shut down on page unload",
+      "Improved UI consistency: removed CSS var fallbacks and standardized font sizes across tracker and timer windows",
+      "Improved native send observer to auto-start on first listener registration instead of requiring explicit init",
+      "Fixed tour system initialization order so tour definitions register before windows restore",
+      "Removed gardenData.ts and migrated all atom access from direct jotaiBridge to typed atomRegistry across 20+ files",
+      "Extracted XP potion button and turtle timer contribution table into reusable components",
+    ],
+  },
+  {
     version: "3.2.17",
     date: "2026-05-26",
     notes: [

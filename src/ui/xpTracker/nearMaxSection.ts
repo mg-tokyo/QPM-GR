@@ -2,13 +2,14 @@
 
 import { log } from '../../utils/logger';
 import { type ActivePetInfo } from '../../store/pets';
-import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
+import { readAtomValue } from '../../core/atomRegistry';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import { getSpeciesXpPerLevel, calculateMaxStrength } from '../../store/xpTracker';
 import { formatCoins } from '../../features/valueCalculator';
 import { swapPetIntoActiveSlot, placePetIntoActiveSlot, type SwapPetFailureReason } from '../../features/petSwap';
 import { makePillButton } from './xpTrackerContent';
 import { t } from '../../i18n';
+import { createEmptyState } from '../components/emptyState';
 
 // ============================================================================
 // TYPES
@@ -366,18 +367,16 @@ async function getAllPets(activePets: ActivePetInfo[]): Promise<PetWithLevel[]> 
   };
 
   try {
-    const invAtom = getAtomByLabel('myPetInventoryAtom') ?? getAtomByLabel('myInventoryAtom');
-    if (invAtom) {
-      const invData = await readAtomValue(invAtom) as unknown;
-      processItems(extractAtomItems(invData), 'inventory');
+    const invData = await readAtomValue('petInventory') ?? await readAtomValue('inventory');
+    if (invData != null) {
+      processItems(extractAtomItems(invData as unknown), 'inventory');
     }
   } catch (e) { log('⚠️ Near max: inventory read failed', e); }
 
   try {
-    const hutchAtom = getAtomByLabel('myPetHutchPetItemsAtom');
-    if (hutchAtom) {
-      const hutchData = await readAtomValue(hutchAtom) as unknown;
-      processItems(extractAtomItems(hutchData), 'hutch');
+    const hutchData = await readAtomValue('hutchPets');
+    if (hutchData != null) {
+      processItems(extractAtomItems(hutchData as unknown), 'hutch');
     }
   } catch (e) { log('⚠️ Near max: hutch read failed', e); }
 
@@ -438,7 +437,7 @@ async function updateNearMaxDisplay(
 
     const filterLbl = document.createElement('span');
     filterLbl.textContent = t('feature.xpTracker.show');
-    filterLbl.style.cssText = 'font-size:11px;color:var(--qpm-text-muted,#666);';
+    filterLbl.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);';
     filterRow.appendChild(filterLbl);
 
     const sourceDefs: Array<{ key: 'active' | 'inventory' | 'hutch'; label: string }> = [
@@ -467,12 +466,10 @@ async function updateNearMaxDisplay(
 
     const filtered = allPets.filter((pet) => nearMaxSources.has(pet.source)).slice(0, 10);
     if (filtered.length === 0) {
-      const empty = document.createElement('div');
-      empty.textContent = allPets.length === 0
+      const text = allPets.length === 0
         ? t('feature.xpTracker.noNearMax')
         : t('feature.xpTracker.noFilterMatch');
-      empty.style.cssText = 'padding:10px 14px 12px;font-size:12px;color:var(--qpm-text-muted,#555);font-style:italic;';
-      container.appendChild(empty);
+      container.appendChild(createEmptyState(text));
       return;
     }
 
@@ -482,18 +479,18 @@ async function updateNearMaxDisplay(
     nmchSpacer.style.cssText = 'width:20px;flex-shrink:0;';
     const nmchName = document.createElement('span');
     nmchName.textContent = t('feature.xpTracker.colPet');
-    nmchName.style.cssText = 'flex:1;font-size:9px;color:var(--qpm-text-muted,#555);';
+    nmchName.style.cssText = 'flex:1;font-size:9px;color:var(--qpm-text-muted);';
     const nmchBar = document.createElement('div');
     nmchBar.style.cssText = 'width:56px;flex-shrink:0;';
     const nmchLvl = document.createElement('span');
     nmchLvl.textContent = t('feature.xpTracker.colLevel');
-    nmchLvl.style.cssText = 'width:44px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
+    nmchLvl.style.cssText = 'width:44px;text-align:right;font-size:9px;color:var(--qpm-text-muted);flex-shrink:0;';
     const nmchTime = document.createElement('span');
     nmchTime.textContent = t('feature.xpTracker.colToMax');
-    nmchTime.style.cssText = 'min-width:56px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
+    nmchTime.style.cssText = 'min-width:56px;text-align:right;font-size:9px;color:var(--qpm-text-muted);flex-shrink:0;';
     const nmchAction = document.createElement('span');
     nmchAction.textContent = t('feature.xpTracker.colAction');
-    nmchAction.style.cssText = 'width:58px;text-align:right;font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;';
+    nmchAction.style.cssText = 'width:58px;text-align:right;font-size:9px;color:var(--qpm-text-muted);flex-shrink:0;';
     nearMaxColHeader.append(nmchSpacer, nmchName, nmchBar, nmchLvl, nmchTime, nmchAction);
     container.appendChild(nearMaxColHeader);
 
@@ -521,7 +518,7 @@ async function updateNearMaxDisplay(
       img.style.cssText = 'width:20px;height:20px;object-fit:contain;image-rendering:pixelated;flex-shrink:0;';
 
       const nameEl = document.createElement('div');
-      nameEl.style.cssText = 'flex:1;min-width:0;font-size:12px;color:var(--qpm-text,#ddd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      nameEl.style.cssText = 'flex:1;min-width:0;font-size:12px;color:var(--qpm-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       nameEl.textContent = `${sourceIcons[pet.source]} ${pet.name}`;
 
       const totalXpForRange = pet.xpPerLevel * (pet.maxStr - pet.level);
@@ -532,19 +529,19 @@ async function updateNearMaxDisplay(
       const track = document.createElement('div');
       track.style.cssText = 'height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;';
       const fill = document.createElement('div');
-      fill.style.cssText = `width:${pct.toFixed(0)}%;height:100%;background:var(--qpm-accent,#4CAF50);border-radius:3px;`;
+      fill.style.cssText = `width:${pct.toFixed(0)}%;height:100%;background:var(--qpm-accent);border-radius:3px;`;
       track.appendChild(fill);
       barWrap.appendChild(track);
 
       const lvlEl = document.createElement('div');
       lvlEl.textContent = `${pet.level}->${pet.maxStr}`;
-      lvlEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#666);font-family:monospace;flex-shrink:0;width:44px;text-align:right;';
+      lvlEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);font-family:monospace;flex-shrink:0;width:44px;text-align:right;';
 
       const xpRate = pet.source === 'active' ? totalTeamXpPerHour : 3600;
       const minsToMax = xpRate > 0 ? (pet.xpNeeded / xpRate) * 60 : 0;
       const timeEl = document.createElement('div');
       timeEl.textContent = xpRate > 0 ? formatTime(minsToMax) : '--';
-      timeEl.style.cssText = 'font-size:11px;color:var(--qpm-warning,#FF9800);font-family:monospace;flex-shrink:0;min-width:56px;text-align:right;';
+      timeEl.style.cssText = 'font-size:12px;color:var(--qpm-warning);font-family:monospace;flex-shrink:0;min-width:56px;text-align:right;';
 
       const actionWrap = document.createElement('div');
       actionWrap.style.cssText = 'width:58px;display:flex;justify-content:flex-end;flex-shrink:0;';
@@ -559,9 +556,9 @@ async function updateNearMaxDisplay(
           'padding:0 10px',
           'border-radius:999px',
           'border:1px solid rgba(255,255,255,0.2)',
-          'font-size:11px',
-          `background:${isExpanded ? 'var(--qpm-accent,#4CAF50)' : 'rgba(255,255,255,0.08)'}`,
-          `color:${isExpanded ? '#fff' : 'var(--qpm-text,#ddd)'}`,
+          'font-size:12px',
+          `background:${isExpanded ? 'var(--qpm-accent)' : 'rgba(255,255,255,0.08)'}`,
+          `color:${isExpanded ? '#fff' : 'var(--qpm-text)'}`,
           `cursor:${hasBusyOperation ? 'not-allowed' : 'pointer'}`,
           `opacity:${hasBusyOperation ? '0.65' : '1'}`,
         ].join(';');
@@ -596,13 +593,13 @@ async function updateNearMaxDisplay(
             'border-radius:8px',
             `border:1px solid ${slotDisabled ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.2)'}`,
             `background:${slotDisabled ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'}`,
-            `color:${slotDisabled ? 'var(--qpm-text-muted,#666)' : 'var(--qpm-text,#ddd)'}`,
+            `color:${slotDisabled ? 'var(--qpm-text-muted)' : 'var(--qpm-text)'}`,
             `cursor:${slotDisabled ? 'not-allowed' : 'pointer'}`,
           ].join(';');
 
           const slotNumber = document.createElement('span');
           slotNumber.textContent = String(slot.visualIndex);
-          slotNumber.style.cssText = 'font-size:10px;font-family:monospace;min-width:10px;color:var(--qpm-text-muted,#777);';
+          slotNumber.style.cssText = 'font-size:10px;font-family:monospace;min-width:10px;color:var(--qpm-text-muted);';
           slotButton.appendChild(slotNumber);
 
           if (slotPet?.species) {
@@ -620,7 +617,7 @@ async function updateNearMaxDisplay(
 
           const slotName = document.createElement('span');
           slotName.textContent = (slotPet?.name || slotPet?.species || t('feature.xpTracker.empty')).slice(0, 14);
-          slotName.style.cssText = 'font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;';
+          slotName.style.cssText = 'font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;';
           slotButton.appendChild(slotName);
 
           slotButton.addEventListener('click', async () => {
@@ -667,12 +664,12 @@ async function updateNearMaxDisplay(
         const tone = state.status.tone;
         statusEl.style.cssText = [
           'padding-left:28px',
-          'font-size:11px',
+          'font-size:12px',
           `color:${tone === 'success'
-            ? 'var(--qpm-positive,#4CAF50)'
+            ? 'var(--qpm-positive)'
             : tone === 'error'
-              ? 'var(--qpm-danger,#f44)'
-              : 'var(--qpm-text-muted,#777)'}`,
+              ? 'var(--qpm-danger)'
+              : 'var(--qpm-text-muted)'}`,
         ].join(';');
         rowShell.appendChild(statusEl);
       }
@@ -684,7 +681,7 @@ async function updateNearMaxDisplay(
   } catch (e) {
     log('Near max update failed', e);
     const errDiv = document.createElement('div');
-    errDiv.style.cssText = 'padding:12px 14px;color:var(--qpm-danger,#f44);font-size:12px;';
+    errDiv.style.cssText = 'padding:12px 14px;color:var(--qpm-danger);font-size:12px;';
     errDiv.textContent = t('feature.xpTracker.nearMaxError');
     container.innerHTML = '';
     container.appendChild(errDiv);

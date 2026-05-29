@@ -52,7 +52,7 @@ export function createAppContainer(): HTMLElement {
       </div>
     </div>
 
-    <div class="pr-stats">
+    <div class="pr-stats" data-tour="pr-stats">
       <div class="pr-stat">
         <div class="pr-stat-label">${t('feature.publicRooms.roomsLabel')}</div>
         <div id="pr-total-rooms-pill" class="pr-stat-value">${t('feature.publicRooms.roomsDefault')}</div>
@@ -67,7 +67,7 @@ export function createAppContainer(): HTMLElement {
       </div>
     </div>
 
-    <div class="pr-controls">
+    <div class="pr-controls" data-tour="pr-controls">
       <div class="pr-control">
         <label>🔎 ${t('feature.publicRooms.searchLabel')}</label>
         <input type="text" id="pr-search-input" class="qpm-input" placeholder="${t('feature.publicRooms.searchPlaceholder')}" />
@@ -94,7 +94,7 @@ export function createAppContainer(): HTMLElement {
     <div style="margin-top: 18px; display: flex; align-items: center; gap: 10px; color: #cbd5e1; font-weight: 700; letter-spacing: 0.2px;">
       <span style="font-size: 18px;">🎮</span> <span>${t('feature.publicRooms.availableRooms')}</span>
     </div>
-    <div id="pr-rooms-list" class="pr-grid">
+    <div id="pr-rooms-list" class="pr-grid" data-tour="pr-rooms-grid">
       <p style="text-align: center; color: #aaa; grid-column: 1/-1; font-size: 14px;">${t('feature.publicRooms.loadingRooms')}</p>
     </div>
   `;
@@ -309,6 +309,7 @@ export function renderRooms(rooms: RoomsMap): void {
     if (room.userSlots && room.userSlots.length > 0) {
       const stack = document.createElement('div');
       stack.className = 'pr-avatar-stack';
+      stack.dataset.tour = 'pr-avatar-stack';
 
       room.userSlots.slice(0, 6).forEach((slot) => {
         const avatarWrap = document.createElement('span');

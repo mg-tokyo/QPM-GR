@@ -197,14 +197,6 @@ export function isHutchStoreActive(): boolean {
   return hutchUnsub !== null;
 }
 
-/**
- * Whether capacity was resolved from a reactive source.
- * False means capacity is the DEFAULT_HUTCH_CAPACITY fallback (pre-update game or atom not found).
- */
-export function isCapacityResolved(): boolean {
-  return capacityUnsub !== null || capacityFromStorages;
-}
-
 // ---------------------------------------------------------------------------
 // Subscribe API
 // ---------------------------------------------------------------------------

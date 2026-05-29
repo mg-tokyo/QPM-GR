@@ -155,6 +155,22 @@ export async function createOriginalUI(): Promise<HTMLElement> {
       import('./tour').then(({ checkTour }) => {
         checkTour('panel-home', content);
       });
+
+      // Tour: check hub tour + discovery when navigating to a group view
+      const onHubTour = (e: Event) => {
+        const viewId = (e as CustomEvent<{ viewId: string }>).detail.viewId;
+        if (viewId !== 'home') {
+          import('./tour').then(({ checkTour, startDiscovery }) => {
+            checkTour('qpm-hub', content);
+            startDiscovery('qpm-hub', content);
+          });
+        } else {
+          import('./tour').then(({ stopDiscovery }) => {
+            stopDiscovery('qpm-hub');
+          });
+        }
+      };
+      document.addEventListener('qpm:panel-view-change', onHubTour);
     } catch (e) {
       log('⚠️ Failed to load panel view switcher', e);
       content.textContent = `❌ ${t('panel.loadError')}`;

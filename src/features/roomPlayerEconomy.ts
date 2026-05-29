@@ -4,11 +4,13 @@
 // inventory value, and pet count for every player in the room.
 
 import { getAtomByLabel, readAtomValue, subscribeAtom } from '../core/jotaiBridge';
+import { getPlayerId } from '../core/playerContext';
 import { computeGardenValueFromCatalog } from './valueCalculator';
 import { computeStorageItemsValue, computePetSellPrice, computePlacedDecorAndEggValue, computeGrowingCropsValue } from './storageValue';
 import { getDecor } from '../catalogs/gameCatalogs';
 import { debounceCancelable } from '../utils/debounce';
 import { createLogger } from '../utils/logger';
+import { isRecord } from '../utils/typeGuards';
 import { getFriendBonusMultiplier } from '../store/friendBonus';
 
 const log = createLogger('QPM:RoomPlayerEcon');
@@ -53,10 +55,6 @@ const listeners = new Set<(snap: RoomPlayersSnapshot) => void>();
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
 function readPath(obj: unknown, path: string[]): unknown {
   let cur: unknown = obj;
   for (const key of path) {
@@ -74,17 +72,7 @@ function notifyListeners(): void {
 
 /** Resolve the local player's ID from playerAtom. */
 async function resolveSelfPlayerId(): Promise<string | null> {
-  try {
-    const atom = getAtomByLabel('playerAtom');
-    if (!atom) return null;
-    const player = await readAtomValue<unknown>(atom);
-    if (!isRecord(player)) return null;
-    for (const key of ['id', 'playerId', 'userId'] as const) {
-      const v = (player as Record<string, unknown>)[key];
-      if (typeof v === 'string' && v.trim().length > 0) return v.trim();
-    }
-  } catch { /* ignore */ }
-  return null;
+  return getPlayerId();
 }
 
 /** Extract economy data from a single userSlot. */

@@ -5,6 +5,7 @@ import { getPetSpriteDataUrlWithMutations } from '../sprite-v2/compat';
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';
 import { delay } from '../utils/scheduling';
+import { isRecord } from '../utils/typeGuards';
 import { sendRoomAction } from '../websocket/api';
 import { ensureJournalLogged } from './journalGuard';
 
@@ -71,10 +72,6 @@ const DEFAULT_SETTINGS: SellAllPetsSettings = {
 
 let settings: SellAllPetsSettings = loadSettings();
 let running = false;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
-}
 
 function toString(value: unknown): string | null {
   if (typeof value !== 'string') return null;

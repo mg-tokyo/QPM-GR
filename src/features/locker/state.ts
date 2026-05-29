@@ -6,6 +6,7 @@ import type {
   LockerConfig, CustomRule, HoldContexts,
   HarvestFilterSettings, CropOverride, ScaleLockMode, FilterMode, WeatherFilterMode,
 } from './types';
+import { isRecord } from '../../utils/typeGuards';
 
 const STORAGE_KEY = 'qpm.locker.config.v1';
 
@@ -53,10 +54,6 @@ const DEFAULT_CONFIG: LockerConfig = {
   harvestFilter: { ...DEFAULT_HARVEST_FILTER, weatherTags: [], weatherRecipes: [] },
   cropOverrides: {},
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;

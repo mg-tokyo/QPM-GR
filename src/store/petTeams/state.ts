@@ -4,7 +4,7 @@
 import { storage, registerDynamicKey } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { dispatchCustomEventAll } from '../../core/pageContext';
-import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
+import { getPlayerId } from '../../core/playerContext';
 import type { PetTeamsConfig, PetFeedPolicy } from '../../types/petTeams';
 
 // ---------------------------------------------------------------------------
@@ -84,18 +84,7 @@ export function notifyConfigListeners(): void {
 // ---------------------------------------------------------------------------
 
 export async function resolveCurrentPlayerId(): Promise<string | null> {
-  try {
-    const playerAtom = getAtomByLabel('playerAtom');
-    if (!playerAtom) return null;
-    const player = await readAtomValue<unknown>(playerAtom).catch(() => null);
-    if (!player || typeof player !== 'object') return null;
-    const p = player as Record<string, unknown>;
-    for (const key of ['id', 'playerId', 'userId']) {
-      const v = p[key];
-      if (typeof v === 'string' && v.trim().length > 0) return v.trim();
-    }
-  } catch { /* atom not ready */ }
-  return null;
+  return getPlayerId();
 }
 
 export async function resolvePlayerKeyAndMigrate(): Promise<void> {

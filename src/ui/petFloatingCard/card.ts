@@ -35,6 +35,7 @@ import {
 } from '../../sprite-v2/compat';
 import { HUNGER_POTION_KEY } from '../../features/hungerPotion';
 import { sendRoomAction } from '../../websocket/api';
+import { getRiddenPetId, onRiddenPetChange, ridePet, dismountPet } from '../../store/mountState';
 import { getPlayerPosition } from '../../utils/ghostStep';
 import { normalizeSpeciesKey } from '../../utils/helpers';
 import { getCropBaseSellPrice } from '../../catalogs/gameCatalogs';
@@ -393,7 +394,10 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   foodCountersRow.className = 'qpm-float-card__food-row';
   feedBtn.appendChild(foodCountersRow);
 
-  body.appendChild(feedBtn);
+  const btnRow = document.createElement('div');
+  btnRow.className = 'qpm-float-card__btn-row';
+  btnRow.appendChild(feedBtn);
+  body.appendChild(btnRow);
 
   const noPetMsg = document.createElement('div');
   noPetMsg.className = 'qpm-float-card__no-pet';
@@ -412,6 +416,47 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
   let feedHovered = false;
   /** The FoodSelection that will actually be fed on next click. Updated by refreshAvailability. */
   let selectedFood: FoodSelection | null = null;
+  let mountBtn: HTMLButtonElement | null = null;
+  let isMountable = false;
+
+  function createMountButton(): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.className = 'qpm-float-card__mount-btn';
+    btn.title = 'Mount';
+    updateMountButtonSprite(btn, false);
+    btn.addEventListener('click', () => {
+      if (!currentPet?.slotId) return;
+      const riddenId = getRiddenPetId();
+      if (riddenId === currentPet.slotId) {
+        dismountPet();
+      } else {
+        ridePet(currentPet.slotId);
+      }
+    });
+    return btn;
+  }
+
+  function updateMountButtonSprite(btn: HTMLButtonElement, isRiding: boolean): void {
+    const key = isRiding ? 'sprite/ui/DismountPin' : 'sprite/ui/MountPin';
+    const src = getAnySpriteDataUrl(key);
+    btn.innerHTML = '';
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = isRiding ? 'Dismount' : 'Mount';
+      img.className = 'qpm-float-card__mount-icon';
+      btn.appendChild(img);
+    }
+    btn.title = isRiding ? 'Dismount' : 'Mount';
+  }
+
+  function syncMountButton(): void {
+    if (!mountBtn || !currentPet?.slotId) return;
+    const isRiding = getRiddenPetId() === currentPet.slotId;
+    updateMountButtonSprite(mountBtn, isRiding);
+    // Can always dismount if riding; can't mount a hungry pet
+    mountBtn.disabled = !isRiding && !!(currentPet.hungerPct != null && currentPet.hungerPct <= 0);
+  }
 
   /** Compute the actual sell price of the selected food item (baseSellPrice × scale × mutationMultiplier). */
   const computeSelectedCoinValue = (): number => {
@@ -488,6 +533,20 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
     } else {
       hungerRow.style.display = 'none';
     }
+
+    // Mount button: show only for pets with a charged ability (from abilityCooldowns atom data)
+    const hasMountAbility = pet?.chargedAbilityId != null;
+    if (hasMountAbility && !mountBtn) {
+      mountBtn = createMountButton();
+      btnRow.appendChild(mountBtn);
+    }
+    if (mountBtn) {
+      mountBtn.style.display = hasMountAbility ? '' : 'none';
+    }
+    if (hasMountAbility) {
+      syncMountButton();
+    }
+    isMountable = !!hasMountAbility;
   };
 
   const refreshAvailability = async (): Promise<void> => {
@@ -643,6 +702,11 @@ function createFloatingCard(slotIndex: number, initialPct?: { xPct: number; yPct
     hungerPreviewFill.style.width = '0';
     hungerPreviewFill.style.opacity = '0';
   });
+
+  const unsubMount = onRiddenPetChange(() => {
+    if (isMountable) syncMountButton();
+  });
+  cleanups.push(unsubMount);
 
   const unsubscribeQueue = onFeedQueueEvent((event: FeedQueueEvent) => {
     if (destroyed) return;

@@ -18,6 +18,8 @@ export interface ManagerState {
   searchTerm: string;
   selectTeam: (teamId: string | null) => void;
   cleanups: Array<() => void>;
+  /** External hook called after every editor re-render (e.g., for discovery rescan). */
+  onEditorRender?: () => void;
 }
 
 export interface ComparePanelHandle {

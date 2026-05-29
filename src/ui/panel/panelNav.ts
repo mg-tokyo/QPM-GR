@@ -32,6 +32,7 @@ export function renderPanelNav(
   onSelect: (id: NavId) => void,
 ): PanelNavResult {
   const bar = document.createElement('div');
+  bar.dataset.tour = 'hub-nav';
   bar.style.cssText = [
     'display:flex',
     'gap:4px',
@@ -87,6 +88,7 @@ export function renderPanelNav(
     });
     btn.addEventListener('pointerup', () => applyButtonState(btn, btn.dataset.active === 'true', true));
     btn.addEventListener('pointercancel', () => applyButtonState(btn, btn.dataset.active === 'true', false));
+    if (nav.id === 'home') btn.dataset.tour = 'hub-home-btn';
     buttons.set(nav.id, btn);
     return btn;
   }

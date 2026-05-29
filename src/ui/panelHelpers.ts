@@ -156,6 +156,7 @@ export function createEditablePetValue(
         levelRaw: null,
         strength: null,
         position: null,
+        chargedAbilityId: null,
         updatedAt: Date.now(),
         raw: null,
       } as ActivePetInfo;

@@ -1,7 +1,7 @@
 // src/store/inventory.ts
 // Bridge for inventory data via myInventoryAtom and myCropInventoryAtom
 
-import { getAtomByLabel, subscribeAtom, readAtomValue, getCachedStore } from '../core/jotaiBridge';
+import { getAtomByLabel, subscribeAtom, readAtomValue } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
 
 export interface InventoryItem {
@@ -180,25 +180,6 @@ export function stopInventoryStore(): void {
   lastRawInventoryValue = null;
   cachedInventory = [];
   cachedFavorites = new Set();
-}
-
-/**
- * Re-read inventory atom directly via store.get() and update cache if changed.
- * Used by the background atom poller to detect changes when native
- * Jotai subscriptions don't fire (background tabs).
- */
-export function forceRefreshInventory(): void {
-  if (!inventoryAtomRef) return;
-  const store = getCachedStore();
-  if (!store || store.__polyfill) return;
-
-  try {
-    const fresh = store.get(inventoryAtomRef);
-    if (fresh !== lastRawInventoryValue) {
-      lastRawInventoryValue = fresh;
-      updateCache(fresh);
-    }
-  } catch {}
 }
 
 /**

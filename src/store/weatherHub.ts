@@ -205,6 +205,10 @@ async function ensureAtomBridge(): Promise<void> {
         lastAtomValue = typeof value === 'string' ? value : null;
         handleAtomWeatherValue(lastAtomValue);
       });
+      if (!unsubscribe) {
+        atomBridgeReady = false;
+        return;
+      }
       atomUnsubscribe = unsubscribe;
       const initial = await readRegistryAtomValue('weather').catch(() => lastAtomValue);
       if (typeof initial === 'string' || initial == null) {

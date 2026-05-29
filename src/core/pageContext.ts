@@ -33,9 +33,6 @@ export const pageWindow = pageWindowRef;
 /** True when we execute inside an isolated userscript sandbox. */
 export const isIsolatedContext = pageWindowRef !== sandboxWindow;
 
-/** Expose the sandbox window for completeness. */
-export const userscriptWindow = sandboxWindow;
-
 // Firefox Xray wrapper bridge — required to expose functions to the page context.
 // Without this, setting a function on wrappedJSObject creates a value invisible
 // to page-context callers (including the browser console).

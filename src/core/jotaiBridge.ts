@@ -615,6 +615,29 @@ export function findAtomsByLabel(regex: RegExp): any[] {
 }
 
 /**
+ * Return all atom entries from the cache with their labels.
+ * Used by atomRegistry for structure scanning and auto-cataloging.
+ */
+export function getAllAtomEntries(): Array<{ atom: unknown; label: string }> {
+  const cache = getAtomCache();
+  if (!cache) return [];
+  const entries: Array<{ atom: unknown; label: string }> = [];
+  if (typeof cache.entries === 'function') {
+    for (const [atom, meta] of cache.entries()) {
+      if (!atom || typeof atom !== 'object') continue;
+      const metaObj = meta as Record<string, unknown>;
+      const atomObj = atom as Record<string, unknown>;
+      const label = String(
+        metaObj?.debugLabel ?? metaObj?.label ??
+        atomObj.debugLabel ?? atomObj.label ?? ''
+      );
+      entries.push({ atom, label });
+    }
+  }
+  return entries;
+}
+
+/**
  * Find atom by checking its value structure (fallback when labels are unavailable)
  */
 function findAtomByStructure(matcher: (value: any) => boolean): any | null {
@@ -639,55 +662,10 @@ function findAtomByStructure(matcher: (value: any) => boolean): any | null {
   return null;
 }
 
-// Known modal values for activeModalAtom structural fallback (matches game's activeModalAtom)
-const ACTIVE_MODAL_VALID_VALUES = new Set([
-  'seedShop', 'eggShop', 'toolShop', 'inventory', 'leaderboard',
-  'journal', 'decorShop', 'stats', 'petHutch', 'decorShed',
-  'activityLog', 'destroyCelestialConfirmation', 'seedSilo',
-  'newspaper', 'billboard', 'feedingTrough',
-]);
-
 export function getAtomByLabel(label: string): any | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`^${escaped}$`);
-  const result = findAtomsByLabel(regex)[0] ?? null;
-
-  // Fallback: If label search fails, use structure-based detection
-  if (!result) {
-    if (label === 'myDataAtom') {
-      return findAtomByStructure((value) => {
-        // myDataAtom has structure: { garden: { tileObjects: {...}, boardwalkTileObjects: {...} } }
-        return !!(
-          value &&
-          typeof value === 'object' &&
-          'garden' in value &&
-          value.garden &&
-          typeof value.garden === 'object' &&
-          'tileObjects' in value.garden
-        );
-      });
-    } else if (label === 'mapAtom') {
-      return findAtomByStructure((value) => {
-        // mapAtom has structure: { cols: number, rows: number, globalTileIdxToDirtTile: {...}, ... }
-        return !!(
-          value &&
-          typeof value === 'object' &&
-          'cols' in value &&
-          'rows' in value &&
-          'globalTileIdxToDirtTile' in value &&
-          typeof value.globalTileIdxToDirtTile === 'object'
-        );
-      });
-    } else if (label === 'activeModalAtom') {
-      // activeModalAtom has a distinctive string value (modal name) when a modal is open.
-      // Only detectable when a modal is currently active — retried by callers when closed.
-      return findAtomByStructure((value) => {
-        return typeof value === 'string' && ACTIVE_MODAL_VALID_VALUES.has(value);
-      });
-    }
-  }
-
-  return result;
+  return findAtomsByLabel(regex)[0] ?? null;
 }
 
 export async function readAtomValue<T = unknown>(atom: any): Promise<T> {
@@ -747,6 +725,3 @@ export async function subscribeAtom<T = unknown>(atom: any, cb: (value: T) => vo
   };
 }
 
-export function isPolyfillStore(): boolean {
-  return !!storeRef?.__polyfill;
-}

@@ -298,7 +298,7 @@ function stopPosSync(): void {
     posSyncStop();
     posSyncStop = null;
   }
-  timerManager.destroy(POS_SYNC_TIMER_ID);
+  timerManager.unregister(POS_SYNC_TIMER_ID);
 }
 
 // ---------------------------------------------------------------------------

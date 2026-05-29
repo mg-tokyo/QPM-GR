@@ -92,7 +92,7 @@ function scoreSpecies(species: string): number {
  * formula: feedsNeeded = ceil(maturityMinutes / depletionMinutes)
  *          feedCost   = feedsNeeded × hungerCap
  */
-export function calculateFeedCostToMaturity(species: string): number | null {
+function calculateFeedCostToMaturity(species: string): number | null {
   const maturityHours = getPetHoursToMature(species);
   if (maturityHours == null) return null;
 
@@ -111,7 +111,7 @@ export function calculateFeedCostToMaturity(species: string): number | null {
 // Single egg analysis
 // ---------------------------------------------------------------------------
 
-export function analyzeEgg(eggId: string): EggAnalysis | null {
+function analyzeEgg(eggId: string): EggAnalysis | null {
   const egg = getEggType(eggId);
   if (!egg) return null;
 

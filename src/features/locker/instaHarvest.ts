@@ -4,9 +4,10 @@
 // through the native sendMessage (Locker guard rules still apply).
 
 import { pageWindow } from '../../core/pageContext';
-import { getAtomByLabel, getCachedStore } from '../../core/jotaiBridge';
+import { readAtomValueSync } from '../../core/atomRegistry';
 import { getGardenSnapshot } from '../gardenBridge';
 import { getLockerConfig } from './state';
+import { isRecord } from '../../utils/typeGuards';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,63 +27,18 @@ interface PageWithRoomConnection extends Window {
   __mga_lastScopePath?: string[];
 }
 
-// ── Cached atom refs ─────────────────────────────────────────────────────
-
-let dirtTileAtom: unknown = null;
-let selectedSlotIdAtom: unknown = null;
-let actionAtom: unknown = null;
-
-function ensureAtoms(): boolean {
-  if (!dirtTileAtom) {
-    dirtTileAtom = getAtomByLabel('myOwnCurrentDirtTileIndexAtom');
-  }
-  if (!selectedSlotIdAtom) {
-    selectedSlotIdAtom = getAtomByLabel('mySelectedSlotIdAtom');
-  }
-  if (!actionAtom) {
-    actionAtom = getAtomByLabel('actionAtom');
-  }
-  return dirtTileAtom != null;
-}
-
 // ── Harvest action guard ─────────────────────────────────────────────────
 
 const HARVEST_ACTIONS: ReadonlySet<string> = new Set(['harvest', 'rainbowHarvest', 'goldHarvest']);
 
-function readStringAtomSync(atom: unknown): string | null {
-  const store = getCachedStore();
-  if (!store || !atom) return null;
-  try {
-    const value = store.get(atom);
-    return typeof value === 'string' ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 // ── Synchronous reads ──────────────────────────────────────────────────────
 
-function readNumberAtomSync(atom: unknown): number | null {
-  const store = getCachedStore();
-  if (!store || !atom) return null;
-  try {
-    const value = store.get(atom);
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 function getDirtTileIndexSync(): number | null {
-  return readNumberAtomSync(dirtTileAtom);
+  return readAtomValueSync('dirtTileIndex');
 }
 
 function getSelectedSlotIdSync(): number | null {
-  return readNumberAtomSync(selectedSlotIdAtom);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
+  return readAtomValueSync('selectedSlotId');
 }
 
 /**
@@ -197,10 +153,9 @@ function onKeyDownCapture(event: KeyboardEvent): void {
   const config = getLockerConfig();
   if (!config.instaHarvestRainbow && !config.instaHarvestGold) return;
 
-  if (!ensureAtoms()) return;
-
   // Skip insta-harvest when a non-harvest action is active (tool equipped, shop open, etc.)
-  const currentAction = readStringAtomSync(actionAtom);
+  const actionRaw = readAtomValueSync('action');
+  const currentAction = typeof actionRaw === 'string' ? actionRaw : null;
   if (currentAction && !HARVEST_ACTIONS.has(currentAction)) return;
 
   const dirtTileIndex = getDirtTileIndexSync();
@@ -231,7 +186,4 @@ export function stopInstaHarvest(): void {
   if (!listening) return;
   listening = false;
   (pageWindow as unknown as Window).removeEventListener('keydown', onKeyDownCapture as EventListener, true);
-  dirtTileAtom = null;
-  selectedSlotIdAtom = null;
-  actionAtom = null;
 }
