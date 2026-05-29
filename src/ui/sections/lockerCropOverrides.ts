@@ -9,7 +9,7 @@ import type {
 } from '../../features/locker/types';
 import { areCatalogsReady, getAllPlantSpecies, getAllMutations, getMutation } from '../../catalogs/gameCatalogs';
 import { getCropSpriteDataUrl } from '../../sprite-v2/compat';
-import { findVariantBadge } from '../../data/variantBadges';
+import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import {
   ACCENT, TEXT_MUTED, UNLOCKED_BG, UNLOCKED_BORDER,
   makeHint, makeShowAllToggle, makeSegmentedControl, makeDualRangeSlider,

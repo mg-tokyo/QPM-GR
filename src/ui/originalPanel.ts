@@ -7,7 +7,7 @@ import { startVersionChecker, onVersionChange, getCurrentVersion, type VersionIn
 import { ensurePanelStyles } from './panelStyles';
 import { toggleWindow } from './modalWindow';
 import { UIState, createInitialUIState } from './panelState';
-import { createMutationSection } from './sections/mutationValueSection';
+import { createMutationSection } from './mutations/mutationValueSection';
 import { startPanelHotkey } from '../features/panelHotkey';
 
 let uiState = createInitialUIState();

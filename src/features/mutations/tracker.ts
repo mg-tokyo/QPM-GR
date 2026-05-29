@@ -1,5 +1,5 @@
 // src/features/mutationTracker.ts
-import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from './gardenBridge';
+import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../gardenBridge';
 import {
   buildMutationSummary,
   combineMutationSources,
@@ -11,17 +11,17 @@ import {
   type PlantData,
   type PlantSlotState,
   type WeatherType,
-} from './mutationReminder';
+} from './reminder';
 import {
   createEmptyMutationDebugMap,
   publishMutationSummary,
   updateMutationDebugSnapshot,
   createMutationDebugMetadata,
   type MutationDebugWeatherEntry,
-} from '../store/mutationSummary';
-import { getWeatherSnapshot, onWeatherSnapshot, startWeatherHub, type WeatherSnapshot } from '../store/weatherHub';
-import type { DetailedWeather } from '../utils/weatherDetection';
-import { log } from '../utils/logger';
+} from '../../store/mutationSummary';
+import { getWeatherSnapshot, onWeatherSnapshot, startWeatherHub, type WeatherSnapshot } from '../../store/weatherHub';
+import type { DetailedWeather } from '../../utils/weatherDetection';
+import { log } from '../../utils/logger';
 
 let initialized = false;
 let gardenUnsubscribe: (() => void) | null = null;

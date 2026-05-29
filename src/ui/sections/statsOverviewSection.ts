@@ -1,6 +1,6 @@
 import { subscribeToStats, getStatsSnapshot, resetStats } from '../../store/stats';
-import { getMutationValueSnapshot, subscribeToMutationValueTracking, resetMutationValueTracking } from '../../features/mutationValueTracking';
-import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/weatherMutationTracking';
+import { getMutationValueSnapshot, subscribeToMutationValueTracking, resetMutationValueTracking } from '../../features/mutations/valueTracking';
+import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/mutations/weatherTracking';
 import { getAbilityDefinition } from '../../data/petAbilities';
 import { createCard, btn } from '../panelHelpers';
 import { log } from '../../utils/logger';

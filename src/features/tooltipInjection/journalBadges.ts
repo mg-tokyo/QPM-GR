@@ -3,7 +3,7 @@
 // Shows letter badges (R, G, F, etc.) for unlogged produce variants.
 
 import { getJournal, type Journal } from '../journal/checker';
-import { VARIANT_BADGES } from '../../data/variantBadges';
+import { VARIANT_BADGES } from '../mutations/data/variantBadges';
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { resolveCurrentSlot } from './atoms';

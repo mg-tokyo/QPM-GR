@@ -5,7 +5,7 @@ import { getLockerConfig, updateLockerConfig } from '../../features/locker/index
 import { getPlantSpecies, getMutation } from '../../catalogs/gameCatalogs';
 import { getCropSpriteDataUrl, getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import { RARITY_COLORS, RARITY_ORDER } from '../shopRestockWindowConstants';
-import { findVariantBadge } from '../../data/variantBadges';
+import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import { getGardenSnapshot } from '../../features/gardenBridge';
 import { getInventoryItems } from '../../store/inventory';
 import { t } from '../../i18n';

@@ -6,7 +6,7 @@ import { getLockerConfig, updateLockerConfig, type LockerConfig } from '../../fe
 import type { CustomRule } from '../../features/locker/types';
 import { areCatalogsReady, getAllMutations, getMutation } from '../../catalogs/gameCatalogs';
 import { getCropSpriteDataUrl, getCropSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
-import { findVariantBadge } from '../../data/variantBadges';
+import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import {
   LABEL_CSS, UNLOCKED_BG, UNLOCKED_BORDER, TEXT_MUTED,
   makeHint, makeMutationTile, type EligibleData,

@@ -1,8 +1,8 @@
 // src/features/mutationReminder.ts - Plant Mutation Reminder System
-import { $, $$, onAdded, isVisible } from '../utils/dom';
-import { log } from '../utils/logger';
-import { storage } from '../utils/storage';
-import { onWeatherSnapshot, refreshWeatherState, setWeatherOverride, startWeatherHub, WeatherSnapshot } from '../store/weatherHub';
+import { $, $$, onAdded, isVisible } from '../../utils/dom';
+import { log } from '../../utils/logger';
+import { storage } from '../../utils/storage';
+import { onWeatherSnapshot, refreshWeatherState, setWeatherOverride, startWeatherHub, WeatherSnapshot } from '../../store/weatherHub';
 import {
   publishMutationSummary,
   createEmptyMutationDebugMap,
@@ -13,10 +13,10 @@ import {
   type MutationSummary,
   type MutationWeatherSummary,
   type MutationWeatherWindow,
-} from '../store/mutationSummary';
-import { DetailedWeather } from '../utils/weatherDetection';
-import { ensureJotaiStore, getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
-import { readUserSlotsInventorySnapshot } from '../store/userSlots';
+} from '../../store/mutationSummary';
+import { DetailedWeather } from '../../utils/weatherDetection';
+import { ensureJotaiStore, getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
+import { readUserSlotsInventorySnapshot } from '../../store/userSlots';
 
 export interface MutationConfig {
   enabled: boolean;

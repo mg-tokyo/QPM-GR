@@ -1,6 +1,6 @@
 import { shareGlobal } from '../core/pageContext';
 import { log } from '../utils/logger';
-import type { WeatherType } from '../features/mutationReminder';
+import type { WeatherType } from '../features/mutations/reminder';
 import { isDebugGlobalsEnabled } from '../utils/debugGlobals';
 
 export type MutationActiveWeather = Exclude<WeatherType, 'sunny' | 'unknown'>;

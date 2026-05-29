@@ -1,5 +1,5 @@
-import { getMutationValueSnapshot, subscribeToMutationValueTracking } from '../../features/mutationValueTracking';
-import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/weatherMutationTracking';
+import { getMutationValueSnapshot, subscribeToMutationValueTracking } from '../../features/mutations/valueTracking';
+import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/mutations/weatherTracking';
 import { createCard, btn } from '../panelHelpers';
 import { log } from '../../utils/logger';
 import { t } from '../../i18n';
@@ -41,7 +41,7 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     reminderToggle.classList.toggle('qpm-button--positive', cfg.mutationReminder.enabled);
     reminderToggle.classList.toggle('qpm-button--accent', cfg.mutationReminder.enabled);
     try {
-      const { setMutationReminderEnabled } = await import('../../features/mutationReminder');
+      const { setMutationReminderEnabled } = await import('../../features/mutations/reminder');
       setMutationReminderEnabled(cfg.mutationReminder.enabled);
       saveCfg();
     } catch (err) {
@@ -63,7 +63,7 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     checkBtn.disabled = true;
     checkBtn.textContent = `⏳ ${t('feature.mutationValue.checking')}`;
     try {
-      const { checkForMutations } = await import('../../features/mutationReminder');
+      const { checkForMutations } = await import('../../features/mutations/reminder');
       await checkForMutations();
       checkBtn.textContent = `✅ ${t('feature.mutationValue.done')}`;
       setTimeout(() => {
@@ -255,7 +255,7 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
     statusChip.textContent = cfg.mutationReminder.enabled ? t('common.enabled') : t('common.disabled');
     try {
       // Actually enable/disable the mutation reminder system
-      const { setMutationReminderEnabled } = await import('../../features/mutationReminder');
+      const { setMutationReminderEnabled } = await import('../../features/mutations/reminder');
       setMutationReminderEnabled(cfg.mutationReminder.enabled);
       saveCfg();
     } catch (err) {
@@ -279,7 +279,7 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
     checkBtn.disabled = true;
     checkBtn.textContent = `⏳ ${t('feature.mutationValue.checking')}`;
     try {
-      const { checkForMutations } = await import('../../features/mutationReminder');
+      const { checkForMutations } = await import('../../features/mutations/reminder');
       await checkForMutations();
       checkBtn.textContent = `✅ ${t('feature.mutationValue.done')}`;
       setTimeout(() => {

@@ -5,7 +5,7 @@ import { createCard } from '../panelHelpers';
 import { getLockerConfig, updateLockerConfig, type LockerConfig } from '../../features/locker/index';
 import type { HarvestFilterSettings, ScaleLockMode, FilterMode, WeatherFilterMode } from '../../features/locker/types';
 import { areCatalogsReady, getAllMutations, getMutation } from '../../catalogs/gameCatalogs';
-import { findVariantBadge } from '../../data/variantBadges';
+import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import {
   ACCENT, TEXT_MUTED, UNLOCKED_BG, UNLOCKED_BORDER, LABEL_CSS,
   makeHint, makeSegmentedControl, makeDualRangeSlider,

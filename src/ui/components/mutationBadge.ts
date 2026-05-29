@@ -1,4 +1,4 @@
-import { findVariantBadge, getVariantChipColors } from '../../data/variantBadges';
+import { findVariantBadge, getVariantChipColors } from '../../features/mutations/data/variantBadges';
 
 export interface MutationBadgeOptions {
   size?: 'default' | 'compact';

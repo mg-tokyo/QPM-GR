@@ -1,7 +1,7 @@
 // src/features/tooltipInjection/types.ts
 // Shared types and constants for tooltip injection subsystem.
 
-import type { VariantBadge } from '../../data/variantBadges';
+import type { VariantBadge } from '../mutations/data/variantBadges';
 
 // Re-export for convenience
 export type { VariantBadge };

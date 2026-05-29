@@ -2,7 +2,7 @@
 // Formatting, badge, and small UI helpers shared across Stats Hub tabs.
 
 import { RAINBOW_GRADIENT } from './constants';
-import { findVariantBadge, getVariantChipColors } from '../../data/variantBadges';
+import { findVariantBadge, getVariantChipColors } from '../../features/mutations/data/variantBadges';
 import { formatCoinsAbbreviated } from '../../features/valueCalculator';
 import { getCoinSpriteUrl } from './spriteHelpers';
 import { t } from '../../i18n';
