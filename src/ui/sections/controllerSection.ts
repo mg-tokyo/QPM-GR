@@ -12,7 +12,7 @@
  *  - Reset to Defaults
  */
 
-import type { Action, CursorSpeed } from '../../features/controller/bindings';
+import type { Action, CursorSpeed } from '../../features/input/controller/bindings';
 import {
   ALL_ACTIONS,
   getActionLabel,
@@ -22,9 +22,9 @@ import {
   saveCursorSpeed,
   loadCursorSpeed,
   CURSOR_SPEED_VALUES,
-} from '../../features/controller/bindings';
-import type { ControllerProfile } from '../../features/controller/controller-profile';
-import { detectProfile } from '../../features/controller/controller-profile';
+} from '../../features/input/controller/bindings';
+import type { ControllerProfile } from '../../features/input/controller/controller-profile';
+import { detectProfile } from '../../features/input/controller/controller-profile';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
 import {
@@ -32,7 +32,7 @@ import {
   getRunningCursor,
   startController,
   stopController,
-} from '../../features/controller/index';
+} from '../../features/input/controller/index';
 
 // Actions that are context-sensitive on LB/RB (hotbar when normal, grow slots on multi-harvest)
 const CONTEXT_SENSITIVE_ACTIONS = new Set<Action>(['prevHotbarSlot', 'nextHotbarSlot']);

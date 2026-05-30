@@ -5,8 +5,8 @@
  * Hardcoded actions (Move, Start→Settings) are not stored here.
  */
 
-import { t } from '../../i18n';
-import { storage } from '../../utils/storage';
+import { t } from '../../../i18n';
+import { storage } from '../../../utils/storage';
 
 // ---------------------------------------------------------------------------
 // Action type

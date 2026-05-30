@@ -8,7 +8,7 @@ import { ensurePanelStyles } from './panelStyles';
 import { toggleWindow } from './modalWindow';
 import { UIState, createInitialUIState } from './panelState';
 import { createMutationSection } from './mutations/mutationValueSection';
-import { startPanelHotkey } from '../features/panelHotkey';
+import { startPanelHotkey } from '../features/input/panelHotkey';
 
 let uiState = createInitialUIState();
 

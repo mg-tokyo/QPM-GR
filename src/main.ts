@@ -89,7 +89,7 @@ import { registerDebugBootstrap } from './debug/debugBootstrap';
 import { registerUniversalProbe } from './debug/universalProbe';
 import { createWsMonitor } from './debug/wsMonitor';
 import { timerManager, visibleInterval } from './utils/timerManager';
-import { startController, stopController } from './features/controller/index';
+import { startController, stopController } from './features/input/controller/index';
 import { startStorageValue, stopStorageValue } from './features/storageValue';
 import { startStorageValueOverlay, stopStorageValueOverlay } from './ui/storageValueOverlay';
 import { startInventoryCapacity, stopInventoryCapacity } from './features/inventoryCapacity';
@@ -107,7 +107,7 @@ import { stopNativeSendObserver } from './websocket/nativeSendObserver';
 import { startMountStateTracker, stopMountStateTracker } from './store/mountState';
 import { startLocker } from './features/locker/index';
 import { startShopKeybinds, stopShopKeybinds } from './features/shop/keybinds';
-import { stopPanelHotkey } from './features/panelHotkey';
+import { stopPanelHotkey } from './features/input/panelHotkey';
 import { startShopEnhancer, stopShopEnhancer } from './features/shop/enhancer/index';
 // Data Catalog Loader
 import {

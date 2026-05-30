@@ -21,7 +21,7 @@ import {
   setPanelToggleKeybind,
   resetPanelToggleKeybind,
   onPanelToggleKeybindChange,
-} from '../../../features/panelHotkey';
+} from '../../../features/input/panelHotkey';
 import { normalizeKeybind, formatKeybind, createKeybindButton } from '../../petsWindow/helpers';
 import { t } from '../../../i18n';
 

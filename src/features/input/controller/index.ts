@@ -3,7 +3,7 @@
  * Used by main.ts and controllerSection.ts (enable/disable toggle + live refs).
  */
 
-import { storage } from '../../utils/storage';
+import { storage } from '../../../utils/storage';
 import { initializeController } from './controllerFeature';
 import type { GamepadPoller } from './gamepad';
 import type { Cursor } from './cursor';

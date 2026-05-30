@@ -28,8 +28,8 @@ import {
   getAtomByLabel,
   getCachedStore,
   type JotaiStore,
-} from '../../core/jotaiBridge';
-import { pageWindow } from '../../core/pageContext';
+} from '../../../core/jotaiBridge';
+import { pageWindow } from '../../../core/pageContext';
 
 // ---------------------------------------------------------------------------
 // Atom label constants (work on dev / QPM-enriched builds)

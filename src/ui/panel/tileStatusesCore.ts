@@ -435,8 +435,8 @@ export function startControllerStatus(getStatusEl: GetStatusEl, addLiveCleanup: 
   if (!controllerStatus) return;
 
   Promise.all([
-    import('../../features/controller/index'),
-    import('../../features/controller/bindings'),
+    import('../../features/input/controller/index'),
+    import('../../features/input/controller/bindings'),
   ]).then(([controller, bindings]) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
