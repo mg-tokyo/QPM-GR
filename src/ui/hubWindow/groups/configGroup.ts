@@ -7,7 +7,7 @@ import {
   getAutoReconnectConfig,
   updateAutoReconnectConfig,
   subscribeToAutoReconnectConfig,
-} from '../../../features/autoReconnect';
+} from '../../../features/standalone/autoReconnect';
 import {
   isShopKeybindsEnabled,
   setShopKeybindsEnabled,

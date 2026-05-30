@@ -5,7 +5,7 @@
 
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
-import { getGardenSnapshot } from '../gardenBridge';
+import { getGardenSnapshot } from '../garden/bridge';
 import { getLockerConfig } from './state';
 import { isRecord } from '../../utils/typeGuards';
 

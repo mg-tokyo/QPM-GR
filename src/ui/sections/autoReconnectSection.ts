@@ -6,7 +6,7 @@ import {
   updateAutoReconnectConfig,
   subscribeToAutoReconnectConfig,
   type AutoReconnectConfig,
-} from '../../features/autoReconnect';
+} from '../../features/standalone/autoReconnect';
 
 const MIN_DELAY_SECONDS = 0;
 const MAX_DELAY_SECONDS = 300;

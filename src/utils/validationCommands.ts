@@ -3,7 +3,7 @@
 
 import { spriteExtractor } from '../sprite-v2/compat';
 import { log } from './logger';
-import { getAllCropNames } from '../data/cropBaseStats';
+import { getAllCropNames } from '../features/garden/data/cropBaseStats';
 
 /**
  * Test all pet and crop sprites to ensure they render without errors

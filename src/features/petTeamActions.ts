@@ -4,7 +4,7 @@
 
 import { log } from '../utils/logger';
 import { sendRoomAction, type WebSocketSendResult } from '../websocket/api';
-import { getMapSnapshot, getGardenSnapshot } from './gardenBridge';
+import { getMapSnapshot, getGardenSnapshot } from './garden/bridge';
 import { getActivePetInfos } from '../store/pets';
 import { isRecord } from '../utils/typeGuards';
 import { getMyUserSlotIdx } from '../core/playerContext';

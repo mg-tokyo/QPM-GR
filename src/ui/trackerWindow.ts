@@ -12,7 +12,7 @@ import {
   resolveDynamicAbilityEffect,
   type AbilityValuationContext,
 } from '../features/abilityValuation';
-import { onGardenSnapshot } from '../features/gardenBridge';
+import { onGardenSnapshot } from '../features/garden/bridge';
 import { visibleInterval } from '../utils/timerManager';
 import { t } from '../i18n';
 

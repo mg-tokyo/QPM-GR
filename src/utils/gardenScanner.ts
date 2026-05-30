@@ -8,7 +8,7 @@ import {
   getMostValuableWeatherMutation,
   type MutationType,
   type WeatherCondition
-} from '../data/cropMultipliers';
+} from '../features/garden/data/cropMultipliers';
 import { calculatePlantValue } from '../features/economy/valueCalculator';
 
 export interface MutationOpportunity {

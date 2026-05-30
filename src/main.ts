@@ -4,18 +4,18 @@ import { log, importantLog, isVerboseLogsEnabled, setVerboseLogsEnabled } from '
 import { yieldToBrowser } from './utils/scheduling';
 import { startMutationReminder } from './features/mutations/reminder';
 import { startMutationTracker } from './features/mutations/tracker';
-import { initializeHarvestReminder, configureHarvestReminder } from './features/harvestReminder';
+import { initializeHarvestReminder, configureHarvestReminder } from './features/garden/harvestReminder';
 import { initializeTurtleTimer, configureTurtleTimer } from './features/turtleTimer';
 import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from './ui/originalPanel';
-import { startGardenBridge } from './features/gardenBridge';
+import { startGardenBridge } from './features/garden/bridge';
 import { initializeStatsStore, getStatsSnapshot } from './store/stats';
 import { initializePetXpTracker } from './store/petXpTracker';
 import { initializeXpTracker } from './store/xpTracker';
 import { initializeMutationValueTracking } from './features/mutations/valueTracking';
-import { initializeAutoFavorite } from './features/autoFavorite';
-import { startBulkFavorite } from './features/bulkFavorite';
-import { initializeAutoReconnect, stopAutoReconnect } from './features/autoReconnect';
-import { initializeGardenFilters } from './features/gardenFilters';
+import { initializeAutoFavorite } from './features/standalone/autoFavorite';
+import { startBulkFavorite } from './features/standalone/bulkFavorite';
+import { initializeAutoReconnect, stopAutoReconnect } from './features/standalone/autoReconnect';
+import { initializeGardenFilters } from './features/garden/filters';
 import { getActivePetsDebug, startPetInfoStore, stopPetInfoStore } from './store/pets';
 import { startInventoryStore, readInventoryDirect, getInventoryItems, stopInventoryStore } from './store/inventory';
 import { startHutchStore, stopHutchStore } from './store/hutch';
@@ -28,15 +28,15 @@ import { estimatePetLevel, getPetXPHistory } from './store/petLevelCalculator';
 import { feedPetInstantly, feedPetByIds, feedAllPetsInstantly, isInstantFeedAvailable } from './features/instantFeed';
 import { startVersionChecker } from './utils/versionChecker';
 import { startCropBoostTracker } from './features/cropBoostTracker';
-import { initPublicRooms } from './features/publicRooms';
+import { initPublicRooms } from './features/standalone/publicRooms';
 // New sprite system (sprite-v2)
 import { initSpriteSystem, getSpriteBootReport, spriteProbe } from './sprite-v2/index';
 import type { SpriteService } from './sprite-v2/types';
 import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets, scheduleWarmup } from './sprite-v2/compat';
 import { isSpriteLogsEnabled, printSpriteLogDump, setSpriteLogsEnabled } from './sprite-v2/diagnostics';
-import { initTooltipInjection } from './features/tooltipInjection';
+import { initTooltipInjection } from './features/standalone/tooltipInjection';
 import { startNativeFeedIntercept, stopNativeFeedIntercept } from './features/nativeFeedIntercept';
-import { initializeAntiAfk, stopAntiAfk } from './features/antiAfk';
+import { initializeAntiAfk, stopAntiAfk } from './features/standalone/antiAfk';
 import {
   startActivityLogEnhancer,
   stopActivityLogEnhancer,
@@ -61,7 +61,7 @@ import { initPetsWindow, stopPetsWindow, togglePetsWindow } from './ui/petsWindo
 import { toggleWindow, registerWindowOpener, restoreOpenWindows } from './ui/modalWindow';
 import { openShopRestockWindow } from './ui/shop/restockWindow';
 import { openPetOptimizerWindow } from './ui/petOptimizerWindow';
-import { openCropBoostTrackerWindow } from './ui/cropBoostTrackerWindow';
+import { openCropBoostTrackerWindow } from './ui/pets/cropBoostTrackerWindow';
 import { openStatsHubWindow } from './ui/statsHubWindow';
 import { registerHubGroups, toggleHub, HUB_WINDOW_ID } from './ui/hubWindow';
 import { migrateHubStorage } from './ui/hubWindow/migration';
@@ -80,7 +80,7 @@ import {
 import { exposeAriesBridge } from './integrations/ariesBridge';
 import { getAtomByLabel, readAtomValue } from './core/jotaiBridge';
 import { runAtomHealthCheck } from './core/atomRegistry';
-import { openInspectorDirect, setupGardenInspector } from './ui/publicRoomsWindow';
+import { openInspectorDirect, setupGardenInspector } from './ui/standalone/publicRoomsWindow';
 import { resetFriendsCache } from './services/ariesPlayers';
 import { exposeValidationCommands } from './utils/validationCommands';
 import { initializeStorage, storage } from './utils/storage';
@@ -94,8 +94,8 @@ import { startStorageValue, stopStorageValue } from './features/economy/storageV
 import { startStorageValueOverlay, stopStorageValueOverlay } from './ui/economy/storageValueOverlay';
 import { startInventoryCapacity, stopInventoryCapacity } from './features/economy/inventoryCapacity';
 import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './ui/economy/inventoryCapacityOverlay';
-import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/textureSwapper';
-import { openTextureSwapperWindow } from './ui/textureSwapperWindow';
+import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/standalone/textureSwapper';
+import { openTextureSwapperWindow } from './ui/standalone/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shop/restockAlerts';
 import { fetchWeatherPredictions } from './utils/restockDataService';
 import { startDawnShopTracker, stopDawnShopTracker } from './features/dawn/shop';
@@ -1629,13 +1629,13 @@ async function initialize(): Promise<void> {
   (QPM_DEBUG_API as any).testStitchAll = testStitchAll;
 
   // Expose garden snapshot for debugging
-  const { getGardenSnapshot, getMapSnapshot, isGardenBridgeReady } = await import('./features/gardenBridge');
+  const { getGardenSnapshot, getMapSnapshot, isGardenBridgeReady } = await import('./features/garden/bridge');
   (QPM_DEBUG_API as any).getGardenSnapshot = getGardenSnapshot;
   (QPM_DEBUG_API as any).getMapSnapshot = getMapSnapshot;
   (QPM_DEBUG_API as any).isGardenBridgeReady = isGardenBridgeReady;
 
   // Also expose to __QPM_INTERNAL__ for legacy/diagnostic access
-  const { getGardenFiltersConfig, updateGardenFiltersConfig, applyGardenFiltersNow } = await import('./features/gardenFilters');
+  const { getGardenFiltersConfig, updateGardenFiltersConfig, applyGardenFiltersNow } = await import('./features/garden/filters');
   const globalTarget = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
   (globalTarget as any).__QPM_INTERNAL__ = {
     ...(globalTarget as any).__QPM_INTERNAL__,

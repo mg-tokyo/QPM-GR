@@ -16,7 +16,7 @@ import {
 import { calculateMaxStrength } from '../store/xpTracker';
 import { getStatsSnapshot } from '../store/stats';
 import { getInventoryItems, type InventoryItem } from '../store/inventory';
-import { getGardenSnapshot } from './gardenBridge';
+import { getGardenSnapshot } from './garden/bridge';
 import { getWeatherSnapshot } from '../store/weatherHub';
 
 export interface ComparePetInput {

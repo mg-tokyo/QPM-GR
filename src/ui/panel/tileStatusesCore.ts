@@ -118,7 +118,7 @@ export function startPublicRoomsStatus(getStatusEl: GetStatusEl, addLiveCleanup:
   const roomsStatus = getStatusEl('public-rooms');
   if (!roomsStatus) return;
 
-  import('../../features/publicRooms').then((publicRooms) => {
+  import('../../features/standalone/publicRooms').then((publicRooms) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
       publicRooms.fetchRooms().then(() => {

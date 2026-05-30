@@ -1,7 +1,7 @@
 // src/ui/statsHubWindow/economyTab.ts
 // Economy tab — balances, spending, transactions, compare with room player.
 
-import { onGardenSnapshot, getGardenSnapshot } from '../../features/gardenBridge';
+import { onGardenSnapshot, getGardenSnapshot } from '../../features/garden/bridge';
 import { t } from '../../i18n';
 import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import { computeGardenValueFromCatalog } from '../../features/economy/valueCalculator';

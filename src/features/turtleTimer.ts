@@ -3,7 +3,7 @@
 
 import { log } from '../utils/logger';
 import { storage } from '../utils/storage';
-import { GardenSnapshot, GardenState, getGardenSnapshot, onGardenSnapshot } from './gardenBridge';
+import { GardenSnapshot, GardenState, getGardenSnapshot, onGardenSnapshot } from './garden/bridge';
 import { ActivePetInfo, getActivePetInfos, onActivePetInfos, startPetInfoStore } from '../store/pets';
 import { pageWindow } from '../core/pageContext';
 import { startGrowSlotIndexTracker } from '../store/growSlotIndex';

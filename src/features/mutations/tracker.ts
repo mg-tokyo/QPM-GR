@@ -1,5 +1,5 @@
 // src/features/mutationTracker.ts
-import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../gardenBridge';
+import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import {
   buildMutationSummary,
   combineMutationSources,

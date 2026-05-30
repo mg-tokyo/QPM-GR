@@ -4,7 +4,7 @@ import { createButton } from '../components/button';
 import { createSpinner } from '../components/spinner';
 import { createEmptyState } from '../components/emptyState';
 import { getPlantCatalog, getMutationCatalog, getPetCatalog } from '../../catalogs/gameCatalogs';
-import { getCropSizeIndicatorConfig, setCropSizeIndicatorConfig } from '../../features/tooltipInjection';
+import { getCropSizeIndicatorConfig, setCropSizeIndicatorConfig } from '../../features/standalone/tooltipInjection';
 import { t } from '../../i18n';
 import { COLOR_PRODUCE, COLOR_PETS, COLOR_TIPS } from './constants';
 import { injectJournalStyles } from './styles';

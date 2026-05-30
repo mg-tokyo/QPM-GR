@@ -3,12 +3,12 @@
 
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
-import { onGardenSnapshot, getGardenSnapshot, type GardenSnapshot } from '../../features/gardenBridge';
+import { onGardenSnapshot, getGardenSnapshot, type GardenSnapshot } from '../../features/garden/bridge';
 import { getPlantSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 import { computeMutationMultiplier } from '../../utils/cropMultipliers';
 import { visibleInterval } from '../../utils/timerManager';
 import { createToggle } from '../components';
-import { setStatsHubSpeciesOverride, setStatsHubExcludeMutationsOverride, setStatsHubTileOverride, setStatsHubExcludeMutationsAllMode } from '../../features/gardenFilters';
+import { setStatsHubSpeciesOverride, setStatsHubExcludeMutationsOverride, setStatsHubTileOverride, setStatsHubExcludeMutationsAllMode } from '../../features/garden/filters';
 import type { TileEntry, StatsHubFilters, SectionFilterSource } from './types';
 import { STATS_HUB_FILTERS_KEY, FILTER_MUTATIONS_FALLBACK } from './constants';
 import { plantSprite } from './spriteHelpers';

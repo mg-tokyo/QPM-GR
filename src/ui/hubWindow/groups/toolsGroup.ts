@@ -3,7 +3,7 @@
 import type { HubGroupDef, LauncherCardConfig } from '../cards/types';
 import { toggleWindow } from '../../modalWindow';
 import { log } from '../../../utils/logger';
-import { TEXTURE_MANIPULATOR_ENABLED } from '../../../features/textureSwapper';
+import { TEXTURE_MANIPULATOR_ENABLED } from '../../../features/standalone/textureSwapper';
 import { t } from '../../../i18n';
 
 export function openExternalUrl(url: string): void {
@@ -94,7 +94,7 @@ export function getToolsGroup(): HubGroupDef {
         el.textContent = t('hub.tools.textureManipulator.summary');
       },
       onOpen: () => {
-        import('../../textureSwapperWindow').then(({ openTextureSwapperWindow }) => {
+        import('../../standalone/textureSwapperWindow').then(({ openTextureSwapperWindow }) => {
           openTextureSwapperWindow();
         }).catch(e => log('⚠️ Failed to open Texture Manipulator', e));
       },

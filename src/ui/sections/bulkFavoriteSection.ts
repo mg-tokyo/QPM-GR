@@ -1,5 +1,5 @@
 import { createCard } from '../panelHelpers';
-import { isBulkFavoriteEnabled, setBulkFavoriteEnabled } from '../../features/bulkFavorite';
+import { isBulkFavoriteEnabled, setBulkFavoriteEnabled } from '../../features/standalone/bulkFavorite';
 import { t } from '../../i18n';
 
 export function createBulkFavoriteSection(opts?: { startExpanded?: boolean }): HTMLElement {

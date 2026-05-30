@@ -10,7 +10,7 @@ import {
 import {
   getTileValueConfig,
   setTileValueConfig,
-} from '../../features/tooltipInjection';
+} from '../../features/standalone/tooltipInjection';
 import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------

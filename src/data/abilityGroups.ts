@@ -2,7 +2,7 @@
 // Defines ability groups for cross-ability comparison in Pet Hub
 
 import type { AbilityStats } from '../utils/petDataTester';
-import { getGardenSnapshot } from '../features/gardenBridge';
+import { getGardenSnapshot } from '../features/garden/bridge';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect } from '../features/abilityValuation';
 
 /**

@@ -2,7 +2,7 @@
 // Pure computation module — returns top-N most valuable items across sources.
 // No DOM, no side effects.
 
-import type { GardenSnapshot } from '../gardenBridge';
+import type { GardenSnapshot } from '../garden/bridge';
 import type { InventoryItem } from '../../store/inventory';
 import type { ActivePetInfo } from '../../store/pets';
 import { getPlantSpecies, getPetSpecies, getSeedPrice, getDecor, getEggType } from '../../catalogs/gameCatalogs';

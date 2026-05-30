@@ -3,7 +3,7 @@ import { createCard } from '../panelHelpers';
 import { createToggle } from '../components/toggle';
 import { createSectionHeader } from '../components/sectionHeader';
 import { t } from '../../i18n';
-import { getAutoFavoriteConfig, updateAutoFavoriteConfig, subscribeToAutoFavoriteConfig } from '../../features/autoFavorite';
+import { getAutoFavoriteConfig, updateAutoFavoriteConfig, subscribeToAutoFavoriteConfig } from '../../features/standalone/autoFavorite';
 import { getAbilityColor } from '../../utils/petCardRenderer';
 import { renderPetSpeciesIcon } from '../../utils/petCardRenderer';
 import { areCatalogsReady, getAllPetSpecies } from '../../catalogs/gameCatalogs';
@@ -431,7 +431,7 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
   if (areCatalogsReady()) {
     cropTypeOptions = getAllPlantSpecies();
   } else {
-    const { getAllCropNames } = await import('../../data/cropBaseStats');
+    const { getAllCropNames } = await import('../../features/garden/data/cropBaseStats');
     cropTypeOptions = getAllCropNames();
   }
 

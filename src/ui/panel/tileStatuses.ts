@@ -221,7 +221,7 @@ function startGardenFiltersStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddL
   const el = getStatusEl('garden-filters');
   if (!el) return;
 
-  import('../../features/gardenFilters').then(({ getGardenFiltersConfig, subscribeToGardenFiltersConfig }) => {
+  import('../../features/garden/filters').then(({ getGardenFiltersConfig, subscribeToGardenFiltersConfig }) => {
     if (version !== currentVersion) return;
     const render = (): void => {
       const cfg = getGardenFiltersConfig();
@@ -243,7 +243,7 @@ function startRemindersStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveC
   if (!el) return;
 
   Promise.all([
-    import('../../features/harvestReminder'),
+    import('../../features/garden/harvestReminder'),
     import('../../store/mutationSummary'),
   ]).then(([harvest, mutation]) => {
     if (version !== currentVersion) return;
@@ -276,11 +276,11 @@ function startGardenStatsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiv
   if (!el) return;
 
   Promise.all([
-    import('../../features/gardenBridge'),
+    import('../../features/garden/bridge'),
     import('../statsHubWindow/tileHelpers'),
   ]).then(([gardenBridge, tileHelpers]) => {
     if (version !== currentVersion) return;
-    const render = (snapshot: import('../../features/gardenBridge').GardenSnapshot): void => {
+    const render = (snapshot: import('../../features/garden/bridge').GardenSnapshot): void => {
       if (!snapshot) {
         setStatusText(el, '0 species / $0', 'muted');
         return;
@@ -300,7 +300,7 @@ function startFavoritesStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveC
   const el = getStatusEl('favorites');
   if (!el) return;
 
-  import('../../features/autoFavorite').then(({ getAutoFavoriteConfig, subscribeToAutoFavoriteConfig }) => {
+  import('../../features/standalone/autoFavorite').then(({ getAutoFavoriteConfig, subscribeToAutoFavoriteConfig }) => {
     if (version !== currentVersion) return;
     const render = (): void => {
       const cfg = getAutoFavoriteConfig();
@@ -321,7 +321,7 @@ function startAutoReconnectStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddL
   const el = getStatusEl('auto-reconnect');
   if (!el) return;
 
-  import('../../features/autoReconnect').then(({ getAutoReconnectConfig, subscribeToAutoReconnectConfig }) => {
+  import('../../features/standalone/autoReconnect').then(({ getAutoReconnectConfig, subscribeToAutoReconnectConfig }) => {
     if (version !== currentVersion) return;
     const render = (): void => {
       const cfg = getAutoReconnectConfig();
@@ -381,7 +381,7 @@ function startTextureManipulatorStatus(getStatusEl: GetStatusEl, addLiveCleanup:
   const el = getStatusEl('texture-manipulator');
   if (!el) return;
 
-  import('../../features/textureSwapper').then(({ getTextureSwapperState }) => {
+  import('../../features/standalone/textureSwapper').then(({ getTextureSwapperState }) => {
     if (version !== currentVersion) return;
     const render = (): void => {
       const state = getTextureSwapperState();

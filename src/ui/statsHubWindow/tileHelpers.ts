@@ -1,7 +1,7 @@
 // src/ui/statsHubWindow/tileHelpers.ts
 // Tile extraction and analysis utilities for the Garden tab.
 
-import type { GardenSnapshot } from '../../features/gardenBridge';
+import type { GardenSnapshot } from '../../features/garden/bridge';
 import { getPlantSpecies } from '../../catalogs/gameCatalogs';
 import { computeMutationMultiplier } from '../../utils/cropMultipliers';
 import { lookupMaxScale } from '../../utils/plantScales';

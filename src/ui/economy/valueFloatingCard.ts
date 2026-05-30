@@ -4,7 +4,7 @@
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { pctToPixels, pixelsToPct, clampPct } from '../../utils/windowPosition';
-import { onGardenSnapshot, getGardenSnapshot } from '../../features/gardenBridge';
+import { onGardenSnapshot, getGardenSnapshot } from '../../features/garden/bridge';
 import { onInventoryChange } from '../../store/inventory';
 import { onActivePetInfos } from '../../store/pets';
 import { computeGardenValueFromCatalog, formatCoinsAbbreviated } from '../../features/economy/valueCalculator';

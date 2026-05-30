@@ -38,7 +38,7 @@ function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => vo
           spinner.remove();
           contentCleanup = renderXpTrackerContent(container);
         } else if (key === 'crops') {
-          const { renderCropBoostContent } = await import('../../cropBoostTrackerWindow');
+          const { renderCropBoostContent } = await import('../../pets/cropBoostTrackerWindow');
           // renderCropBoostSection overwrites root.style.cssText with overflow-y:auto
           // + overscroll-behavior:contain, which traps wheel events. Patch after
           // each re-render so the hub's own scroll container handles scrolling.

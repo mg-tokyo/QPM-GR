@@ -6,7 +6,7 @@ import { subscribeAtomValue } from '../../core/atomRegistry';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
 import { getInventoryItems, onInventoryChange } from '../../store/inventory';
 import { getActivePetInfos } from '../../store/pets';
-import type { GardenSnapshot } from '../gardenBridge';
+import type { GardenSnapshot } from '../garden/bridge';
 import {
   getSeedPrice,
   getPlantSpecies,

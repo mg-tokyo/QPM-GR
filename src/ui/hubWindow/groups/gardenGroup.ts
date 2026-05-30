@@ -33,7 +33,7 @@ export function getGardenGroup(): HubGroupDef {
       (async () => {
         try {
           await awaitCatalogs();
-          const { createGardenFiltersSection } = await import('../../sections/gardenFiltersSection');
+          const { createGardenFiltersSection } = await import('../../garden/gardenFiltersSection');
           const el = await createGardenFiltersSection();
           spinner.remove();
           container.appendChild(el);
@@ -47,7 +47,7 @@ export function getGardenGroup(): HubGroupDef {
     onDetach: () => {
       toggleWindow('utility-feature-garden-filters', '🔍 Garden Filters', (root) => {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-        import('../../sections/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
+        import('../../garden/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
           root.appendChild(await createGardenFiltersSection());
         }).catch(e => log('⚠️ Failed to load Garden Filters', e));
       }, '580px', '78vh');

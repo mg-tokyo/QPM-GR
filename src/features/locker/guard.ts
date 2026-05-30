@@ -4,7 +4,7 @@
 import { pageWindow } from '../../core/pageContext';
 import { notify } from '../../core/notifications';
 import { getInventoryItems, getFavoritedItemIds, type InventoryItem } from '../../store/inventory';
-import { getGardenSnapshot } from '../gardenBridge';
+import { getGardenSnapshot } from '../garden/bridge';
 import { getSellAllPetsSettings } from '../sellAllPets';
 import { getPetMetadata } from '../../data/petMetadata';
 import { calculateMaxStrength } from '../../store/xpTracker';

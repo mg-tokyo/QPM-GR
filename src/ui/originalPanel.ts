@@ -514,7 +514,7 @@ export function setCfg(newCfg: PanelCfg): void {
 
 export function openPublicRoomsWindow(): void {
   const renderFn = (root: HTMLElement) => {
-    import('./publicRoomsWindow')
+    import('./standalone/publicRoomsWindow')
       .then(({ renderPublicRoomsWindow }) => renderPublicRoomsWindow(root))
       .catch(e => log('⚠️ Failed to load Public Rooms', e));
   };

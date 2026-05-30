@@ -1,7 +1,7 @@
 // src/ui/panel/tileRegistry.ts
 import { log } from '../../utils/logger';
 import { openDetachedTracker } from '../hubWindow/groups/trackersGroup';
-import { TEXTURE_MANIPULATOR_ENABLED } from '../../features/textureSwapper';
+import { TEXTURE_MANIPULATOR_ENABLED } from '../../features/standalone/textureSwapper';
 import { t } from '../../i18n';
 
 export interface TileDefinition {
@@ -62,7 +62,7 @@ export function registerBuiltinTiles(): void {
     action: () => {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('public-rooms', `🌐 ${t('tile.publicRooms.label')}`, (root) => {
-          import('../publicRoomsWindow')
+          import('../standalone/publicRoomsWindow')
             .then(({ renderPublicRoomsWindow }) => renderPublicRoomsWindow(root))
             .catch(e => log('⚠️ Failed to load Public Rooms', e));
         }, '950px', '85vh');
@@ -123,7 +123,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.cropBoosts.label'),
     color: 'rgba(139, 195, 74, 0.28)',
     action: () => {
-      import('../cropBoostTrackerWindow').then(({ openCropBoostTrackerWindow }) => openCropBoostTrackerWindow())
+      import('../pets/cropBoostTrackerWindow').then(({ openCropBoostTrackerWindow }) => openCropBoostTrackerWindow())
         .catch(e => log('⚠️ Failed to open Crop Boosts', e));
     },
   });
@@ -218,7 +218,7 @@ export function registerBuiltinTiles(): void {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-garden-filters', `🔍 ${t('tile.gardenFilters.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-          import('../sections/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
+          import('../garden/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
             root.appendChild(await createGardenFiltersSection());
           }).catch(e => log('⚠️ Failed to load Garden Filters', e));
         }, '580px', '78vh');
@@ -391,7 +391,7 @@ export function registerBuiltinTiles(): void {
       label: t('tile.textureManipulator.label'),
       color: 'rgba(134, 239, 172, 0.28)',
       action: () => {
-        import('../textureSwapperWindow').then(({ openTextureSwapperWindow }) => openTextureSwapperWindow())
+        import('../standalone/textureSwapperWindow').then(({ openTextureSwapperWindow }) => openTextureSwapperWindow())
           .catch(e => log('⚠️ Failed to open Texture Manipulator', e));
       },
     });

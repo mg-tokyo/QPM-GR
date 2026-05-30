@@ -1,14 +1,14 @@
 // src/features/abilityValuation.ts
 // Derives per-proc coin impacts for abilities that depend on live garden state.
 
-import { getGardenSnapshot, type GardenSnapshot } from './gardenBridge';
+import { getGardenSnapshot, type GardenSnapshot } from './garden/bridge';
 import { shareGlobal } from '../core/pageContext';
 import { calculatePlantValue } from './economy/valueCalculator';
 import { computeMutationMultiplier } from '../utils/cropMultipliers';
 import { getMutationApplicationResult } from '../utils/mutationCompatibility';
 import { normalizeSpeciesKey } from '../utils/helpers';
 import { lookupMaxScale } from '../utils/plantScales';
-import { analyzeCropMutationPotential } from './cropMutationAnalytics';
+import { analyzeCropMutationPotential } from './garden/cropMutationAnalytics';
 import { isDebugGlobalsEnabled } from '../utils/debugGlobals';
 import { isRecord } from '../utils/typeGuards';
 import { getAbilityDef } from '../catalogs/gameCatalogs';
