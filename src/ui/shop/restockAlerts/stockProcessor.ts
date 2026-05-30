@@ -1,10 +1,10 @@
 // src/ui/shopRestockAlerts/stockProcessor.ts
 // Stock-change processing: tracked set, dismiss cycle management, and processShopStock.
 
-import { storage } from '../../utils/storage';
-import { canonicalItemId, getItemIdVariants } from '../../utils/restockDataService';
-import type { ShopStockCategoryState, ShopStockItem, ShopStockState } from '../../store/shopStock';
-import type { ShopCategory } from '../../types/shops';
+import { storage } from '../../../utils/storage';
+import { canonicalItemId, getItemIdVariants } from '../../../utils/restockDataService';
+import type { ShopStockCategoryState, ShopStockItem, ShopStockState } from '../../../store/shopStock';
+import type { ShopCategory } from '../../../types/shops';
 import {
   TRACKED_KEY,
   type RestockShopType,

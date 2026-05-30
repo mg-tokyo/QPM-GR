@@ -2,20 +2,20 @@
 // Item meta cache, HTTP helpers, storage, sprite, and UI-state types
 // for the Shop Restock window.
 
-import { log } from '../utils/logger';
-import { getItemIdVariants } from '../utils/restockDataService';
-import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../sprite-v2/compat';
-import { canvasToDataUrl } from '../utils/canvasHelpers';
-import { storage } from '../utils/storage';
-import { getWeatherDef } from '../catalogs/gameCatalogs';
-import type { RestockItem } from '../utils/restockDataService';
+import { log } from '../../utils/logger';
+import { getItemIdVariants } from '../../utils/restockDataService';
+import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../sprite-v2/compat';
+import { canvasToDataUrl } from '../../utils/canvasHelpers';
+import { storage } from '../../utils/storage';
+import { getWeatherDef } from '../../catalogs/gameCatalogs';
+import type { RestockItem } from '../../utils/restockDataService';
 import {
   TRACKED_KEY,
   UI_STATE_KEY,
   ARIEDAM_KEY,
   ARIEDAM_TTL_MS,
   CELESTIAL_IDS,
-} from './shopRestockWindowConstants';
+} from './restockWindowConstants';
 
 // ---------------------------------------------------------------------------
 // Types

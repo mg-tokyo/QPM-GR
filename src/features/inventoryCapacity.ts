@@ -11,7 +11,7 @@ import {
   startLoop,
   stopLoop,
   isBuiltinSound,
-} from '../ui/shopRestockAlerts/soundEngine';
+} from '../ui/shop/restockAlerts/soundEngine';
 
 // ---------------------------------------------------------------------------
 // Sound alert config types

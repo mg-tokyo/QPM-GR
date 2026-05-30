@@ -8,7 +8,7 @@ import {
   isShopKeybindsEnabled,
   setShopKeybindsEnabled,
   type ShopId,
-} from '../../features/shopKeybinds';
+} from '../../features/shop/keybinds';
 import { t } from '../../i18n';
 
 const SHOP_IDS: readonly ShopId[] = ['seedShop', 'eggShop', 'toolShop', 'decorShop'];

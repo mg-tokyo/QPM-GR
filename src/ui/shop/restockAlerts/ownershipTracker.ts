@@ -1,9 +1,9 @@
 // src/ui/shopRestockAlerts/ownershipTracker.ts
 // Inventory snapshot handling, ownership state machine, and confirmation tracking.
 
-import { log } from '../../utils/logger';
-import { canonicalItemId } from '../../utils/restockDataService';
-import type { InventoryData, InventoryItem } from '../../store/inventory';
+import { log } from '../../../utils/logger';
+import { canonicalItemId } from '../../../utils/restockDataService';
+import type { InventoryData, InventoryItem } from '../../../store/inventory';
 import {
   ALERT_DEBUG_ENABLED,
   ALERT_SUCCESS_HIDE_MS,
@@ -29,7 +29,7 @@ import {
 import { removeAlert, setAlertPendingConfirmation, updateAlertQuantity } from './alertDom';
 import { hasReachedToolInventoryCap, shouldLockDismissForPurchaseCompletion, maybeAutoStoreConfirmedDelta } from './purchaseActions';
 import { markDismissedCycle, clearDismissedCycle, processShopStock } from './stockProcessor';
-import { getShopStockState } from '../../store/shopStock';
+import { getShopStockState } from '../../../store/shopStock';
 
 // ---------------------------------------------------------------------------
 // Debug helpers

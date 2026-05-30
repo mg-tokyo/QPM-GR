@@ -1,8 +1,8 @@
 // src/ui/shopRestockAlerts/weatherAlertProcessor.ts
 // Bridges weatherHub snapshots to the alert system for tracked weather types.
 
-import { onWeatherSnapshot, type WeatherSnapshot } from '../../store/weatherHub';
-import { storage } from '../../utils/storage';
+import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
+import { storage } from '../../../utils/storage';
 import { TRACKED_KEY } from './types';
 import { upsertAlert, removeAlert } from './alertDom';
 import { activeAlerts } from './alertState';

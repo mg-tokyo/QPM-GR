@@ -1,9 +1,9 @@
 // src/ui/itemRestockDetailWindow.ts
 // Per-item restock history with overview card + navigable event accuracy cards.
 
-import { openWindow, destroyWindow, registerWindowOpener } from './modalWindow';
-import { fetchItemEvents, fetchAlgorithmHistory, type AlgorithmVersionEntry } from '../utils/itemEventService';
-import type { RestockItem, RestockPredictionAccuracyAggregate } from '../utils/restockDataService';
+import { openWindow, destroyWindow, registerWindowOpener } from '../modalWindow';
+import { fetchItemEvents, fetchAlgorithmHistory, type AlgorithmVersionEntry } from '../../utils/itemEventService';
+import type { RestockItem, RestockPredictionAccuracyAggregate } from '../../utils/restockDataService';
 import {
   canonicalItemId,
   fetchRestockPredictionAccuracyAggregate,
@@ -12,11 +12,11 @@ import {
   getRestockDataSync,
   patchCachedItemLastSeen,
   RESTOCK_MODEL_ACCURACY_MIN_SCORED,
-} from '../utils/restockDataService';
-import { getPetSpriteCanvas, getCropSpriteCanvas, getAnySpriteDataUrl } from '../sprite-v2/compat';
-import { canvasToDataUrl } from '../utils/canvasHelpers';
-import { storage } from '../utils/storage';
-import { getWeatherDef } from '../catalogs/gameCatalogs';
+} from '../../utils/restockDataService';
+import { getPetSpriteCanvas, getCropSpriteCanvas, getAnySpriteDataUrl } from '../../sprite-v2/compat';
+import { canvasToDataUrl } from '../../utils/canvasHelpers';
+import { storage } from '../../utils/storage';
+import { getWeatherDef } from '../../catalogs/gameCatalogs';
 import {
   getAccuracyWindows,
   computeAccuracyScore,
@@ -24,9 +24,9 @@ import {
   getConfidenceInterval,
   type EventAccuracy,
   type EventStatus,
-} from '../utils/restockAccuracy';
-import { getWeatherSnapshot } from '../store/weatherHub';
-import { t } from '../i18n';
+} from '../../utils/restockAccuracy';
+import { getWeatherSnapshot } from '../../store/weatherHub';
+import { t } from '../../i18n';
 
 const INITIAL_ROWS = 5;
 const DETAIL_WINDOW_REGISTRY_KEY = 'qpm.restock.detailWindows.v1';

@@ -1,13 +1,13 @@
 // src/features/shopEnhancer/detection.ts
 // Detects shop modal open/close via activeModalAtom subscription.
 
-import { subscribeAtomValue } from '../../core/atomRegistry';
-import { createLogger } from '../../utils/logger';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
+import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
-import { visibleInterval, timerManager } from '../../utils/timerManager';
+import { visibleInterval, timerManager } from '../../../utils/timerManager';
 import { ENHANCEABLE_SHOP_IDS, MODAL_TO_CATEGORY } from './types';
-import type { ShopCategory } from '../../types/shops';
+import type { ShopCategory } from '../../../types/shops';
 
 const MODAL_RETRY_TIMER_ID = 'shop-enhancer-modal-retry';
 

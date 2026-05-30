@@ -1,10 +1,10 @@
 // src/ui/shopRestockWindow.ts
 // Shop Restock Tracker -- main render + public entry.
 
-import { toggleWindow } from './modalWindow';
+import { toggleWindow } from '../modalWindow';
 import { openItemRestockDetail } from './itemRestockDetailWindow';
-import { hideSoundPopover } from './shopRestockAlerts/soundPopover';
-import { log } from '../utils/logger';
+import { hideSoundPopover } from './restockAlerts/soundPopover';
+import { log } from '../../utils/logger';
 import {
   fetchRestockData,
   getRestockDataSync,
@@ -15,11 +15,11 @@ import {
   onWeatherPredictionsUpdated,
   weatherPredictionsAsRestockItems,
   type RestockItem,
-} from '../utils/restockDataService';
-import { visibleInterval } from '../utils/timerManager';
-import { onSpritesReady } from '../sprite-v2/compat';
-import { storage } from '../utils/storage';
-import { t } from '../i18n';
+} from '../../utils/restockDataService';
+import { visibleInterval } from '../../utils/timerManager';
+import { onSpritesReady } from '../../sprite-v2/compat';
+import { storage } from '../../utils/storage';
+import { t } from '../../i18n';
 import {
   SHOP_FILTERS,
   SHOP_ORDER,
@@ -29,7 +29,7 @@ import {
   UI_STATE_SAVE_DEBOUNCE_MS,
   HISTORY_CHUNK_SIZE,
   UI_STATE_KEY,
-} from './shopRestockWindowConstants';
+} from './restockWindowConstants';
 import {
   loadUiState,
   loadTracked,
@@ -42,18 +42,18 @@ import {
   isCelestial,
   type SortColumn,
   type SortDirection,
-} from './shopRestockWindowMeta';
+} from './restockWindowMeta';
 import {
   formatETA,
   etaColor,
   formatWindowCountdown,
-} from './shopRestockWindowFormatters';
+} from './restockWindowFormatters';
 import {
   buildPredRow,
   buildHistRow,
   // buildHotRow,  // disabled: Hot Right Now section
   type EtaRef,
-} from './shopRestockWindowRows';
+} from './restockWindowRows';
 
 // ---------------------------------------------------------------------------
 // Render
@@ -779,7 +779,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
   void load(false);
 
   // Tour system: check for first-time tour and inject replay button
-  import('./tour').then(({ checkTour, injectReplayButton }) => {
+  import('../tour').then(({ checkTour, injectReplayButton }) => {
     checkTour('shop-restock', root);
     injectReplayButton('shop-restock');
   });

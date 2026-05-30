@@ -1,9 +1,9 @@
 // Shop keybinds — keyboard shortcuts to open game shop modals.
 
-import { storage } from '../utils/storage';
-import { isEditableTarget, normalizeKeybind } from '../ui/petsWindow/helpers';
-import { getAtomByLabel, writeAtomValue, ensureJotaiStore } from '../core/jotaiBridge';
-import { log } from '../utils/logger';
+import { storage } from '../../utils/storage';
+import { isEditableTarget, normalizeKeybind } from '../../ui/petsWindow/helpers';
+import { getAtomByLabel, writeAtomValue, ensureJotaiStore } from '../../core/jotaiBridge';
+import { log } from '../../utils/logger';
 
 const STORAGE_KEY = 'qpm.shop-keybinds.v1';
 

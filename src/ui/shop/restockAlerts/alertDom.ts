@@ -1,11 +1,11 @@
 // src/ui/shopRestockAlerts/alertDom.ts
 // Alert DOM component — creation, upsert, removal, and sprite resolution.
 
-import { t } from '../../i18n';
-import { getItemIdVariants } from '../../utils/restockDataService';
-import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../utils/canvasHelpers';
-import { canonicalItemId } from '../../utils/restockDataService';
+import { t } from '../../../i18n';
+import { getItemIdVariants } from '../../../utils/restockDataService';
+import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../../sprite-v2/compat';
+import { canvasToDataUrl } from '../../../utils/canvasHelpers';
+import { canonicalItemId } from '../../../utils/restockDataService';
 import {
   ALERT_ROOT_ID,
   ALERT_STYLE_ID,

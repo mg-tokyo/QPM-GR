@@ -2,16 +2,16 @@
 // Entry point for the shop enhancer feature.
 // Sorts in-stock items first and injects a Buy All button into expansion panels.
 
-import { createLogger } from '../../utils/logger';
+import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
-import { visibleInterval, timerManager } from '../../utils/timerManager';
+import { visibleInterval, timerManager } from '../../../utils/timerManager';
 import { startDetection, stopDetection } from './detection';
 import { findShopContentContainer, getContentChildCount, resetScannerDiagnostics } from './scanner';
 import { applySorting, getScannedRows } from './sorting';
 import { extractCtorsFromRows, injectPanelBuyAll, removeBuyAllButtons, resetCtorCache } from './buyAllButton';
-import { removeInjected } from '../../core/pixiScene';
-import type { ShopCategory } from '../../types/shops';
+import { removeInjected } from '../../../core/pixiScene';
+import type { ShopCategory } from '../../../types/shops';
 
 const POLL_TIMER_ID = 'shop-enhancer-poll';
 const POLL_INTERVAL_MS = 300;

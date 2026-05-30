@@ -1,7 +1,7 @@
 // src/features/shopEnhancer/types.ts
 // Shared types for the shop enhancer feature.
 
-import type { ShopCategory } from '../../types/shops';
+import type { ShopCategory } from '../../../types/shops';
 
 /** Maps activeModalAtom values to ShopCategory keys for shops we enhance. */
 export const MODAL_TO_CATEGORY: Record<string, ShopCategory> = {

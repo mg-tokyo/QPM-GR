@@ -1,13 +1,13 @@
 // src/ui/shopRestockAlerts/index.ts
 // Public lifecycle entry — startShopRestockAlerts / stopShopRestockAlerts.
 
-import { log } from '../../utils/logger';
-import { storage } from '../../utils/storage';
-import { onSpritesReady } from '../../sprite-v2/compat';
-import { getShopStockState, onShopStock, startShopStockStore } from '../../store/shopStock';
-import { onInventoryChange, startInventoryStore } from '../../store/inventory';
-import { getAtomByLabel, subscribeAtom } from '../../core/jotaiBridge';
-import { pageWindow } from '../../core/pageContext';
+import { log } from '../../../utils/logger';
+import { storage } from '../../../utils/storage';
+import { onSpritesReady } from '../../../sprite-v2/compat';
+import { getShopStockState, onShopStock, startShopStockStore } from '../../../store/shopStock';
+import { onInventoryChange, startInventoryStore } from '../../../store/inventory';
+import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
+import { pageWindow } from '../../../core/pageContext';
 import {
   DISMISSED_CYCLES_KEY,
   ALERT_STYLE_ID,

@@ -5,8 +5,8 @@ import {
   RARITY_COLORS,
   RARITY_GLOW,
   SHOP_CYCLE_INTERVALS,
-} from './shopRestockWindowConstants';
-import { t } from '../i18n';
+} from './restockWindowConstants';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // ETA + rate formatters

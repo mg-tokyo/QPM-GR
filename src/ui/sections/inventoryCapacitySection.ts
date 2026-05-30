@@ -15,8 +15,8 @@ import {
 } from '../../features/inventoryCapacity';
 import {
   BUILTIN_SOUNDS,
-} from '../shopRestockAlerts/soundConfig';
-import { previewSound } from '../shopRestockAlerts/soundEngine';
+} from '../shop/restockAlerts/soundConfig';
+import { previewSound } from '../shop/restockAlerts/soundEngine';
 import { t } from '../../i18n';
 
 const MIN_THRESHOLD = 1;

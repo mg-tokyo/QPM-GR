@@ -3,7 +3,7 @@
 // Row builders receive callbacks instead of closing over render state.
 
 import { openItemRestockDetail } from './itemRestockDetailWindow';
-import { getItemName, getItemRarity, getItemPrice, getItemMeta, getSpriteUrl, getCoinSpriteUrl } from './shopRestockWindowMeta';
+import { getItemName, getItemRarity, getItemPrice, getItemMeta, getSpriteUrl, getCoinSpriteUrl } from './restockWindowMeta';
 import {
   rarityColor,
   rarityBorderStyle,
@@ -17,15 +17,15 @@ import {
   formatRelative,
   formatClock,
   formatRelativeDay,
-} from './shopRestockWindowFormatters';
-import { getItemProbability } from '../utils/restockDataService';
-import { isCelestial } from './shopRestockWindowMeta';
-import { t } from '../i18n';
-import { getSoundConfig } from './shopRestockAlerts/soundConfig';
-import { showSoundPopover } from './shopRestockAlerts/soundPopover';
-import { getRequiredWeather } from './shopRestockWindowConstants';
-import { getWeatherSnapshot, onWeatherSnapshot } from '../store/weatherHub';
-import type { RestockItem } from '../utils/restockDataService';
+} from './restockWindowFormatters';
+import { getItemProbability } from '../../utils/restockDataService';
+import { isCelestial } from './restockWindowMeta';
+import { t } from '../../i18n';
+import { getSoundConfig } from './restockAlerts/soundConfig';
+import { showSoundPopover } from './restockAlerts/soundPopover';
+import { getRequiredWeather } from './restockWindowConstants';
+import { getWeatherSnapshot, onWeatherSnapshot } from '../../store/weatherHub';
+import type { RestockItem } from '../../utils/restockDataService';
 
 export type EtaRef = { el: HTMLElement; ts: number };
 

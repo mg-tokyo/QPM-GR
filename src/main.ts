@@ -59,7 +59,7 @@ import { initPetTeamsStore, stopPetTeamsStore } from './store/petTeams';
 import { initPetTeamsLogs, stopPetTeamsLogs } from './store/petTeamsLogs';
 import { initPetsWindow, stopPetsWindow, togglePetsWindow } from './ui/petsWindow';
 import { toggleWindow, registerWindowOpener, restoreOpenWindows } from './ui/modalWindow';
-import { openShopRestockWindow } from './ui/shopRestockWindow';
+import { openShopRestockWindow } from './ui/shop/restockWindow';
 import { openPetOptimizerWindow } from './ui/petOptimizerWindow';
 import { openCropBoostTrackerWindow } from './ui/cropBoostTrackerWindow';
 import { openStatsHubWindow } from './ui/statsHubWindow';
@@ -70,7 +70,7 @@ import { getItemsGroup } from './ui/hubWindow/groups/itemsGroup';
 import { getGardenGroup } from './ui/hubWindow/groups/gardenGroup';
 import { getConfigGroup } from './ui/hubWindow/groups/configGroup';
 import { getToolsGroup } from './ui/hubWindow/groups/toolsGroup';
-import { registerPersistedItemRestockDetailOpeners } from './ui/itemRestockDetailWindow';
+import { registerPersistedItemRestockDetailOpeners } from './ui/shop/itemRestockDetailWindow';
 import {
   getOptimizerDebugSnapshot,
   getOptimizerDebugFamily,
@@ -96,7 +96,7 @@ import { startInventoryCapacity, stopInventoryCapacity } from './features/invent
 import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './ui/inventoryCapacityOverlay';
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/textureSwapper';
 import { openTextureSwapperWindow } from './ui/textureSwapperWindow';
-import { startShopRestockAlerts } from './ui/shopRestockAlerts';
+import { startShopRestockAlerts } from './ui/shop/restockAlerts';
 import { fetchWeatherPredictions } from './utils/restockDataService';
 import { startDawnShopTracker, stopDawnShopTracker } from './features/dawnShop';
 import { startCapsuleTracker, stopCapsuleTracker } from './features/dawnCapsule';
@@ -106,9 +106,9 @@ import { initGmExportBridge } from './utils/gmExportBridge';
 import { stopNativeSendObserver } from './websocket/nativeSendObserver';
 import { startMountStateTracker, stopMountStateTracker } from './store/mountState';
 import { startLocker } from './features/locker/index';
-import { startShopKeybinds, stopShopKeybinds } from './features/shopKeybinds';
+import { startShopKeybinds, stopShopKeybinds } from './features/shop/keybinds';
 import { stopPanelHotkey } from './features/panelHotkey';
-import { startShopEnhancer, stopShopEnhancer } from './features/shopEnhancer/index';
+import { startShopEnhancer, stopShopEnhancer } from './features/shop/enhancer/index';
 // Data Catalog Loader
 import {
   initCatalogLoader,

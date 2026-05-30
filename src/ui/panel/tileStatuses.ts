@@ -342,7 +342,7 @@ function startShopKeybindsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLi
   const el = getStatusEl('shop-keybinds');
   if (!el) return;
 
-  import('../../features/shopKeybinds').then(({ isShopKeybindsEnabled, getAllShopKeybinds }) => {
+  import('../../features/shop/keybinds').then(({ isShopKeybindsEnabled, getAllShopKeybinds }) => {
     if (version !== currentVersion) return;
     const render = (): void => {
       if (!isShopKeybindsEnabled()) {

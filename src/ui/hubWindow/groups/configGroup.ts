@@ -15,7 +15,7 @@ import {
   setShopKeybind,
   clearShopKeybind,
   type ShopId,
-} from '../../../features/shopKeybinds';
+} from '../../../features/shop/keybinds';
 import {
   getPanelToggleKeybind,
   setPanelToggleKeybind,

@@ -49,7 +49,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.shopRestock.label'),
     color: 'rgba(0, 188, 212, 0.28)',
     action: () => {
-      import('../shopRestockWindow').then(({ openShopRestockWindow }) => openShopRestockWindow())
+      import('../shop/restockWindow').then(({ openShopRestockWindow }) => openShopRestockWindow())
         .catch(e => log('⚠️ Failed to open Shop Restock', e));
     },
   });

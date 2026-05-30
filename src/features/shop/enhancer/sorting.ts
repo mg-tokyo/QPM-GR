@@ -2,10 +2,10 @@
 // Reorders shop item rows so in-stock items appear first.
 // Handles expansion panel repositioning to keep it attached to its row.
 
-import { reorderByY } from '../../core/pixiScene';
+import { reorderByY } from '../../../core/pixiScene';
 import { findShopContentContainer, scanShopRows } from './scanner';
 import { findExpansionPanel, findExpandedRow } from './buyAllButton';
-import type { ShopCategory } from '../../types/shops';
+import type { ShopCategory } from '../../../types/shops';
 import type { ShopRowInfo } from './types';
 
 type PixiNode = Record<string, unknown>;

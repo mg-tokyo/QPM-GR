@@ -176,7 +176,7 @@ export function getTrackersGroup(): HubGroupDef {
       el.textContent = t('hub.trackers.shopRestock.summary');
     },
     onOpen: () => {
-      import('../../shopRestockWindow').then(({ openShopRestockWindow }) => {
+      import('../../shop/restockWindow').then(({ openShopRestockWindow }) => {
         openShopRestockWindow();
       }).catch(e => log('⚠️ Failed to open Shop Restock', e));
     },

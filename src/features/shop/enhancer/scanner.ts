@@ -2,13 +2,13 @@
 // Scans the PIXI scene to find the active shop modal's item rows
 // and matches them to shop stock data.
 
-import { getPixiRuntime, findByLabel, getLabel, walkScene } from '../../core/pixiScene';
-import { getShopStockState } from '../../store/shopStock';
-import { createLogger } from '../../utils/logger';
+import { getPixiRuntime, findByLabel, getLabel, walkScene } from '../../../core/pixiScene';
+import { getShopStockState } from '../../../store/shopStock';
+import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
-import type { ShopStockItem } from '../../store/shopStockParsers';
-import type { ShopCategory } from '../../types/shops';
+import type { ShopStockItem } from '../../../store/shopStockParsers';
+import type { ShopCategory } from '../../../types/shops';
 import type { ShopRowInfo } from './types';
 
 type PixiNode = Record<string, unknown>;

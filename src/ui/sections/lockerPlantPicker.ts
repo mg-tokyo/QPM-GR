@@ -4,7 +4,7 @@
 
 import { areCatalogsReady, getAllPlantSpecies } from '../../catalogs/gameCatalogs';
 import { getCropSpriteDataUrl } from '../../sprite-v2/compat';
-import { RARITY_COLORS } from '../shopRestockWindowConstants';
+import { RARITY_COLORS } from '../shop/restockWindowConstants';
 import { t } from '../../i18n';
 import {
   UNLOCKED_BG, UNLOCKED_BORDER, HOVER_BG, HOVER_BORDER, TEXT_MUTED,

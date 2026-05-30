@@ -10,15 +10,15 @@ import {
   createText,
   createContainer,
   type PixiCtors,
-} from '../../core/pixiScene';
-import { isRoomSocketOpen } from '../../websocket/api';
-import { sendPurchase, applyInventoryCapToQuantity } from '../../ui/shopRestockAlerts/purchaseActions';
-import { BUY_SEND_DELAY_MS } from '../../ui/shopRestockAlerts/types';
+} from '../../../core/pixiScene';
+import { isRoomSocketOpen } from '../../../websocket/api';
+import { sendPurchase, applyInventoryCapToQuantity } from '../../../ui/shop/restockAlerts/purchaseActions';
+import { BUY_SEND_DELAY_MS } from '../../../ui/shop/restockAlerts/types';
 import { CATEGORY_TO_SHOP_TYPE } from './types';
-import { createLogger } from '../../utils/logger';
+import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
-import type { ShopCategory } from '../../types/shops';
+import type { ShopCategory } from '../../../types/shops';
 import type { ShopRowInfo } from './types';
 
 type PixiNode = Record<string, unknown>;
