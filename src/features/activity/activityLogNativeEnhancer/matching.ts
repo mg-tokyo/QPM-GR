@@ -5,13 +5,13 @@ import {
   getEggType,
   getPetSpecies,
   getPlantSpecies,
-} from '../../catalogs/gameCatalogs';
+} from '../../../catalogs/gameCatalogs';
 import {
   getAnySpriteDataUrl,
   getCropSpriteDataUrlWithMutations,
   getPetSpriteDataUrlWithMutations,
   getProduceSpriteDataUrlWithMutations,
-} from '../../sprite-v2/compat';
+} from '../../../sprite-v2/compat';
 import type {
   ActivityLogEntry,
   SpeciesLookupEntry,

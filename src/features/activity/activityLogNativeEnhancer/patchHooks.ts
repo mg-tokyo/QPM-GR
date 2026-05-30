@@ -1,4 +1,4 @@
-import { getAtomByLabel } from '../../core/jotaiBridge';
+import { getAtomByLabel } from '../../../core/jotaiBridge';
 import type { ActivityLogEntry, OrderFilter } from './types';
 import { S } from './state';
 import {

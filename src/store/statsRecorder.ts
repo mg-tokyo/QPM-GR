@@ -8,7 +8,7 @@
 // 'purchaseSeed', 'plantSeed', etc. We map these to stats.ts record functions.
 
 import { subscribeAtomValue } from '../core/atomRegistry';
-import { ACTION_MAP } from '../features/activityLogNativeEnhancer/constants';
+import { ACTION_MAP } from '../features/activity/activityLogNativeEnhancer/constants';
 import { onAbilityHistoryUpdate, type AbilityHistory } from './abilityLogs';
 import {
   recordGardenPlant,

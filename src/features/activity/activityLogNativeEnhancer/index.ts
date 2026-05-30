@@ -1,4 +1,4 @@
-import { log } from '../../utils/logger';
+import { log } from '../../../utils/logger';
 import type { ActionKey, TypeFilter, OrderFilter, ActivityLogEntry } from './types';
 import { S } from './state';
 import {

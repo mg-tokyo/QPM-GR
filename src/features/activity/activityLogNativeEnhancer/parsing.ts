@@ -17,7 +17,7 @@ import {
   TOOLBAR_ATTR,
   RARITY_ORDER,
 } from './constants';
-import { isRecord } from '../../utils/typeGuards';
+import { isRecord } from '../../../utils/typeGuards';
 
 export { isRecord };
 

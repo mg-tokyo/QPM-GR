@@ -1,6 +1,6 @@
-import { visibleInterval } from '../../utils/timerManager';
-import { getAtomByLabel, readAtomValue, writeAtomValue, subscribeAtom } from '../../core/jotaiBridge';
-import { log } from '../../utils/logger';
+import { visibleInterval } from '../../../utils/timerManager';
+import { getAtomByLabel, readAtomValue, writeAtomValue, subscribeAtom } from '../../../core/jotaiBridge';
+import { log } from '../../../utils/logger';
 import type {
   ActivityLogEntry,
   ModalRef,

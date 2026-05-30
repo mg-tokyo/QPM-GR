@@ -4,7 +4,7 @@ import {
   getActivityLogEnhancerStatus,
   isActivityLogEnhancerEnabled,
   setActivityLogEnhancerEnabled,
-} from '../../features/activityLogNativeEnhancer';
+} from '../../features/activity/activityLogNativeEnhancer';
 
 function getStatusText(enabled: boolean): string {
   if (!enabled) {

@@ -49,7 +49,7 @@ import {
   verifyActivityLogEnhancerEntries,
   isActivityLogEnhancerEnabled,
   setActivityLogEnhancerEnabled,
-} from './features/activityLogNativeEnhancer';
+} from './features/activity/activityLogNativeEnhancer';
 import { startAbilityTriggerStore, stopAbilityTriggerStore } from './store/abilityLogs';
 import { initLocale } from './i18n';
 

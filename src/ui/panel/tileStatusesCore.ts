@@ -317,7 +317,7 @@ export function startActivityLogStatus(getStatusEl: GetStatusEl, addLiveCleanup:
   const activityStatus = getStatusEl('activity-log');
   if (!activityStatus) return;
 
-  import('../../features/activityLogNativeEnhancer').then(({ startActivityLogEnhancer, getActivityLogEnhancerStatus }) => {
+  import('../../features/activity/activityLogNativeEnhancer').then(({ startActivityLogEnhancer, getActivityLogEnhancerStatus }) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
       const status = getActivityLogEnhancerStatus();
