@@ -4,10 +4,10 @@
 // creation automatically (via ShopCategory 'dawn'). This module adds the
 // weather-bound cleanup behavior.
 
-import { log } from '../../utils/logger';
-import { onWeatherSnapshot, type WeatherSnapshot } from '../../store/weatherHub';
-import { activeAlerts } from '../../ui/shop/restockAlerts/alertState';
-import { removeAlert } from '../../ui/shop/restockAlerts/alertDom';
+import { log } from '../../../utils/logger';
+import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
+import { activeAlerts } from '../../../ui/shop/restockAlerts/alertState';
+import { removeAlert } from '../../../ui/shop/restockAlerts/alertDom';
 
 let weatherUnsubscribe: (() => void) | null = null;
 let lastWeatherKind: string | null = null;

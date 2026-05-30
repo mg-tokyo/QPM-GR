@@ -3,10 +3,10 @@
 // Listens for 'dawnCapture' activity log entries and maintains per-pet
 // cooldown timers. Provides a subscribable snapshot for UI overlays.
 
-import { log } from '../../utils/logger';
-import { getAtomByLabel, subscribeAtom } from '../../core/jotaiBridge';
-import { onWeatherSnapshot, type WeatherSnapshot } from '../../store/weatherHub';
-import { DAWN_CAPTURE_ACTION } from '../dawnCapsule/constants';
+import { log } from '../../../utils/logger';
+import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
+import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
+import { DAWN_CAPTURE_ACTION } from '../capsule/constants';
 
 // ---------------------------------------------------------------------------
 // Types

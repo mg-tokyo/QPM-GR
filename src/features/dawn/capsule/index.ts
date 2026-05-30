@@ -2,9 +2,9 @@
 // Tracks Dawn Capsule opens via activity log atom.
 // Records pull history to local storage and computes rate statistics.
 
-import { log } from '../../utils/logger';
-import { storage } from '../../utils/storage';
-import { getAtomByLabel, subscribeAtom } from '../../core/jotaiBridge';
+import { log } from '../../../utils/logger';
+import { storage } from '../../../utils/storage';
+import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
 import {
   CAPSULE_OPEN_ACTION,
   CAPSULE_PULLS_STORAGE_KEY,

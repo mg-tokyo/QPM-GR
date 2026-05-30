@@ -98,9 +98,9 @@ import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/text
 import { openTextureSwapperWindow } from './ui/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shop/restockAlerts';
 import { fetchWeatherPredictions } from './utils/restockDataService';
-import { startDawnShopTracker, stopDawnShopTracker } from './features/dawnShop';
-import { startCapsuleTracker, stopCapsuleTracker } from './features/dawnCapsule';
-import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawnCapture';
+import { startDawnShopTracker, stopDawnShopTracker } from './features/dawn/shop';
+import { startCapsuleTracker, stopCapsuleTracker } from './features/dawn/capsule';
+import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawn/capture';
 import { initDawnEconomy, destroyDawnEconomy } from './store/dawnEconomy';
 import { initGmExportBridge } from './utils/gmExportBridge';
 import { stopNativeSendObserver } from './websocket/nativeSendObserver';
