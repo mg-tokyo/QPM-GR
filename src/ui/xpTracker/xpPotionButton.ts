@@ -2,7 +2,7 @@
 
 import type { ActivePetInfo } from '../../store/pets';
 import { projectXpPotion, sendUseXpPotion } from '../../features/xpPotion';
-import { formatCoins } from '../../features/valueCalculator';
+import { formatCoins } from '../../features/economy/valueCalculator';
 import { getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import { t } from '../../i18n';
 

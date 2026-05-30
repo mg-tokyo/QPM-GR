@@ -6,10 +6,10 @@ import {
   onStorageValueChange,
   getStorageValueState,
   type StorageValueState,
-} from '../features/storageValue';
-import { getAnySpriteDataUrl } from '../sprite-v2/compat';
-import { pageWindow } from '../core/pageContext';
-import { visibleInterval, timerManager } from '../utils/timerManager';
+} from '../../features/economy/storageValue';
+import { getAnySpriteDataUrl } from '../../sprite-v2/compat';
+import { pageWindow } from '../../core/pageContext';
+import { visibleInterval, timerManager } from '../../utils/timerManager';
 
 const OVERLAY_ID = 'qpm-storage-value-overlay';
 const POS_SYNC_TIMER_ID = 'storageValueOverlay:posSync';

@@ -1,4 +1,4 @@
-// src/ui/sections/lockerHarvestFilters.ts
+// src/ui/locker/lockerHarvestFilters.ts
 // Harvest Filter card — Aries-style multi-dimensional filter (size/color/weather).
 
 import { createCard } from '../panelHelpers';

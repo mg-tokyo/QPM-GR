@@ -137,7 +137,7 @@ export function registerBuiltinTiles(): void {
       import('../modalWindow').then(({ toggleWindow }) => {
         toggleWindow('trackers-v2-storageValue', `💰 ${t('tile.valueDisplay.label')}`, (root) => {
           root.style.cssText = 'overflow-y:auto;';
-          import('../storageValueWindow').then(({ renderStorageValueSettings }) => {
+          import('../economy/storageValueWindow').then(({ renderStorageValueSettings }) => {
             renderStorageValueSettings(root);
           }).catch(e => log('⚠️ Failed to load Value Display', e));
         }, '420px', '78vh');
@@ -185,7 +185,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.cropCalculator.label'),
     color: 'rgba(3, 169, 244, 0.28)',
     action: () => {
-      import('../cropCalculatorWindow').then(({ openCalculatorWindow }) => openCalculatorWindow())
+      import('../economy/cropCalculatorWindow').then(({ openCalculatorWindow }) => openCalculatorWindow())
         .catch(e => log('⚠️ Failed to open Crop Calculator', e));
     },
   });

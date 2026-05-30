@@ -3,16 +3,16 @@
 
 import { onGardenSnapshot, getGardenSnapshot } from '../../features/gardenBridge';
 import { t } from '../../i18n';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
-import { computeGardenValueFromCatalog } from '../../features/valueCalculator';
-import { computeInventoryValue, computeAllStoragesValue, computeActivePetsValue, computePlacedDecorAndEggValue, computeGrowingCropsValue, onStorageDataChange } from '../../features/storageValue';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
+import { computeGardenValueFromCatalog } from '../../features/economy/valueCalculator';
+import { computeInventoryValue, computeAllStoragesValue, computeActivePetsValue, computePlacedDecorAndEggValue, computeGrowingCropsValue, onStorageDataChange } from '../../features/economy/storageValue';
 import { onInventoryChange, getInventoryItems } from '../../store/inventory';
 import { onActivePetInfos, getActivePetInfos } from '../../store/pets';
 import { debounceCancelable } from '../../utils/debounce';
-import { toggleValueCard, isValueCardOpen, type ValueCardType } from '../valueFloatingCard';
+import { toggleValueCard, isValueCardOpen, type ValueCardType } from '../economy/valueFloatingCard';
 import { getFriendBonusMultiplier, onFriendBonusChange } from '../../store/friendBonus';
-import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems } from '../../features/topValueItems';
-import { getCachedStorages } from '../../features/storageValue';
+import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems } from '../../features/economy/topValueItems';
+import { getCachedStorages } from '../../features/economy/storageValue';
 import { subscribeEconomy, getEconomySnapshot, type EconomySnapshot, type Transaction } from '../../store/economyTracker';
 import type { ShopCategoryKey } from '../../store/stats';
 import {
@@ -21,13 +21,13 @@ import {
   onRoomPlayersChange,
   type RoomPlayersSnapshot,
   type RoomPlayerEconomy,
-} from '../../features/roomPlayerEconomy';
+} from '../../features/economy/roomPlayerEconomy';
 import {
   togglePlayerCompareCard,
   isPlayerCompareCardOpen,
   getCompareTargetPlayerId,
   setCompareTarget,
-} from '../playerCompareFloatingCard';
+} from '../economy/playerCompareFloatingCard';
 import { CURRENCY_LABELS } from './constants';
 import { currencyIcon, chipIcon } from './spriteHelpers';
 import { pillBtnCss, timeAgo, appendSectionHeader, inlineVal } from './styleHelpers';

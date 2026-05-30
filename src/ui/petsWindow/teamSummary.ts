@@ -2,7 +2,7 @@
 
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../../data/petHungerCaps';
 import { buildAbilityValuationContext, type AbilityValuationContext } from '../../features/abilityValuation';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import {
   buildPetCompareProfile,
   captureProgressionStage,

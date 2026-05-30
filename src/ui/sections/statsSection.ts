@@ -1,5 +1,5 @@
 import { subscribeToStats, type StatsSnapshot } from '../../store/stats';
-import { formatCoins } from '../../features/valueCalculator';
+import { formatCoins } from '../../features/economy/valueCalculator';
 import { formatSince } from '../../utils/helpers';
 import { btn, formatWeatherLabel, formatDuration } from '../panelHelpers';
 import { t } from '../../i18n';

@@ -279,7 +279,7 @@ export function startValueDisplayStatus(getStatusEl: GetStatusEl, addLiveCleanup
   if (!valueStatus) return;
 
   Promise.all([
-    import('../../features/storageValue'),
+    import('../../features/economy/storageValue'),
     import('../../store/inventory'),
   ]).then(([storageValue, inventory]) => {
     if (version !== getCurrentVersion()) return;
@@ -344,7 +344,7 @@ export function startProtectionStatus(getStatusEl: GetStatusEl, addLiveCleanup: 
   if (!protectionStatus) return;
 
   Promise.all([
-    import('../../features/inventoryCapacity'),
+    import('../../features/economy/inventoryCapacity'),
     import('../../features/locker/index'),
     import('../../store/inventory'),
   ]).then(([capacity, locker, inventory]) => {

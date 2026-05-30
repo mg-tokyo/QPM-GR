@@ -12,7 +12,7 @@ import {
   removeInvCapacityCustomSound,
   type InventoryCapacityConfig,
   type SoundAlertConfig,
-} from '../../features/inventoryCapacity';
+} from '../../features/economy/inventoryCapacity';
 import {
   BUILTIN_SOUNDS,
 } from '../shop/restockAlerts/soundConfig';

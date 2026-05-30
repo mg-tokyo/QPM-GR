@@ -1,4 +1,4 @@
-// src/ui/sections/lockerCropOverrides.ts
+// src/ui/locker/lockerCropOverrides.ts
 // Per-species crop override card for the Locker harvest filters.
 
 import { createCard } from '../panelHelpers';

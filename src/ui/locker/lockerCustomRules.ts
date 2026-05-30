@@ -1,4 +1,4 @@
-// src/ui/sections/lockerCustomRules.ts
+// src/ui/locker/lockerCustomRules.ts
 // Custom plant+mutation rules card for the Locker.
 
 import { createCard } from '../panelHelpers';

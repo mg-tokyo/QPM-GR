@@ -127,7 +127,7 @@ export function getItemsGroup(): HubGroupDef {
           const wrapper = document.createElement('div');
           wrapper.style.cssText = 'display:flex;flex-direction:column;min-height:200px;';
           container.appendChild(wrapper);
-          const { renderCalculator } = await import('../../cropCalculatorWindow');
+          const { renderCalculator } = await import('../../economy/cropCalculatorWindow');
           renderCalculator(wrapper);
         } catch (err) {
           log('⚠️ Failed to load Calculator', err);
@@ -137,7 +137,7 @@ export function getItemsGroup(): HubGroupDef {
     },
     detachWindowId: 'crop-calculator',
     onDetach: () => {
-      import('../../cropCalculatorWindow').then(({ openCalculatorWindow }) => {
+      import('../../economy/cropCalculatorWindow').then(({ openCalculatorWindow }) => {
         openCalculatorWindow();
       }).catch(e => log('⚠️ Failed to open Calculator', e));
     },
@@ -181,7 +181,7 @@ export function getItemsGroup(): HubGroupDef {
     onOpen: () => {
       toggleWindow('trackers-v2-storageValue', '💰 Value Display', (root) => {
         root.style.cssText = 'overflow-y:auto;';
-        import('../../storageValueWindow').then(({ renderStorageValueSettings }) => {
+        import('../../economy/storageValueWindow').then(({ renderStorageValueSettings }) => {
           renderStorageValueSettings(root);
         }).catch(e => log('⚠️ Failed to load Value Display', e));
       }, '420px', '78vh');

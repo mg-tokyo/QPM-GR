@@ -3,15 +3,15 @@
 // Reads stateAtom (userSlots + players) to extract coins, garden value,
 // inventory value, and pet count for every player in the room.
 
-import { getAtomByLabel, readAtomValue, subscribeAtom } from '../core/jotaiBridge';
-import { getPlayerId } from '../core/playerContext';
+import { getAtomByLabel, readAtomValue, subscribeAtom } from '../../core/jotaiBridge';
+import { getPlayerId } from '../../core/playerContext';
 import { computeGardenValueFromCatalog } from './valueCalculator';
 import { computeStorageItemsValue, computePetSellPrice, computePlacedDecorAndEggValue, computeGrowingCropsValue } from './storageValue';
-import { getDecor } from '../catalogs/gameCatalogs';
-import { debounceCancelable } from '../utils/debounce';
-import { createLogger } from '../utils/logger';
-import { isRecord } from '../utils/typeGuards';
-import { getFriendBonusMultiplier } from '../store/friendBonus';
+import { getDecor } from '../../catalogs/gameCatalogs';
+import { debounceCancelable } from '../../utils/debounce';
+import { createLogger } from '../../utils/logger';
+import { isRecord } from '../../utils/typeGuards';
+import { getFriendBonusMultiplier } from '../../store/friendBonus';
 
 const log = createLogger('QPM:RoomPlayerEcon');
 

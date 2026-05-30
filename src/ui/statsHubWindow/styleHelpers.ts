@@ -3,7 +3,7 @@
 
 import { RAINBOW_GRADIENT } from './constants';
 import { findVariantBadge, getVariantChipColors } from '../../features/mutations/data/variantBadges';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import { getCoinSpriteUrl } from './spriteHelpers';
 import { t } from '../../i18n';
 

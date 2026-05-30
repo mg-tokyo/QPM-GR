@@ -1,21 +1,21 @@
 // src/ui/valueFloatingCard.ts
 // Detached, draggable floating cards for economy values (balances + asset values).
 
-import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
-import { pctToPixels, pixelsToPct, clampPct } from '../utils/windowPosition';
-import { onGardenSnapshot, getGardenSnapshot } from '../features/gardenBridge';
-import { onInventoryChange } from '../store/inventory';
-import { onActivePetInfos } from '../store/pets';
-import { computeGardenValueFromCatalog, formatCoinsAbbreviated } from '../features/valueCalculator';
-import { computeInventoryValue, computeAllStoragesValue, computeActivePetsValue, computePlacedDecorAndEggValue, computeGrowingCropsValue, getCachedStorages, onStorageDataChange } from '../features/storageValue';
-import { getAnySpriteDataUrl, getCropSpriteDataUrl, getProduceSpriteDataUrl, getProduceSpriteDataUrlWithMutations, getPetSpriteDataUrl } from '../sprite-v2/compat';
-import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems, type TopValueItem } from '../features/topValueItems';
-import { getInventoryItems } from '../store/inventory';
-import { getActivePetInfos } from '../store/pets';
-import { debounceCancelable } from '../utils/debounce';
-import { subscribeEconomy, getEconomySnapshot, type EconomySnapshot } from '../store/economyTracker';
-import { getFriendBonusMultiplier, onFriendBonusChange } from '../store/friendBonus';
+import { storage } from '../../utils/storage';
+import { log } from '../../utils/logger';
+import { pctToPixels, pixelsToPct, clampPct } from '../../utils/windowPosition';
+import { onGardenSnapshot, getGardenSnapshot } from '../../features/gardenBridge';
+import { onInventoryChange } from '../../store/inventory';
+import { onActivePetInfos } from '../../store/pets';
+import { computeGardenValueFromCatalog, formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
+import { computeInventoryValue, computeAllStoragesValue, computeActivePetsValue, computePlacedDecorAndEggValue, computeGrowingCropsValue, getCachedStorages, onStorageDataChange } from '../../features/economy/storageValue';
+import { getAnySpriteDataUrl, getCropSpriteDataUrl, getProduceSpriteDataUrl, getProduceSpriteDataUrlWithMutations, getPetSpriteDataUrl } from '../../sprite-v2/compat';
+import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems, type TopValueItem } from '../../features/economy/topValueItems';
+import { getInventoryItems } from '../../store/inventory';
+import { getActivePetInfos } from '../../store/pets';
+import { debounceCancelable } from '../../utils/debounce';
+import { subscribeEconomy, getEconomySnapshot, type EconomySnapshot } from '../../store/economyTracker';
+import { getFriendBonusMultiplier, onFriendBonusChange } from '../../store/friendBonus';
 
 // ---------------------------------------------------------------------------
 // Constants

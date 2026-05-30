@@ -6,7 +6,7 @@ import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type A
 import { findAbilityHistoryForIdentifiers } from '../../store/abilityLogs';
 import { computeObservedMetrics } from '../abilityAnalysis';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from '../../store/xpTracker';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import { getPetMetadata } from '../../data/petMetadata';
 import { getHungerDepletionTime } from '../../data/petHungerDepletion';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type AbilityValuationContext } from '../../features/abilityValuation';

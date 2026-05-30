@@ -1,6 +1,6 @@
 // src/ui/xpTracker/xpTrackerContent.ts — XP Tracker content (renders inside modalWindow or hub card)
 
-import { formatCoins } from '../../features/valueCalculator';
+import { formatCoins } from '../../features/economy/valueCalculator';
 import { onActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import {

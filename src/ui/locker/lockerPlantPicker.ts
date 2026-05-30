@@ -1,4 +1,4 @@
-// src/ui/sections/lockerPlantPicker.ts
+// src/ui/locker/lockerPlantPicker.ts
 // Plant species picker dropdown for the Locker custom rules builder.
 // Bug fix #1: document click listener only lives while dropdown is open.
 

@@ -2,7 +2,7 @@
 
 import { getGardenSnapshot } from './gardenBridge';
 import { getWeatherSnapshot } from '../store/weatherHub';
-import { calculatePlantValue } from './valueCalculator';
+import { calculatePlantValue } from './economy/valueCalculator';
 import { getWeatherCatalog } from '../catalogs/gameCatalogs';
 import { getMutationApplicationResult } from '../utils/mutationCompatibility';
 import { isRecord } from '../utils/typeGuards';

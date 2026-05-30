@@ -9,7 +9,7 @@ import {
   type MutationType,
   type WeatherCondition
 } from '../data/cropMultipliers';
-import { calculatePlantValue } from '../features/valueCalculator';
+import { calculatePlantValue } from '../features/economy/valueCalculator';
 
 export interface MutationOpportunity {
   cropSpecies: string;

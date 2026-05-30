@@ -2,16 +2,16 @@
 // Tracks inventory slot usage and emits state changes for the overlay.
 // Optionally plays sound alerts when the warning or full threshold is crossed.
 
-import { getInventoryItems, onInventoryChange } from '../store/inventory';
-import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
+import { getInventoryItems, onInventoryChange } from '../../store/inventory';
+import { storage } from '../../utils/storage';
+import { log } from '../../utils/logger';
 import {
   playSound,
   playCustomSound,
   startLoop,
   stopLoop,
   isBuiltinSound,
-} from '../ui/shop/restockAlerts/soundEngine';
+} from '../../ui/shop/restockAlerts/soundEngine';
 
 // ---------------------------------------------------------------------------
 // Sound alert config types

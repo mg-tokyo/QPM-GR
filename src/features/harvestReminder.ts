@@ -4,7 +4,7 @@
 import { pageWindow, shareGlobal } from '../core/pageContext';
 import { log } from '../utils/logger';
 import { GardenSnapshot, getGardenSnapshot, onGardenSnapshot } from './gardenBridge';
-import { calculatePlantValue, formatCoins } from './valueCalculator';
+import { calculatePlantValue, formatCoins } from './economy/valueCalculator';
 import { computeMutationMultiplier, normalizeMutationName } from '../utils/cropMultipliers';
 import type { MutationMultiplierBreakdown } from '../utils/cropMultipliers';
 // Garden highlight overlay removed for performance - functions are no-ops

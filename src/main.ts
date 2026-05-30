@@ -90,10 +90,10 @@ import { registerUniversalProbe } from './debug/universalProbe';
 import { createWsMonitor } from './debug/wsMonitor';
 import { timerManager, visibleInterval } from './utils/timerManager';
 import { startController, stopController } from './features/input/controller/index';
-import { startStorageValue, stopStorageValue } from './features/storageValue';
-import { startStorageValueOverlay, stopStorageValueOverlay } from './ui/storageValueOverlay';
-import { startInventoryCapacity, stopInventoryCapacity } from './features/inventoryCapacity';
-import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './ui/inventoryCapacityOverlay';
+import { startStorageValue, stopStorageValue } from './features/economy/storageValue';
+import { startStorageValueOverlay, stopStorageValueOverlay } from './ui/economy/storageValueOverlay';
+import { startInventoryCapacity, stopInventoryCapacity } from './features/economy/inventoryCapacity';
+import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './ui/economy/inventoryCapacityOverlay';
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/textureSwapper';
 import { openTextureSwapperWindow } from './ui/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shop/restockAlerts';
@@ -1716,7 +1716,7 @@ async function initialize(): Promise<void> {
   registerWindowOpener('crop-boost-tracker', openCropBoostTrackerWindow);
   registerWindowOpener(HUB_WINDOW_ID, toggleHub);
   registerWindowOpener('stats-hub', openStatsHubWindow);
-  registerWindowOpener('calculator', () => import('./ui/cropCalculatorWindow').then(({ openCalculatorWindow }) => openCalculatorWindow()));
+  registerWindowOpener('calculator', () => import('./ui/economy/cropCalculatorWindow').then(({ openCalculatorWindow }) => openCalculatorWindow()));
   if (TEXTURE_MANIPULATOR_ENABLED) {
     registerWindowOpener('texture-swapper', openTextureSwapperWindow);
   }

@@ -9,7 +9,7 @@ import {
   getCropSpriteDataUrl,
   getProduceSpriteDataUrl,
 } from '../../sprite-v2/compat';
-import type { ValueCardType } from '../valueFloatingCard';
+import type { ValueCardType } from '../economy/valueFloatingCard';
 
 // ---------------------------------------------------------------------------
 // Sprite URL caches — resolved lazily, kept for session lifetime

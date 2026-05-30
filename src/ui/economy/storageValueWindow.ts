@@ -6,12 +6,12 @@ import {
   saveStorageValueConfig,
   getDetectedStorageIds,
   type StorageValueConfig,
-} from '../features/storageValue';
+} from '../../features/economy/storageValue';
 import {
   getTileValueConfig,
   setTileValueConfig,
-} from '../features/tooltipInjection';
-import { t } from '../i18n';
+} from '../../features/tooltipInjection';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Toggle switch helper

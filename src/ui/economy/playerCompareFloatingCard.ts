@@ -1,15 +1,15 @@
 // src/ui/playerCompareFloatingCard.ts
 // Detached, draggable floating card comparing economy stats with another player.
 
-import { storage } from '../utils/storage';
-import { formatCoinsAbbreviated } from '../features/valueCalculator';
-import { pctToPixels, pixelsToPct, clampPct } from '../utils/windowPosition';
+import { storage } from '../../utils/storage';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
+import { pctToPixels, pixelsToPct, clampPct } from '../../utils/windowPosition';
 import {
   getRoomPlayersSnapshot,
   onRoomPlayersChange,
   type RoomPlayerEconomy,
   type RoomPlayersSnapshot,
-} from '../features/roomPlayerEconomy';
+} from '../../features/economy/roomPlayerEconomy';
 
 // ---------------------------------------------------------------------------
 // Constants

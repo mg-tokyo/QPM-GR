@@ -2,7 +2,7 @@
 // Compare panel builder for the pet picker modal.
 
 import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../../data/petAbilities';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type AbilityValuationContext } from '../../features/abilityValuation';
 import { buildCompareCardViewModel } from '../comparePresentation';
 import { calculateMaxStrength } from '../../store/xpTracker';

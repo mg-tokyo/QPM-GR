@@ -2,11 +2,11 @@
 // Storage Value feature — pure computation layer (no DOM)
 // Computes total sell/shop value of items in Seed Silo, Pet Hutch, Decor Shed, and Inventory
 
-import { subscribeAtomValue } from '../core/atomRegistry';
-import { getFriendBonusMultiplier } from '../store/friendBonus';
-import { getInventoryItems, onInventoryChange } from '../store/inventory';
-import { getActivePetInfos } from '../store/pets';
-import type { GardenSnapshot } from './gardenBridge';
+import { subscribeAtomValue } from '../../core/atomRegistry';
+import { getFriendBonusMultiplier } from '../../store/friendBonus';
+import { getInventoryItems, onInventoryChange } from '../../store/inventory';
+import { getActivePetInfos } from '../../store/pets';
+import type { GardenSnapshot } from '../gardenBridge';
 import {
   getSeedPrice,
   getPlantSpecies,
@@ -18,12 +18,12 @@ import {
   getItemPrice,
   areCatalogsReady,
   onCatalogsReady,
-} from '../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../utils/cropMultipliers';
-import { debounceCancelable } from '../utils/debounce';
-import { storage } from '../utils/storage';
-import { createLogger } from '../utils/logger';
-import { criticalInterval, timerManager } from '../utils/timerManager';
+} from '../../catalogs/gameCatalogs';
+import { computeMutationMultiplier } from '../../utils/cropMultipliers';
+import { debounceCancelable } from '../../utils/debounce';
+import { storage } from '../../utils/storage';
+import { createLogger } from '../../utils/logger';
+import { criticalInterval, timerManager } from '../../utils/timerManager';
 
 const log = createLogger('QPM:StorageValue');
 

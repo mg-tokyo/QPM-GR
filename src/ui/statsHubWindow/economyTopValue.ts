@@ -2,14 +2,14 @@
 // Top-value dropdown overlay for economy tab balance chips.
 
 import { t } from '../../i18n';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import {
   getProduceSpriteDataUrlWithMutations,
   getPetSpriteDataUrl,
   getAnySpriteDataUrl,
   getCropSpriteDataUrl,
 } from '../../sprite-v2/compat';
-import type { TopValueItem } from '../../features/topValueItems';
+import type { TopValueItem } from '../../features/economy/topValueItems';
 
 // ---------------------------------------------------------------------------
 // Top-value item row

@@ -13,7 +13,7 @@ import {
   getPetHoursToMature,
   getAllEggTypes,
   getEggSpawnWeights,
-} from '../catalogs/gameCatalogs';
+} from '../../catalogs/gameCatalogs';
 import {
   getCropSpriteDataUrl,
   getCropSpriteDataUrlWithMutations,
@@ -21,18 +21,18 @@ import {
   getPetSpriteDataUrlWithMutations,
   getAnySpriteDataUrl,
   onSpritesReady,
-} from '../sprite-v2/compat';
+} from '../../sprite-v2/compat';
 import {
   computeMutationMultiplier,
   getAllMutationDefinitions,
   type MutationDefinition,
   type MutationCategory,
-} from '../utils/cropMultipliers';
-import { lookupMaxScale } from '../utils/plantScales';
-import { normalizeSpeciesKey } from '../utils/helpers';
-import { findVariantBadge } from '../features/mutations/data/variantBadges';
-import { toggleWindow } from './modalWindow';
-import { t } from '../i18n';
+} from '../../utils/cropMultipliers';
+import { lookupMaxScale } from '../../utils/plantScales';
+import { normalizeSpeciesKey } from '../../utils/helpers';
+import { findVariantBadge } from '../../features/mutations/data/variantBadges';
+import { toggleWindow } from '../modalWindow';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Theme tokens

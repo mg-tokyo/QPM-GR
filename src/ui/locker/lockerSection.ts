@@ -1,4 +1,4 @@
-// src/ui/sections/lockerSection.ts
+// src/ui/locker/lockerSection.ts
 // Locker section orchestrator — tab bar + panel switching.
 // All panel/tile/helper logic lives in lockerPrimitives, lockerPlantPicker,
 // lockerCustomRules, and lockerTabPanels.

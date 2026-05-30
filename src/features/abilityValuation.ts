@@ -3,7 +3,7 @@
 
 import { getGardenSnapshot, type GardenSnapshot } from './gardenBridge';
 import { shareGlobal } from '../core/pageContext';
-import { calculatePlantValue } from './valueCalculator';
+import { calculatePlantValue } from './economy/valueCalculator';
 import { computeMutationMultiplier } from '../utils/cropMultipliers';
 import { getMutationApplicationResult } from '../utils/mutationCompatibility';
 import { normalizeSpeciesKey } from '../utils/helpers';

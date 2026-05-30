@@ -1,4 +1,4 @@
-// src/ui/sections/lockerPrimitives.ts
+// src/ui/locker/lockerPrimitives.ts
 // Shared style tokens, sprite resolvers, DOM helpers, and rarity logic for Locker UI.
 
 import { getLockerConfig, updateLockerConfig } from '../../features/locker/index';

@@ -14,7 +14,7 @@ import {
 import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { areCatalogsReady } from '../../catalogs/gameCatalogs';
 import { analyzeAllEggs, type EggAnalysis } from '../../features/eggEfficiency';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import type { StatsHubFilters } from './types';
 import { RAINBOW_GRADIENT, STATS_HUB_FILTERS_KEY } from './constants';
 import { petSprite } from './spriteHelpers';

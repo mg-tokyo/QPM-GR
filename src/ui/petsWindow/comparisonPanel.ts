@@ -2,7 +2,7 @@
 
 import { getAbilityDefinition } from '../../data/petAbilities';
 import { buildAbilityValuationContext, type AbilityValuationContext } from '../../features/abilityValuation';
-import { formatCoinsAbbreviated } from '../../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../../features/economy/valueCalculator';
 import {
   buildTeamCompareProfile,
   captureProgressionStage,

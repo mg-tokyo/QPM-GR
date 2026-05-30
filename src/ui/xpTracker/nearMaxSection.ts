@@ -5,7 +5,7 @@ import { type ActivePetInfo } from '../../store/pets';
 import { readAtomValue } from '../../core/atomRegistry';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import { getSpeciesXpPerLevel, calculateMaxStrength } from '../../store/xpTracker';
-import { formatCoins } from '../../features/valueCalculator';
+import { formatCoins } from '../../features/economy/valueCalculator';
 import { swapPetIntoActiveSlot, placePetIntoActiveSlot, type SwapPetFailureReason } from '../../features/petSwap';
 import { makePillButton } from './xpTrackerContent';
 import { t } from '../../i18n';

@@ -1,4 +1,4 @@
-// src/ui/sections/lockerTabPanels.ts
+// src/ui/locker/lockerTabPanels.ts
 // Tab panel builders and cross-cutting cards for the Locker UI.
 
 import { createCard } from '../panelHelpers';
@@ -20,7 +20,7 @@ import {
 import { buildCustomRulesCard } from './lockerCustomRules';
 import { buildHarvestFilterCard } from './lockerHarvestFilters';
 import { buildCropOverridesCard } from './lockerCropOverrides';
-import { createInventoryCapacitySection } from './inventoryCapacitySection';
+import { createInventoryCapacitySection } from '../economy/inventoryCapacitySection';
 import { t } from '../../i18n';
 import { log } from '../../utils/logger';
 

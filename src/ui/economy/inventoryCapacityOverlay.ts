@@ -19,9 +19,9 @@ import {
   type InventoryCapacityState,
   getInventoryCapacityConfig,
   subscribeToInventoryCapacityConfig,
-} from '../features/inventoryCapacity';
-import { pageWindow } from '../core/pageContext';
-import { subscribeAtomValue } from '../core/atomRegistry';
+} from '../../features/economy/inventoryCapacity';
+import { pageWindow } from '../../core/pageContext';
+import { subscribeAtomValue } from '../../core/atomRegistry';
 
 const OVERLAY_ID = 'qpm-inv-capacity-overlay';
 const FLASH_STYLE_ID = 'qpm-inv-capacity-flash-style';

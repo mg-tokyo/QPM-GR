@@ -16,7 +16,7 @@ export function createProtectionSection(): { element: HTMLElement; cleanup: () =
 
   (async () => {
     try {
-      const { createLockerSection } = await import('./lockerSection');
+      const { createLockerSection } = await import('../locker/lockerSection');
       locksContent.appendChild(createLockerSection());
     } catch (err) {
       log('Failed to load Locker section', err);

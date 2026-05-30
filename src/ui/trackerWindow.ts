@@ -5,7 +5,7 @@ import { getPetSpriteDataUrlWithMutations } from '../sprite-v2/compat';
 import { getAbilityDefinition, computeAbilityStats, type AbilityDefinition } from '../data/petAbilities';
 import { getAbilityColor } from '../utils/petCardRenderer';
 import { findAbilityHistoryForIdentifiers, onAbilityHistoryUpdate } from '../store/abilityLogs';
-import { formatCoinsAbbreviated } from '../features/valueCalculator';
+import { formatCoinsAbbreviated } from '../features/economy/valueCalculator';
 import { throttle } from '../utils/scheduling';
 import {
   buildAbilityValuationContext,
