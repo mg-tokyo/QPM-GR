@@ -2,7 +2,7 @@
 // Bridge for active pet information via myPrimitivePetSlotsAtom.
 
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
-import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../data/petHungerCaps';
+import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../features/pets/data/petHungerCaps';
 import { log } from '../utils/logger';
 import { recordPetXP, estimatePetLevel } from './petLevelCalculator';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from './xpTracker';

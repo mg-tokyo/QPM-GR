@@ -22,7 +22,7 @@ import {
   resetPanelToggleKeybind,
   onPanelToggleKeybindChange,
 } from '../../../features/input/panelHotkey';
-import { normalizeKeybind, formatKeybind, createKeybindButton } from '../../petsWindow/helpers';
+import { normalizeKeybind, formatKeybind, createKeybindButton } from '../../pets/petsWindow/helpers';
 import { t } from '../../../i18n';
 
 const SHOP_IDS: readonly ShopId[] = ['seedShop', 'eggShop', 'toolShop', 'decorShop'];

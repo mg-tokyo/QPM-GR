@@ -26,7 +26,7 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
     import('../../store/pets'),
     import('../../store/petTeams'),
     import('../trackerWindow'),
-    import('../xpTracker'),
+    import('../pets/xpTracker'),
     import('../../store/abilityLogs'),
     import('../../store/xpTracker'),
   ]).then(([petsStore, teamsStore, abilityTrackerWindow, xpTrackerWindow, abilityLogs, xpTracker]) => {
@@ -206,10 +206,10 @@ export function startTurtleTimerStatus(getStatusEl: GetStatusEl, addLiveCleanup:
   const turtleStatus = getStatusEl('turtle-timer');
   if (!turtleStatus) return;
 
-  import('../../features/turtleTimer').then(({ initializeTurtleTimer, onTurtleTimerState }) => {
+  import('../../features/pets/turtleTimer').then(({ initializeTurtleTimer, onTurtleTimerState }) => {
     if (version !== getCurrentVersion()) return;
     initializeTurtleTimer();
-    const render = (state: import('../../features/turtleTimer').TurtleTimerState): void => {
+    const render = (state: import('../../features/pets/turtleTimer').TurtleTimerState): void => {
       if (!state.enabled) {
         setStatusText(turtleStatus, 'Timer disabled', 'muted');
         return;
@@ -241,7 +241,7 @@ export function startCropBoostStatus(getStatusEl: GetStatusEl, addLiveCleanup: A
   const cropBoostStatus = getStatusEl('crop-boosts');
   if (!cropBoostStatus) return;
 
-  import('../../features/cropBoostTracker').then(({ startCropBoostTracker, getConfig, getCurrentAnalysis, manualRefresh, onAnalysisChange }) => {
+  import('../../features/pets/cropBoostTracker').then(({ startCropBoostTracker, getConfig, getCurrentAnalysis, manualRefresh, onAnalysisChange }) => {
     if (version !== getCurrentVersion()) return;
     startCropBoostTracker();
     const render = (): void => {

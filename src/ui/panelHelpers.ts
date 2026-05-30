@@ -1,6 +1,6 @@
 import type { ShopCategoryKey } from '../store/stats';
 import type { ActivePetInfo } from '../store/pets';
-import { clearManualOverride, setManualOverride } from '../features/turtleTimer.ts';
+import { clearManualOverride, setManualOverride } from '../features/pets/turtleTimer';
 import { ensureToastStyle } from './panelStyles';
 
 // ---- Interfaces ----

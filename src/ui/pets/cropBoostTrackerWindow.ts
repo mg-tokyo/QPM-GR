@@ -16,7 +16,7 @@ import {
   getAvailableSpecies,
   type TrackerAnalysis,
   type CropSizeInfo,
-} from '../../features/cropBoostTracker';
+} from '../../features/pets/cropBoostTracker';
 import { log } from '../../utils/logger';
 import { getCropSpriteCanvas, getCropSpriteWithMutations } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/canvasHelpers';

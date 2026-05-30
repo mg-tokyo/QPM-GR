@@ -2,17 +2,17 @@
 // Test utility to verify we can access all detailed pet statistics for comparison hub
 
 import { getActivePetInfos } from '../store/pets';
-import { getAbilityDefinition, getAllAbilityDefinitions } from '../data/petAbilities';
-import { getHungerCapForSpecies } from '../data/petHungerCaps';
-import { getHungerDepletionRate } from '../data/petHungerDepletion';
-import { getTimeToMature } from '../data/petTimeToMature';
+import { getAbilityDefinition, getAllAbilityDefinitions } from '../features/pets/data/petAbilities';
+import { getHungerCapForSpecies } from '../features/pets/data/petHungerCaps';
+import { getHungerDepletionRate } from '../features/pets/data/petHungerDepletion';
+import { getTimeToMature } from '../features/pets/data/petTimeToMature';
 import { log } from './logger';
 import {
   buildAbilityValuationContext,
   resolveDynamicAbilityEffect,
   type AbilityValuationContext,
   type DynamicAbilityEffect,
-} from '../features/abilityValuation';
+} from '../features/pets/abilityValuation';
 import { calculateMaxStrength, getSpeciesMaxScale } from '../store/xpTracker';
 
 /**

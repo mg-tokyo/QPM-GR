@@ -255,7 +255,7 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
   abilityCheckboxContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;';
 
   // Dynamically import all abilities from petAbilities.ts
-  const { getAllAbilityDefinitions } = await import('../../data/petAbilities');
+  const { getAllAbilityDefinitions } = await import('../../features/pets/data/petAbilities');
   const allAbilityDefinitions = getAllAbilityDefinitions();
 
   // Group abilities by base name (remove tier numbers for cleaner display)

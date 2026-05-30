@@ -9,7 +9,7 @@ import {
 } from '../../catalogs/gameCatalogs';
 import {
   getSellAllPetsSettings, setSellAllPetsProtectionRules, SELL_ALL_PET_RARITY_OPTIONS,
-} from '../../features/sellAllPets';
+} from '../../features/pets/sellAll';
 import {
   UNLOCKED_BG, UNLOCKED_BORDER, ACCENT, TEXT_MUTED, LABEL_CSS,
   type EligibleData,

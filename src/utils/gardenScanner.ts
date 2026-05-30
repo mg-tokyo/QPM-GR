@@ -1,8 +1,8 @@
 // src/utils/gardenScanner.ts
 // Garden scanner for finding valuable mutation opportunities
 
-import type { AbilityValuationContext } from '../features/abilityValuation';
-import { buildAbilityValuationContext } from '../features/abilityValuation';
+import type { AbilityValuationContext } from '../features/pets/abilityValuation';
+import { buildAbilityValuationContext } from '../features/pets/abilityValuation';
 import {
   calculateMultiplier,
   getMostValuableWeatherMutation,

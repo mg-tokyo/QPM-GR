@@ -30,11 +30,11 @@ function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => vo
           spinner.remove();
           contentCleanup = renderAbilityTrackerContent(container);
         } else if (key === 'turtle') {
-          const { renderTurtleTimerContent } = await import('../../turtleTimerWindow');
+          const { renderTurtleTimerContent } = await import('../../pets/turtleTimerWindow');
           spinner.remove();
           contentCleanup = renderTurtleTimerContent(container);
         } else if (key === 'xp') {
-          const { renderXpTrackerContent } = await import('../../xpTracker');
+          const { renderXpTrackerContent } = await import('../../pets/xpTracker');
           spinner.remove();
           contentCleanup = renderXpTrackerContent(container);
         } else if (key === 'crops') {

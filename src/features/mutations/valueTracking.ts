@@ -7,7 +7,7 @@ import { debounce } from '../../utils/debounce';
 import { log } from '../../utils/logger';
 import { visibleInterval } from '../../utils/timerManager';
 import { resetWeatherMutationTracking } from './weatherTracking';
-import { buildAbilityValuationContext, resolveDynamicAbilityEffect, resolveGrantedMutationName } from '../abilityValuation';
+import { buildAbilityValuationContext, resolveDynamicAbilityEffect, resolveGrantedMutationName } from '../pets/abilityValuation';
 import { calculateMutationValue } from '../../utils/mutationValueCalculator';
 import { getMutationMultiplier, getAllAbilities } from '../../catalogs/gameCatalogs';
 

@@ -1,7 +1,7 @@
 // src/store/petLevelCalculator.ts
 // Calculate pet levels from XP gain rate and time-to-mature
 
-import { getTimeToMatureSeconds } from '../data/petTimeToMature';
+import { getTimeToMatureSeconds } from '../features/pets/data/petTimeToMature';
 import { log } from '../utils/logger';
 import type { ActivePetInfo } from './pets';
 

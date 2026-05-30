@@ -1,7 +1,7 @@
 import type { ActivePetInfo } from '../store/pets';
 import { findAbilityHistoryForIdentifiers, type AbilityHistory, type AbilityEvent } from '../store/abilityLogs';
-import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../data/petAbilities';
-import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type DynamicAbilityEffect } from '../features/abilityValuation';
+import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../features/pets/data/petAbilities';
+import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type DynamicAbilityEffect } from '../features/pets/abilityValuation';
 
 // ---- Constants ----
 

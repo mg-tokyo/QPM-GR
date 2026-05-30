@@ -6,7 +6,7 @@ import { delay } from '../../utils/scheduling';
 import { getActivePetInfos } from '../pets';
 import { logTeamEvent } from '../petTeamsLogs';
 import { sendRoomAction } from '../../websocket/api';
-import { findEmptyGardenTile, PLACE_PET_DEFAULTS, resolveMyUserSlotIdx } from '../../features/petTeamActions';
+import { findEmptyGardenTile, PLACE_PET_DEFAULTS, resolveMyUserSlotIdx } from '../../features/pets/teamActions';
 import { getHutchCapacity, INVENTORY_MAX } from '../hutch';
 import { store, saveConfig } from './state';
 import type { ApplyErrorReason, ApplyTeamResult } from './types';

@@ -2,7 +2,7 @@
 
 import { onActivePetInfos, type ActivePetInfo } from '../store/pets';
 import { getPetSpriteDataUrlWithMutations } from '../sprite-v2/compat';
-import { getAbilityDefinition, computeAbilityStats, type AbilityDefinition } from '../data/petAbilities';
+import { getAbilityDefinition, computeAbilityStats, type AbilityDefinition } from '../features/pets/data/petAbilities';
 import { getAbilityColor } from '../utils/petCardRenderer';
 import { findAbilityHistoryForIdentifiers, onAbilityHistoryUpdate } from '../store/abilityLogs';
 import { formatCoinsAbbreviated } from '../features/economy/valueCalculator';
@@ -11,7 +11,7 @@ import {
   buildAbilityValuationContext,
   resolveDynamicAbilityEffect,
   type AbilityValuationContext,
-} from '../features/abilityValuation';
+} from '../features/pets/abilityValuation';
 import { onGardenSnapshot } from '../features/garden/bridge';
 import { visibleInterval } from '../utils/timerManager';
 import { t } from '../i18n';

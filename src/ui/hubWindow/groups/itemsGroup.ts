@@ -161,7 +161,7 @@ export function getItemsGroup(): HubGroupDef {
       el.textContent = t('hub.items.petTeams.summary');
     },
     onOpen: () => {
-      import('../../petsWindow').then(({ togglePetsWindow }) => {
+      import('../../pets/petsWindow').then(({ togglePetsWindow }) => {
         togglePetsWindow();
       }).catch(e => log('⚠️ Failed to open Pet Teams', e));
     },

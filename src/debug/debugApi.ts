@@ -500,7 +500,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
         }
 
         const render = (root: HTMLElement) => 
-          import('../ui/petHubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
+          import('../ui/pets/hubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
         toggleWindow('pet-hub', '🐾 Pet Hub', render, '1600px', '92vh');
         return true;
       } catch (error) {

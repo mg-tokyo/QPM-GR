@@ -2,7 +2,7 @@
 import { log } from '../../utils/logger';
 import { showToast } from '../panelHelpers';
 import { CHANGELOG } from '../sections/changelog';
-import { IS_MAC } from '../petsWindow/constants';
+import { IS_MAC } from '../pets/petsWindow/constants';
 import { t } from '../../i18n';
 
 export interface PanelFooterResult {

@@ -12,7 +12,7 @@ import {
   setTurtleTimerEnabled,
   type TurtleTimerChannel,
   type GardenSlotEstimate,
-} from "../../features/turtleTimer.ts";
+} from "../../features/pets/turtleTimer";
 import { visibleInterval } from "../../utils/timerManager";
 import {
   fetchRestockData,
@@ -376,7 +376,7 @@ function buildActivePetsModule(
     feedAllBtn.textContent = "…";
     try {
       const { feedAllPetsInstantly } =
-        await import("../../features/instantFeed");
+        await import("../../features/pets/instantFeed");
       await feedAllPetsInstantly(100);
     } catch (err) {
       log("⚠️ Feed all failed", err);
@@ -425,7 +425,7 @@ function buildActivePetsModule(
         feedBtn.textContent = "…";
         try {
           const { feedPetInstantly } =
-            await import("../../features/instantFeed");
+            await import("../../features/pets/instantFeed");
           await feedPetInstantly(idx);
         } catch (err) {
           log("⚠️ Feed failed", err);

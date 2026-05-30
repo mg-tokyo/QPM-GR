@@ -5,7 +5,7 @@ import { yieldToBrowser } from './utils/scheduling';
 import { startMutationReminder } from './features/mutations/reminder';
 import { startMutationTracker } from './features/mutations/tracker';
 import { initializeHarvestReminder, configureHarvestReminder } from './features/garden/harvestReminder';
-import { initializeTurtleTimer, configureTurtleTimer } from './features/turtleTimer';
+import { initializeTurtleTimer, configureTurtleTimer } from './features/pets/turtleTimer';
 import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from './ui/originalPanel';
 import { startGardenBridge } from './features/garden/bridge';
 import { initializeStatsStore, getStatsSnapshot } from './store/stats';
@@ -25,9 +25,9 @@ import { startSeedSiloStore, stopSeedSiloStore } from './store/seedSilo';
 import { startSellSnapshotWatcher } from './store/sellSnapshot';
 import { shareGlobal } from './core/pageContext';
 import { estimatePetLevel, getPetXPHistory } from './store/petLevelCalculator';
-import { feedPetInstantly, feedPetByIds, feedAllPetsInstantly, isInstantFeedAvailable } from './features/instantFeed';
+import { feedPetInstantly, feedPetByIds, feedAllPetsInstantly, isInstantFeedAvailable } from './features/pets/instantFeed';
 import { startVersionChecker } from './utils/versionChecker';
-import { startCropBoostTracker } from './features/cropBoostTracker';
+import { startCropBoostTracker } from './features/pets/cropBoostTracker';
 import { initPublicRooms } from './features/standalone/publicRooms';
 // New sprite system (sprite-v2)
 import { initSpriteSystem, getSpriteBootReport, spriteProbe } from './sprite-v2/index';
@@ -35,7 +35,7 @@ import type { SpriteService } from './sprite-v2/types';
 import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets, scheduleWarmup } from './sprite-v2/compat';
 import { isSpriteLogsEnabled, printSpriteLogDump, setSpriteLogsEnabled } from './sprite-v2/diagnostics';
 import { initTooltipInjection } from './features/standalone/tooltipInjection';
-import { startNativeFeedIntercept, stopNativeFeedIntercept } from './features/nativeFeedIntercept';
+import { startNativeFeedIntercept, stopNativeFeedIntercept } from './features/pets/nativeFeedIntercept';
 import { initializeAntiAfk, stopAntiAfk } from './features/standalone/antiAfk';
 import {
   startActivityLogEnhancer,
@@ -54,13 +54,13 @@ import { startAbilityTriggerStore, stopAbilityTriggerStore } from './store/abili
 import { initLocale } from './i18n';
 
 import { testPetData, testComparePets, testAbilityDefinitions } from './utils/petDataTester';
-import { initPetHutchWindow, togglePetHutchWindow, openPetHutchWindow, closePetHutchWindow } from './ui/petHutchWindow';
+import { initPetHutchWindow, togglePetHutchWindow, openPetHutchWindow, closePetHutchWindow } from './ui/pets/hutchWindow';
 import { initPetTeamsStore, stopPetTeamsStore } from './store/petTeams';
 import { initPetTeamsLogs, stopPetTeamsLogs } from './store/petTeamsLogs';
-import { initPetsWindow, stopPetsWindow, togglePetsWindow } from './ui/petsWindow';
+import { initPetsWindow, stopPetsWindow, togglePetsWindow } from './ui/pets/petsWindow';
 import { toggleWindow, registerWindowOpener, restoreOpenWindows } from './ui/modalWindow';
 import { openShopRestockWindow } from './ui/shop/restockWindow';
-import { openPetOptimizerWindow } from './ui/petOptimizerWindow';
+import { openPetOptimizerWindow } from './ui/pets/optimizerWindow';
 import { openCropBoostTrackerWindow } from './ui/pets/cropBoostTrackerWindow';
 import { openStatsHubWindow } from './ui/statsHubWindow';
 import { registerHubGroups, toggleHub, HUB_WINDOW_ID } from './ui/hubWindow';
@@ -76,7 +76,7 @@ import {
   getOptimizerDebugFamily,
   getOptimizerDebugExplain,
   startPetOptimizer,
-} from './features/petOptimizer';
+} from './features/pets/optimizer';
 import { exposeAriesBridge } from './integrations/ariesBridge';
 import { getAtomByLabel, readAtomValue } from './core/jotaiBridge';
 import { runAtomHealthCheck } from './core/atomRegistry';
@@ -1085,7 +1085,7 @@ const QPM_DEBUG_API = {
       }
 
       // Fallback: open via toggleWindow so it still mounts inside the QPM window system
-      const render = (root: HTMLElement) => import('./ui/petHubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
+      const render = (root: HTMLElement) => import('./ui/pets/hubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
       toggleWindow('pet-hub', '🐾 Pet Hub', render, '1600px', '92vh');
       setTimeout(() => {
         const tab = Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.includes('3v3 Compare')) as HTMLButtonElement | undefined;
@@ -1721,7 +1721,7 @@ async function initialize(): Promise<void> {
     registerWindowOpener('texture-swapper', openTextureSwapperWindow);
   }
   registerWindowOpener('pet-hub', () => {
-    const render = (root: HTMLElement) => import('./ui/petHubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
+    const render = (root: HTMLElement) => import('./ui/pets/hubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
     toggleWindow('pet-hub', '🐾 Pet Hub', render, '1600px', '92vh');
   });
 

@@ -5,7 +5,7 @@ import { log } from '../../utils/logger';
 import { getActivePetInfos } from '../pets';
 import { readAtomValue } from '../../core/atomRegistry';
 import { getSpeciesXpPerLevel, calculateMaxStrength } from '../xpTracker';
-import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../../data/petHungerCaps';
+import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../../features/pets/data/petHungerCaps';
 import type { PooledPet } from '../../types/petTeams';
 import { store } from './state';
 

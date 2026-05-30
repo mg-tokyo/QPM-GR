@@ -38,7 +38,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.petTeams.label'),
     color: 'rgba(255, 152, 0, 0.28)',
     action: () => {
-      import('../petsWindow').then(({ togglePetsWindow }) => togglePetsWindow())
+      import('../pets/petsWindow').then(({ togglePetsWindow }) => togglePetsWindow())
         .catch(e => log('⚠️ Failed to open Pets window', e));
     },
   });

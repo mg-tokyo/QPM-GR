@@ -8,15 +8,15 @@ import {
   type AbilityContribution,
   type ProgressionSignalSnapshot,
   type ProgressionStageSnapshot,
-} from '../features/petCompareEngine';
-import type { AbilityValuationContext } from '../features/abilityValuation';
+} from '../features/pets/compare';
+import type { AbilityValuationContext } from '../features/pets/abilityValuation';
 import {
   areCompareGroupsCompatible,
   getCompareGroupLabel,
   getCompareMetricLabel,
   type CompareGroupId,
   type CompareStage,
-} from '../data/petCompareRules';
+} from '../features/pets/data/petCompareRules';
 
 export interface CompareSideMetrics {
   hasData: boolean;

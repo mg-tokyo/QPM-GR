@@ -364,7 +364,7 @@ function startPanelShortcutStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddL
 
   Promise.all([
     import('../../features/input/panelHotkey'),
-    import('../petsWindow/helpers'),
+    import('../pets/petsWindow/helpers'),
   ]).then(([hotkey, helpers]) => {
     if (version !== currentVersion) return;
     const render = (): void => {

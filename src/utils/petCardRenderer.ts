@@ -4,7 +4,7 @@ import { getMutationSpriteDataUrl } from './petMutationRenderer';
 import { canvasToDataUrl } from './canvasHelpers';
 import { getSpeciesXpPerLevel, calculateMaxStrength } from '../store/xpTracker';
 import { getAbilityDef, getPetAbilitiesCatalog } from '../catalogs/gameCatalogs';
-import { getAbilityDefinition } from '../data/petAbilities';
+import { getAbilityDefinition } from '../features/pets/data/petAbilities';
 
 interface PetCardConfig {
   species: string;

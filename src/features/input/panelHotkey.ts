@@ -1,5 +1,5 @@
 import { storage } from '../../utils/storage';
-import { isEditableTarget, normalizeKeybind } from '../../ui/petsWindow/helpers';
+import { isEditableTarget, normalizeKeybind } from '../../ui/pets/petsWindow/helpers';
 
 const STORAGE_KEY = 'qpm.panelHotkey.v1';
 const DEFAULT_KEYBIND = 'alt+q';

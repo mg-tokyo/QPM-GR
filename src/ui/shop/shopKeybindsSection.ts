@@ -1,6 +1,6 @@
 import { createCard } from '../panelHelpers';
 import { createToggle } from '../components/toggle';
-import { createKeybindButton } from '../petsWindow/helpers';
+import { createKeybindButton } from '../pets/petsWindow/helpers';
 import {
   getShopKeybind,
   setShopKeybind,

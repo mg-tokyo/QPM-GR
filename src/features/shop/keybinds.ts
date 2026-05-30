@@ -1,7 +1,7 @@
 // Shop keybinds — keyboard shortcuts to open game shop modals.
 
 import { storage } from '../../utils/storage';
-import { isEditableTarget, normalizeKeybind } from '../../ui/petsWindow/helpers';
+import { isEditableTarget, normalizeKeybind } from '../../ui/pets/petsWindow/helpers';
 import { getAtomByLabel, writeAtomValue, ensureJotaiStore } from '../../core/jotaiBridge';
 import { log } from '../../utils/logger';
 
