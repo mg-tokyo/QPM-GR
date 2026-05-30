@@ -1,5 +1,5 @@
 import type { RoomsMap, Room, RoomUserSlot, PublicRoomsState } from '../../../types/publicRooms';
-import { escapeHtml } from '../../panelHelpers';
+import { escapeHtml } from '../../core/panelHelpers';
 import { getState, fetchRooms, setSearchTerm } from '../../../features/standalone/publicRooms';
 import {
   sanitizeImageUrl,

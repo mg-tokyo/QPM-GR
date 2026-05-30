@@ -277,7 +277,7 @@ function startGardenStatsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiv
 
   Promise.all([
     import('../../features/garden/bridge'),
-    import('../statsHubWindow/tileHelpers'),
+    import('../stats/statsHubWindow/tileHelpers'),
   ]).then(([gardenBridge, tileHelpers]) => {
     if (version !== currentVersion) return;
     const render = (snapshot: import('../../features/garden/bridge').GardenSnapshot): void => {

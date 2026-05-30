@@ -1,4 +1,4 @@
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { fetchImageUrl } from '../../utils/imageFetcher';
 import { t } from '../../i18n';
 

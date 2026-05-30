@@ -1,7 +1,7 @@
 import { getOptimizerAnalysis } from '../../../features/pets/optimizer';
 import { t } from '../../../i18n';
 import { createSpinner } from '../../components';
-import { toggleWindow } from '../../modalWindow';
+import { toggleWindow } from '../../core/modalWindow';
 import { renderFamilyNav } from './familyNav';
 import { renderFilters } from './filters';
 import { renderResults } from './results';

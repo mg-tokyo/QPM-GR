@@ -1,8 +1,8 @@
 // src/ui/textureSwapperWindow.ts
 // Texture Manipulator window — target picker, source picker, params, preview, active rules
 
-import { toggleWindow } from '../modalWindow';
-import { invalidateWindow } from '../lazyWindow';
+import { toggleWindow } from '../core/modalWindow';
+import { invalidateWindow } from '../core/lazyWindow';
 import {
   getTextureSwapperState,
   getSvc,

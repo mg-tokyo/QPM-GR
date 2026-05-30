@@ -1,8 +1,8 @@
 // src/ui/sections/turtleTimerSection.ts — Turtle Timer section (plant/egg/support breakdown)
 import { t } from '../../i18n';
-import { type UIState } from '../panelState';
+import { type UIState } from '../core/panelState';
 import { type TurtleTimerUIConfig, ensureTurtleTimerConfig, updateTurtleTimerViews } from './turtleTimerLogic';
-import { createCard, parseFocusTargetKey, formatDurationPretty, formatCompletionTime } from '../panelHelpers';
+import { createCard, parseFocusTargetKey, formatDurationPretty, formatCompletionTime } from '../core/panelHelpers';
 import {
   onTurtleTimerState,
   setTurtleTimerEnabled,

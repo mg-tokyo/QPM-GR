@@ -1,4 +1,4 @@
-import { ensureToastStyle } from '../panelStyles';
+import { ensureToastStyle } from '../core/panelStyles';
 
 export interface ToastOptions {
   variant?: 'success' | 'error' | 'info';

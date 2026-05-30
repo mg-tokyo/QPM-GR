@@ -1,6 +1,6 @@
 // src/ui/panel/panelFooter.ts
 import { log } from '../../utils/logger';
-import { showToast } from '../panelHelpers';
+import { showToast } from '../core/panelHelpers';
 import { CHANGELOG } from '../sections/changelog';
 import { IS_MAC } from '../pets/petsWindow/constants';
 import { t } from '../../i18n';
@@ -29,7 +29,7 @@ export function renderPanelFooter(): PanelFooterResult {
 
   const resetBtn = buildFooterButton(t('panel.footer.resetWindows'), t('panel.footer.resetWindowsTooltip'), async () => {
     try {
-      const { resetAllWindowLayouts } = await import('../modalWindow');
+      const { resetAllWindowLayouts } = await import('../core/modalWindow');
       resetAllWindowLayouts();
       const previous = resetBtn.textContent;
       resetBtn.textContent = t('panel.footer.resetDone');

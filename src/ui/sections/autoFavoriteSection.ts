@@ -1,5 +1,5 @@
 // src/ui/sections/autoFavoriteSection.ts — Auto-Favorite settings section
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { createToggle } from '../components/toggle';
 import { createSectionHeader } from '../components/sectionHeader';
 import { t } from '../../i18n';

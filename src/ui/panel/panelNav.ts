@@ -1,7 +1,7 @@
 // src/ui/panel/panelNav.ts
-import type { HubGroupDef, HubGroupId } from '../hubWindow/cards/types';
-import { buildSidebarIcon } from '../hubWindow/cards/iconRenderer';
-import type { CardIcon } from '../hubWindow/cards/types';
+import type { HubGroupDef, HubGroupId } from '../hub/cards/types';
+import { buildSidebarIcon } from '../hub/cards/iconRenderer';
+import type { CardIcon } from '../hub/cards/types';
 import { t } from '../../i18n';
 
 export type NavId = 'home' | HubGroupId;

@@ -1,7 +1,7 @@
 // src/ui/locker/lockerHarvestFilters.ts
 // Harvest Filter card — Aries-style multi-dimensional filter (size/color/weather).
 
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { getLockerConfig, updateLockerConfig, type LockerConfig } from '../../features/locker/index';
 import type { HarvestFilterSettings, ScaleLockMode, FilterMode, WeatherFilterMode } from '../../features/locker/types';
 import { areCatalogsReady, getAllMutations, getMutation } from '../../catalogs/gameCatalogs';

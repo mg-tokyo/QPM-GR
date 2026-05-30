@@ -1,4 +1,4 @@
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { isBulkFavoriteEnabled, setBulkFavoriteEnabled } from '../../features/standalone/bulkFavorite';
 import { t } from '../../i18n';
 

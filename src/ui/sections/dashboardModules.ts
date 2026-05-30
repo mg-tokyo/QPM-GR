@@ -1,6 +1,6 @@
 // src/ui/sections/dashboardModules.ts — Dashboard feature modules
 
-import { type UIState } from "../panelState";
+import { type UIState } from "../core/panelState";
 import { createToggle } from "../components";
 import { log } from "../../utils/logger";
 import { storage } from "../../utils/storage";

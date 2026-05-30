@@ -1,7 +1,7 @@
 // src/ui/itemRestockDetailWindow.ts
 // Per-item restock history with overview card + navigable event accuracy cards.
 
-import { openWindow, destroyWindow, registerWindowOpener } from '../modalWindow';
+import { openWindow, destroyWindow, registerWindowOpener } from '../core/modalWindow';
 import { fetchItemEvents, fetchAlgorithmHistory, type AlgorithmVersionEntry } from '../../utils/itemEventService';
 import type { RestockItem, RestockPredictionAccuracyAggregate } from '../../utils/restockDataService';
 import {

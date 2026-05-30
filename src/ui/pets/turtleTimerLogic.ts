@@ -1,6 +1,6 @@
 import type { TurtleTimerState, TurtleTimerChannel, TurtleContribution } from '../../features/pets/turtleTimer';
-import type { UIState } from '../panelState';
-import { formatDurationPretty, formatRatePretty, formatHungerPretty, createEditablePetValue, formatPercentPretty, formatFeedsPerHour, formatMinutesWithUnit, formatMinutesPerHour, formatCompletionTime } from '../panelHelpers';
+import type { UIState } from '../core/panelState';
+import { formatDurationPretty, formatRatePretty, formatHungerPretty, createEditablePetValue, formatPercentPretty, formatFeedsPerHour, formatMinutesWithUnit, formatMinutesPerHour, formatCompletionTime } from '../core/panelHelpers';
 import { renderCompactPetSprite } from '../../utils/petCardRenderer';
 
 export interface TurtleTimerUIConfig {

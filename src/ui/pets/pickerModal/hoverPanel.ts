@@ -4,7 +4,7 @@
 import { getAbilityColor } from '../../../utils/petCardRenderer';
 import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../../../features/pets/data/petAbilities';
 import { findAbilityHistoryForIdentifiers } from '../../../store/abilityLogs';
-import { computeObservedMetrics } from '../../abilityAnalysis';
+import { computeObservedMetrics } from '../../stats/abilityAnalysis';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from '../../../store/xpTracker';
 import { formatCoinsAbbreviated } from '../../../features/economy/valueCalculator';
 import { getPetMetadata } from '../../../features/pets/data/petMetadata';

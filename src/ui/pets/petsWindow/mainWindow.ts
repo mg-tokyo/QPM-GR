@@ -1,6 +1,6 @@
 // Main window shell: tab navigation, sell settings popover, keybind init/stop.
 
-import { toggleWindow } from '../../modalWindow';
+import { toggleWindow } from '../../core/modalWindow';
 import { storage } from '../../../utils/storage';
 import {
   getSellAllPetsSettings,

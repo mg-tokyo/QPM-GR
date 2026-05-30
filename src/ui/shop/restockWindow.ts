@@ -1,7 +1,7 @@
 // src/ui/shopRestockWindow.ts
 // Shop Restock Tracker -- main render + public entry.
 
-import { toggleWindow } from '../modalWindow';
+import { toggleWindow } from '../core/modalWindow';
 import { openItemRestockDetail } from './itemRestockDetailWindow';
 import { hideSoundPopover } from './restockAlerts/soundPopover';
 import { log } from '../../utils/logger';

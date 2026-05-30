@@ -1,5 +1,5 @@
 import { t } from '../../i18n';
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { createToggle } from '../components/toggle';
 import {
   getAutoReconnectConfig,

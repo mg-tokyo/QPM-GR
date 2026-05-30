@@ -11,7 +11,7 @@ import {
   type ComparePetInput,
   type TeamCompareProfile,
 } from '../../../features/pets/compare';
-import { buildCompareCardViewModel } from '../../comparePresentation';
+import { buildCompareCardViewModel } from '../../stats/comparePresentation';
 import { getTeamsConfig } from '../../../store/petTeams';
 import { getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
 import { calculateMaxStrength } from '../../../store/xpTracker';

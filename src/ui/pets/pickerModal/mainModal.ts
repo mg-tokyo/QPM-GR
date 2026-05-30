@@ -5,7 +5,7 @@ import { log } from '../../../utils/logger';
 import { getAllPooledPets } from '../../../store/petTeams';
 import { isSpritesReady, onSpritesReady } from '../../../sprite-v2/compat';
 import { buildAbilityValuationContext } from '../../../features/pets/abilityValuation';
-import { buildCompareCardViewModel } from '../../comparePresentation';
+import { buildCompareCardViewModel } from '../../stats/comparePresentation';
 import { calculateMaxStrength } from '../../../store/xpTracker';
 import type { PooledPet } from '../../../types/petTeams';
 import type { MutationTier, OpenPickerOptions } from './types';

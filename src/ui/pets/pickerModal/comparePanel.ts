@@ -4,7 +4,7 @@
 import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../../../features/pets/data/petAbilities';
 import { formatCoinsAbbreviated } from '../../../features/economy/valueCalculator';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type AbilityValuationContext } from '../../../features/pets/abilityValuation';
-import { buildCompareCardViewModel } from '../../comparePresentation';
+import { buildCompareCardViewModel } from '../../stats/comparePresentation';
 import { calculateMaxStrength } from '../../../store/xpTracker';
 import type { PooledPet } from '../../../types/petTeams';
 import type { CompareStage } from '../../../features/pets/data/petCompareRules';

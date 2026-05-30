@@ -1,9 +1,9 @@
 import { getMutationValueSnapshot, subscribeToMutationValueTracking } from '../../features/mutations/valueTracking';
 import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/mutations/weatherTracking';
-import { createCard, btn } from '../panelHelpers';
+import { createCard, btn } from '../core/panelHelpers';
 import { log } from '../../utils/logger';
 import { t } from '../../i18n';
-import type { UIState } from '../panelState';
+import type { UIState } from '../core/panelState';
 
 export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLElement {
   const { root, body } = createCard(`💎 ${t('feature.mutationValue.title')}`, {

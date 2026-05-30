@@ -1,7 +1,7 @@
 // src/ui/locker/lockerTabPanels.ts
 // Tab panel builders and cross-cutting cards for the Locker UI.
 
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { getLockerConfig, updateLockerConfig, type LockerConfig } from '../../features/locker/index';
 import {
   areCatalogsReady, getEggCatalog, getAllPlantSpecies,

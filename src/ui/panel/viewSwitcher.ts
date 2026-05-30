@@ -1,10 +1,10 @@
 // src/ui/panel/viewSwitcher.ts
-import type { HubGroupDef } from '../hubWindow/cards/types';
+import type { HubGroupDef } from '../hub/cards/types';
 import { renderPanelNav, type NavId, type PanelNavResult } from './panelNav';
 import { renderHomeView, type HomeViewResult } from './homeView';
 import { renderPanelFooter, type PanelFooterResult } from './panelFooter';
-import { renderHubGroup, type HubGroupResult } from '../hubWindow/hubGroup';
-import { setActiveGroup } from '../hubWindow/state';
+import { renderHubGroup, type HubGroupResult } from '../hub/hubGroup';
+import { setActiveGroup } from '../hub/state';
 import { registerBuiltinTiles } from './tileRegistry';
 
 export interface ViewSwitcherResult {

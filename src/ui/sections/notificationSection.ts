@@ -1,4 +1,4 @@
-import type { UIState } from '../panelState';
+import type { UIState } from '../core/panelState';
 import type { NotificationEvent, NotificationLevel } from '../../core/notifications';
 import { onNotifications, clearNotifications } from '../../core/notifications';
 import { storage } from '../../utils/storage';

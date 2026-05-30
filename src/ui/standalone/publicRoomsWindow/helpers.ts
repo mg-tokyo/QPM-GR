@@ -1,5 +1,5 @@
 import type { Room, PlayerView } from '../../../types/publicRooms';
-import { escapeHtml } from '../../panelHelpers';
+import { escapeHtml } from '../../core/panelHelpers';
 import { storage } from '../../../utils/storage';
 import { getState } from '../../../features/standalone/publicRooms';
 import { createEmptyState } from '../../components/emptyState';

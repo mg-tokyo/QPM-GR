@@ -15,7 +15,7 @@ import {
 } from './bindings';
 import { tapKey, cycleHotbar, deselectHotbarSlot } from './synthesis';
 import { initPetSlotAtoms, cyclePetSlot, isGrowSlotContextActive } from './controllerContext';
-import { toggleWindow } from '../../../ui/modalWindow';
+import { toggleWindow } from '../../../ui/core/modalWindow';
 
 // ---------------------------------------------------------------------------
 // Action handler — called by GamepadPoller on rising-edge button press

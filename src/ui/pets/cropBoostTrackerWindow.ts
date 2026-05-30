@@ -4,7 +4,7 @@
  */
 
 import { t } from '../../i18n';
-import { toggleWindow } from '../modalWindow';
+import { toggleWindow } from '../core/modalWindow';
 import {
   getCurrentAnalysis,
   getConfig,

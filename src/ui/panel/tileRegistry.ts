@@ -1,6 +1,6 @@
 // src/ui/panel/tileRegistry.ts
 import { log } from '../../utils/logger';
-import { openDetachedTracker } from '../hubWindow/groups/trackersGroup';
+import { openDetachedTracker } from '../hub/groups/trackersGroup';
 import { TEXTURE_MANIPULATOR_ENABLED } from '../../features/standalone/textureSwapper';
 import { t } from '../../i18n';
 
@@ -60,7 +60,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.publicRooms.label'),
     color: 'rgba(233, 30, 99, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('public-rooms', `🌐 ${t('tile.publicRooms.label')}`, (root) => {
           import('../standalone/publicRoomsWindow')
             .then(({ renderPublicRoomsWindow }) => renderPublicRoomsWindow(root))
@@ -76,7 +76,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.journalChecker.label'),
     color: 'rgba(121, 85, 72, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('journal-checker-window', `📔 ${t('tile.journalChecker.label')}`, (root) => {
           root.style.padding = '0';
           import('../journalChecker/index').then(({ createJournalCheckerSection }) => {
@@ -134,7 +134,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.valueDisplay.label'),
     color: 'rgba(255, 193, 7, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('trackers-v2-storageValue', `💰 ${t('tile.valueDisplay.label')}`, (root) => {
           root.style.cssText = 'overflow-y:auto;';
           import('../economy/storageValueWindow').then(({ renderStorageValueSettings }) => {
@@ -151,7 +151,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.activityLog.label'),
     color: 'rgba(158, 118, 255, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-activity-log', `📜 ${t('tile.activityLog.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/activityLogSection').then(({ createActivityLogSection }) => {
@@ -168,7 +168,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.protection.label'),
     color: 'rgba(244, 67, 54, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-protection', `🔒 ${t('tile.protection.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/protectionSection').then(({ createProtectionSection }) => {
@@ -196,7 +196,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.controller.label'),
     color: 'rgba(96, 125, 139, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-controller', `🎮 ${t('tile.controller.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/controllerSection').then(({ createControllerSection }) => {
@@ -215,7 +215,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.gardenFilters.label'),
     color: 'rgba(192, 132, 252, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-garden-filters', `🔍 ${t('tile.gardenFilters.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../garden/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
@@ -232,10 +232,10 @@ export function registerBuiltinTiles(): void {
     label: t('tile.reminders.label'),
     color: 'rgba(52, 211, 153, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('utility-feature-reminders', `🔔 ${t('tile.reminders.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-          import('../originalPanel').then(({ renderRemindersContent }) => {
+          import('../core/originalPanel').then(({ renderRemindersContent }) => {
             renderRemindersContent(root);
           }).catch(e => log('⚠️ Failed to load Reminders', e));
         }, '580px', '78vh');
@@ -249,7 +249,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.gardenStats.label'),
     color: 'rgba(147, 197, 253, 0.28)',
     action: () => {
-      import('../statsHubWindow').then(({ openStatsHubWindow }) => openStatsHubWindow())
+      import('../stats/statsHubWindow').then(({ openStatsHubWindow }) => openStatsHubWindow())
         .catch(e => log('⚠️ Failed to open Garden Stats', e));
     },
   });
@@ -262,7 +262,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.favorites.label'),
     color: 'rgba(244, 114, 182, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('hub-favorites', `⭐ ${t('tile.favorites.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/favoritesSection').then(({ createFavoritesSection }) => {
@@ -282,10 +282,10 @@ export function registerBuiltinTiles(): void {
     label: t('tile.autoReconnect.label'),
     color: 'rgba(167, 139, 250, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('config-auto-reconnect', `↻ ${t('tile.autoReconnect.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-          import('../hubWindow/groups/configGroup').then(({ renderAutoReconnectExpanded }) => {
+          import('../hub/groups/configGroup').then(({ renderAutoReconnectExpanded }) => {
             renderAutoReconnectExpanded(root);
           }).catch(e => log('⚠️ Failed to load Auto Reconnect', e));
         }, '420px', '50vh');
@@ -299,10 +299,10 @@ export function registerBuiltinTiles(): void {
     label: t('tile.shopKeybinds.label'),
     color: 'rgba(96, 165, 250, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('config-shop-keybinds', `⌨️ ${t('tile.shopKeybinds.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-          import('../hubWindow/groups/configGroup').then(({ renderShopKeybindsExpanded }) => {
+          import('../hub/groups/configGroup').then(({ renderShopKeybindsExpanded }) => {
             renderShopKeybindsExpanded(root);
           }).catch(e => log('⚠️ Failed to load Shop Keybinds', e));
         }, '420px', '60vh');
@@ -316,10 +316,10 @@ export function registerBuiltinTiles(): void {
     label: t('tile.panelShortcut.label'),
     color: 'rgba(167, 139, 250, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('config-panel-shortcut', `⌨️ ${t('tile.panelShortcut.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-          import('../hubWindow/groups/configGroup').then(({ renderPanelShortcutExpanded }) => {
+          import('../hub/groups/configGroup').then(({ renderPanelShortcutExpanded }) => {
             renderPanelShortcutExpanded(root);
           }).catch(e => log('⚠️ Failed to load Panel Shortcut', e));
         }, '420px', '50vh');
@@ -335,7 +335,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.guide.label'),
     color: 'rgba(147, 197, 253, 0.28)',
     action: () => {
-      import('../modalWindow').then(({ toggleWindow }) => {
+      import('../core/modalWindow').then(({ toggleWindow }) => {
         toggleWindow('guide-window', `📖 ${t('tile.guide.label')}`, (root) => {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../sections/guideSection').then(({ createGuideSection }) => {
@@ -352,7 +352,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.decorLayout.label'),
     color: 'rgba(196, 181, 253, 0.28)',
     action: () => {
-      import('../hubWindow/groups/toolsGroup').then(({ openExternalUrl }) => {
+      import('../hub/groups/toolsGroup').then(({ openExternalUrl }) => {
         openExternalUrl('https://mg-tokyo.github.io/MG-Decor-Layout-Customiser/');
       });
     },
@@ -364,7 +364,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.spriteCustomiser.label'),
     color: 'rgba(249, 168, 212, 0.28)',
     action: () => {
-      import('../hubWindow/groups/toolsGroup').then(({ openExternalUrl }) => {
+      import('../hub/groups/toolsGroup').then(({ openExternalUrl }) => {
         openExternalUrl('https://mg-tokyo.github.io/MG-Sprite-Customiser-V2/');
       });
     },
@@ -376,7 +376,7 @@ export function registerBuiltinTiles(): void {
     label: t('tile.celestialCalculator.label'),
     color: 'rgba(253, 230, 138, 0.28)',
     action: () => {
-      import('../hubWindow/groups/toolsGroup').then(({ openExternalUrl }) => {
+      import('../hub/groups/toolsGroup').then(({ openExternalUrl }) => {
         openExternalUrl('https://mg-tokyo.github.io/Celestial-Position-Layout-Calculator/');
       });
     },

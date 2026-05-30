@@ -31,7 +31,7 @@ import {
 import { lookupMaxScale } from '../../utils/plantScales';
 import { normalizeSpeciesKey } from '../../utils/helpers';
 import { findVariantBadge } from '../../features/mutations/data/variantBadges';
-import { toggleWindow } from '../modalWindow';
+import { toggleWindow } from '../core/modalWindow';
 import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------

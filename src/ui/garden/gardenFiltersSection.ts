@@ -2,7 +2,7 @@ import { getGardenFiltersConfig, updateGardenFiltersConfig, getAllPlantSpecies, 
 import { getMutationCatalog, getEggCatalog, waitForCatalogs } from '../../catalogs/gameCatalogs';
 import { getCropSpriteCanvas, getCropSpriteWithMutations } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/canvasHelpers';
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { createToggle } from '../components/toggle';
 import { createSectionHeader } from '../components/sectionHeader';
 import { createButton } from '../components/button';

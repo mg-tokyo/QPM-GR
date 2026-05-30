@@ -1,7 +1,7 @@
 // src/ui/tour/index.ts
 // Public API for the tour system.
 
-import { getWindow } from '../modalWindow';
+import { getWindow } from '../core/modalWindow';
 import { check, replayTour, teardown, isActive } from './engine';
 import { registerTour, hasTour, getAllTours, hasHelp, getAllDiscoveryWindowIds } from './registry';
 import { clearTourProgress, clearDiscoveryProgress, migrateLegacyTutorial } from './persistence';

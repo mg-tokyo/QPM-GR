@@ -1,4 +1,4 @@
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { createToggle } from '../components/toggle';
 import { createKeybindButton } from '../pets/petsWindow/helpers';
 import {

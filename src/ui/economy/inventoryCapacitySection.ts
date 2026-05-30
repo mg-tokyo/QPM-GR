@@ -1,7 +1,7 @@
 // src/ui/sections/inventoryCapacitySection.ts
 // Config UI for Inventory Capacity in the Utility Hub.
 
-import { createCard } from '../panelHelpers';
+import { createCard } from '../core/panelHelpers';
 import { createToggle } from '../components/toggle';
 import {
   getInventoryCapacityConfig,

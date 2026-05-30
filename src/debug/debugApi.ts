@@ -85,7 +85,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
     import('../utils/petDataTester'),
     import('../core/jotaiBridge'),
     import('../store/inventory'),
-    import('../ui/modalWindow'),
+    import('../ui/core/modalWindow'),
     import('../sprite-v2/compat'),
     import('./inspectJournal'),
     import('../core/atomRegistry'),

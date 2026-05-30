@@ -2,7 +2,7 @@ import { dispatchCustomEventAll } from '../../../core/pageContext';
 import type { PetComparison } from '../../../features/pets/optimizer';
 import { t } from '../../../i18n';
 import { createTeam, setTeamSlot } from '../../../store/petTeams';
-import { isWindowOpen } from '../../modalWindow';
+import { isWindowOpen } from '../../core/modalWindow';
 import { openPetPicker } from '../pickerModal';
 
 const PETS_WINDOW_ID = 'qpm-pets-window';

@@ -6,7 +6,7 @@ import { startMutationReminder } from './features/mutations/reminder';
 import { startMutationTracker } from './features/mutations/tracker';
 import { initializeHarvestReminder, configureHarvestReminder } from './features/garden/harvestReminder';
 import { initializeTurtleTimer, configureTurtleTimer } from './features/pets/turtleTimer';
-import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from './ui/originalPanel';
+import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from './ui/core/originalPanel';
 import { startGardenBridge } from './features/garden/bridge';
 import { initializeStatsStore, getStatsSnapshot } from './store/stats';
 import { initializePetXpTracker } from './store/petXpTracker';
@@ -58,18 +58,18 @@ import { initPetHutchWindow, togglePetHutchWindow, openPetHutchWindow, closePetH
 import { initPetTeamsStore, stopPetTeamsStore } from './store/petTeams';
 import { initPetTeamsLogs, stopPetTeamsLogs } from './store/petTeamsLogs';
 import { initPetsWindow, stopPetsWindow, togglePetsWindow } from './ui/pets/petsWindow';
-import { toggleWindow, registerWindowOpener, restoreOpenWindows } from './ui/modalWindow';
+import { toggleWindow, registerWindowOpener, restoreOpenWindows } from './ui/core/modalWindow';
 import { openShopRestockWindow } from './ui/shop/restockWindow';
 import { openPetOptimizerWindow } from './ui/pets/optimizerWindow';
 import { openCropBoostTrackerWindow } from './ui/pets/cropBoostTrackerWindow';
-import { openStatsHubWindow } from './ui/statsHubWindow';
-import { registerHubGroups, toggleHub, HUB_WINDOW_ID } from './ui/hubWindow';
-import { migrateHubStorage } from './ui/hubWindow/migration';
-import { getTrackersGroup } from './ui/hubWindow/groups/trackersGroup';
-import { getItemsGroup } from './ui/hubWindow/groups/itemsGroup';
-import { getGardenGroup } from './ui/hubWindow/groups/gardenGroup';
-import { getConfigGroup } from './ui/hubWindow/groups/configGroup';
-import { getToolsGroup } from './ui/hubWindow/groups/toolsGroup';
+import { openStatsHubWindow } from './ui/stats/statsHubWindow';
+import { registerHubGroups, toggleHub, HUB_WINDOW_ID } from './ui/hub';
+import { migrateHubStorage } from './ui/hub/migration';
+import { getTrackersGroup } from './ui/hub/groups/trackersGroup';
+import { getItemsGroup } from './ui/hub/groups/itemsGroup';
+import { getGardenGroup } from './ui/hub/groups/gardenGroup';
+import { getConfigGroup } from './ui/hub/groups/configGroup';
+import { getToolsGroup } from './ui/hub/groups/toolsGroup';
 import { registerPersistedItemRestockDetailOpeners } from './ui/shop/itemRestockDetailWindow';
 import {
   getOptimizerDebugSnapshot,
