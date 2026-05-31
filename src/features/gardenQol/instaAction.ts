@@ -1,4 +1,4 @@
-// src/features/locker/instaAction.ts
+// src/features/gardenQol/instaAction.ts
 // Bypass the game's 500ms press-and-hold delay for tool actions.
 //
 // The game requires a 500ms sustained hold for certain actions
@@ -22,7 +22,7 @@
 
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
-import { getLockerConfig } from './state';
+import { getGardenQolConfig } from './state';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -146,7 +146,7 @@ function onKeyDownCapture(event: KeyboardEvent): void {
   const isSynthetic = !!(event as unknown as Record<string, unknown>)[ARIES_SYN_FLAG];
   if (event.repeat && !isSynthetic) return;
 
-  const config = getLockerConfig();
+  const config = getGardenQolConfig();
   if (!config.ariesHold) return;
 
   const actionRaw = readAtomValueSync('action');

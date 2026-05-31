@@ -4,6 +4,7 @@ import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../c
 import { toggleWindow } from '../../modalWindow';
 import { log } from '../../../utils/logger';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
+import { getGardenQolConfig, updateGardenQolConfig, type HoldContexts } from '../../../features/gardenQol/index';
 import { t } from '../../../i18n';
 
 /** Best-effort catalog wait — never rejects, just logs and continues */
@@ -106,6 +107,107 @@ export function getGardenGroup(): HubGroupDef {
     },
   };
 
+  const instaHarvestCard: ExpandableCardConfig = {
+    key: 'insta-harvest',
+    label: t('hub.garden.instaHarvest.label'),
+    description: t('hub.garden.instaHarvest.description'),
+    icon: { kind: 'sprite', value: '⚡', spriteKey: 'sprite/plant/RoseRed', spriteMutations: ['Rainbow'], fallback: '⚡' },
+    labelColor: '#fbbf24',
+    tier: 'expandable',
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      const cfg = getGardenQolConfig();
+      const parts: string[] = [];
+      if (cfg.instaHarvestRainbow) parts.push('Rainbow');
+      if (cfg.instaHarvestGold) parts.push('Gold');
+      if (cfg.ariesHold) parts.push('Hold');
+      el.textContent = parts.length > 0 ? parts.join(', ') : t('common.disabled');
+    },
+    renderExpanded: (container) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+      wrap.appendChild(buildQolToggle('Rainbow', () => getGardenQolConfig().instaHarvestRainbow, (v) => updateGardenQolConfig({ instaHarvestRainbow: v })));
+      wrap.appendChild(buildQolToggle('Gold', () => getGardenQolConfig().instaHarvestGold, (v) => updateGardenQolConfig({ instaHarvestGold: v })));
+      wrap.appendChild(buildQolToggle(t('feature.locker.ariesHold'), () => getGardenQolConfig().ariesHold, (v) => updateGardenQolConfig({ ariesHold: v })));
+      container.appendChild(wrap);
+    },
+  };
+
+  const holdSettingsCard: ExpandableCardConfig = {
+    key: 'hold-settings',
+    label: t('hub.garden.holdSettings.label'),
+    description: t('hub.garden.holdSettings.description'),
+    icon: { kind: 'emoji', value: '🎮' },
+    labelColor: '#a78bfa',
+    tier: 'expandable',
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      const cfg = getGardenQolConfig();
+      el.textContent = `${cfg.holdRateHz} Hz`;
+    },
+    renderExpanded: (container) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+
+      // Hold rate slider
+      const rateRow = document.createElement('div');
+      rateRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
+      const rateLabel = document.createElement('div');
+      rateLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff)';
+      rateLabel.textContent = t('feature.locker.holdRate');
+      const rateValue = document.createElement('div');
+      rateValue.style.cssText = 'font-size:12px;color:var(--qpm-accent,#8f82ff);font-weight:600';
+      const cfg = getGardenQolConfig();
+      rateValue.textContent = `${cfg.holdRateHz} Hz`;
+      rateRow.append(rateLabel, rateValue);
+      wrap.appendChild(rateRow);
+
+      const rateSlider = document.createElement('input');
+      rateSlider.type = 'range'; rateSlider.min = '5'; rateSlider.max = '20'; rateSlider.step = '1';
+      rateSlider.value = String(cfg.holdRateHz);
+      rateSlider.style.cssText = 'width:100%;cursor:pointer';
+      rateSlider.addEventListener('input', () => { rateValue.textContent = `${rateSlider.value} Hz`; });
+      rateSlider.addEventListener('change', () => { updateGardenQolConfig({ holdRateHz: Number(rateSlider.value) }); });
+      wrap.appendChild(rateSlider);
+
+      // Hold context checkboxes
+      const ctxKeys: Array<{ key: keyof HoldContexts; label: string }> = [
+        { key: 'harvest', label: t('feature.locker.ctx.harvest') },
+        { key: 'plant',   label: t('feature.locker.ctx.plant') },
+        { key: 'shovel',  label: t('feature.locker.ctx.shovel') },
+        { key: 'sell',    label: t('feature.locker.ctx.sell') },
+        { key: 'hatch',   label: t('feature.locker.ctx.hatch') },
+        { key: 'other',   label: t('feature.locker.ctx.other') },
+      ];
+      for (const { key, label } of ctxKeys) {
+        wrap.appendChild(buildQolToggle(label, () => getGardenQolConfig().holdContexts[key], (v) => {
+          const cur = getGardenQolConfig();
+          updateGardenQolConfig({ holdContexts: { ...cur.holdContexts, [key]: v } });
+        }));
+      }
+
+      container.appendChild(wrap);
+    },
+  };
+
+  const inventoryCapacityCard: ExpandableCardConfig = {
+    key: 'inventory-capacity',
+    label: t('hub.garden.inventoryCapacity.label'),
+    description: t('hub.garden.inventoryCapacity.description'),
+    icon: { kind: 'emoji', value: '📦' },
+    labelColor: '#60a5fa',
+    tier: 'expandable',
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.textContent = t('hub.garden.inventoryCapacity.summary');
+    },
+    renderExpanded: (container) => {
+      import('../../sections/inventoryCapacitySection').then(({ createInventoryCapacitySection }) => {
+        container.appendChild(createInventoryCapacitySection());
+      }).catch(e => log('[Hub] Failed to load Inventory Capacity', e));
+    },
+  };
+
   return {
     id: 'garden',
     label: t('hub.garden.label'),
@@ -117,6 +219,23 @@ export function getGardenGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/MythicalEgg', offsetX: 12, offsetY: 2, scale: 0.9 },
       ],
     },
-    cards: [gardenFiltersCard, remindersCard, statsCard],
+    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, inventoryCapacityCard, remindersCard, statsCard],
   };
+}
+
+// ── Helper: QOL toggle row ──────────────────────────────────────────────────
+
+function buildQolToggle(label: string, getChecked: () => boolean, onChange: (v: boolean) => void): HTMLElement {
+  const row = document.createElement('label');
+  row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0';
+  const lbl = document.createElement('span');
+  lbl.textContent = label;
+  lbl.style.cssText = 'font-size:12px;color:var(--qpm-text,#eef0ff)';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = getChecked();
+  cb.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:var(--qpm-accent,#8f82ff)';
+  cb.addEventListener('change', () => onChange(cb.checked));
+  row.append(lbl, cb);
+  return row;
 }

@@ -1,69 +1,25 @@
 // src/ui/sections/lockerSection.ts
-// Locker section orchestrator — tab bar + panel switching.
-// All panel/tile/helper logic lives in lockerPrimitives, lockerPlantPicker,
-// lockerCustomRules, and lockerTabPanels.
+// Locker section orchestrator — 3-tab layout (General / Overrides / Restrictions).
 
 import { getLockerConfig, updateLockerConfig } from '../../features/locker/index';
-import {
-  TOGGLE_ROW_CSS, LABEL_CSS, CHECKBOX_CSS, TEXT_MUTED,
-  getEligibleData,
-} from './lockerPrimitives';
-import {
-  buildGardenQolPanel, buildPlantsPanel, buildEggsPanel, buildDecorPanel, buildSellPanel,
-} from './lockerTabPanels';
+import { createTabBar } from '../components/tabBar';
+import { createToggle } from '../components/toggle';
+import { getEligibleData } from './lockerPrimitives';
+import { buildGeneralPanel, buildOverridesPanel, buildRestrictionsPanel } from './lockerTabPanels';
 import { t } from '../../i18n';
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 
-type TabId = 'gardenQol' | 'plants' | 'eggs' | 'decor' | 'sell';
+type TabId = 'general' | 'overrides' | 'restrictions';
 
-/** Built lazily so t() runs after the locale is set. */
-function getTabDefs(): { id: TabId; label: string }[] {
+const TAB_IDS: TabId[] = ['general', 'overrides', 'restrictions'];
+
+function getTabDefs(): { id: string; label: string }[] {
   return [
-    { id: 'gardenQol', label: `\u2699\uFE0F ${t('feature.locker.tab.gardenQol')}` },
-    { id: 'plants',    label: `\ud83c\udf31 ${t('feature.locker.tab.plants')}` },
-    { id: 'eggs',      label: `\ud83e\udd5a ${t('feature.locker.tab.eggs')}` },
-    { id: 'decor',     label: `\ud83e\ude91 ${t('feature.locker.tab.decor')}` },
-    { id: 'sell',      label: `\ud83d\udcb0 ${t('feature.locker.tab.sell')}` },
+    { id: 'general',      label: t('feature.locker.tab.general') },
+    { id: 'overrides',    label: t('feature.locker.tab.overrides') },
+    { id: 'restrictions', label: t('feature.locker.tab.restrictions') },
   ];
-}
-
-// ── Tab bar (bug fix #2: returns setActive instead of rebuilding) ────────
-
-interface TabBar {
-  bar: HTMLElement;
-  setActive: (id: TabId) => void;
-}
-
-function buildTabBar(initialTab: TabId, onSwitch: (id: TabId) => void): TabBar {
-  const bar = document.createElement('div');
-  bar.style.cssText = 'display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.08)';
-
-  let currentTab = initialTab;
-  const buttons = new Map<TabId, HTMLButtonElement>();
-
-  for (const tab of getTabDefs()) {
-    const btn = document.createElement('button');
-    btn.textContent = tab.label;
-    const isActive = tab.id === currentTab;
-    btn.style.cssText = `flex:1;padding:8px 0;background:none;border:none;border-bottom:2px solid ${isActive ? '#8f82ff' : 'transparent'};color:${isActive ? '#8f82ff' : TEXT_MUTED};font-size:11px;font-weight:600;cursor:pointer;transition:color .15s,border-color .15s`;
-    btn.addEventListener('mouseenter', () => { if (tab.id !== currentTab) btn.style.color = 'rgba(143,130,255,0.7)'; });
-    btn.addEventListener('mouseleave', () => { if (tab.id !== currentTab) btn.style.color = TEXT_MUTED as string; });
-    btn.addEventListener('click', () => onSwitch(tab.id));
-    buttons.set(tab.id, btn);
-    bar.appendChild(btn);
-  }
-
-  const setActive = (id: TabId): void => {
-    currentTab = id;
-    for (const [tabId, btn] of buttons) {
-      const active = tabId === id;
-      btn.style.borderBottomColor = active ? '#8f82ff' : 'transparent';
-      btn.style.color = active ? '#8f82ff' : TEXT_MUTED as string;
-    }
-  };
-
-  return { bar, setActive };
 }
 
 // ── Main export ─────────────────────────────────────────────────────────────
@@ -76,53 +32,53 @@ export function createLockerSection(): HTMLElement {
     container.innerHTML = '';
     const cfg = getLockerConfig();
 
-    // ── Master toggle (always visible) ──
-    const masterRow = document.createElement('label');
-    masterRow.style.cssText = TOGGLE_ROW_CSS;
-    const masterText = document.createElement('div');
-    masterText.style.cssText = LABEL_CSS;
-    masterText.textContent = t('feature.locker.enableLocker');
-    const masterInput = document.createElement('input');
-    masterInput.type = 'checkbox';
-    masterInput.checked = cfg.enabled;
-    masterInput.style.cssText = CHECKBOX_CSS;
-    masterInput.addEventListener('change', () => {
-      updateLockerConfig({ enabled: masterInput.checked });
-      render();
+    // ── Master toggle (always visible, outside tabs) ──
+    const masterRow = document.createElement('div');
+    masterRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 0';
+    const masterLabel = document.createElement('div');
+    masterLabel.textContent = t('feature.locker.enableLocker');
+    masterLabel.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#eef0ff)';
+
+    const toggle = createToggle({
+      checked: cfg.enabled,
+      onChange: (checked) => {
+        updateLockerConfig({ enabled: checked });
+        render();
+      },
     });
-    masterRow.append(masterText, masterInput);
+
+    masterRow.append(masterLabel, toggle.root);
     container.appendChild(masterRow);
 
-    // ── Tabs ──
-    let activeTab: TabId = 'gardenQol';
+    // ── Tab bar ──
+    let activeTab: TabId = 'general';
     const eligible = getEligibleData();
 
     const panels: Record<TabId, HTMLElement> = {
-      gardenQol: buildGardenQolPanel(cfg),
-      plants: buildPlantsPanel(cfg, eligible),
-      eggs:   buildEggsPanel(cfg, eligible),
-      decor:  buildDecorPanel(cfg, eligible),
-      sell:   buildSellPanel(cfg, eligible),
+      general: buildGeneralPanel(cfg),
+      overrides: buildOverridesPanel(cfg, eligible),
+      restrictions: buildRestrictionsPanel(cfg, eligible),
     };
 
-    for (const [id, panel] of Object.entries(panels)) {
-      panel.style.display = id === activeTab ? 'flex' : 'none';
+    for (const id of TAB_IDS) {
+      panels[id].style.display = id === activeTab ? 'flex' : 'none';
     }
 
     const panelSlot = document.createElement('div');
+    for (const id of TAB_IDS) panelSlot.appendChild(panels[id]);
 
-    function switchTab(id: TabId): void {
-      if (id === activeTab) return;
-      panels[activeTab].style.display = 'none';
-      activeTab = id;
-      panels[activeTab].style.display = 'flex';
-      tabBar.setActive(activeTab);
-    }
+    const tabBar = createTabBar(getTabDefs(), {
+      defaultTab: 'general',
+      onChange: (id) => {
+        const tabId = id as TabId;
+        if (tabId === activeTab) return;
+        panels[activeTab].style.display = 'none';
+        activeTab = tabId;
+        panels[activeTab].style.display = 'flex';
+      },
+    });
 
-    const tabBar = buildTabBar(activeTab, switchTab);
-    for (const panel of Object.values(panels)) panelSlot.appendChild(panel);
-
-    container.appendChild(tabBar.bar);
+    container.appendChild(tabBar.root);
     container.appendChild(panelSlot);
   }
 

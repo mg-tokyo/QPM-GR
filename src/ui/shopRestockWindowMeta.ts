@@ -280,7 +280,7 @@ export function mergeToolFallbackRows(items: RestockItem[]): RestockItem[] {
 /** All items that can appear in the Dawn shop. */
 const DAWN_SHOP_ITEM_IDS = [
   'Daisy', 'Lavender', 'Saffron', 'Eggplant', 'Ube',
-  'Dawnbreaker', 'DawnEgg',
+  'Dawnbreaker', 'DawnCelestial', 'DawnEgg',
 ] as const;
 
 export function mergeDawnFallbackRows(items: RestockItem[]): RestockItem[] {

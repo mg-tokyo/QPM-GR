@@ -3,21 +3,12 @@
 
 import { storage } from '../../utils/storage';
 import type {
-  LockerConfig, CustomRule, HoldContexts,
+  LockerConfig,
   HarvestFilterSettings, CropOverride, ScaleLockMode, FilterMode, WeatherFilterMode,
 } from './types';
 import { isRecord } from '../../utils/typeGuards';
 
 const STORAGE_KEY = 'qpm.locker.config.v1';
-
-const DEFAULT_HOLD_CONTEXTS: HoldContexts = {
-  harvest: true,
-  plant: true,
-  shovel: true,
-  sell: true,
-  hatch: true,
-  other: true,
-};
 
 const DEFAULT_HARVEST_FILTER: HarvestFilterSettings = {
   filterMode: 'LOCK',
@@ -45,12 +36,6 @@ const DEFAULT_CONFIG: LockerConfig = {
   sellAllCropsLock: false,
   cropSellLocks: {},
   petSellGuard: false,
-  customRules: [],
-  instaHarvestRainbow: false,
-  instaHarvestGold: false,
-  ariesHold: false,
-  holdRateHz: 10,
-  holdContexts: { ...DEFAULT_HOLD_CONTEXTS },
   harvestFilter: { ...DEFAULT_HARVEST_FILTER, weatherTags: [], weatherRecipes: [] },
   cropOverrides: {},
 };
@@ -66,26 +51,6 @@ function toNumber(value: unknown, fallback: number, min: number, max: number): n
   return fallback;
 }
 
-function sanitizeCustomRules(raw: unknown): CustomRule[] {
-  if (!Array.isArray(raw)) return [];
-  const out: CustomRule[] = [];
-  for (const entry of raw) {
-    if (!isRecord(entry) || typeof entry.species !== 'string' || entry.species.length === 0) continue;
-
-    // New shape: mutations: string[]
-    if (Array.isArray(entry.mutations)) {
-      const muts = entry.mutations.filter((m): m is string => typeof m === 'string' && m.length > 0);
-      if (muts.length > 0) out.push({ species: entry.species, mutations: muts });
-      continue;
-    }
-    // Backward compat: old shape had mutation: string (single)
-    if (typeof entry.mutation === 'string' && entry.mutation.length > 0) {
-      out.push({ species: entry.species, mutations: [entry.mutation] });
-    }
-  }
-  return out;
-}
-
 function sanitizeBooleanMap(raw: unknown): Record<string, boolean> {
   if (!isRecord(raw)) return {};
   const out: Record<string, boolean> = {};
@@ -95,18 +60,6 @@ function sanitizeBooleanMap(raw: unknown): Record<string, boolean> {
     }
   }
   return out;
-}
-
-function sanitizeHoldContexts(raw: unknown): HoldContexts {
-  if (!isRecord(raw)) return { ...DEFAULT_HOLD_CONTEXTS };
-  return {
-    harvest: toBoolean(raw.harvest, true),
-    plant:   toBoolean(raw.plant, true),
-    shovel:  toBoolean(raw.shovel, true),
-    sell:    toBoolean(raw.sell, true),
-    hatch:   toBoolean(raw.hatch, true),
-    other:   toBoolean(raw.other, true),
-  };
 }
 
 const VALID_SCALE_LOCK_MODES = new Set<ScaleLockMode>(['RANGE', 'MINIMUM', 'MAXIMUM', 'NONE']);
@@ -164,7 +117,7 @@ function sanitizeCropOverrides(raw: unknown): Record<string, CropOverride> {
 }
 
 function sanitizeConfig(raw: unknown): LockerConfig {
-  if (!isRecord(raw)) return { ...DEFAULT_CONFIG, holdContexts: { ...DEFAULT_HOLD_CONTEXTS } };
+  if (!isRecord(raw)) return { ...DEFAULT_CONFIG };
 
   const reserve = isRecord(raw.inventoryReserve) ? raw.inventoryReserve : {};
 
@@ -192,12 +145,6 @@ function sanitizeConfig(raw: unknown): LockerConfig {
     sellAllCropsLock: toBoolean(raw.sellAllCropsLock, DEFAULT_CONFIG.sellAllCropsLock),
     cropSellLocks: sanitizeBooleanMap(raw.cropSellLocks),
     petSellGuard: toBoolean(raw.petSellGuard, DEFAULT_CONFIG.petSellGuard),
-    customRules: sanitizeCustomRules(raw.customRules),
-    instaHarvestRainbow: toBoolean(raw.instaHarvestRainbow, DEFAULT_CONFIG.instaHarvestRainbow),
-    instaHarvestGold: toBoolean(raw.instaHarvestGold, DEFAULT_CONFIG.instaHarvestGold),
-    ariesHold: toBoolean(raw.ariesHold, DEFAULT_CONFIG.ariesHold),
-    holdRateHz: toNumber(raw.holdRateHz, DEFAULT_CONFIG.holdRateHz, 5, 20),
-    holdContexts: sanitizeHoldContexts(raw.holdContexts),
     harvestFilter: sanitizeHarvestFilter(raw.harvestFilter),
     cropOverrides: sanitizeCropOverrides(raw.cropOverrides),
   };
@@ -234,8 +181,6 @@ export function getLockerConfig(): LockerConfig {
     mutationLocks: { ...config.mutationLocks },
     decorLocks: { ...config.decorLocks },
     cropSellLocks: { ...config.cropSellLocks },
-    customRules: config.customRules.map(r => ({ ...r })),
-    holdContexts: { ...config.holdContexts },
     harvestFilter: deepCopyHarvestFilter(config.harvestFilter),
     cropOverrides: deepCopyCropOverrides(config.cropOverrides),
   };

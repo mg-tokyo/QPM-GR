@@ -185,15 +185,6 @@ export function evaluateAction(
           return { blocked: true, reason: `Mutation locked: ${label}`, rule: 'mutation_lock' };
         }
       }
-      // Custom rules: species + ALL mutations must be present (AND logic)
-      if (tile?.species && tile?.mutations && config.customRules.length > 0) {
-        for (const rule of config.customRules) {
-          if (rule.species === tile.species && rule.mutations.every(m => tile.mutations!.includes(m))) {
-            const mutLabel = rule.mutations.join(' + ');
-            return { blocked: true, reason: `Custom rule: ${rule.species} (${mutLabel})`, rule: 'custom_rule' };
-          }
-        }
-      }
       // Harvest filters (Aries-style size/color/weather + LOCK/ALLOW)
       const filterResult = evaluateHarvestFilterBlock(config, tile);
       if (filterResult.blocked) return filterResult;

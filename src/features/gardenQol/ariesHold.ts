@@ -1,11 +1,11 @@
-// src/features/locker/ariesHold.ts
+// src/features/gardenQol/ariesHold.ts
 // Rapid-fire hold mode: holding Space rapidly simulates pressing it at N Hz.
 // Replicates the Aries mod "Hold to repeat" feature for all game actions
 // (planting, harvesting, interacting, collecting, etc.).
 
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
-import { getLockerConfig } from './state';
+import { getGardenQolConfig } from './state';
 import type { HoldContexts } from './types';
 
 // ── Configuration ──────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ function getActionContext(): keyof HoldContexts {
 
 function tick(): void {
   if (!held) return;
-  const config = getLockerConfig();
+  const config = getGardenQolConfig();
   // Stop immediately if the user toggled the setting off mid-hold
   if (!config.ariesHold) {
     held = false;
@@ -105,7 +105,7 @@ function tick(): void {
 function startLoop(): void {
   stopLoop();
   tick(); // first tick fires immediately (matches Aries behavior)
-  const rateHz = getLockerConfig().holdRateHz || DEFAULT_RATE_HZ;
+  const rateHz = getGardenQolConfig().holdRateHz || DEFAULT_RATE_HZ;
   const rateMs = 1000 / rateHz;
   tickTimer = setInterval(tick, rateMs);
 }
@@ -124,7 +124,7 @@ function onKeyDown(event: KeyboardEvent): void {
   if (event.repeat) return;
   if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
   if (isTextInputFocused()) return;
-  if (!getLockerConfig().ariesHold) return;
+  if (!getGardenQolConfig().ariesHold) return;
 
   held = true;
   lastTarget = event.target;

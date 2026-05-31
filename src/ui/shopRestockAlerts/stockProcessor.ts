@@ -90,7 +90,23 @@ export function isTrackedItem(tracked: Set<string>, shopType: RestockShopType, i
   for (const variant of variants) {
     if (lowerTracked.has(`${shopType}:${variant}`.toLowerCase())) return true;
   }
-  return lowerTracked.has(`${shopType}:${canonical}`.toLowerCase());
+  if (lowerTracked.has(`${shopType}:${canonical}`.toLowerCase())) return true;
+
+  // Dawn shop carries items from all categories — if an item is tracked under
+  // its underlying type (e.g. seed:DawnCelestial), it should alert from dawn too.
+  if (shopType === 'dawn') {
+    for (const prefix of ['seed', 'egg', 'tool', 'decor'] as const) {
+      const crossCanonical = canonicalItemId(prefix, itemId);
+      if (tracked.has(`${prefix}:${crossCanonical}`)) return true;
+      if (lowerTracked.has(`${prefix}:${crossCanonical}`.toLowerCase())) return true;
+      for (const v of getItemIdVariants(prefix, itemId)) {
+        if (tracked.has(`${prefix}:${v}`)) return true;
+        if (lowerTracked.has(`${prefix}:${v}`.toLowerCase())) return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------

@@ -6,20 +6,6 @@ export interface InventoryReserveConfig {
   minFreeSlots: number; // 0–50, default 5
 }
 
-export interface CustomRule {
-  species: string;
-  mutations: string[]; // ALL must be present on the tile to trigger (AND logic)
-}
-
-export interface HoldContexts {
-  harvest: boolean;   // harvest/rainbowHarvest/goldHarvest
-  plant: boolean;     // planting seeds
-  shovel: boolean;    // removing garden objects
-  sell: boolean;      // selling at shops
-  hatch: boolean;     // hatching eggs
-  other: boolean;     // any unrecognized action context
-}
-
 // ── Harvest Filter types ──────────────────────────────────────────────────
 
 export type ScaleLockMode = 'RANGE' | 'MINIMUM' | 'MAXIMUM' | 'NONE';
@@ -59,12 +45,6 @@ export interface LockerConfig {
   sellAllCropsLock: boolean;
   cropSellLocks: Record<string, boolean>; // per-crop sell protection (blocks SellAllCrops)
   petSellGuard: boolean;         // block selling protected pets during hold-Space
-  customRules: CustomRule[];     // plant+mutation combo rules
-  instaHarvestRainbow: boolean;  // skip hold-to-harvest for Rainbow plants
-  instaHarvestGold: boolean;     // skip hold-to-harvest for Gold plants
-  ariesHold: boolean;            // rapid-fire hold mode (hold Space → repeat at N Hz)
-  holdRateHz: number;            // hold repeat rate in Hz (5–20, default 10)
-  holdContexts: HoldContexts;   // per-action-context hold toggles
   // ── Harvest filters (Aries-style) ──
   harvestFilter: HarvestFilterSettings;               // global harvest filter
   cropOverrides: Record<string, CropOverride>;        // per-species filter overrides

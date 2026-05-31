@@ -56,12 +56,22 @@ export const store = {
 
 export function saveConfig(): void {
   storage.set(store.resolvedConfigKey, store.config);
+  // Mirror to unscoped key so initPetTeamsStore can load teams before
+  // resolvePlayerKeyAndMigrate completes (which requires async player ID).
+  // Without this, a fresh install under the Mod Manager starts with an empty
+  // unscoped key and loses data if the player atom isn't ready yet.
+  if (store.resolvedConfigKey !== CONFIG_KEY) {
+    storage.set(CONFIG_KEY, store.config);
+  }
   notifyConfigListeners();
 }
 
 export function saveFeedPolicy(): void {
   store.feedPolicy.updatedAt = Date.now();
   storage.set(store.resolvedFeedKey, store.feedPolicy);
+  if (store.resolvedFeedKey !== FEED_POLICY_KEY) {
+    storage.set(FEED_POLICY_KEY, store.feedPolicy);
+  }
   dispatchCustomEventAll(PET_FEED_POLICY_CHANGED_EVENT, {
     updatedAt: store.feedPolicy.updatedAt,
   });

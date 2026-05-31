@@ -155,6 +155,9 @@ const QPM_STORAGE_KEYS = [
   // Action Guard (Locker)
   'qpm.locker.config.v1',
 
+  // Garden QOL (insta-harvest, aries hold)
+  'qpm.gardenQol.config.v1',
+
   // Crop Boost / Size Indicator / Tile Value
   'cropBoostTracker:config',
   'qpm.cropSize.v1',
@@ -251,6 +254,54 @@ const QPM_DYNAMIC_KEY_PREFIXES = [
   'qpm-window-size-',
   'qpm-window-state-',
 ] as const;
+
+/**
+ * Keys excluded from settings export.
+ * These are runtime logs, caches, legacy data, and ephemeral state
+ * that have no value in a settings backup.
+ */
+const EXPORT_EXCLUDE_KEYS: readonly string[] = [
+  // Activity log history (regenerated, ~4 MB)
+  'qpm.activityLog.history.v1',
+  'qpm.activityLog.history.backup.v1',
+  'qpm.activityLog.debug.summary.v1',
+  'qpm.activityLogEnhanced.entries.v1',
+  'qpm.activityLogEnhanced.entries.v2',
+  'qpm.activityLogEnhanced.entries.v3',
+
+  // Pet teams action log (regenerated, ~1 MB)
+  'qpm.petTeams.logs.v1',
+
+  // Turtle completion log
+  'qpm-turtle-completion-log',
+
+  // Caches (regenerated from network/game)
+  'qpm.petHatchingTracker.knownPetIds.v1',
+  'qpm.petXpObservations.v1',
+  'qpm.ariedam.gamedata',
+
+  // Legacy keys (superseded, nothing reads them)
+  'qpm-auto-feed-config',
+  'qpm-auto-shop-config',
+  'quinoa-auto-shop-config',
+  'qpm-hatching-helper-config',
+  'qpm-hatching-helper-stats-v1',
+  'petOptimizer:config.v2',
+  'petOptimizer:config.v3',
+];
+
+/**
+ * Key prefixes excluded from settings export.
+ * Any key starting with one of these prefixes will be skipped.
+ */
+const EXPORT_EXCLUDE_PREFIXES: readonly string[] = [
+  // Restock cache (all versions, regenerated from Supabase)
+  'qpm.restockCache',
+
+  // Tour/discovery state (ephemeral)
+  'qpm.tour.',
+  'qpm.discovered.',
+];
 
 /**
  * Set of storage keys registered at runtime by features that use dynamic
@@ -643,6 +694,15 @@ function isDynamicWindowKey(key: string): boolean {
 }
 
 /**
+ * Returns true if `key` should be excluded from settings export.
+ * Matches exact keys in EXPORT_EXCLUDE_KEYS and prefix matches in EXPORT_EXCLUDE_PREFIXES.
+ */
+function isExportExcluded(key: string): boolean {
+  if (EXPORT_EXCLUDE_KEYS.includes(key)) return true;
+  return EXPORT_EXCLUDE_PREFIXES.some(p => key.startsWith(p));
+}
+
+/**
  * Serialises all currently-stored QPM values to a plain object of JSON strings.
  *
  * Exports keys from QPM_STORAGE_KEYS, dynamically registered keys, and any localStorage
@@ -682,7 +742,7 @@ export function exportAllValues(): Record<string, string> {
   }
 
   for (const key of candidateKeys) {
-    if (isDynamicWindowKey(key)) continue;
+    if (isDynamicWindowKey(key) || isExportExcluded(key)) continue;
     const val = storage.get<unknown>(key, null);
     if (val == null) continue;
     try {

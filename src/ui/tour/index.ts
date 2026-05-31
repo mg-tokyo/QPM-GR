@@ -13,7 +13,7 @@ export { check as checkTour } from './engine';
 export { registerTour } from './registry';
 export { areToursEnabled as getToursEnabled, setToursEnabled } from './persistence';
 export { registerDiscovery, registerHelp } from './registry';
-export { startDiscovery, stopDiscovery } from './discovery/engine';
+export { startDiscovery, stopDiscovery, rescanDiscovery } from './discovery/engine';
 export { openHelpPanel, closeHelpPanel } from './help/panel';
 
 /**
