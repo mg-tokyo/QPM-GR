@@ -2,7 +2,7 @@
 // Parsing, normalization, and deduplication for restock API responses.
 // Pure functions — no side effects, no shared state.
 
-import { type RestockItem, RESTOCK_ITEM_FIELDS } from './restockTypes';
+import { type RestockItem, RESTOCK_ITEM_FIELDS } from './types';
 
 // Known item ID aliases for deduplication (legacy → canonical).
 // Scoped to "shop_type:oldId" to avoid cross-shop confusion.

@@ -8,7 +8,7 @@ import {
   captureProgressionStage,
   getAbilityFamilyKey,
 } from '../../../features/pets/compare';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { getCoinSpriteUrl } from './helpers';
 import { t } from '../../../i18n';
 

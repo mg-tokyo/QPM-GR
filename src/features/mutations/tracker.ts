@@ -20,7 +20,7 @@ import {
   type MutationDebugWeatherEntry,
 } from '../../store/mutationSummary';
 import { getWeatherSnapshot, onWeatherSnapshot, startWeatherHub, type WeatherSnapshot } from '../../store/weatherHub';
-import type { DetailedWeather } from '../../utils/weatherDetection';
+import type { DetailedWeather } from '../../utils/game/weatherDetection';
 import { log } from '../../utils/logger';
 
 let initialized = false;

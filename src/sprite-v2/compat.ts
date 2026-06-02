@@ -1,7 +1,7 @@
 // sprite-v2/compat.ts - Compatibility layer for old sprite API (canvas-first)
 
-import { canvasToDataUrl } from '../utils/canvasHelpers';
-import { scheduleNonBlocking, delay } from '../utils/scheduling';
+import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
+import { scheduleNonBlocking, delay } from '../utils/scheduling/scheduling';
 import { log, isVerboseLogsEnabled } from '../utils/logger';
 import type { SpriteService } from './types';
 import { spriteLog } from './diagnostics';

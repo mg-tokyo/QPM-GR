@@ -1,4 +1,4 @@
-import { resolveMutation } from './cropMultipliers';
+import { resolveMutation } from './game/cropMultipliers';
 
 const BASE_WATER_MUTS = new Set(['wet', 'chilled']);
 const UPGRADED_WATER_MUTS = new Set(['frozen']);

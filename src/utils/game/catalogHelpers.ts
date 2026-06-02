@@ -18,8 +18,8 @@ import {
   getSlotOffsets,
   isMultiHarvest,
   getCropMaxScale,
-} from '../catalogs/gameCatalogs';
-import type { FloraBlueprint, SlotOffset } from '../catalogs/gameCatalogs';
+} from '../../catalogs/gameCatalogs';
+import type { FloraBlueprint, SlotOffset } from '../../catalogs/gameCatalogs';
 
 export { areCatalogsReady, waitForCatalogs };
 

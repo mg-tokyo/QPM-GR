@@ -1,9 +1,9 @@
 // src/utils/restockDataService.ts
 // Shared Supabase restock data fetcher + cache for shop window and dashboard.
 
-import { storage } from './storage';
-import { log } from './logger';
-import { isDebugGlobalsEnabled } from './debugGlobals';
+import { storage } from '../storage';
+import { log } from '../logger';
+import { isDebugGlobalsEnabled } from '../debugGlobals';
 import {
   canonicalItemId,
   getItemIdVariants,
@@ -12,7 +12,7 @@ import {
   extractItemsArray,
   toFloat,
   toMs,
-} from './restockParser';
+} from './parser';
 import type {
   RestockItem,
   RestockPredictionAccuracyAggregate,
@@ -25,10 +25,10 @@ import type {
   FetchTextResult,
   WeatherPrediction,
   WeatherPredictionCacheEntry,
-} from './restockTypes';
+} from './types';
 
 // Re-export parser utilities and types so existing callers work unchanged.
-export { canonicalItemId, getItemIdVariants } from './restockParser';
+export { canonicalItemId, getItemIdVariants } from './parser';
 export type {
   RestockItem,
   RestockPredictionAccuracyAggregate,
@@ -37,7 +37,7 @@ export type {
   FetchStatus,
   GmXhr,
   WeatherPrediction,
-} from './restockTypes';
+} from './types';
 
 const RESTOCK_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_predictions_mat';
 const RESTOCK_ACCURACY_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_prediction_accuracy_by_item';

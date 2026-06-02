@@ -3,9 +3,9 @@
 
 import { getAbilityHistorySnapshot } from '../../store/abilityLogs';
 import { storage } from '../../utils/storage';
-import { debounce } from '../../utils/debounce';
+import { debounce } from '../../utils/scheduling/debounce';
 import { log } from '../../utils/logger';
-import { visibleInterval } from '../../utils/timerManager';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { resetWeatherMutationTracking } from './weatherTracking';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, resolveGrantedMutationName } from '../pets/abilityValuation';
 import { calculateMutationValue } from '../../utils/mutationValueCalculator';

@@ -12,8 +12,8 @@ import { processVariantJobs, computeVariantSignature, textureToCanvas } from './
 import { clearVariantCache, getCacheStats } from './cache';
 import { clearSpriteDataUrlCache } from './compat';
 import * as api from './api';
-import { sleep } from '../utils/dom';
-import { yieldToBrowser, YieldController, delay } from '../utils/scheduling';
+import { sleep } from '../utils/dom/dom';
+import { yieldToBrowser, YieldController, delay } from '../utils/scheduling/scheduling';
 import { log } from '../utils/logger';
 import { storage } from '../utils/storage';
 import { createKtx2DecoderPool, type Ktx2DecoderPool, type Ktx2DecoderTelemetry } from './ktx2';

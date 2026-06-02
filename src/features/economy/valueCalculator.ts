@@ -2,7 +2,7 @@
 // Utility helpers for computing garden-related values derived from live tile data.
 
 import type { GardenSnapshot } from '../garden/bridge';
-import { computeMutationMultiplier } from '../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { getCropBaseSellPrice, getPlantSpecies } from '../../catalogs/gameCatalogs';
 
 const SPECIES_VALUES: Record<string, number> = {

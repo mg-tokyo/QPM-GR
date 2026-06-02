@@ -1,4 +1,4 @@
-import { debounceCancelable } from '../../utils/debounce';
+import { debounceCancelable } from '../../utils/scheduling/debounce';
 
 export interface SearchInputOptions {
   placeholder?: string;

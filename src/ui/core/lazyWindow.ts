@@ -3,7 +3,7 @@
 // Defer heavy window content rendering until the window is actually opened
 
 import { toggleWindow, type PanelRender, getWindow, isWindowOpen } from './modalWindow';
-import { yieldToBrowser } from '../../utils/scheduling';
+import { yieldToBrowser } from '../../utils/scheduling/scheduling';
 import { t } from '../../i18n';
 
 export type LazyRender = () => Promise<PanelRender>;

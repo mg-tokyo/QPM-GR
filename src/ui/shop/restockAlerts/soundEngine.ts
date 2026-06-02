@@ -7,7 +7,7 @@
 //   reliable than fetch + decodeAudioData in a userscript context.
 // - Webkit prefix fallback for older browsers.
 
-import { criticalInterval } from '../../../utils/timerManager';
+import { criticalInterval } from '../../../utils/scheduling/timerManager';
 import { pageWindow } from '../../../core/pageContext';
 import { BUILTIN_SOUND_IDS } from './soundConfig';
 

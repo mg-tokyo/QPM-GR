@@ -4,7 +4,7 @@
 
 import { areCatalogsReady, getFloraBlueprint, getAllPlantSpecies } from '../catalogs/gameCatalogs';
 import type { FloraBlueprint } from '../catalogs/gameCatalogs';
-import { canvasToDataUrl } from '../utils/canvasHelpers';
+import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
 import { log } from '../utils/logger';
 import {
   isSpritesReady,

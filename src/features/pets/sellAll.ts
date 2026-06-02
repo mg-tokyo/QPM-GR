@@ -4,7 +4,7 @@ import { calculateMaxStrength } from '../../store/xpTracker';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
-import { delay } from '../../utils/scheduling';
+import { delay } from '../../utils/scheduling/scheduling';
 import { isRecord } from '../../utils/typeGuards';
 import { sendRoomAction } from '../../websocket/api';
 import { ensureJournalLogged } from '../journal/guard';

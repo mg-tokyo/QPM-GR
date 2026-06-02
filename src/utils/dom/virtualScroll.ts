@@ -1,7 +1,7 @@
 // src/utils/virtualScroll.ts
 // Virtual scrolling implementation using IntersectionObserver for 100+ item lists
 
-import { log } from './logger';
+import { log } from '../logger';
 
 interface VirtualScrollOptions {
   container: HTMLElement;

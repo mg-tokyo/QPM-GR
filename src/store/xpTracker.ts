@@ -2,7 +2,7 @@
 
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';
-import { debounce } from '../utils/debounce';
+import { debounce } from '../utils/scheduling/debounce';
 import type { ActivePetInfo } from './pets';
 import { getAllPetXpEstimates, inferXpPerLevel } from '../utils/xpInference';
 import { areCatalogsReady, onCatalogsReady, getPetMaxScale } from '../catalogs/gameCatalogs';

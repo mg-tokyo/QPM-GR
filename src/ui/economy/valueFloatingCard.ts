@@ -13,7 +13,7 @@ import { getAnySpriteDataUrl, getCropSpriteDataUrl, getProduceSpriteDataUrl, get
 import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems, type TopValueItem } from '../../features/economy/topValueItems';
 import { getInventoryItems } from '../../store/inventory';
 import { getActivePetInfos } from '../../store/pets';
-import { debounceCancelable } from '../../utils/debounce';
+import { debounceCancelable } from '../../utils/scheduling/debounce';
 import { subscribeEconomy, getEconomySnapshot, type EconomySnapshot } from '../../store/economyTracker';
 import { getFriendBonusMultiplier, onFriendBonusChange } from '../../store/friendBonus';
 

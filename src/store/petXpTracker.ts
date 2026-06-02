@@ -4,7 +4,7 @@
 import { startPetInfoStore, onActivePetInfos, type ActivePetInfo } from './pets';
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';
-import { debounce } from '../utils/debounce';
+import { debounce } from '../utils/scheduling/debounce';
 import { normalizeSpeciesKey } from '../utils/helpers';
 
 const STORAGE_KEY = 'qpm.petXpObservations.v1';

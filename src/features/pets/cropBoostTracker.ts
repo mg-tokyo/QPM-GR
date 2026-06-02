@@ -8,7 +8,7 @@ import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
 import { getActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
-import { lookupMaxScale } from '../../utils/plantScales';
+import { lookupMaxScale } from '../../utils/game/plantScales';
 
 // ============================================================================
 // Types

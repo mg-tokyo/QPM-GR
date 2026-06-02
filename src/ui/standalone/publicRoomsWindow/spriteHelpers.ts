@@ -6,7 +6,7 @@ import {
   getPetSpriteWithMutations,
   spriteExtractor,
 } from '../../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../../utils/canvasHelpers';
+import { canvasToDataUrl } from '../../../utils/dom/canvasHelpers';
 import { getAbilityColor, mutationFilters, itemTileMap, ITEM_SHEET } from './constants';
 import type { SpriteFilterConfig } from './constants';
 import { spriteService, spriteNameLookup, spriteUrlCache, normalizeSpriteLookupKey } from './state';

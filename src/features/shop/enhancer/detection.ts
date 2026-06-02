@@ -5,7 +5,7 @@ import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
-import { visibleInterval, timerManager } from '../../../utils/timerManager';
+import { visibleInterval, timerManager } from '../../../utils/scheduling/timerManager';
 import { ENHANCEABLE_SHOP_IDS, MODAL_TO_CATEGORY } from './types';
 import type { ShopCategory } from '../../../types/shops';
 

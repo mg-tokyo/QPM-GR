@@ -1,7 +1,7 @@
 // src/ui/petPickerModal/hoverPanel.ts
 // Hover detail panel for the pet picker modal.
 
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../../../features/pets/data/petAbilities';
 import { findAbilityHistoryForIdentifiers } from '../../../store/abilityLogs';
 import { computeObservedMetrics } from '../../stats/abilityAnalysis';

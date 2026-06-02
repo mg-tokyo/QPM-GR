@@ -9,7 +9,7 @@ import {
 } from '../../features/economy/storageValue';
 import { getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import { pageWindow } from '../../core/pageContext';
-import { visibleInterval, timerManager } from '../../utils/timerManager';
+import { visibleInterval, timerManager } from '../../utils/scheduling/timerManager';
 
 const OVERLAY_ID = 'qpm-storage-value-overlay';
 const POS_SYNC_TIMER_ID = 'storageValueOverlay:posSync';

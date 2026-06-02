@@ -2,7 +2,7 @@
 // Single shared tooltip observer replacing two independent MutationObservers.
 // Fixes bug #2 (nameplate injection) and bug #3 (cascading re-injection).
 
-import { onAdded, onRemoved, watch } from '../../../utils/dom';
+import { onAdded, onRemoved, watch } from '../../../utils/dom/dom';
 import { log } from '../../../utils/logger';
 import { TOOLTIP_SELECTOR, TOOLTIP_STYLE_ID, TOOLTIP_ROW_ATTR, JOURNAL_BADGE_ATTR } from './types';
 import type { InjectorFn } from './types';

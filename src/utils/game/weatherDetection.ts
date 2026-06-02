@@ -1,7 +1,7 @@
 // src/utils/weatherDetection.ts
 // Shared weather canvas detection helpers used across features.
 
-import { getGameHudRoot } from './dom';
+import { getGameHudRoot } from '../dom/dom';
 
 export const WEATHER_CANVAS_SELECTORS: readonly string[] = [
   // NEW - Graphics engine 2025-12-13

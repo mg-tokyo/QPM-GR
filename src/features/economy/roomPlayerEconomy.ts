@@ -8,7 +8,7 @@ import { getPlayerId } from '../../core/playerContext';
 import { computeGardenValueFromCatalog } from './valueCalculator';
 import { computeStorageItemsValue, computePetSellPrice, computePlacedDecorAndEggValue, computeGrowingCropsValue } from './storageValue';
 import { getDecor } from '../../catalogs/gameCatalogs';
-import { debounceCancelable } from '../../utils/debounce';
+import { debounceCancelable } from '../../utils/scheduling/debounce';
 import { createLogger } from '../../utils/logger';
 import { isRecord } from '../../utils/typeGuards';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';

@@ -8,7 +8,7 @@ import {
   gmGet,
   getItemIdVariants,
   type GmXhr,
-} from './restockDataService';
+} from './restock/dataService';
 
 const EVENTS_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_events';
 const WEATHER_EVENTS_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/weather_events';

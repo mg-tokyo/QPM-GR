@@ -1,6 +1,6 @@
 import { getOptimizerConfig, type PetComparison } from '../../../features/pets/optimizer';
 import { t } from '../../../i18n';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { createFamilyTeam } from './actions';
 import { createPetCard } from './card';
 import {

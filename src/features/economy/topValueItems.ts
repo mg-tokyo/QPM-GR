@@ -6,7 +6,7 @@ import type { GardenSnapshot } from '../garden/bridge';
 import type { InventoryItem } from '../../store/inventory';
 import type { ActivePetInfo } from '../../store/pets';
 import { getPlantSpecies, getPetSpecies, getSeedPrice, getDecor, getEggType } from '../../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { computePetSellPrice } from './storageValue';
 
 // ---------------------------------------------------------------------------

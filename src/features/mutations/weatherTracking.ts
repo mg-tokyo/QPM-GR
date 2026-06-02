@@ -3,10 +3,10 @@
 
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import { getCropStats } from '../garden/data/cropBaseStats';
-import { computeMutationMultiplier } from '../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { storage } from '../../utils/storage';
-import { debounce } from '../../utils/debounce';
-import { visibleInterval } from '../../utils/timerManager';
+import { debounce } from '../../utils/scheduling/debounce';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 import {
   computeSlotStateFromMutationNames,
   type PlantSlotState,

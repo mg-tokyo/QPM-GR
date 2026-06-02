@@ -13,13 +13,13 @@ import {
   type XpAbilityStats,
 } from '../../../store/xpTracker';
 import { getAbilityDefinition, type AbilityDefinition } from '../../../features/pets/data/petAbilities';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { getHungerCapOrDefault } from '../../../features/pets/data/petHungerCaps';
 import { calculateFeedsPerLevel } from '../../../features/pets/data/petHungerDepletion';
-import { throttle } from '../../../utils/scheduling';
+import { throttle } from '../../../utils/scheduling/scheduling';
 import { getWeatherSnapshot } from '../../../store/weatherHub';
-import type { DetailedWeather } from '../../../utils/weatherDetection';
-import { getAbilityName } from '../../../utils/catalogHelpers';
+import type { DetailedWeather } from '../../../utils/game/weatherDetection';
+import { getAbilityName } from '../../../utils/game/catalogHelpers';
 import { onCatalogsReady } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
 import { renderNearMaxSection, type NearMaxState } from './nearMaxSection';

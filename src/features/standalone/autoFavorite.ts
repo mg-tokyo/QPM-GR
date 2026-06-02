@@ -5,7 +5,7 @@ import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { pageWindow } from '../../core/pageContext';
 import { getInventoryItems, getFavoritedItemIds, isInventoryStoreActive } from '../../store/inventory';
-import { visibleInterval } from '../../utils/timerManager';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { getCropCategory, getAllCropCategories } from '../../utils/cropCategorizer';
 import { getAllPlantSpecies, getAllAbilities, getAllMutations, areCatalogsReady } from '../../catalogs/gameCatalogs';
 import { sendRoomAction } from '../../websocket/api';

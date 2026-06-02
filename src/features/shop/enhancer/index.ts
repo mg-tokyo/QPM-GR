@@ -5,7 +5,7 @@
 import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('ShopEnhancer');
-import { visibleInterval, timerManager } from '../../../utils/timerManager';
+import { visibleInterval, timerManager } from '../../../utils/scheduling/timerManager';
 import { startDetection, stopDetection } from './detection';
 import { findShopContentContainer, getContentChildCount, resetScannerDiagnostics } from './scanner';
 import { applySorting, getScannedRows } from './sorting';

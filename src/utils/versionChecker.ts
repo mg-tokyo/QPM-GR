@@ -1,6 +1,6 @@
 import { notify } from "../core/notifications";
 import { storage } from "./storage";
-import { visibleInterval } from "./timerManager";
+import { visibleInterval } from "./scheduling/timerManager";
 
 const CURRENT_VERSION = "3.2.18"; // This should match package.json version
 export const GITHUB_URL = "https://github.com/mg-tokyo/QPM-GR";

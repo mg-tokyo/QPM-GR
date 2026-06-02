@@ -1,7 +1,7 @@
 // src/ui/petPickerModal/petCard.ts
 // Pet card rendering for the picker grid.
 
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { calculateMaxStrength } from '../../../store/xpTracker';
 import type { PooledPet } from '../../../types/petTeams';
 import type { MutationTier } from './types';

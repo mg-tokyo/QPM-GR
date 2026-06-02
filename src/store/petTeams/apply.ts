@@ -2,7 +2,7 @@
 // Apply engine — team swap orchestration (fast path + repair pass).
 
 import { log } from '../../utils/logger';
-import { delay } from '../../utils/scheduling';
+import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
 import { logTeamEvent } from '../petTeamsLogs';
 import { sendRoomAction } from '../../websocket/api';

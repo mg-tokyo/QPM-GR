@@ -3,7 +3,7 @@
 
 import { log } from '../../../utils/logger';
 import { formatCoins } from '../../../utils/formatters';
-import { getItemIdVariants } from '../../../utils/restockDataService';
+import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { isRoomSocketOpen, sendRoomAction, type WebSocketSendResult } from '../../../websocket/api';
 import { getShopStockState } from '../../../store/shopStock';
 import {

@@ -1,10 +1,10 @@
 // src/utils/petCardRenderer.ts - Generate Pet Hub-style pet cards with abilities + name + STR
-import { getPetSpriteCanvas } from '../sprite-v2/compat';
+import { getPetSpriteCanvas } from '../../sprite-v2/compat';
 import { getMutationSpriteDataUrl } from './petMutationRenderer';
-import { canvasToDataUrl } from './canvasHelpers';
-import { getSpeciesXpPerLevel, calculateMaxStrength } from '../store/xpTracker';
-import { getAbilityDef, getPetAbilitiesCatalog } from '../catalogs/gameCatalogs';
-import { getAbilityDefinition } from '../features/pets/data/petAbilities';
+import { canvasToDataUrl } from '../dom/canvasHelpers';
+import { getSpeciesXpPerLevel, calculateMaxStrength } from '../../store/xpTracker';
+import { getAbilityDef, getPetAbilitiesCatalog } from '../../catalogs/gameCatalogs';
+import { getAbilityDefinition } from '../../features/pets/data/petAbilities';
 
 interface PetCardConfig {
   species: string;

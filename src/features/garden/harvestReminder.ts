@@ -5,13 +5,13 @@ import { pageWindow, shareGlobal } from '../../core/pageContext';
 import { log } from '../../utils/logger';
 import { GardenSnapshot, getGardenSnapshot, onGardenSnapshot } from './bridge';
 import { calculatePlantValue, formatCoins } from '../economy/valueCalculator';
-import { computeMutationMultiplier, normalizeMutationName } from '../../utils/cropMultipliers';
-import type { MutationMultiplierBreakdown } from '../../utils/cropMultipliers';
+import { computeMutationMultiplier, normalizeMutationName } from '../../utils/game/cropMultipliers';
+import type { MutationMultiplierBreakdown } from '../../utils/game/cropMultipliers';
 // Garden highlight overlay removed for performance - functions are no-ops
 const updateGardenHighlightOverlay = (_matches: unknown, _snapshot: unknown): boolean => false;
 const clearGardenHighlightOverlay = (): void => {};
 const disposeGardenHighlightOverlay = (): void => {};
-import { lookupMaxScale } from '../../utils/plantScales';
+import { lookupMaxScale } from '../../utils/game/plantScales';
 import { normalizeSpeciesKey } from '../../utils/helpers';
 import { onWeatherSnapshot, startWeatherHub, WeatherSnapshot } from '../../store/weatherHub';
 import { isDebugGlobalsEnabled } from '../../utils/debugGlobals';

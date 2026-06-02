@@ -4,7 +4,7 @@
 
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { getStatsSnapshot, type ShopCategoryKey } from './stats';
-import { visibleInterval } from '../utils/timerManager';
+import { visibleInterval } from '../utils/scheduling/timerManager';
 import { onActionSent, type RoomActionType } from '../websocket/api';
 import { log } from '../utils/logger';
 

@@ -1,5 +1,5 @@
 // src/features/mutationReminder.ts - Plant Mutation Reminder System
-import { $, $$, onAdded, isVisible } from '../../utils/dom';
+import { $, $$, onAdded, isVisible } from '../../utils/dom/dom';
 import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
 import { onWeatherSnapshot, refreshWeatherState, setWeatherOverride, startWeatherHub, WeatherSnapshot } from '../../store/weatherHub';
@@ -14,7 +14,7 @@ import {
   type MutationWeatherSummary,
   type MutationWeatherWindow,
 } from '../../store/mutationSummary';
-import { DetailedWeather } from '../../utils/weatherDetection';
+import { DetailedWeather } from '../../utils/game/weatherDetection';
 import { ensureJotaiStore, getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { readUserSlotsInventorySnapshot } from '../../store/userSlots';
 

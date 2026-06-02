@@ -6,7 +6,7 @@ import {
 } from '../../../features/pets/optimizer';
 import { getOptimizerAbilityFamilyInfo } from '../../../features/pets/compare';
 import { t } from '../../../i18n';
-import { getAbilityColor, normalizeAbilityName } from '../../../utils/petCardRenderer';
+import { getAbilityColor, normalizeAbilityName } from '../../../utils/rendering/petCardRenderer';
 import { openBetterPetsCompare, openCompetitorsPetCompare } from './actions';
 import { appendSellButton } from './sell';
 import { getLocationIcon, getPetSprite, renderAbilitySquares } from './sprites';

@@ -1,5 +1,5 @@
-import { getPetSpriteWithMutations } from '../sprite-v2/compat';
-import { canvasToDataUrl } from './canvasHelpers';
+import { getPetSpriteWithMutations } from '../../sprite-v2/compat';
+import { canvasToDataUrl } from '../dom/canvasHelpers';
 
 export type MutationSpriteType = 'rainbow' | 'gold';
 

@@ -2,7 +2,7 @@
 // Sell price calculation and display in crop tooltips.
 
 import { getPlantSpecies, getAllPlantSpecies, areCatalogsReady } from '../../../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../../utils/game/cropMultipliers';
 import { getAnySpriteDataUrl } from '../../../sprite-v2/compat';
 import { formatCoins } from '../../../utils/formatters';
 import { storage } from '../../../utils/storage';

@@ -3,8 +3,8 @@
 
 import type { GardenSnapshot } from '../../../features/garden/bridge';
 import { getPlantSpecies } from '../../../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../../../utils/cropMultipliers';
-import { lookupMaxScale } from '../../../utils/plantScales';
+import { computeMutationMultiplier } from '../../../utils/game/cropMultipliers';
+import { lookupMaxScale } from '../../../utils/game/plantScales';
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import type { SlotEntry, TileEntry } from './types';
 

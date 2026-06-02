@@ -8,12 +8,12 @@ import { getGardenSnapshot } from '../garden/bridge';
 import { getSellAllPetsSettings } from '../pets/sellAll';
 import { getPetMetadata } from '../pets/data/petMetadata';
 import { calculateMaxStrength } from '../../store/xpTracker';
-import { getCropMaxScaleSafe } from '../../utils/catalogHelpers';
+import { getCropMaxScaleSafe } from '../../utils/game/catalogHelpers';
 import { getLockerConfig } from './state';
 import { evaluateAction, type InventorySnapshot, type TileContext } from './rules';
 import { isRecord } from '../../utils/typeGuards';
 import type { GuardResult } from './types';
-import { criticalInterval } from '../../utils/timerManager';
+import { criticalInterval } from '../../utils/scheduling/timerManager';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

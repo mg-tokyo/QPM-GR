@@ -15,7 +15,7 @@ import { buildCompareCardViewModel } from '../../stats/comparePresentation';
 import { getTeamsConfig } from '../../../store/petTeams';
 import { getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
 import { calculateMaxStrength } from '../../../store/xpTracker';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import type { PooledPet } from '../../../types/petTeams';
 import type { CompareStage } from '../../../features/pets/data/petCompareRules';
 import type { CompareUiState, ComparePanelHandle } from './types';

@@ -4,9 +4,9 @@
 
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
-import { visibleInterval } from '../../utils/timerManager';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { getGardenSnapshot, getMapSnapshot } from './bridge';
-import { normalizeMutationName } from '../../utils/cropMultipliers';
+import { normalizeMutationName } from '../../utils/game/cropMultipliers';
 import { getAllPlantSpecies as getCatalogPlantSpecies, getEggCatalog, getPlantSpecies } from '../../catalogs/gameCatalogs';
 import { pageWindow, isIsolatedContext, shareGlobal } from '../../core/pageContext';
 

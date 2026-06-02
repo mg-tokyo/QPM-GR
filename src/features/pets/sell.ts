@@ -7,7 +7,7 @@ import { getActivePetInfos } from '../../store/pets';
 import { sendStorePet, sendToggleLockItem } from './teamActions';
 import { waitForInventoryContains } from './swap';
 import { sendRoomAction } from '../../websocket/api';
-import { delay } from '../../utils/scheduling';
+import { delay } from '../../utils/scheduling/scheduling';
 import { log } from '../../utils/logger';
 import type { CollectedPet } from './optimizer';
 import { ensureJournalLogged } from '../journal/guard';

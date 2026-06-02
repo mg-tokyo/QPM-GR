@@ -1,4 +1,4 @@
-import { addStyle } from '../../../utils/dom';
+import { addStyle } from '../../../utils/dom/dom';
 import type {
   SpeciesDropdownHandle,
   SpeciesDropdownOption,

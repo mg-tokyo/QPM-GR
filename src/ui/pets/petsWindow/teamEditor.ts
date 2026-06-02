@@ -20,7 +20,7 @@ import {
 import { getActivePetInfos } from '../../../store/pets';
 import { getPetSpriteDataUrlWithMutations, getCropSpriteDataUrl, getAnySpriteDataUrl, isSpritesReady } from '../../../sprite-v2/compat';
 import { HUNGER_POTION_KEY } from '../../../features/pets/hungerPotion';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { getAbilityDefinition } from '../../../features/pets/data/petAbilities';
 import { openPetPicker } from '../pickerModal';
 import { hasFloatingCardForSlot, openFloatingCardForSlot } from '../floatingCard';

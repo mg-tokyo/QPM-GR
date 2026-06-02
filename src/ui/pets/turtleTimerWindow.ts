@@ -12,7 +12,7 @@ import {
 } from '../../features/pets/turtleTimer';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import { createTabBar } from '../components';
-import { throttle } from '../../utils/scheduling';
+import { throttle } from '../../utils/scheduling/scheduling';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
 import { log } from '../../utils/logger';

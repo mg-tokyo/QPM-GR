@@ -2,7 +2,7 @@
 // Snapshot reads, polling, ID normalization, and helpers for the apply engine.
 
 import { log } from '../../utils/logger';
-import { delay } from '../../utils/scheduling';
+import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
 import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { DEFAULT_HUTCH_CAPACITY } from '../hutch';

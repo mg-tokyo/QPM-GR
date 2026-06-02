@@ -2,7 +2,7 @@
 // Inventory snapshot handling, ownership state machine, and confirmation tracking.
 
 import { log } from '../../../utils/logger';
-import { canonicalItemId } from '../../../utils/restockDataService';
+import { canonicalItemId } from '../../../utils/restock/dataService';
 import type { InventoryData, InventoryItem } from '../../../store/inventory';
 import {
   ALERT_DEBUG_ENABLED,

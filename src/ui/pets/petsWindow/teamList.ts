@@ -9,7 +9,7 @@ import {
 } from '../../../store/petTeams';
 import { getActivePetInfos } from '../../../store/pets';
 import { getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { openFloatingCardForSlot, closeFloatingCardForSlot, hasFloatingCardForSlot } from '../floatingCard';
 import { formatNumber } from '../../../utils/formatters';
 import { computeTeamAbilityPills } from './teamSummary';

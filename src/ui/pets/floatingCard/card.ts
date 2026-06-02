@@ -39,7 +39,7 @@ import { getRiddenPetId, onRiddenPetChange, ridePet, dismountPet } from '../../.
 import { getPlayerPosition } from '../../../utils/ghostStep';
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import { getCropBaseSellPrice } from '../../../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../../utils/game/cropMultipliers';
 import type { FoodSelection } from '../../../features/pets/foodRules';
 import { STYLES } from './styles';
 

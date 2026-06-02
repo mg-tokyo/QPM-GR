@@ -7,7 +7,7 @@
 // Runtime catalog is tried first (via getCropMaxScale); hardcoded table is fallback
 // for early-load scenarios before catalogs are captured.
 
-import { areCatalogsReady, getCropMaxScale } from '../catalogs/gameCatalogs';
+import { areCatalogsReady, getCropMaxScale } from '../../catalogs/gameCatalogs';
 
 const PLANT_MAX_SCALE: Record<string, number> = {
   // --- Verified against floraSpeciesDex.ts ---

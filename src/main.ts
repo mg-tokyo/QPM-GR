@@ -1,7 +1,7 @@
 // src/main.ts
-import { ready, sleep, getGameHudRoot } from './utils/dom';
+import { ready, sleep, getGameHudRoot } from './utils/dom/dom';
 import { log, importantLog, isVerboseLogsEnabled, setVerboseLogsEnabled } from './utils/logger';
-import { yieldToBrowser } from './utils/scheduling';
+import { yieldToBrowser } from './utils/scheduling/scheduling';
 import { startMutationReminder } from './features/mutations/reminder';
 import { startMutationTracker } from './features/mutations/tracker';
 import { initializeHarvestReminder, configureHarvestReminder } from './features/garden/harvestReminder';
@@ -88,7 +88,7 @@ import { DEBUG_GLOBALS_OPT_IN_KEY, isDebugGlobalsEnabled } from './utils/debugGl
 import { registerDebugBootstrap } from './debug/debugBootstrap';
 import { registerUniversalProbe } from './debug/universalProbe';
 import { createWsMonitor } from './debug/wsMonitor';
-import { timerManager, visibleInterval } from './utils/timerManager';
+import { timerManager, visibleInterval } from './utils/scheduling/timerManager';
 import { startController, stopController } from './features/input/controller/index';
 import { startStorageValue, stopStorageValue } from './features/economy/storageValue';
 import { startStorageValueOverlay, stopStorageValueOverlay } from './ui/economy/storageValueOverlay';
@@ -97,7 +97,7 @@ import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './u
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/standalone/textureSwapper';
 import { openTextureSwapperWindow } from './ui/standalone/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shop/restockAlerts';
-import { fetchWeatherPredictions } from './utils/restockDataService';
+import { fetchWeatherPredictions } from './utils/restock/dataService';
 import { startDawnShopTracker, stopDawnShopTracker } from './features/dawn/shop';
 import { startCapsuleTracker, stopCapsuleTracker } from './features/dawn/capsule';
 import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawn/capture';

@@ -2,10 +2,10 @@
 // Alert DOM component — creation, upsert, removal, and sprite resolution.
 
 import { t } from '../../../i18n';
-import { getItemIdVariants } from '../../../utils/restockDataService';
+import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../../utils/canvasHelpers';
-import { canonicalItemId } from '../../../utils/restockDataService';
+import { canvasToDataUrl } from '../../../utils/dom/canvasHelpers';
+import { canonicalItemId } from '../../../utils/restock/dataService';
 import {
   ALERT_ROOT_ID,
   ALERT_STYLE_ID,

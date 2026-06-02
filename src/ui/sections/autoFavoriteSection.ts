@@ -4,12 +4,12 @@ import { createToggle } from '../components/toggle';
 import { createSectionHeader } from '../components/sectionHeader';
 import { t } from '../../i18n';
 import { getAutoFavoriteConfig, updateAutoFavoriteConfig, subscribeToAutoFavoriteConfig } from '../../features/standalone/autoFavorite';
-import { getAbilityColor } from '../../utils/petCardRenderer';
-import { renderPetSpeciesIcon } from '../../utils/petCardRenderer';
+import { getAbilityColor } from '../../utils/rendering/petCardRenderer';
+import { renderPetSpeciesIcon } from '../../utils/rendering/petCardRenderer';
 import { areCatalogsReady, getAllPetSpecies } from '../../catalogs/gameCatalogs';
 import { getAllPlantSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 import { getCropSpriteWithMutations, getCropSpriteCanvas } from '../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../utils/canvasHelpers';
+import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 
 function getMutatedCropSpriteUrl(species: string, mutations: string[]): string {
   const speciesStr = String(species || '').trim().toLowerCase();

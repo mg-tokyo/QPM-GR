@@ -4,7 +4,7 @@
 // for every message type + payload. Purely observational — never blocks.
 
 import { pageWindow } from '../core/pageContext';
-import { criticalInterval } from '../utils/timerManager';
+import { criticalInterval } from '../utils/scheduling/timerManager';
 import { log } from '../utils/logger';
 
 export type NativeSendListener = (type: string, payload: Record<string, unknown>) => void;

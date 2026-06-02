@@ -145,7 +145,7 @@ export function startShopRestockStatus(getStatusEl: GetStatusEl, addLiveCleanup:
   Promise.all([
     import('../../utils/storage'),
     import('../shop/restockAlerts/types'),
-    import('../../utils/restockDataService'),
+    import('../../utils/restock/dataService'),
     import('../shop/restockWindowMeta'),
   ]).then(([{ storage: s }, { TRACKED_KEY, TRACKED_UPDATED_EVENT }, restockData, meta]) => {
     if (version !== getCurrentVersion()) return;

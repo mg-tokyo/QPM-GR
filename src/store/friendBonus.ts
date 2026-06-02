@@ -4,7 +4,7 @@
 //   Math.min(2.0, 1.0 + Math.max(0, Math.floor(filledSlots - 1)) * 0.1)
 
 import { readAtomValue, subscribeAtomValue } from '../core/atomRegistry';
-import { criticalInterval, timerManager } from '../utils/timerManager';
+import { criticalInterval, timerManager } from '../utils/scheduling/timerManager';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('QPM:FriendBonus');

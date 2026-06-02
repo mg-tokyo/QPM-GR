@@ -1,5 +1,5 @@
 import { getOptimizerAbilityFamilyInfo } from '../../../features/pets/compare';
-import { normalizeAbilityName } from '../../../utils/petCardRenderer';
+import { normalizeAbilityName } from '../../../utils/rendering/petCardRenderer';
 import { t } from '../../../i18n';
 import type { FamilyAbilityGroup, FamilyPetEntry } from './types';
 import type { PetComparison } from '../../../features/pets/optimizer';

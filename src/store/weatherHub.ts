@@ -11,10 +11,10 @@ import {
   getWeatherDefinitionFromLabel,
   isCanvasDrawn,
   normalizeWeatherLabel,
-} from '../utils/weatherDetection';
+} from '../utils/game/weatherDetection';
 import { log } from '../utils/logger';
 import { readAtomValue as readRegistryAtomValue, subscribeAtomValue } from '../core/atomRegistry';
-import { visibleInterval } from '../utils/timerManager';
+import { visibleInterval } from '../utils/scheduling/timerManager';
 import type { WeatherAtomValue } from '../types/gameAtoms';
 
 export type WeatherSnapshot = {

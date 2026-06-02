@@ -1,7 +1,7 @@
 import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { getActivePetInfos } from '../../store/pets';
 import { log } from '../../utils/logger';
-import { delay } from '../../utils/scheduling';
+import { delay } from '../../utils/scheduling/scheduling';
 import { hasRoomConnection, sendRoomAction } from '../../websocket/api';
 import { findEmptyGardenTile, PLACE_PET_DEFAULTS, resolveMyUserSlotIdx } from './teamActions';
 

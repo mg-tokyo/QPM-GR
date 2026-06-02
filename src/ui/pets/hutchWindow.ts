@@ -3,9 +3,9 @@
 import { log } from '../../utils/logger';
 import { readAtomValue } from '../../core/atomRegistry';
 import { getPetSpriteCanvas } from '../../sprite-v2/compat';
-import { getMutationSpriteDataUrl } from '../../utils/petMutationRenderer';
+import { getMutationSpriteDataUrl } from '../../utils/rendering/petMutationRenderer';
 import { storage } from '../../utils/storage';
-import { canvasToDataUrl } from '../../utils/canvasHelpers';
+import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { t } from '../../i18n';
 
 interface PetItem {

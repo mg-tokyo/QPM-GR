@@ -1,7 +1,7 @@
 // src/ui/shopRestockWindowConstants.ts
 // Static data constants for the Shop Restock window.
 
-import type { DetailedWeather } from '../../utils/weatherDetection';
+import type { DetailedWeather } from '../../utils/game/weatherDetection';
 
 // Time-limited seasonal items -- hidden from history after expiry.
 // Key: "shopType:itemId"  Value: expiry timestamp (ms UTC)

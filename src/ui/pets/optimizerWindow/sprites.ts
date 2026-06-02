@@ -1,5 +1,5 @@
 import { getAnySpriteDataUrl, getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
-import { getAbilityColor, normalizeAbilityName } from '../../../utils/petCardRenderer';
+import { getAbilityColor, normalizeAbilityName } from '../../../utils/rendering/petCardRenderer';
 
 const locationSpriteCache = new Map<string, string>();
 

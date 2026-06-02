@@ -19,11 +19,11 @@ import {
   areCatalogsReady,
   onCatalogsReady,
 } from '../../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../../utils/cropMultipliers';
-import { debounceCancelable } from '../../utils/debounce';
+import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
+import { debounceCancelable } from '../../utils/scheduling/debounce';
 import { storage } from '../../utils/storage';
 import { createLogger } from '../../utils/logger';
-import { criticalInterval, timerManager } from '../../utils/timerManager';
+import { criticalInterval, timerManager } from '../../utils/scheduling/timerManager';
 
 const log = createLogger('QPM:StorageValue');
 

@@ -9,8 +9,8 @@ import {
   getRestockDataSync,
   onRestockDataUpdated,
   type RestockItem,
-} from "../../utils/restockDataService";
-import { visibleInterval } from "../../utils/timerManager";
+} from "../../utils/restock/dataService";
+import { visibleInterval } from "../../utils/scheduling/timerManager";
 import { buildChangelogCard } from "../sections/changelog";
 
 // ---------------------------------------------------------------------------

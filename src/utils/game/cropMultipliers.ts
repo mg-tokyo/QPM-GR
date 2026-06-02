@@ -5,7 +5,7 @@
 //   mutationMultiplier = growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
 // where "growth" = Gold/Rainbow and "environment" = everything else.
 
-import { getMutationCatalog } from '../catalogs/gameCatalogs';
+import { getMutationCatalog } from '../../catalogs/gameCatalogs';
 
 export type MutationCategory = 'color' | 'weather' | 'time';
 

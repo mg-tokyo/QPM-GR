@@ -1,6 +1,6 @@
 import type { OptimizerAnalysis } from '../../../features/pets/optimizer';
 import { getOptimizerAbilityFamilyInfo } from '../../../features/pets/compare';
-import { getAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { t } from '../../../i18n';
 
 function colorWithAlpha(color: string, alpha: number): string {

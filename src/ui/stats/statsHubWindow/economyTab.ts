@@ -8,7 +8,7 @@ import { computeGardenValueFromCatalog } from '../../../features/economy/valueCa
 import { computeInventoryValue, computeAllStoragesValue, computeActivePetsValue, computePlacedDecorAndEggValue, computeGrowingCropsValue, onStorageDataChange } from '../../../features/economy/storageValue';
 import { onInventoryChange, getInventoryItems } from '../../../store/inventory';
 import { onActivePetInfos, getActivePetInfos } from '../../../store/pets';
-import { debounceCancelable } from '../../../utils/debounce';
+import { debounceCancelable } from '../../../utils/scheduling/debounce';
 import { toggleValueCard, isValueCardOpen, type ValueCardType } from '../../economy/valueFloatingCard';
 import { getFriendBonusMultiplier, onFriendBonusChange } from '../../../store/friendBonus';
 import { getTopGardenItems, getTopInventoryItems, getTopNetWorthItems } from '../../../features/economy/topValueItems';

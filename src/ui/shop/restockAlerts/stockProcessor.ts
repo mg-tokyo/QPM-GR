@@ -2,7 +2,7 @@
 // Stock-change processing: tracked set, dismiss cycle management, and processShopStock.
 
 import { storage } from '../../../utils/storage';
-import { canonicalItemId, getItemIdVariants } from '../../../utils/restockDataService';
+import { canonicalItemId, getItemIdVariants } from '../../../utils/restock/dataService';
 import type { ShopStockCategoryState, ShopStockItem, ShopStockState } from '../../../store/shopStock';
 import type { ShopCategory } from '../../../types/shops';
 import {

@@ -27,8 +27,8 @@ import {
   getAllMutationDefinitions,
   type MutationDefinition,
   type MutationCategory,
-} from '../../utils/cropMultipliers';
-import { lookupMaxScale } from '../../utils/plantScales';
+} from '../../utils/game/cropMultipliers';
+import { lookupMaxScale } from '../../utils/game/plantScales';
 import { normalizeSpeciesKey } from '../../utils/helpers';
 import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import { toggleWindow } from '../core/modalWindow';

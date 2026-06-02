@@ -1,5 +1,5 @@
 import type { SpriteCategory } from '../../../sprite-v2/types';
-import { getAbilityColor as getSharedAbilityColor } from '../../../utils/petCardRenderer';
+import { getAbilityColor as getSharedAbilityColor } from '../../../utils/rendering/petCardRenderer';
 
 export type SpriteKey = { category: SpriteCategory; id: string };
 

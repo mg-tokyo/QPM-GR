@@ -3,7 +3,7 @@
 
 import { openWindow, destroyWindow, registerWindowOpener } from '../core/modalWindow';
 import { fetchItemEvents, fetchAlgorithmHistory, type AlgorithmVersionEntry } from '../../utils/itemEventService';
-import type { RestockItem, RestockPredictionAccuracyAggregate } from '../../utils/restockDataService';
+import type { RestockItem, RestockPredictionAccuracyAggregate } from '../../utils/restock/dataService';
 import {
   canonicalItemId,
   fetchRestockPredictionAccuracyAggregate,
@@ -12,9 +12,9 @@ import {
   getRestockDataSync,
   patchCachedItemLastSeen,
   RESTOCK_MODEL_ACCURACY_MIN_SCORED,
-} from '../../utils/restockDataService';
+} from '../../utils/restock/dataService';
 import { getPetSpriteCanvas, getCropSpriteCanvas, getAnySpriteDataUrl } from '../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../utils/canvasHelpers';
+import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { storage } from '../../utils/storage';
 import { getWeatherDef } from '../../catalogs/gameCatalogs';
 import {
@@ -24,7 +24,7 @@ import {
   getConfidenceInterval,
   type EventAccuracy,
   type EventStatus,
-} from '../../utils/restockAccuracy';
+} from '../../utils/restock/accuracy';
 import { getWeatherSnapshot } from '../../store/weatherHub';
 import { t } from '../../i18n';
 

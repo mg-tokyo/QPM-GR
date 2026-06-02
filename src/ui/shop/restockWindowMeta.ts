@@ -3,12 +3,12 @@
 // for the Shop Restock window.
 
 import { log } from '../../utils/logger';
-import { getItemIdVariants } from '../../utils/restockDataService';
+import { getItemIdVariants } from '../../utils/restock/dataService';
 import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../utils/canvasHelpers';
+import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { storage } from '../../utils/storage';
 import { getWeatherDef } from '../../catalogs/gameCatalogs';
-import type { RestockItem } from '../../utils/restockDataService';
+import type { RestockItem } from '../../utils/restock/dataService';
 import {
   TRACKED_KEY,
   UI_STATE_KEY,

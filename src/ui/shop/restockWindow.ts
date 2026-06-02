@@ -15,8 +15,8 @@ import {
   onWeatherPredictionsUpdated,
   weatherPredictionsAsRestockItems,
   type RestockItem,
-} from '../../utils/restockDataService';
-import { visibleInterval } from '../../utils/timerManager';
+} from '../../utils/restock/dataService';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { onSpritesReady } from '../../sprite-v2/compat';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';

@@ -4,10 +4,10 @@
 import { getGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import { shareGlobal } from '../../core/pageContext';
 import { calculatePlantValue } from '../economy/valueCalculator';
-import { computeMutationMultiplier } from '../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { getMutationApplicationResult } from '../../utils/mutationCompatibility';
 import { normalizeSpeciesKey } from '../../utils/helpers';
-import { lookupMaxScale } from '../../utils/plantScales';
+import { lookupMaxScale } from '../../utils/game/plantScales';
 import { analyzeCropMutationPotential } from '../garden/cropMutationAnalytics';
 import { isDebugGlobalsEnabled } from '../../utils/debugGlobals';
 import { isRecord } from '../../utils/typeGuards';

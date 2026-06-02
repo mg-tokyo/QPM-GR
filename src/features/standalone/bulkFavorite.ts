@@ -5,7 +5,7 @@
 import { log } from '../../utils/logger';
 import { getInventoryItems, getFavoritedItemIds, onInventoryChange, type InventoryItem } from '../../store/inventory';
 import { getCropSpriteDataUrl, getAnySpriteDataUrl, onSpritesReady, Sprites } from '../../sprite-v2/compat';
-import { addStyle } from '../../utils/dom';
+import { addStyle } from '../../utils/dom/dom';
 import { getAllPlantSpecies, areCatalogsReady } from '../../catalogs/gameCatalogs';
 import { sendRoomAction } from '../../websocket/api';
 import { storage } from '../../utils/storage';

@@ -3,7 +3,7 @@
 
 import { t } from '../../../i18n';
 import { getPlantSpecies } from '../../../catalogs/gameCatalogs';
-import { computeMutationMultiplier } from '../../../utils/cropMultipliers';
+import { computeMutationMultiplier } from '../../../utils/game/cropMultipliers';
 import { createToggle } from '../../components';
 import type { TileEntry } from './types';
 import { plantSprite } from './spriteHelpers';

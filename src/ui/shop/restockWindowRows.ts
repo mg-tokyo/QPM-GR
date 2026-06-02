@@ -18,14 +18,14 @@ import {
   formatClock,
   formatRelativeDay,
 } from './restockWindowFormatters';
-import { getItemProbability } from '../../utils/restockDataService';
+import { getItemProbability } from '../../utils/restock/dataService';
 import { isCelestial } from './restockWindowMeta';
 import { t } from '../../i18n';
 import { getSoundConfig } from './restockAlerts/soundConfig';
 import { showSoundPopover } from './restockAlerts/soundPopover';
 import { getRequiredWeather } from './restockWindowConstants';
 import { getWeatherSnapshot, onWeatherSnapshot } from '../../store/weatherHub';
-import type { RestockItem } from '../../utils/restockDataService';
+import type { RestockItem } from '../../utils/restock/dataService';
 
 export type EtaRef = { el: HTMLElement; ts: number };
 

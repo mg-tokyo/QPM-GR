@@ -2,7 +2,7 @@
 // Per-item sound configuration storage — CRUD helpers for restock sound alerts.
 
 import { storage } from '../../../utils/storage';
-import { canonicalItemId } from '../../../utils/restockDataService';
+import { canonicalItemId } from '../../../utils/restock/dataService';
 
 // ---------------------------------------------------------------------------
 // Key normalization — must match the canonical key format used by the alert

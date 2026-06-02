@@ -1,7 +1,7 @@
 // src/store/stats.ts
 import { storage } from '../utils/storage';
 import { startWeatherHub, onWeatherSnapshot, getWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
-import { visibleInterval } from '../utils/timerManager';
+import { visibleInterval } from '../utils/scheduling/timerManager';
 export type ShopCategoryKey = 'seeds' | 'eggs' | 'tools' | 'decor' | 'dawn';
 
 interface FeedEntry {

@@ -13,12 +13,12 @@ import {
   type TurtleTimerChannel,
   type GardenSlotEstimate,
 } from "../../features/pets/turtleTimer";
-import { visibleInterval } from "../../utils/timerManager";
+import { visibleInterval } from "../../utils/scheduling/timerManager";
 import {
   fetchRestockData,
   getRestockDataSync,
   type RestockItem,
-} from "../../utils/restockDataService";
+} from "../../utils/restock/dataService";
 
 // ---------------------------------------------------------------------------
 // Dashboard modules

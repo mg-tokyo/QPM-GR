@@ -1,7 +1,7 @@
 // src/ui/statsHubWindow/mutationCompat.ts
 // Mutation compatibility engine — faithfully models game's updateMutationList.ts.
 
-import { resolveMutation } from '../../../utils/cropMultipliers';
+import { resolveMutation } from '../../../utils/game/cropMultipliers';
 import { BASE_WATER_MUTS, UPGRADED_WATER_MUTS, UPGRADED_DAWN_MUTS, UPGRADED_AMBER_MUTS } from './constants';
 import type { TileEntry } from './types';
 

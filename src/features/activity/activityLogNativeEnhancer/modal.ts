@@ -1,4 +1,4 @@
-import { visibleInterval } from '../../../utils/timerManager';
+import { visibleInterval } from '../../../utils/scheduling/timerManager';
 import { getAtomByLabel, readAtomValue, writeAtomValue, subscribeAtom } from '../../../core/jotaiBridge';
 import { log } from '../../../utils/logger';
 import type {
