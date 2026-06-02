@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.21",
+    date: "2026-06-02",
+    notes: [
+      "Simplified restock detail accuracy: replaced logistic-decay score with intuitive 'right X% of the time' metric computed from event history",
+      "Removed Median interval, EMA trend, avg model error, and avg error chips from restock detail overview and event list",
+      "Simplified restock event list to two columns: timestamp and status pill",
+    ],
+  },
+  {
     version: "3.2.20",
     date: "2026-06-02",
     notes: [

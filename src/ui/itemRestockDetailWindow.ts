@@ -3,15 +3,13 @@
 
 import { openWindow, destroyWindow, registerWindowOpener } from './modalWindow';
 import { fetchItemEvents, fetchAlgorithmHistory, type AlgorithmVersionEntry } from '../utils/itemEventService';
-import type { RestockItem, RestockPredictionAccuracyAggregate } from '../utils/restockDataService';
+import type { RestockItem } from '../utils/restockDataService';
 import {
   canonicalItemId,
-  fetchRestockPredictionAccuracyAggregate,
   getItemIdVariants,
   getItemProbability,
   getRestockDataSync,
   patchCachedItemLastSeen,
-  RESTOCK_MODEL_ACCURACY_MIN_SCORED,
 } from '../utils/restockDataService';
 import { getPetSpriteCanvas, getCropSpriteCanvas, getAnySpriteDataUrl } from '../sprite-v2/compat';
 import { canvasToDataUrl } from '../utils/canvasHelpers';
@@ -19,13 +17,10 @@ import { storage } from '../utils/storage';
 import { getWeatherDef } from '../catalogs/gameCatalogs';
 import {
   getAccuracyWindows,
-  computeAccuracyScore,
   computeEventAccuracy as computeEventAccuracyNew,
-  getConfidenceInterval,
   type EventAccuracy,
   type EventStatus,
 } from '../utils/restockAccuracy';
-import { getWeatherSnapshot } from '../store/weatherHub';
 import { t } from '../i18n';
 
 const INITIAL_ROWS = 5;
@@ -115,29 +110,6 @@ function makeFallbackDetailItem(shopType: DetailShopType, itemId: string): Resto
     weather_used: null,
     weather_rejected_reason: null,
   };
-}
-
-function computeWeatherConditionalMedian(
-  item: RestockItem,
-): { median: number; weather: string } | null {
-  if (item.weather_used !== true) return null;
-  const wi = item.weather_intervals;
-  if (!wi || typeof wi !== 'object') return null;
-  const currentWeather = getWeatherSnapshot().kind;
-  if (!currentWeather || currentWeather === 'unknown') return null;
-  // Try exact match, then title-case variant
-  const bucket =
-    wi[currentWeather] ??
-    wi[currentWeather.charAt(0).toUpperCase() + currentWeather.slice(1)] ??
-    null;
-  if (!Array.isArray(bucket) || bucket.length < 3) return null;
-  const sorted = bucket.filter((v) => typeof v === 'number' && v > 0).sort((a, b) => a - b);
-  if (sorted.length < 3) return null;
-  const mid = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2 === 0
-    ? Math.round((sorted[mid - 1]! + sorted[mid]!) / 2)
-    : sorted[mid]!;
-  return { median, weather: currentWeather };
 }
 
 function resolveDetailRestockItem(
@@ -263,27 +235,6 @@ function fmtCountdown(ts: number | null): string {
   const diff = ts - Date.now();
   if (diff <= 0) return t('feature.shopRestock.overdue');
   return `~${fmtDuration(diff)}`;
-}
-
-function aggregateModelAccuracyMetric(
-  aggregate: RestockPredictionAccuracyAggregate | null,
-  medianMs: number | null,
-  intervals: number[] | null,
-): { score: number; title: string; avgErrorMs: number; count: number } | null {
-  if (!aggregate || aggregate.scored_predictions < RESTOCK_MODEL_ACCURACY_MIN_SCORED) return null;
-  if (aggregate.median_abs_error_min == null || !Number.isFinite(aggregate.median_abs_error_min)) return null;
-  const medianErrorMs = aggregate.median_abs_error_min * 60_000;
-  const windows = getAccuracyWindows(medianMs, intervals);
-  const score = computeAccuracyScore(medianErrorMs, windows);
-  const details: string[] = [t('feature.itemDetail.scoredPredictions', { count: aggregate.scored_predictions })];
-  if (aggregate.mae_min != null) details.push(t('feature.itemDetail.mae', { duration: fmtDuration(aggregate.mae_min * 60_000) }));
-  details.push(t('feature.itemDetail.medianError', { duration: fmtDuration(medianErrorMs) }));
-  return {
-    score: Math.min(100, Math.max(0, score)),
-    title: details.join(' | '),
-    avgErrorMs: medianErrorMs,
-    count: aggregate.scored_predictions,
-  };
 }
 
 // ── Accuracy tier (adaptive, using restockAccuracy module) ───────────────────
@@ -493,21 +444,6 @@ function computeRowEventAccuracy(
   return computeEventAccuracyNew(row, prevRow, medianMs, intervals);
 }
 
-function computeMedianRowRegularity(
-  row: RowData,
-  prevRow: RowData | null,
-  medianMs: number | null,
-  intervals?: number[] | null,
-): EventAccuracy {
-  return computeEventAccuracyNew(
-    { timestamp: row.timestamp },
-    prevRow ? { timestamp: prevRow.timestamp } : null,
-    medianMs,
-    intervals,
-  );
-}
-
-
 function getStatusConfig(): Record<EventStatus, { icon: string; label: string; color: string; bg: string }> {
   return {
     accurate: { icon: '\u2713', label: t('feature.itemDetail.statusAccurate'), color: '#4ade80', bg: 'rgba(74,222,128,0.10)' },
@@ -577,7 +513,7 @@ function makeCardHeader(
 interface OverviewHandle {
   container: HTMLElement;
   setEventCount: (count: number, totalSightings?: number) => void;
-  setModelAccuracy: (score: number, avgErrorMs?: number, predictionCount?: number, detailTitle?: string) => void;
+  setAccuracyRate: (accuratePct: number, accurateCount: number, totalCount: number) => void;
   setLastSeen: (timestamp: number | null) => void;
   browseBtn: HTMLButtonElement;
 }
@@ -625,29 +561,6 @@ function buildOverviewCard(
 
   const eventCountChip = makeChip(String(item.total_occurrences ?? 0), t('feature.itemDetail.sightings'));
   statsRow.appendChild(eventCountChip);
-  if (item.median_interval_ms != null) {
-    let medianLabel = t('feature.itemDetail.median');
-    if (item.recent_intervals_ms && item.recent_intervals_ms.length >= 5) {
-      const ci = getConfidenceInterval(item.recent_intervals_ms, 0.80);
-      if (ci) {
-        medianLabel = t('feature.itemDetail.medianWithCI', { low: fmtDuration(ci[0]), high: fmtDuration(ci[1]) });
-      }
-    }
-    // Weather-conditional median when >= 3 intervals for current weather
-    const weatherEta = computeWeatherConditionalMedian(item);
-    if (weatherEta) {
-      medianLabel += ` ${t('feature.itemDetail.weatherMedian', { duration: fmtDuration(weatherEta.median), weather: weatherEta.weather })}`;
-    }
-    statsRow.appendChild(makeChip(fmtDuration(item.median_interval_ms), medianLabel, '#a78bfa'));
-  }
-  if (item.ema_interval_ms != null && item.median_interval_ms != null) {
-    const trendPct = Math.round(((item.ema_interval_ms - item.median_interval_ms) / item.median_interval_ms) * 100);
-    if (Math.abs(trendPct) >= 5) {
-      const trendLabel = trendPct > 0 ? `+${trendPct}% trend` : `${trendPct}% trend`;
-      const trendColor = trendPct > 0 ? 'rgba(251,191,36,0.85)' : 'rgba(74,222,128,0.85)';
-      statsRow.appendChild(makeChip(fmtDuration(item.ema_interval_ms), t('feature.itemDetail.emaTrend', { trend: trendLabel }), trendColor));
-    }
-  }
   if (item.average_quantity != null && item.average_quantity > 0) {
     const qty = item.average_quantity >= 10
       ? `~${Math.round(item.average_quantity)}`
@@ -849,28 +762,28 @@ function buildOverviewCard(
     infoSection.appendChild(histRow);
   }
 
-  const modelAccuracyRow = document.createElement('div');
-  modelAccuracyRow.style.cssText = 'margin-top:4px;display:none;';
-  const modelAccuracyHeader = document.createElement('div');
-  modelAccuracyHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;';
-  const modelAccuracyLabel = document.createElement('span');
-  modelAccuracyLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
-  modelAccuracyLabel.textContent = t('feature.itemDetail.predictionAccuracy');
-  const modelAccuracyValue = document.createElement('span');
-  modelAccuracyValue.style.cssText = 'font-size:16px;font-weight:700;color:#e8e0ff;';
-  modelAccuracyHeader.append(modelAccuracyLabel, modelAccuracyValue);
-  modelAccuracyRow.appendChild(modelAccuracyHeader);
+  const accuracyRateRow = document.createElement('div');
+  accuracyRateRow.style.cssText = 'margin-top:4px;display:none;';
+  const accuracyRateHeader = document.createElement('div');
+  accuracyRateHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;';
+  const accuracyRateLabel = document.createElement('span');
+  accuracyRateLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);';
+  accuracyRateLabel.textContent = t('feature.itemDetail.predictionAccuracy');
+  const accuracyRateValue = document.createElement('span');
+  accuracyRateValue.style.cssText = 'font-size:16px;font-weight:700;color:#e8e0ff;';
+  accuracyRateHeader.append(accuracyRateLabel, accuracyRateValue);
+  accuracyRateRow.appendChild(accuracyRateHeader);
 
-  const modelAccBarTrack = document.createElement('div');
-  modelAccBarTrack.style.cssText = 'width:100%;height:6px;border-radius:3px;background:rgba(143,130,255,0.12);overflow:hidden;';
-  const modelAccBarFill = document.createElement('div');
-  modelAccBarFill.style.cssText = 'height:100%;border-radius:3px;transition:width 0.3s ease;';
-  modelAccBarTrack.appendChild(modelAccBarFill);
-  modelAccuracyRow.appendChild(modelAccBarTrack);
-  const modelAccContext = document.createElement('div');
-  modelAccContext.style.cssText = 'font-size:10px;color:rgba(232,224,255,0.35);margin-top:4px;display:none;';
-  modelAccuracyRow.appendChild(modelAccContext);
-  infoSection.appendChild(modelAccuracyRow);
+  const accBarTrack = document.createElement('div');
+  accBarTrack.style.cssText = 'width:100%;height:6px;border-radius:3px;background:rgba(143,130,255,0.12);overflow:hidden;';
+  const accBarFill = document.createElement('div');
+  accBarFill.style.cssText = 'height:100%;border-radius:3px;transition:width 0.3s ease;';
+  accBarTrack.appendChild(accBarFill);
+  accuracyRateRow.appendChild(accBarTrack);
+  const accSubtitle = document.createElement('div');
+  accSubtitle.style.cssText = 'font-size:10px;color:rgba(232,224,255,0.35);margin-top:4px;';
+  accuracyRateRow.appendChild(accSubtitle);
+  infoSection.appendChild(accuracyRateRow);
   card.appendChild(infoSection);
 
   // Browse events button
@@ -910,22 +823,15 @@ function buildOverviewCard(
       const chipValue = eventCountChip.firstElementChild as HTMLElement | null;
       if (chipValue) chipValue.textContent = String(totalSightings ?? count);
     },
-    setModelAccuracy: (score: number, avgErrorMs?: number, predictionCount?: number, detailTitle?: string) => {
-      modelAccuracyRow.style.display = '';
-      modelAccuracyRow.title = detailTitle ?? '';
-      const capped = Math.min(99, Math.round(score));
-      modelAccuracyValue.textContent = `${capped}%`;
+    setAccuracyRate: (accuratePct: number, accurateCount: number, totalCount: number) => {
+      accuracyRateRow.style.display = '';
+      const capped = Math.min(99, Math.round(accuratePct));
+      accuracyRateValue.textContent = `${capped}%`;
       const color = capped >= 70 ? '#4ade80' : capped >= 40 ? '#fbbf24' : '#f87171';
-      modelAccBarFill.style.width = `${capped}%`;
-      modelAccBarFill.style.background = color;
-      modelAccuracyValue.style.color = color;
-      if (avgErrorMs != null && predictionCount != null) {
-        modelAccContext.style.display = '';
-        modelAccContext.textContent = t('feature.itemDetail.accuracyContext', {
-          duration: fmtDuration(avgErrorMs),
-          count: predictionCount,
-        });
-      }
+      accBarFill.style.width = `${capped}%`;
+      accBarFill.style.background = color;
+      accuracyRateValue.style.color = color;
+      accSubtitle.textContent = t('feature.itemDetail.accuracyRate', { count: accurateCount, total: totalCount });
     },
     setLastSeen,
     browseBtn,
@@ -954,34 +860,6 @@ function buildEventCard(
 
   const { header, statusIcon } = makeCardHeader(itemName, shopType, spriteUrl);
   card.appendChild(header);
-
-  // Score section
-  const scoreSection = document.createElement('div');
-  scoreSection.style.cssText = 'padding:0 16px 12px;';
-
-  const scoreRow = document.createElement('div');
-  scoreRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;';
-  const scoreLabel = document.createElement('span');
-  scoreLabel.style.cssText = 'font-size:12px;color:rgba(232,224,255,0.5);font-weight:600;';
-  scoreLabel.textContent = t('feature.itemDetail.predictionAccuracy');
-  const scoreValue = document.createElement('span');
-  scoreValue.style.cssText = [
-    'font-size:20px', 'font-weight:800',
-    'background:linear-gradient(to right, #8f82ff, #f0abfc)',
-    '-webkit-background-clip:text', '-webkit-text-fill-color:transparent',
-    'background-clip:text',
-    'font-variant-numeric:tabular-nums',
-  ].join(';');
-  scoreRow.append(scoreLabel, scoreValue);
-  scoreSection.appendChild(scoreRow);
-
-  const barTrack = document.createElement('div');
-  barTrack.style.cssText = 'width:100%;height:8px;border-radius:4px;background:rgba(143,130,255,0.12);overflow:hidden;';
-  const barFill = document.createElement('div');
-  barFill.style.cssText = 'height:100%;border-radius:4px;background:linear-gradient(to right, #8f82ff, #f0abfc);transition:width 0.3s ease;';
-  barTrack.appendChild(barFill);
-  scoreSection.appendChild(barTrack);
-  card.appendChild(scoreSection);
 
   // Time comparison
   const timeSection = document.createElement('div');
@@ -1093,16 +971,6 @@ function buildEventCard(
 
     statusIcon.textContent = cfg.icon;
     statusIcon.style.color = cfg.color;
-    scoreLabel.textContent = hasLoggedPrediction ? t('feature.itemDetail.predictionAccuracy') : t('feature.itemDetail.gapConsistency');
-
-    if (acc.status === 'first') {
-      scoreValue.textContent = '\u2014';
-      barFill.style.width = '0%';
-    } else {
-      const capped = Math.min(99, Math.round(acc.score));
-      scoreValue.textContent = `${capped}%`;
-      barFill.style.width = `${capped}%`;
-    }
 
     if (acc.status === 'first') {
       estimated.labelEl.textContent = t('feature.itemDetail.estimatedRestock');
@@ -1168,12 +1036,11 @@ function makeRowEl(
             : TIER_COLOR.bad,
           pill: acc.diffMs < 0 ? t('feature.itemDetail.durationEarly', { duration: fmtDuration(acc.diffMs) }) : t('feature.itemDetail.durationLate', { duration: fmtDuration(acc.diffMs) }),
         };
-  const rowAccuracy = acc.status === 'first' ? null : acc.score;
 
   const el = document.createElement('div');
   el.style.cssText = [
     'display:grid',
-    'grid-template-columns:1fr 76px 96px',
+    'grid-template-columns:1fr auto',
     'align-items:center',
     `border-left:3px solid ${color}`,
     'padding:7px 10px 7px 11px',
@@ -1194,17 +1061,6 @@ function makeRowEl(
   tsEl.style.cssText = 'font-size:12px;font-variant-numeric:tabular-nums;color:rgba(232,224,255,0.50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
   tsEl.textContent = fmtTimestamp(row.timestamp);
   el.appendChild(tsEl);
-
-  const gapEl = document.createElement('span');
-  gapEl.style.cssText = 'font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;';
-  if (rowAccuracy !== null) {
-    gapEl.style.color = color;
-    gapEl.textContent = `${Math.min(99, Math.round(rowAccuracy))}%`;
-  } else {
-    gapEl.style.color = 'rgba(232,224,255,0.18)';
-    gapEl.textContent = '\u2014';
-  }
-  el.appendChild(gapEl);
 
   const pillCell = document.createElement('div');
   pillCell.style.cssText = 'display:flex;justify-content:flex-end;min-width:0;';
@@ -1391,12 +1247,10 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
     void (async () => {
       let events: Awaited<ReturnType<typeof fetchItemEvents>> = [];
       let algoHistory: AlgorithmVersionEntry[] = [];
-      let modelAccuracyAggregate: Awaited<ReturnType<typeof fetchRestockPredictionAccuracyAggregate>> = null;
       try {
-        [events, algoHistory, modelAccuracyAggregate] = await Promise.all([
+        [events, algoHistory] = await Promise.all([
           fetchItemEvents(item.shop_type, item.item_id).catch(() => [] as Awaited<ReturnType<typeof fetchItemEvents>>),
           fetchAlgorithmHistory().catch(() => [] as AlgorithmVersionEntry[]),
-          fetchRestockPredictionAccuracyAggregate(item.shop_type, item.item_id).catch(() => null),
         ]);
       } catch {
         /* network error — both stay [] */
@@ -1404,10 +1258,6 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
 
       if (!eventListSection.contains(spinner)) return; // window closed
       eventListSection.removeChild(spinner);
-      const aggregateModelMetric = aggregateModelAccuracyMetric(modelAccuracyAggregate, medianMs, itemIntervals);
-      if (aggregateModelMetric) {
-        overview.setModelAccuracy(aggregateModelMetric.score, aggregateModelMetric.avgErrorMs, aggregateModelMetric.count, aggregateModelMetric.title);
-      }
 
       if (!events.length) {
         overview.setEventCount(0);
@@ -1455,23 +1305,20 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
         overview.setLastSeen(item.last_seen ?? latestEventTs);
       }
 
-      if (!aggregateModelMetric) {
-        const modelResults = rows
-          .map((row, i) => {
-            if (row.predicted_next_ms == null) return null;
-            const prevRow = i + 1 < rows.length ? rows[i + 1]! : null;
-            const acc = computeRowEventAccuracy(row, prevRow, medianMs, itemIntervals);
-            if (acc.status === 'first') return null;
-            return { score: acc.score, errorMs: Math.abs(acc.diffMs) };
-          })
-          .filter((r): r is { score: number; errorMs: number } => r !== null);
-        if (modelResults.length > 0) {
-          const avgScore = modelResults.reduce((s, r) => s + r.score, 0) / modelResults.length;
-          const avgErrorMs = modelResults.reduce((s, r) => s + r.errorMs, 0) / modelResults.length;
-          const detailTitle = modelResults.length === 1
-            ? t('feature.itemDetail.loggedPrediction', { count: modelResults.length })
-            : t('feature.itemDetail.loggedPredictions', { count: modelResults.length });
-          overview.setModelAccuracy(avgScore, avgErrorMs, modelResults.length, detailTitle);
+      // Compute "right X% of the time" from event statuses
+      {
+        let accurateCount = 0;
+        let scoredCount = 0;
+        for (let i = 0; i < rows.length; i++) {
+          const prevRow = i + 1 < rows.length ? rows[i + 1]! : null;
+          const acc = computeRowEventAccuracy(rows[i]!, prevRow, medianMs, itemIntervals);
+          if (acc.status === 'first') continue;
+          scoredCount++;
+          if (acc.status === 'accurate') accurateCount++;
+        }
+        if (scoredCount >= 3) {
+          const pct = Math.round((accurateCount / scoredCount) * 100);
+          overview.setAccuracyRate(pct, accurateCount, scoredCount);
         }
       }
 
@@ -1512,22 +1359,6 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       };
 
       strip.appendChild(makeChip(String(rows.length), t('feature.itemDetail.events')));
-      if (medianMs != null) {
-        strip.appendChild(makeChip(fmtDuration(medianMs), t('feature.itemDetail.medianGap'), '#a78bfa'));
-      }
-      const modelErrors = rows
-        .filter((r) => r.predicted_next_ms != null)
-        .map((r) => Math.abs(r.timestamp - r.predicted_next_ms!));
-      const withError = rows.filter(r => r.errorMs !== null);
-      if (modelErrors.length > 0) {
-        const avgErr = modelErrors.reduce((s, v) => s + v, 0) / modelErrors.length;
-        const c = avgErr < 1_800_000 ? '#4ade80' : avgErr < 10_800_000 ? '#fbbf24' : '#f87171';
-        strip.appendChild(makeChip(fmtDuration(avgErr), t('feature.itemDetail.avgModelError'), c));
-      } else if (withError.length > 0) {
-        const avgErr = withError.reduce((s, r) => s + Math.abs(r.errorMs!), 0) / withError.length;
-        const c = avgErr < 1_800_000 ? '#4ade80' : avgErr < 10_800_000 ? '#fbbf24' : '#f87171';
-        strip.appendChild(makeChip(fmtDuration(avgErr), t('feature.itemDetail.avgErrorLabel'), c));
-      }
       const lastChip = strip.lastElementChild as HTMLElement | null;
       if (lastChip) lastChip.style.borderRight = 'none';
       eventListSection.appendChild(strip);
@@ -1535,7 +1366,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       // ── Column headers ──
       const colHdr = document.createElement('div');
       colHdr.style.cssText = [
-        'display:grid', 'grid-template-columns:1fr 76px 96px',
+        'display:grid', 'grid-template-columns:1fr auto',
         'padding:6px 10px 3px 18px',
         'font-size:10px', 'font-weight:700', 'letter-spacing:0.5px',
         'text-transform:uppercase', 'color:rgba(224,224,224,0.25)',
@@ -1543,13 +1374,10 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       ].join(';');
       const hL = document.createElement('span');
       hL.textContent = t('feature.itemDetail.restocked');
-      const hM = document.createElement('span');
-      hM.style.textAlign = 'right';
-      hM.textContent = t('feature.itemDetail.accuracy');
       const hR = document.createElement('span');
       hR.style.textAlign = 'right';
       hR.textContent = t('feature.itemDetail.statusHeader');
-      colHdr.append(hL, hM, hR);
+      colHdr.append(hL, hR);
       eventListSection.appendChild(colHdr);
 
       // ── Scrollable event list ──

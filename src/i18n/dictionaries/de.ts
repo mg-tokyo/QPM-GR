@@ -753,6 +753,7 @@ const de: Dictionary = {
 
   // ── Feature: Item Restock Detail ──────────────────────────────────────
   'feature.itemDetail.accuracy': 'Genauigkeit',
+  'feature.itemDetail.accuracyRate': '{count} von {total} Vorhersagen korrekt',
   'feature.itemDetail.actualRestock': 'Tatsächlicher Nachschub',
   'feature.itemDetail.afterLatest': '(nach letztem aufgelistetem Nachschub)',
   'feature.itemDetail.algoUpdated': 'Schätzalgorithmus aktualisiert \u2014 {date}',
@@ -778,6 +779,7 @@ const de: Dictionary = {
   'feature.itemDetail.exactMatch': 'Genauer Treffer',
   'feature.itemDetail.finalProbability': 'Endwahrscheinlichkeit',
   'feature.itemDetail.firstRecorded': 'Erste Aufzeichnung \u2014 kein Vergleich verfügbar',
+  'feature.itemDetail.gap': 'Abstand',
   'feature.itemDetail.accuracyContext': 'Fehler \u00B1{duration} | {count} Vorhersagen',
   'feature.itemDetail.gapConsistency': 'Lücken-Konsistenz',
   'feature.itemDetail.highProbability': 'Hohe Wahrscheinlichkeit',
