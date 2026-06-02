@@ -601,10 +601,20 @@ export const storage: Storage = {
     refreshRuntime();
 
     if (runtime === 'legacy-gm' && legacyGm) {
+      // Prefer localStorage — it's written synchronously by our mirror
+      // and is always at least as fresh as the GM cache. Under script
+      // managers with async persistence (e.g. SMM), the GM cache may
+      // contain a stale snapshot from a previous session while
+      // localStorage has the latest mirrored write.
+      const localRaw = readLocalRaw(key);
+      if (localRaw != null) return deserialize(localRaw, fallback);
+      // No localStorage entry — try GM (covers Tampermonkey where
+      // localStorage may have been cleared but GM persists).
       try {
         const raw = legacyGm.getValue(key);
-        return deserialize(raw, fallback);
+        if (raw != null) return deserialize(raw, fallback);
       } catch {}
+      return fallback;
     }
 
     if (runtime === 'modern-gm') {
@@ -621,8 +631,13 @@ export const storage: Storage = {
     if (runtime === 'legacy-gm' && legacyGm) {
       try {
         legacyGm.setValue(key, raw);
-        return;
       } catch {}
+      // Always mirror to localStorage for durability.
+      // Under script managers with async persistence (e.g. SMM),
+      // GM_setValue writes to an in-memory cache and syncs to
+      // background storage asynchronously. If the page refreshes
+      // before the sync completes, the write is lost. The
+      // localStorage mirror ensures the data survives.
       writeLocalRaw(key, raw);
       return;
     }

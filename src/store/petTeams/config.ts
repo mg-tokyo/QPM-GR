@@ -1,7 +1,7 @@
 // src/store/petTeams/config.ts
 // Lifecycle (init/stop), team CRUD, slot management, keybinds, detection, purge.
 
-import { storage } from '../../utils/storage';
+import { storage, getStorageRuntime } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { getActivePetInfos, onActivePetInfos } from '../pets';
 import { onInventoryChange } from '../inventory';
@@ -10,8 +10,8 @@ import {
   store,
   CONFIG_KEY,
   FEED_POLICY_KEY,
-  DEFAULT_CONFIG,
-  DEFAULT_FEED_POLICY,
+  createDefaultConfig,
+  createDefaultFeedPolicy,
   saveConfig,
   notifyConfigListeners,
   resolveCurrentPlayerId,
@@ -24,7 +24,9 @@ import { getAllPooledPetsWithStatus } from './pool';
 // ---------------------------------------------------------------------------
 
 export function initPetTeamsStore(): void {
-  store.config = storage.get<PetTeamsConfig>(store.resolvedConfigKey, DEFAULT_CONFIG);
+  const rawLoaded = storage.get<PetTeamsConfig | null>(store.resolvedConfigKey, null);
+  store.config = rawLoaded ?? createDefaultConfig();
+  log(`[PetTeams:Init] key=${store.resolvedConfigKey} runtime=${getStorageRuntime()} loaded=${rawLoaded ? 'yes' : 'null'} teams=${store.config.teams.length}`);
   // Ensure required fields exist after version upgrades
   if (!Array.isArray(store.config.teams)) store.config.teams = [];
   if (typeof store.config.keybinds !== 'object' || store.config.keybinds === null) store.config.keybinds = {};
@@ -82,7 +84,7 @@ export function initPetTeamsStore(): void {
     storage.set(store.resolvedConfigKey, store.config);
   }
 
-  store.feedPolicy = storage.get<PetFeedPolicy>(store.resolvedFeedKey, DEFAULT_FEED_POLICY);
+  store.feedPolicy = storage.get<PetFeedPolicy | null>(store.resolvedFeedKey, null) ?? createDefaultFeedPolicy();
   if (typeof store.feedPolicy.petItemOverrides !== 'object' || store.feedPolicy.petItemOverrides === null) {
     store.feedPolicy.petItemOverrides = {};
   }
@@ -227,7 +229,9 @@ export function createTeam(name: string): PetTeam {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
+  const countBefore = store.config.teams.length;
   store.config.teams.push(team);
+  log(`[PetTeams:Create] "${team.name}" id=${team.id} teamsBefore=${countBefore} teamsAfter=${store.config.teams.length}`);
   saveConfig();
   return team;
 }
@@ -299,18 +303,20 @@ export function clearTeamSlot(teamId: string, slotIndex: 0 | 1 | 2): void {
 
 export function purgeGonePets(validIds: Set<string>): number {
   let cleared = 0;
+  const details: string[] = [];
   for (const team of store.config.teams) {
     for (let i = 0; i < 3; i++) {
       const slotId = team.slots[i];
       if (slotId && !validIds.has(slotId)) {
+        details.push(`"${team.name}"[${i}]=${slotId}`);
         team.slots[i] = null;
         cleared++;
       }
     }
   }
   if (cleared > 0) {
+    log(`[PetTeams:Purge] Cleared ${cleared} slot(s): ${details.join(', ')} (pool size=${validIds.size})`);
     saveConfig();
-    log(`[PetTeams] Purged ${cleared} stale slot(s)`);
   }
   return cleared;
 }

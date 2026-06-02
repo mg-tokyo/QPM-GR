@@ -23,6 +23,11 @@ export const APPLY_STEP_DELAY_MS = 120;
 export const FAST_PATH_SETTLE_TIMEOUT_MS = 1200;
 export const FAST_SETTLE_POLL_INTERVAL_MS = 50;
 export const REPAIR_SETTLE_TIMEOUT_MS = 1200;
+/** Delay between fast-path phases (retrieve → swap → store) to let the game
+ *  settle each batch of state updates before the next batch arrives.
+ *  Without this gap the game's frozen-state reducer can throw
+ *  "Cannot assign to read only property 'updatedAt'" on rapid updates. */
+export const FAST_PATH_PHASE_GAP_MS = 100;
 
 // ---------------------------------------------------------------------------
 // ID normalization

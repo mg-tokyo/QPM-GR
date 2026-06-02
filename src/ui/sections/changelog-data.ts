@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.20",
+    date: "2026-06-02",
+    notes: [
+      "Fixed pet teams not persisting after page refresh under Starweaver Mod Manager",
+      "Fixed pet team edits (rename, slot changes) reverting to stale data on reload",
+      "Fixed settings import/export losing pet team data under Mod Manager",
+      "Improved storage layer: legacy GM writes now mirror to localStorage for durability under script managers with async persistence",
+      "Fixed frozen default config causing silent property assignment failures on pet team state",
+      "Fixed pet team apply engine throwing 'Cannot assign to read only property' on rapid team switches",
+    ],
+  },
+  {
     version: "3.2.19",
     date: "2026-05-30",
     notes: [
