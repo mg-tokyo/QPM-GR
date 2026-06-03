@@ -2,6 +2,14 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.22",
+    date: "2026-06-03",
+    notes: [
+      "Fixed Pet Optimizer showing wrong-mode results when switching between Specialist and Slot Efficiency during analysis",
+      "Fixed Pet Optimizer cache returning stale results from a different recommendation mode",
+    ],
+  },
+  {
     version: "3.2.21",
     date: "2026-06-02",
     notes: [

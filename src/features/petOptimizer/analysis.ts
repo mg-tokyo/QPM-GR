@@ -198,7 +198,7 @@ export async function getOptimizerAnalysis(
   const cfg = getOptimizerConfig();
   const cached = getCachedOptimizerAnalysis();
 
-  if (!forceRefresh && cached && now - getOptimizerAnalysisTimestamp() < ANALYSIS_CACHE_TTL_MS) {
+  if (!forceRefresh && cached && cached.activeMode === cfg.recommendationMode && now - getOptimizerAnalysisTimestamp() < ANALYSIS_CACHE_TTL_MS) {
     return cached;
   }
 
