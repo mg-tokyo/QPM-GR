@@ -36,6 +36,7 @@ import {
   saveTracked,
   mergeToolFallbackRows,
   mergeDawnFallbackRows,
+  mergeSnowFallbackRows,
   getItemName,
   getCatalogOrder,
   initGameData,
@@ -123,6 +124,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     decor: 'feature.shopRestock.filterDecor',
     tool: 'feature.shopRestock.filterTools',
     dawn: 'feature.shopRestock.filterDawn',
+    snow: 'feature.shopRestock.filterSnow',
     weather: 'feature.shopRestock.filterWeather',
   };
 
@@ -421,7 +423,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
       ? detail.items
       : getRestockDataSync();
     if (!updated) return;
-    shopData = mergeDawnFallbackRows(mergeToolFallbackRows(updated));
+    shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(updated)));
     rebuildAllData();
     scheduleRender(true, true);
     updateLastUpdated();
@@ -741,14 +743,14 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
     const cached = getRestockDataSync();
     if (!force && cached?.length) {
-      shopData = mergeDawnFallbackRows(mergeToolFallbackRows(cached));
+      shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(cached)));
       rebuildAllData();
       scheduleRender(true, true);
       updateLastUpdated();
     }
 
     try {
-      shopData = mergeDawnFallbackRows(mergeToolFallbackRows(await fetchRestockData(force)));
+      shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(await fetchRestockData(force))));
       rebuildAllData();
       scheduleRender(true, true);
       updateLastUpdated();
@@ -772,7 +774,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   // Kick off both in parallel -- game data load doesn't block restock data
   void initGameData().then(() => {
-    shopData = mergeDawnFallbackRows(mergeToolFallbackRows(shopData));
+    shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(shopData)));
     rebuildAllData();
     scheduleRender(true, true);
   });

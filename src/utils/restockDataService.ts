@@ -94,10 +94,10 @@ const RESTOCK_ACCURACY_COLUMNS = [
 // Track whether the server supports extended columns (auto-detected on first success).
 let serverSupportsExtended: boolean | null = null;
 
-// v5 key forces a fresh fetch after adding dawn shop type.
-const CACHE_KEY = 'qpm.restockCache.v5';
+// v6 key forces a fresh fetch after adding snow shop type.
+const CACHE_KEY = 'qpm.restockCache.v6';
 const REFRESH_BUDGET_KEY = 'qpm.restock.refreshBudget.v1';
-const ALLOWED_SHOP_TYPES = new Set(['seed', 'egg', 'decor', 'tool', 'dawn']);
+const ALLOWED_SHOP_TYPES = new Set(['seed', 'egg', 'decor', 'tool', 'dawn', 'snow']);
 
 const RESTOCK_REFRESH_WINDOW_MS_DEFAULT = 2 * 60 * 60 * 1000; // 2 hours
 const RESTOCK_REFRESH_MAX_DEFAULT = 5;

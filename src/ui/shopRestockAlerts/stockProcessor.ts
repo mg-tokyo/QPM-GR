@@ -120,6 +120,7 @@ export function categoryToShopType(category: ShopCategory): RestockShopType | nu
     case 'decor':  return 'decor';
     case 'tools':  return 'tool';
     case 'dawn':   return 'dawn';
+    case 'snow':   return 'snow';
     default:       return null;
   }
 }

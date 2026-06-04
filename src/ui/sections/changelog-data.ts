@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.23",
+    date: "2026-06-04",
+    notes: [
+      "Added Snow Shop support to the restock tracker: stock parsing, price resolution, fallback rows, and filter button",
+      "Added Snow Shop items to restock alerts: purchase sends, ownership tracking, and stock processing",
+      "Generalized weather-gated shop price resolution to handle both Dawn and Snow shops",
+    ],
+  },
+  {
     version: "3.2.22",
     date: "2026-06-03",
     notes: [

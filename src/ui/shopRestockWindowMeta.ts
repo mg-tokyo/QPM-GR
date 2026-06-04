@@ -174,8 +174,12 @@ export async function initGameData(): Promise<void> {
 export function getItemMeta(itemId: string, shopType: string): ItemMeta | null {
   const direct = itemMetaCache.get(`${shopType}:${itemId}`);
   if (direct) return direct;
-  if (shopType === 'dawn') {
-    return itemMetaCache.get(`seed:${itemId}`) ?? itemMetaCache.get(`egg:${itemId}`) ?? null;
+  if (shopType === 'dawn' || shopType === 'snow') {
+    return itemMetaCache.get(`seed:${itemId}`)
+      ?? itemMetaCache.get(`egg:${itemId}`)
+      ?? itemMetaCache.get(`tool:${itemId}`)
+      ?? itemMetaCache.get(`decor:${itemId}`)
+      ?? null;
   }
   return null;
 }
@@ -220,8 +224,11 @@ export function getItemPrice(itemId: string, shopType: string): number {
 
 export function getCatalogOrder(itemId: string, shopType: string): number | null {
   let order = itemCatalogOrder.get(`${shopType}:${itemId}`);
-  if (!Number.isFinite(order) && shopType === 'dawn') {
-    order = itemCatalogOrder.get(`seed:${itemId}`) ?? itemCatalogOrder.get(`egg:${itemId}`);
+  if (!Number.isFinite(order) && (shopType === 'dawn' || shopType === 'snow')) {
+    order = itemCatalogOrder.get(`seed:${itemId}`)
+      ?? itemCatalogOrder.get(`egg:${itemId}`)
+      ?? itemCatalogOrder.get(`tool:${itemId}`)
+      ?? itemCatalogOrder.get(`decor:${itemId}`);
   }
   return Number.isFinite(order) ? (order as number) : null;
 }
@@ -302,6 +309,61 @@ export function mergeDawnFallbackRows(items: RestockItem[]): RestockItem[] {
     merged.push({
       item_id: id,
       shop_type: 'dawn',
+      current_probability: null,
+      appearance_rate: null,
+      predicted_next_ms: null,
+      estimated_next_timestamp: null,
+      median_interval_ms: null,
+      last_seen: null,
+      average_quantity: null,
+      total_quantity: 0,
+      total_occurrences: 0,
+      algorithm_version: null,
+      algorithm_updated_at: null,
+      recent_intervals_ms: null,
+      empirical_weight: null,
+      empirical_probability: null,
+      fallback_rate: null,
+      baseline_interval_ms: null,
+      ema_interval_ms: null,
+      weather_intervals: null,
+      is_dormant: null,
+      current_weather: null,
+      weather_baseline_ms: null,
+      weather_samples: null,
+      weather_used: null,
+      weather_rejected_reason: null,
+    });
+  }
+  return merged;
+}
+
+/** All items that can appear in the Snow shop. */
+const SNOW_SHOP_ITEM_IDS = [
+  'Snowdrop', 'Leek', 'PineTree', 'Squash', 'Poinsettia',
+  'SnowEgg', 'ChilledPotion', 'FrozenPotion',
+  'WoodCaribou', 'StoneCaribou', 'MarbleCaribou', 'ColoredStringLights',
+] as const;
+
+export function mergeSnowFallbackRows(items: RestockItem[]): RestockItem[] {
+  const existingSnowIds = new Set<string>();
+  for (const row of items) {
+    if (row.shop_type === 'snow') existingSnowIds.add(row.item_id);
+  }
+
+  const missing: string[] = [];
+  for (const id of SNOW_SHOP_ITEM_IDS) {
+    if (existingSnowIds.has(id)) continue;
+    missing.push(id);
+  }
+
+  if (missing.length === 0) return items;
+
+  const merged = items.slice();
+  for (const id of missing) {
+    merged.push({
+      item_id: id,
+      shop_type: 'snow',
       current_probability: null,
       appearance_rate: null,
       predicted_next_ms: null,
