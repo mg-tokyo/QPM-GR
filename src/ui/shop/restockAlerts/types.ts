@@ -34,7 +34,7 @@ export const ALERT_DEBUG_ENABLED = false;
 // Types
 // ---------------------------------------------------------------------------
 
-export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'dawn' | 'weather';
+export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'dawn' | 'snow' | 'weather';
 
 export interface AlertModel {
   key: string;

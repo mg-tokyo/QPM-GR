@@ -779,6 +779,8 @@ const de: Dictionary = {
   'feature.itemDetail.finalProbability': 'Endwahrscheinlichkeit',
   'feature.itemDetail.firstRecorded': 'Erste Aufzeichnung \u2014 kein Vergleich verfügbar',
   'feature.itemDetail.accuracyContext': 'Fehler \u00B1{duration} | {count} Vorhersagen',
+  'feature.itemDetail.accuracyRate': '{count} von {total} Vorhersagen korrekt',
+  'feature.itemDetail.gap': 'Abstand',
   'feature.itemDetail.gapConsistency': 'Lücken-Konsistenz',
   'feature.itemDetail.highProbability': 'Hohe Wahrscheinlichkeit',
   'feature.itemDetail.intervalDistribution': 'Intervallverteilung',

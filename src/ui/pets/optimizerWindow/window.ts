@@ -12,6 +12,9 @@ import {
   setGlobalState,
 } from './windowState';
 
+/** Monotonically increasing sequence to detect stale analysis results. */
+let refreshSeq = 0;
+
 function updateFamilyNav(): void {
   const globalState = getGlobalState();
   if (!globalState?.currentAnalysis || !globalState.navContainer) return;
@@ -37,6 +40,7 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
   const globalState = getGlobalState();
   if (!globalState) return;
 
+  const seq = ++refreshSeq;
   const savedScroll = globalState.root.scrollTop;
 
   globalState.summaryContainer.innerHTML = '';
@@ -61,6 +65,9 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
     const analysis = await getOptimizerAnalysis(forceRefresh, (percent) => {
       progressEl.textContent = `${percent}%`;
     });
+
+    // A newer refresh was started while this one was running — discard stale results.
+    if (seq !== refreshSeq) return;
 
     if (!analysis || analysis.totalPets === 0) {
       globalState.summaryContainer.innerHTML = '';
@@ -91,6 +98,7 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
     const stateAfter = getGlobalState();
     if (stateAfter) stateAfter.root.scrollTop = savedScroll;
   } catch (error) {
+    if (seq !== refreshSeq) return;
     console.error('[Pet Optimizer] Error:', error);
     globalState.summaryContainer.innerHTML = '';
     const errorDiv = document.createElement('div');

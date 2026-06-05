@@ -84,6 +84,13 @@ const en: Dictionary = {
   'hub.garden.stats.label': 'Garden Stats',
   'hub.garden.stats.description': 'Review mutation progress, garden outcomes, and egg hatching history',
   'hub.garden.stats.summary': 'Mutation analytics / Hatch history',
+  'hub.garden.instaHarvest.label': 'Insta-Harvest',
+  'hub.garden.instaHarvest.description': 'Skip hold-to-harvest delay for Rainbow/Gold plants and enable rapid-fire hold mode',
+  'hub.garden.holdSettings.label': 'Hold Settings',
+  'hub.garden.holdSettings.description': 'Configure hold repeat rate and per-action hold contexts',
+  'hub.garden.inventoryCapacity.label': 'Inventory Capacity',
+  'hub.garden.inventoryCapacity.description': 'Track inventory usage and get alerts when approaching capacity',
+  'hub.garden.inventoryCapacity.summary': 'Slot usage / Alerts',
 
   // ── Hub: Tools group ──────────────────────────────────────────────────────
   'hub.tools.label': 'Tools',
@@ -779,6 +786,8 @@ const en: Dictionary = {
   'feature.itemDetail.finalProbability': 'Final probability',
   'feature.itemDetail.firstRecorded': 'First recorded \u2014 no comparison available',
   'feature.itemDetail.accuracyContext': 'avg error \u00B1{duration} | {count} predictions',
+  'feature.itemDetail.accuracyRate': '{count} of {total} predictions accurate',
+  'feature.itemDetail.gap': 'Gap',
   'feature.itemDetail.gapConsistency': 'Gap Consistency',
   'feature.itemDetail.highProbability': 'High probability',
   'feature.itemDetail.intervalDistribution': 'Interval Distribution',

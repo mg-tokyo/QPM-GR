@@ -1,4 +1,4 @@
-// src/features/locker/instaHarvest.ts
+// src/features/gardenQol/instaHarvest.ts
 // Capture-phase keydown interception to bypass the client-side hold-to-harvest
 // delay for Rainbow and Gold mutation plants. Sends HarvestCrop immediately
 // through the native sendMessage (Locker guard rules still apply).
@@ -6,7 +6,7 @@
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
 import { getGardenSnapshot } from '../garden/bridge';
-import { getLockerConfig } from './state';
+import { getGardenQolConfig } from './state';
 import { isRecord } from '../../utils/typeGuards';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ function onKeyDownCapture(event: KeyboardEvent): void {
   if (event.repeat || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
   if (isTextInputFocused()) return;
 
-  const config = getLockerConfig();
+  const config = getGardenQolConfig();
   if (!config.instaHarvestRainbow && !config.instaHarvestGold) return;
 
   // Skip insta-harvest when a non-harvest action is active (tool equipped, shop open, etc.)

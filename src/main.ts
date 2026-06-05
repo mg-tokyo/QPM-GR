@@ -106,6 +106,7 @@ import { initGmExportBridge } from './utils/gmExportBridge';
 import { stopNativeSendObserver } from './websocket/nativeSendObserver';
 import { startMountStateTracker, stopMountStateTracker } from './store/mountState';
 import { startLocker } from './features/locker/index';
+import { startGardenQol } from './features/gardenQol/index';
 import { startShopKeybinds, stopShopKeybinds } from './features/shop/keybinds';
 import { stopPanelHotkey } from './features/input/panelHotkey';
 import { startShopEnhancer, stopShopEnhancer } from './features/shop/enhancer/index';
@@ -1524,6 +1525,7 @@ async function initialize(): Promise<void> {
 
   // Phase 7c: Action guard
   startLocker();
+  startGardenQol();
   await yieldToBrowser();
 
   // Phase 8: Non-critical features (can load after UI is visible)

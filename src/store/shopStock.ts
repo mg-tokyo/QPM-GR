@@ -31,12 +31,13 @@ const MY_USER_SLOT_ATOM_LABEL = 'myUserSlotAtom';
 const MY_DATA_ATOM_LABEL = 'myDataAtom';
 const QUINOA_DATA_ATOM_LABEL = 'quinoaDataAtom';
 
-const ITEM_TYPE_BY_CATEGORY: Record<ShopCategory, 'Seed' | 'Egg' | 'Tool' | 'Decor' | 'Dawn'> = {
+const ITEM_TYPE_BY_CATEGORY: Record<ShopCategory, 'Seed' | 'Egg' | 'Tool' | 'Decor' | 'Dawn' | 'Snow'> = {
   seeds: 'Seed',
   eggs: 'Egg',
   tools: 'Tool',
   decor: 'Decor',
   dawn: 'Dawn',
+  snow: 'Snow',
 };
 
 const listeners = new Set<(state: ShopStockState) => void>();
@@ -112,11 +113,11 @@ function getEffectivePurchasesSnapshot(): ShopPurchasesAtomSnapshot | null {
 }
 
 /**
- * Dawn shop items lack price fields in their raw atom data.
+ * Weather-gated shop items (Dawn, Snow) lack price fields in their raw atom data.
  * Resolve prices by detecting the underlying item type and looking up
  * the catalog price for that type (seeds, eggs, tools, decor).
  */
-function resolveDawnCatalogPrices(items: ShopStockItem[]): void {
+function resolveWeatherShopCatalogPrices(items: ShopStockItem[]): void {
   for (const item of items) {
     if (item.priceCoins != null) continue;
     const raw = item.raw as Record<string, unknown> | null;
@@ -150,8 +151,9 @@ function rebuildState(): void {
     const customInventory = customInventories?.[atomKey] ?? null;
     categories[category] = buildCategoryState(category, snapshot, effectivePurchases, customInventory);
   }
-  // Dawn items have no price fields in raw atom data — resolve from game catalogs.
-  resolveDawnCatalogPrices(categories.dawn.items);
+  // Weather-gated shop items have no price fields in raw atom data — resolve from game catalogs.
+  resolveWeatherShopCatalogPrices(categories.dawn.items);
+  resolveWeatherShopCatalogPrices(categories.snow.items);
   cachedState = { updatedAt: now, categories };
   notifyState();
 }

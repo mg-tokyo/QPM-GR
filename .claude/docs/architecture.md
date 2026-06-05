@@ -42,8 +42,9 @@ src/
 | **Phase 3** | `initializeAutoFavorite()`, `startBulkFavorite()`, `startSellSnapshotWatcher()` |
 | **Phase 3b** | `initPetTeamsLogs()`, `initPetTeamsStore()` |
 | **Phase 4** | `startGardenBridge()`, `initializeGardenFilters()` |
-| **Phase 5–7** | Harvest reminder, turtle timer, mutation reminder/tracker |
-| **Phase 8** | Crop boost tracker, tooltip injection (journal badges + tile value), native feed intercept, controller |
+| **Phase 5–6** | Harvest reminder, turtle timer, mutation reminder/tracker |
+| **Phase 6b** | Mount state, locker (action guard), gardenQol (insta-harvest, aries hold) |
+| **Phase 7–8** | Crop boost tracker, tooltip injection (journal badges + tile value), native feed intercept, controller |
 | **Phase 9** | `exposeAriesBridge()` |
 | **Phase 10** | `initPublicRooms()` |
 | **UI** | `createOriginalUI()`, `initPetsWindow()` |
@@ -82,6 +83,5 @@ Each phase separated by `await yieldToBrowser()`.
 - Theme: bg `rgba(18,20,26,0.96)`, accent `#8f82ff`, border `rgba(143,130,255,0.5)`, text `#e8e0ff`
 
 ### Performance rendering
-- `domBatcher` — batch reads/writes
 - `VirtualScroll` — 100+ item lists (call `.destroy()` in cleanup)
-- `BatchRenderer` / `JobQueue` — frame-budget work
+- `JobQueue` — frame-budget work

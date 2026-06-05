@@ -2,6 +2,60 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.23",
+    date: "2026-06-04",
+    notes: [
+      "Added Snow Shop support to the restock tracker: stock parsing, price resolution, fallback rows, and filter button",
+      "Added Snow Shop items to restock alerts: purchase sends, ownership tracking, and stock processing",
+      "Generalized weather-gated shop price resolution to handle both Dawn and Snow shops",
+    ],
+  },
+  {
+    version: "3.2.22",
+    date: "2026-06-03",
+    notes: [
+      "Fixed Pet Optimizer showing wrong-mode results when switching between Specialist and Slot Efficiency during analysis",
+      "Fixed Pet Optimizer cache returning stale results from a different recommendation mode",
+    ],
+  },
+  {
+    version: "3.2.21",
+    date: "2026-06-02",
+    notes: [
+      "Simplified restock detail accuracy: replaced logistic-decay score with intuitive 'right X% of the time' metric computed from event history",
+      "Removed Median interval, EMA trend, avg model error, and avg error chips from restock detail overview and event list",
+      "Simplified restock event list to two columns: timestamp and status pill",
+    ],
+  },
+  {
+    version: "3.2.20",
+    date: "2026-06-02",
+    notes: [
+      "Fixed pet teams not persisting after page refresh under Starweaver Mod Manager",
+      "Fixed pet team edits (rename, slot changes) reverting to stale data on reload",
+      "Fixed settings import/export losing pet team data under Mod Manager",
+      "Improved storage layer: legacy GM writes now mirror to localStorage for durability under script managers with async persistence",
+      "Fixed frozen default config causing silent property assignment failures on pet team state",
+      "Fixed pet team apply engine throwing 'Cannot assign to read only property' on rapid team switches",
+    ],
+  },
+  {
+    version: "3.2.19",
+    date: "2026-05-30",
+    notes: [
+      "Fixed restock alerts not firing for DawnCelestial (Dawnbinder) when it appears in the Dawn Shop",
+      "Fixed cross-shop tracking so items tracked under their native category (e.g. seed) also alert from the Dawn Shop",
+      "Added DawnCelestial to Dawn Shop fallback rows in the restock tracker UI",
+      "Improved settings export: excluded activity logs, caches, and legacy keys, reducing export size from ~6 MB to ~100-200 KB",
+      "Refactored locker into a unified filter builder, removing 4 redundant files and ~800 lines of duplicate UI code",
+      "Extracted garden QoL features (insta-harvest, Aries hold) from locker into a standalone gardenQol module",
+      "Fixed pet picker modal not closing after selecting a pet for a team slot",
+      "Added Insta-Harvest, Hold Settings, and Inventory Capacity cards to the Garden hub group",
+      "Consolidated locker tabs from five to three: General, Overrides, and Restrictions",
+      "Fixed pet teams data loss on fresh Mod Manager installs when player ID resolves after initial load",
+    ],
+  },
+  {
     version: "3.2.18",
     date: "2026-05-29",
     notes: [

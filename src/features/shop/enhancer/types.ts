@@ -21,6 +21,7 @@ export const CATEGORY_TO_SHOP_TYPE: Record<ShopCategory, string> = {
   tools: 'tool',
   decor: 'decor',
   dawn: 'dawn',
+  snow: 'snow',
 };
 
 export interface ShopRowInfo {

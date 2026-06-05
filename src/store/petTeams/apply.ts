@@ -20,6 +20,7 @@ import {
   FAST_PATH_SETTLE_TIMEOUT_MS,
   FAST_SETTLE_POLL_INTERVAL_MS,
   REPAIR_SETTLE_TIMEOUT_MS,
+  FAST_PATH_PHASE_GAP_MS,
   getActiveSlotIds,
   readInventorySnapshot,
   readHutchSnapshot,
@@ -73,7 +74,11 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
   const currentSet = new Set(getActiveSlotIds());
   const targetSet = new Set(targetIds);
+  log(`[PetTeams:Apply] "${team.name}" targets=${targetIds.length} currentActive=${currentSet.size}`);
+  log(`[PetTeams:Apply]   targetIds: [${targetIds.join(', ')}]`);
+  log(`[PetTeams:Apply]   activeIds: [${[...currentSet].join(', ')}]`);
   if (targetIds.every((id) => currentSet.has(id)) && currentSet.size <= targetIds.length) {
+    log('[PetTeams:Apply] Already matched — no-op');
     return { applied: 0, errors: [] };
   }
 
@@ -107,6 +112,9 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       log(`[PetTeams] Could not locate pet ${targetId} in "${team.name}" — skipping (not removing)`);
     }
   }
+
+  log(`[PetTeams:Apply] Pre-validation: ${validTargetIds.length}/${targetIds.length} valid, ${errors.length} error(s)`);
+  for (const err of errors) log(`[PetTeams:Apply]   pre-err: ${err}`);
 
   if (validTargetIds.length === 0) {
     const errorSummary = buildErrorSummary(reasonCounts);
@@ -388,6 +396,11 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
     }
 
+    // Let the game settle hutch-retrieve state updates before issuing swaps.
+    if (retrieveTargets.length > 0) {
+      await delay(FAST_PATH_PHASE_GAP_MS);
+    }
+
     const displacedPets: string[] = [];
     for (const targetId of pendingTargets) {
       if (modeledActiveSet.has(targetId) || unavailableTargets.has(targetId)) {
@@ -422,6 +435,11 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
     }
 
+    // Let the game settle swap state updates before storing displaced pets.
+    if (displacedPets.length > 0) {
+      await delay(FAST_PATH_PHASE_GAP_MS);
+    }
+
     for (const displacedId of displacedPets) {
       if (modeledHutchCount >= hutch.hutchMax && modeledHutchIndex == null) {
         continue;
@@ -440,11 +458,14 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
     }
 
+    log(`[PetTeams:Fast] sent=${fastOpsSent} (retrieves=${retrieveTargets.length}, swaps=${fastApplied}, stores=${displacedPets.length})`);
     if (fastOpsSent === 0) {
+      log('[PetTeams:Fast] Nothing sent — falling through to repair');
       return false;
     }
 
     const settled = await waitForActiveTeamMatch(validTargetIds, FAST_PATH_SETTLE_TIMEOUT_MS, FAST_SETTLE_POLL_INTERVAL_MS);
+    log(`[PetTeams:Fast] settled=${settled} activeNow=[${getActiveSlotIds().join(', ')}]`);
     if (settled) {
       applied += fastApplied;
     }
@@ -461,6 +482,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
     let activeNow = getActiveSlotIds();
     const pendingTargets = validTargetIds.filter((id) => !activeNow.includes(id));
+    log(`[PetTeams:Repair] pendingTargets=${pendingTargets.length} activeNow=[${activeNow.join(', ')}]`);
 
     for (const targetId of pendingTargets) {
       activeNow = getActiveSlotIds();
@@ -557,7 +579,10 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
   const fastSettled = await applyTeamFastHutchPath();
   if (!fastSettled) {
+    log('[PetTeams:Apply] Fast path did not settle — running repair pass');
     await applyTeamRepairPass();
+  } else {
+    log('[PetTeams:Apply] Fast path settled successfully');
   }
 
   // Final cleanup: store any previously-active pets that ended up in inventory
@@ -571,6 +596,8 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     await delay(APPLY_STEP_DELAY_MS);
   }
 
+  log(`[PetTeams:Apply] Done — applied=${applied} errors=${errors.length} finalActive=[${getActiveSlotIds().join(', ')}]`);
+  for (const err of errors) log(`[PetTeams:Apply]   error: ${err}`);
   return finishApply();
 }
 

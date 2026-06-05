@@ -3,7 +3,8 @@
 
 import { getLockerConfig, updateLockerConfig } from '../../features/locker/index';
 import { getPlantSpecies, getMutation } from '../../catalogs/gameCatalogs';
-import { getCropSpriteDataUrl, getAnySpriteDataUrl } from '../../sprite-v2/compat';
+import { getCropSpriteDataUrl, getAnySpriteDataUrl, renderBySpriteKey } from '../../sprite-v2/compat';
+import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { RARITY_COLORS, RARITY_ORDER } from '../shop/restockWindowConstants';
 import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import { getGardenSnapshot } from '../../features/garden/bridge';
@@ -26,8 +27,53 @@ export const HOVER_BORDER = 'rgba(143,130,255,0.25)';
 export const ACCENT = 'var(--qpm-accent,#8f82ff)';
 export const TEXT_MUTED = 'var(--qpm-text-muted,rgba(232,224,255,0.6))';
 
+export const MUTATION_ICON_SIZE = 20;
+
 export const LABEL_CSS = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);';
 export const MUTED_CSS = 'font-size:11px;color:var(--qpm-text-muted,rgba(232,224,255,0.6));line-height:1.4;';
+
+// ── Mutation sprite key mapping ──────────────────────────────────────────────
+// Mutation type names do NOT always match sprite keys. See sprites.md §1.
+const MUTATION_KEY_OVERRIDES: Record<string, string> = {
+  Ambershine: 'MutationAmberlit',
+};
+
+/** Resolve a mutation name to its `sprite/ui/Mutation*` key. */
+export function getMutationUiSpriteKey(mutName: string): string {
+  const override = MUTATION_KEY_OVERRIDES[mutName];
+  return `sprite/ui/${override ?? `Mutation${mutName}`}`;
+}
+
+/** Get a data URL for the mutation UI icon, or '' if unavailable. */
+export function getMutationSpriteDataUrl(mutName: string): string {
+  const key = getMutationUiSpriteKey(mutName);
+  const canvas = renderBySpriteKey(key);
+  return canvasToDataUrl(canvas);
+}
+
+// ── Mutation display order (Aries-style: Color → Lunar → Weather) ────────────
+
+const MUTATION_DISPLAY_ORDER: string[] = [
+  // Color
+  'Gold', 'Rainbow', 'Normal',
+  // Lunar
+  'Dawnlit', 'Dawncharged', 'Ambershine', 'Ambercharged',
+  // Weather
+  'Wet', 'Chilled', 'Frozen', 'Thunderstruck',
+];
+
+/** Sort mutation IDs into Aries-style group order. Unknown mutations go at the end alphabetically. */
+export function sortMutations(mutIds: string[]): string[] {
+  const orderMap = new Map(MUTATION_DISPLAY_ORDER.map((id, i) => [id, i]));
+  return [...mutIds].sort((a, b) => {
+    const ia = orderMap.get(a);
+    const ib = orderMap.get(b);
+    if (ia !== undefined && ib !== undefined) return ia - ib;
+    if (ia !== undefined) return -1;
+    if (ib !== undefined) return 1;
+    return a.localeCompare(b);
+  });
+}
 export const TOGGLE_ROW_CSS = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid ${UNLOCKED_BORDER};background:${UNLOCKED_BG};cursor:pointer`;
 export const CHECKBOX_CSS = `width:18px;height:18px;cursor:pointer;accent-color:${ACCENT}`;
 
@@ -228,7 +274,7 @@ export function makeLockTile(
   return tile;
 }
 
-// ── Mutation tile (unified — dedup fix #4) ──────────────────────────────────
+// ── Mutation tile (unified — sprite icon + color background) ─────────────────
 
 export function makeMutationTile(
   mutId: string,
@@ -240,25 +286,38 @@ export function makeMutationTile(
   const gradient = vb?.gradient;
   const displayName = getMutation(mutId)?.name ?? mutId;
   const active = getActive();
+  const spriteUrl = getMutationSpriteDataUrl(mutId);
 
   const tile = document.createElement('div');
   tile.title = displayName;
-  tile.style.cssText = `padding:6px 10px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s,border-color .15s,color .15s;border:1.5px solid ${active ? color : UNLOCKED_BORDER};background:${active ? (gradient ?? color) : UNLOCKED_BG}`;
+  tile.style.cssText = `padding:8px 12px;border-radius:var(--qpm-radius-md,8px);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s,border-color .15s,color .15s;border:1.5px solid ${active ? color : UNLOCKED_BORDER};background:${active ? (gradient ?? color) : UNLOCKED_BG}`;
 
-  const dot = document.createElement('div');
-  dot.style.cssText = `width:10px;height:10px;border-radius:50%;flex-shrink:0;transition:background .15s;background:${active ? 'rgba(0,0,0,0.2)' : (gradient ?? color)}`;
+  const iconWrap = document.createElement('div');
+  iconWrap.style.cssText = `width:${MUTATION_ICON_SIZE}px;height:${MUTATION_ICON_SIZE}px;flex-shrink:0;display:flex;align-items:center;justify-content:center`;
+
+  if (spriteUrl) {
+    const img = document.createElement('img');
+    img.src = spriteUrl;
+    img.alt = displayName;
+    img.style.cssText = `width:${MUTATION_ICON_SIZE}px;height:${MUTATION_ICON_SIZE}px;image-rendering:pixelated;object-fit:contain`;
+    iconWrap.appendChild(img);
+  } else {
+    // Fallback: colored dot when sprite unavailable
+    const dot = document.createElement('div');
+    dot.style.cssText = `width:12px;height:12px;border-radius:50%;background:${gradient ?? color}`;
+    iconWrap.appendChild(dot);
+  }
 
   const label = document.createElement('div');
   label.textContent = displayName;
-  label.style.cssText = `font-size:11px;font-weight:600;white-space:nowrap;transition:color .15s;color:${active ? '#111' : TEXT_MUTED}`;
+  label.style.cssText = `font-size:12px;font-weight:600;white-space:nowrap;transition:color .15s;color:${active ? '#111' : TEXT_MUTED}`;
 
-  tile.append(dot, label);
+  tile.append(iconWrap, label);
 
   const applyState = (): void => {
     const sel = getActive();
     tile.style.borderColor = sel ? color : UNLOCKED_BORDER;
     tile.style.background = sel ? (gradient ?? color) : UNLOCKED_BG;
-    dot.style.background = sel ? 'rgba(0,0,0,0.2)' : (gradient ?? color);
     label.style.color = sel ? '#111' : TEXT_MUTED as string;
   };
 
@@ -283,14 +342,14 @@ export function makeAccentTile(
 
   const tile = document.createElement('div');
   tile.title = displayName;
-  tile.style.cssText = `padding:6px 10px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s,border-color .15s,color .15s;border:1.5px solid ${active ? color : UNLOCKED_BORDER};background:${active ? color : UNLOCKED_BG}`;
+  tile.style.cssText = `padding:8px 12px;border-radius:var(--qpm-radius-md,8px);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s,border-color .15s,color .15s;border:1.5px solid ${active ? color : UNLOCKED_BORDER};background:${active ? color : UNLOCKED_BG}`;
 
   const dot = document.createElement('div');
-  dot.style.cssText = `width:10px;height:10px;border-radius:50%;flex-shrink:0;transition:background .15s;background:${active ? 'rgba(0,0,0,0.2)' : color}`;
+  dot.style.cssText = `width:12px;height:12px;border-radius:50%;flex-shrink:0;transition:background .15s;background:${active ? 'rgba(0,0,0,0.2)' : color}`;
 
   const label = document.createElement('div');
   label.textContent = displayName;
-  label.style.cssText = `font-size:11px;font-weight:600;white-space:nowrap;transition:color .15s;color:${active ? '#111' : TEXT_MUTED}`;
+  label.style.cssText = `font-size:12px;font-weight:600;white-space:nowrap;transition:color .15s;color:${active ? '#111' : TEXT_MUTED}`;
 
   tile.append(dot, label);
 

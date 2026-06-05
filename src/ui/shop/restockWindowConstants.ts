@@ -48,7 +48,7 @@ export const RARITY_GLOW: Record<string, string> = {
   celestial: '0 0 12px rgba(255,0,255,0.5)',
 };
 
-export const SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3, dawn: 4, weather: 5 };
+export const SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3, dawn: 4, snow: 5, weather: 6 };
 
 export const SHOP_CYCLE_INTERVALS: Record<string, number> = {
   seed:  5  * 60 * 1000,
@@ -56,6 +56,7 @@ export const SHOP_CYCLE_INTERVALS: Record<string, number> = {
   decor: 60 * 60 * 1000,
   tool:  10 * 60 * 1000,
   dawn:  0,  // Dawn Shop has no timer-based cycle (weather-gated)
+  snow:  0,  // Snow Shop has no timer-based cycle (weather-gated by Frost)
 };
 
 export const TRACKED_KEY    = 'qpm.restock.tracked';
@@ -93,6 +94,7 @@ export const SHOP_FILTERS = [
   { label: 'Decor', value: 'decor' },
   { label: 'Tools', value: 'tool' },
   { label: 'Dawn', value: 'dawn' },
+  { label: 'Snow', value: 'snow' },
   { label: 'Weather', value: 'weather' },
 ] as const;
 
@@ -102,5 +104,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   decor: 'Decor',
   tool: 'Tools',
   dawn: 'Dawn',
+  snow: 'Snow',
   weather: 'Weather',
 };

@@ -85,7 +85,7 @@ export function applyInventoryCapToQuantity(
   canonicalKey: string,
   requested: number,
 ): number {
-  if (shopType !== 'tool' && shopType !== 'dawn') return requested;
+  if (shopType !== 'tool' && shopType !== 'dawn' && shopType !== 'snow') return requested;
   const limit = getToolInventoryLimitFromKey(canonicalKey);
   if (limit == null) return requested;
   const owned = getOwnedToolCount(itemId, canonicalKey);
@@ -105,7 +105,7 @@ type PurchaseSendFailureReason = WebSocketSendResult['reason'] | 'socket_not_ope
 
 /**
  * Map shop type → V16 ItemType string for the standard 4 shops.
- * Dawn shop can carry multiple item types, so it uses itemTypeHint.
+ * Dawn/Snow shops can carry multiple item types, so they use itemTypeHint.
  */
 const SHOP_TO_ITEM_TYPE: Record<string, string> = {
   seed: 'Seed',

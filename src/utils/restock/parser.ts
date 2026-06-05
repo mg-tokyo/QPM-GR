@@ -12,6 +12,12 @@ const ITEM_ID_ALIASES: Record<string, string> = {
   'seed:Moonbinder': 'MoonCelestial',
   'seed:MoonbinderPod': 'MoonCelestial',
   'seed:StarweaverPod': 'Starweaver',
+  // Dawn shop carries seeds/eggs/tools — alias legacy names under dawn scope too.
+  'dawn:Dawnbinder': 'DawnCelestial',
+  'dawn:DawnbinderPod': 'DawnCelestial',
+  'dawn:Moonbinder': 'MoonCelestial',
+  'dawn:MoonbinderPod': 'MoonCelestial',
+  'dawn:StarweaverPod': 'Starweaver',
 };
 
 /** Resolve canonical item_id for known aliases within a shop_type. */

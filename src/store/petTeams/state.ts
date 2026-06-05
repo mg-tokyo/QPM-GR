@@ -1,7 +1,7 @@
 // src/store/petTeams/state.ts
 // Shared mutable store, constants, defaults, persistence helpers, player identity.
 
-import { storage, registerDynamicKey } from '../../utils/storage';
+import { storage, getStorageRuntime, registerDynamicKey } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { dispatchCustomEventAll } from '../../core/pageContext';
 import { getPlayerId } from '../../core/playerContext';
@@ -15,25 +15,23 @@ export const CONFIG_KEY = 'qpm.petTeams.config.v1';
 export const FEED_POLICY_KEY = 'qpm.petTeams.feedPolicy.v1';
 export const PET_FEED_POLICY_CHANGED_EVENT = 'qpm:pet-feed-policy-changed';
 
-export const DEFAULT_CONFIG: PetTeamsConfig = Object.freeze({
-  teams: [],
-  keybinds: {},
-  activeTeamId: null,
-  lastAppliedAt: 0,
-});
+/** Create a fresh mutable default config — always returns a new object. */
+export function createDefaultConfig(): PetTeamsConfig {
+  return { teams: [], keybinds: {}, activeTeamId: null, lastAppliedAt: 0 };
+}
 
-export const DEFAULT_FEED_POLICY: PetFeedPolicy = Object.freeze({
-  petItemOverrides: {},
-  updatedAt: 0,
-});
+/** Create a fresh mutable default feed policy — always returns a new object. */
+export function createDefaultFeedPolicy(): PetFeedPolicy {
+  return { petItemOverrides: {}, updatedAt: 0 };
+}
 
 // ---------------------------------------------------------------------------
 // Shared mutable store
 // ---------------------------------------------------------------------------
 
 export const store = {
-  config: { ...DEFAULT_CONFIG } as PetTeamsConfig,
-  feedPolicy: { ...DEFAULT_FEED_POLICY } as PetFeedPolicy,
+  config: createDefaultConfig(),
+  feedPolicy: createDefaultFeedPolicy(),
   configListeners: new Set<(cfg: PetTeamsConfig) => void>(),
   resolvedConfigKey: CONFIG_KEY,
   resolvedFeedKey: FEED_POLICY_KEY,
@@ -55,13 +53,29 @@ export const store = {
 // ---------------------------------------------------------------------------
 
 export function saveConfig(): void {
+  log(`[PetTeams:Save] key=${store.resolvedConfigKey} teams=${store.config.teams.length} slots=${countFilledSlots(store.config)} runtime=${getStorageRuntime()}`);
   storage.set(store.resolvedConfigKey, store.config);
+  // Mirror to unscoped key so initPetTeamsStore can load teams before
+  // resolvePlayerKeyAndMigrate completes (which requires async player ID).
+  // Without this, a fresh install under the Mod Manager starts with an empty
+  // unscoped key and loses data if the player atom isn't ready yet.
+  if (store.resolvedConfigKey !== CONFIG_KEY) {
+    storage.set(CONFIG_KEY, store.config);
+  }
+  // Verify write round-trips — read back immediately and compare
+  const readback = storage.get<PetTeamsConfig | null>(store.resolvedConfigKey, null);
+  if (!readback || readback.teams.length !== store.config.teams.length) {
+    log(`[PetTeams:Save] !! READBACK MISMATCH: wrote ${store.config.teams.length} teams, read back ${readback?.teams.length ?? 'null'}`);
+  }
   notifyConfigListeners();
 }
 
 export function saveFeedPolicy(): void {
   store.feedPolicy.updatedAt = Date.now();
   storage.set(store.resolvedFeedKey, store.feedPolicy);
+  if (store.resolvedFeedKey !== FEED_POLICY_KEY) {
+    storage.set(FEED_POLICY_KEY, store.feedPolicy);
+  }
   dispatchCustomEventAll(PET_FEED_POLICY_CHANGED_EVENT, {
     updatedAt: store.feedPolicy.updatedAt,
   });
@@ -87,6 +101,18 @@ export async function resolveCurrentPlayerId(): Promise<string | null> {
   return getPlayerId();
 }
 
+/** Count non-null slot entries across all teams — used to compare configs. */
+function countFilledSlots(config: PetTeamsConfig): number {
+  let count = 0;
+  for (const team of config.teams) {
+    if (!Array.isArray(team.slots)) continue;
+    for (const slot of team.slots) {
+      if (slot) count++;
+    }
+  }
+  return count;
+}
+
 export async function resolvePlayerKeyAndMigrate(): Promise<void> {
   const playerId = await resolveCurrentPlayerId();
   if (!playerId) {
@@ -105,10 +131,20 @@ export async function resolvePlayerKeyAndMigrate(): Promise<void> {
       log(`[PetTeams] Migrated ${store.config.teams.length} team(s) to player-scoped key`);
     }
   } else {
-    // Scoped key already has data for this player — load it and notify UI
-    store.config = storage.get<PetTeamsConfig>(scopedConfigKey, DEFAULT_CONFIG);
-    notifyConfigListeners();
-    log(`[PetTeams] Loaded player-scoped config (${store.config.teams.length} team(s))`);
+    // Scoped key has data — reconcile with current (unscoped) config.
+    // If the unscoped key has more filled slots, it was likely updated during
+    // a session where the player ID wasn't available (saves went unscoped only).
+    const unscopedSlots = countFilledSlots(store.config);
+    const scopedSlots = countFilledSlots(existingScoped);
+
+    if (unscopedSlots > scopedSlots) {
+      log(`[PetTeams] Unscoped config has more data (${unscopedSlots} vs ${scopedSlots} filled slots) — keeping unscoped`);
+      storage.set(scopedConfigKey, store.config);
+    } else {
+      store.config = existingScoped;
+      notifyConfigListeners();
+      log(`[PetTeams] Loaded player-scoped config (${store.config.teams.length} team(s), ${scopedSlots} filled slots)`);
+    }
   }
 
   // Feed policy: same migration pattern
@@ -116,7 +152,7 @@ export async function resolvePlayerKeyAndMigrate(): Promise<void> {
   if (existingScopedFeed === null && store.feedPolicy.updatedAt > 0) {
     storage.set(scopedFeedKey, store.feedPolicy);
   } else if (existingScopedFeed !== null) {
-    store.feedPolicy = storage.get<PetFeedPolicy>(scopedFeedKey, DEFAULT_FEED_POLICY);
+    store.feedPolicy = existingScopedFeed;
   }
 
   // Activate scoped keys — all future saves use these

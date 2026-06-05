@@ -12,7 +12,7 @@ Features are organized by domain under `src/features/<domain>/`:
 - Each feature should export an explicit init/start function and a stop/destroy if it allocates resources.
 - Domain-specific data lives in `src/features/<domain>/data/` — e.g., `src/features/pets/data/petAbilities.ts`
 
-Current domains: `activity/`, `dawn/`, `economy/`, `garden/`, `input/`, `journal/`, `locker/`, `mutations/`, `pets/`, `shop/`, `standalone/`
+Current domains: `activity/`, `dawn/`, `economy/`, `garden/`, `gardenQol/`, `input/`, `journal/`, `locker/`, `mutations/`, `pets/`, `shop/`, `standalone/`
 
 ## 2) Toggle requirement
 - If a feature is user-facing, it must be configurable (`enabled: boolean`).

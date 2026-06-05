@@ -372,8 +372,7 @@ export function startProtectionStatus(getStatusEl: GetStatusEl, addLiveCleanup: 
         + countEnabled(lockerConfig.plantLocks)
         + countEnabled(lockerConfig.mutationLocks)
         + countEnabled(lockerConfig.decorLocks)
-        + countEnabled(lockerConfig.cropSellLocks)
-        + lockerConfig.customRules.length;
+        + countEnabled(lockerConfig.cropSellLocks);
 
       const lockText = lockerConfig.enabled ? `${activeRules} rules` : 'locker off';
       const capacityText = capacityConfig.enabled ? `${capacityState.count}/${capacityState.max} slots` : 'capacity off';

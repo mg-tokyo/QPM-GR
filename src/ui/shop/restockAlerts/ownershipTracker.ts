@@ -110,6 +110,7 @@ export function normalizeShopType(rawType: unknown): RestockShopType | null {
   if (type === 'decor' || type === 'decoration' || type === 'decorations') return 'decor';
   if (type === 'tool' || type === 'tools') return 'tool';
   if (type === 'dawn') return 'dawn';
+  if (type === 'snow') return 'snow';
   return null;
 }
 
