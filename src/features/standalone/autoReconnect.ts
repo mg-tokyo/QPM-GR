@@ -30,7 +30,7 @@ const AUTO_RECONNECT_ENABLED_KEY = 'qpm.autoReconnect.enabled.v1';
 const AUTO_RECONNECT_DELAY_KEY = 'qpm.autoReconnect.delayMs.v1';
 
 const DEFAULT_CONFIG: AutoReconnectConfig = {
-  enabled: true,
+  enabled: false,
   delayMs: 60_000,
 };
 

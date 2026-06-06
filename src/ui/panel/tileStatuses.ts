@@ -67,7 +67,6 @@ const TILE_STATUS_DEFAULTS: Record<string, string> = {
   'reminders': '0 ready / 0 pending',
   'garden-stats': '0 species / $0',
   'favorites': 'Off / 0 rules',
-  'auto-reconnect': 'Off / 0s delay',
   'shop-keybinds': 'Off',
   'panel-shortcut': 'Alt+Q',
   'guide': 'Game reference',
@@ -317,27 +316,6 @@ function startFavoritesStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveC
   }).catch(() => {});
 }
 
-function startAutoReconnectStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('auto-reconnect');
-  if (!el) return;
-
-  import('../../features/standalone/autoReconnect').then(({ getAutoReconnectConfig, subscribeToAutoReconnectConfig }) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      const cfg = getAutoReconnectConfig();
-      if (!cfg.enabled) {
-        setStatusText(el, t('common.off'), 'muted');
-        return;
-      }
-      const delay = cfg.delayMs <= 0 ? t('tile.status.instantDelay') : t('tile.status.secondsDelay', { seconds: Math.round(cfg.delayMs / 1000) });
-      setStatusText(el, t('tile.status.enabledDelay', { delay }), 'positive');
-    };
-    render();
-    const unsub = subscribeToAutoReconnectConfig(render);
-    addLiveCleanup(version, unsub);
-  }).catch(() => {});
-}
-
 function startShopKeybindsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
   const el = getStatusEl('shop-keybinds');
   if (!el) return;
@@ -439,7 +417,6 @@ export function startAllLiveStatuses(
   startRemindersStatus(getStatusEl, addLiveCleanup, version);
   startGardenStatsStatus(getStatusEl, addLiveCleanup, version);
   startFavoritesStatus(getStatusEl, addLiveCleanup, version);
-  startAutoReconnectStatus(getStatusEl, addLiveCleanup, version);
   startShopKeybindsStatus(getStatusEl, addLiveCleanup, version);
   startPanelShortcutStatus(getStatusEl, addLiveCleanup, version);
   // guide, decor-layout, sprite-customizer, celestial-calculator are static — defaults only

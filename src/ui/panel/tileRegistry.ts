@@ -277,23 +277,6 @@ export function registerBuiltinTiles(): void {
   // ── Config group ────────────────────────────────────────────────────────────
 
   registerTile({
-    id: 'auto-reconnect',
-    icon: '↻',
-    label: t('tile.autoReconnect.label'),
-    color: 'rgba(167, 139, 250, 0.28)',
-    action: () => {
-      import('../core/modalWindow').then(({ toggleWindow }) => {
-        toggleWindow('config-auto-reconnect', `↻ ${t('tile.autoReconnect.label')}`, (root) => {
-          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-          import('../hub/groups/configGroup').then(({ renderAutoReconnectExpanded }) => {
-            renderAutoReconnectExpanded(root);
-          }).catch(e => log('⚠️ Failed to load Auto Reconnect', e));
-        }, '420px', '50vh');
-      });
-    },
-  });
-
-  registerTile({
     id: 'shop-keybinds',
     icon: '⌨️',
     label: t('tile.shopKeybinds.label'),

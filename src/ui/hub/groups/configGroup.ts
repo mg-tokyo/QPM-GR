@@ -4,11 +4,6 @@ import type { HubGroupDef, ExpandableCardConfig } from '../cards/types';
 import { toggleWindow } from '../../core/modalWindow';
 import { log } from '../../../utils/logger';
 import {
-  getAutoReconnectConfig,
-  updateAutoReconnectConfig,
-  subscribeToAutoReconnectConfig,
-} from '../../../features/standalone/autoReconnect';
-import {
   isShopKeybindsEnabled,
   setShopKeybindsEnabled,
   getAllShopKeybinds,
@@ -76,61 +71,6 @@ function buildToggleRow(label: string, checked: boolean, onChange: (v: boolean) 
 
   row.append(text, input);
   return { row, input };
-}
-
-// ── Auto Reconnect ───────────────────────────────────────────────────────────
-
-export function renderAutoReconnectExpanded(container: HTMLElement): () => void {
-  const cleanups: Array<() => void> = [];
-  container.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
-
-  const cfg = getAutoReconnectConfig();
-
-  // Toggle
-  const { row: toggleRow, input: toggleInput } = buildToggleRow(t('common.enabled'), cfg.enabled, (v) => {
-    updateAutoReconnectConfig({ enabled: v });
-  });
-  container.appendChild(toggleRow);
-
-  // Delay slider
-  const sliderWrap = document.createElement('div');
-  sliderWrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px 2px;';
-
-  const sliderLabel = document.createElement('div');
-  sliderLabel.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.7);';
-
-  function formatDelay(ms: number): string {
-    const s = Math.round(ms / 1000);
-    return s === 0 ? t('hub.config.autoReconnect.delayInstant') : `${s}s`;
-  }
-  sliderLabel.textContent = t('hub.config.autoReconnect.delayLabel', { delay: formatDelay(cfg.delayMs) });
-
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = '0';
-  slider.max = '300';
-  slider.step = '5';
-  slider.value = String(Math.round(cfg.delayMs / 1000));
-  slider.style.cssText = 'width:100%;accent-color:var(--qpm-accent);cursor:pointer;';
-  slider.addEventListener('input', () => {
-    const seconds = Number(slider.value);
-    sliderLabel.textContent = t('hub.config.autoReconnect.delayLabel', { delay: formatDelay(seconds * 1000) });
-    updateAutoReconnectConfig({ delayMs: seconds * 1000 });
-  });
-
-  sliderWrap.append(sliderLabel, slider);
-  container.appendChild(sliderWrap);
-
-  // Subscribe to external changes
-  const unsub = subscribeToAutoReconnectConfig((c) => {
-    toggleInput.checked = c.enabled;
-    const s = Math.round(c.delayMs / 1000);
-    slider.value = String(s);
-    sliderLabel.textContent = t('hub.config.autoReconnect.delayLabel', { delay: formatDelay(c.delayMs) });
-  });
-  cleanups.push(unsub);
-
-  return () => { cleanups.forEach(fn => fn()); };
 }
 
 // ── Shop Keybinds ────────────────────────────────────────────────────────────
@@ -322,31 +262,6 @@ export function renderPanelShortcutExpanded(container: HTMLElement): () => void 
 // ── Group definition ─────────────────────────────────────────────────────────
 
 export function getConfigGroup(): HubGroupDef {
-  const autoReconnectCard: ExpandableCardConfig = {
-    key: 'auto-reconnect',
-    label: t('hub.config.autoReconnect.label'),
-    description: t('hub.config.autoReconnect.description'),
-    icon: { kind: 'sprite', value: '↻', spriteKey: 'sprite/ui/ProgressStar', fallback: '↻' },
-    tier: 'expandable',
-    renderSummary: (el) => {
-      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      function update(): void {
-        const cfg = getAutoReconnectConfig();
-        const s = Math.round(cfg.delayMs / 1000);
-        const delay = s === 0
-          ? t('hub.config.autoReconnect.delayInstant')
-          : t('hub.config.autoReconnect.delaySeconds', { seconds: s });
-        el.textContent = cfg.enabled
-          ? t('hub.config.autoReconnect.summaryEnabled', { delay })
-          : t('hub.config.autoReconnect.summaryDisabled');
-      }
-      update();
-      const unsub = subscribeToAutoReconnectConfig(update);
-      return unsub;
-    },
-    renderExpanded: renderAutoReconnectExpanded,
-  };
-
   const controllerCard: ExpandableCardConfig = {
     key: 'controller',
     label: t('hub.config.controller.label'),
@@ -499,6 +414,6 @@ export function getConfigGroup(): HubGroupDef {
     id: 'config',
     label: t('hub.config.label'),
     icon: { kind: 'emoji', value: '⚙️' },
-    cards: [autoReconnectCard, controllerCard, panelShortcutCard, shopKeybindsCard, resetToursCard],
+    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, resetToursCard],
   };
 }

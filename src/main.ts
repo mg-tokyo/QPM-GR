@@ -14,7 +14,6 @@ import { initializeXpTracker } from './store/xpTracker';
 import { initializeMutationValueTracking } from './features/mutations/valueTracking';
 import { initializeAutoFavorite } from './features/standalone/autoFavorite';
 import { startBulkFavorite } from './features/standalone/bulkFavorite';
-import { initializeAutoReconnect, stopAutoReconnect } from './features/standalone/autoReconnect';
 import { initializeGardenFilters } from './features/garden/filters';
 import { getActivePetsDebug, startPetInfoStore, stopPetInfoStore } from './store/pets';
 import { startInventoryStore, readInventoryDirect, getInventoryItems, stopInventoryStore } from './store/inventory';
@@ -1311,7 +1310,7 @@ window.addEventListener('beforeunload', () => {
   stopShopKeybinds();
   stopShopEnhancer();
   stopPanelHotkey();
-  stopAutoReconnect();
+  // stopAutoReconnect() — auto reconnect disabled
   stopAntiAfk();
   stopActivityLogEnhancer();
   stopAbilityTriggerStore();
@@ -1383,12 +1382,9 @@ async function initialize(): Promise<void> {
   // MUST be called early, before game code runs
   initCatalogLoader();
   log('[Main] Catalog loader initialized');
-  try {
-    initializeAutoReconnect();
-    log('[Main] Auto reconnect initialized');
-  } catch (error) {
-    log('[Main] Auto reconnect initialization failed', error);
-  }
+  // Auto reconnect disabled — no longer permitted by the game.
+  // Force-disable for existing users who had it enabled.
+  storage.set('qpm.autoReconnect.enabled.v1', false);
 
   // Log when catalogs become ready (for timing analysis)
   onCatalogsReady(() => {

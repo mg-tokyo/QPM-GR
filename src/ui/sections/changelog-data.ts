@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.25",
+    date: "2026-06-06",
+    notes: [
+      "Removed Auto Reconnect",
+    ],
+  },
+  {
     version: "3.2.24",
     date: "2026-06-06",
     notes: [
