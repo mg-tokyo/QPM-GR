@@ -316,6 +316,35 @@ function createOverlay(initialMs: number, onReconnectNow: () => void): OverlayHa
   };
 }
 
+/**
+ * Try to click the game's native reconnect button.
+ *
+ * After a game update the disconnect screen renders a React overlay
+ * ("Playing in another window" / "PLAY HERE INSTEAD") that manages its
+ * own reconnect state.  Clicking the button uses the same code-path the
+ * game uses, ensuring the overlay is dismissed and `connect()` is called
+ * with the correct internal flags (e.g. `reclaimSupersededSession`).
+ */
+function tryClickGameReconnectButton(): boolean {
+  try {
+    const buttons = document.querySelectorAll<HTMLButtonElement>('button');
+    for (const btn of buttons) {
+      // Skip QPM's own overlay buttons
+      if (btn.closest(`#${OVERLAY_ID}`)) continue;
+
+      const text = (btn.textContent ?? '').trim().toLowerCase();
+      if (text.includes('play here') || text === 'reconnect') {
+        btn.click();
+        log('[AutoReconnect] clicked game reconnect button');
+        return true;
+      }
+    }
+  } catch (error) {
+    log('[AutoReconnect] game button click failed', error);
+  }
+  return false;
+}
+
 function tryConnect(attempt: number): void {
   if (!started) return;
   if (!config.enabled) {
@@ -323,11 +352,19 @@ function tryConnect(attempt: number): void {
     return;
   }
 
+  // Prefer the game's native reconnect button — it handles all internal
+  // state (React overlay dismissal, reclaimSupersededSession flag, etc.).
+  if (tryClickGameReconnectButton()) {
+    return;
+  }
+
+  // Fallback: call connect() directly on the RoomConnection.
   const connection = getRoomConnection();
   const connect = connection?.connect;
   if (typeof connect === 'function') {
     try {
       connect.call(connection);
+      log('[AutoReconnect] called connect() directly');
       return;
     } catch (error) {
       log('[AutoReconnect] reconnect call failed', error);

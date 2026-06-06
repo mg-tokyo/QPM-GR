@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.24",
+    date: "2026-06-06",
+    notes: [
+      "Fixed auto reconnect not working after the game added a new disconnect overlay (\"Playing in another window\")",
+    ],
+  },
+  {
     version: "3.2.23",
     date: "2026-06-04",
     notes: [
