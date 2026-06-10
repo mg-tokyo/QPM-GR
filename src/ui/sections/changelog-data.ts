@@ -2,11 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
-    version: "3.2.26",
+    version: "3.2.27",
     date: "2026-06-10",
     notes: [
-      "Fixed garden filters not matching Dawn plants (Daisy, Purple Daisy, Lavender, Ube, Dawnbreaker) and two missing pre-Dawn species (Saffron, Eggplant)",
+      "Fixed garden filters not matching Dawn plants (Daisy, Purple Daisy, Lavender, Ube, Dawnbreaker), Snow plants (Snowdrop, Double Snowdrop, Leek), and two pre-Dawn species (Saffron, Eggplant)",
+      "Fixed garden filters for rare variants (Four-Leaf Clover, Purple Daisy, Double Snowdrop) that share the base plant's view label: tile data fallback now always runs as a safety net",
       "Fixed garden filter cache not refreshing when catalogs load, causing missed matches for new species",
+      "Added species audit to QPM_GARDEN_DIAG() showing static map, catalog, and live PIXI label status for every plant",
       "Added runtime warning when new game species are missing from the garden filter map",
     ],
   },

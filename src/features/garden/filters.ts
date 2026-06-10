@@ -72,6 +72,7 @@ const SPECIES_TO_VIEW: Record<string, string> = {
   'MoonCelestial': 'Moonbinder View',
   'Saffron': 'Saffron Plant View',
   'Eggplant': 'Eggplant Plant View',
+  'Leek': 'Leek Plant View',
   // Dawn content (plant.name from floraSpeciesDex)
   'Lavender': 'Lavender Plant View',
   'Ube': 'Ube Plant View',
@@ -82,6 +83,8 @@ const SPECIES_TO_VIEW: Record<string, string> = {
   'FourLeafClover': 'Four-Leaf Clover View',
   'Daisy': 'Daisy Patch View',
   'PurpleDaisy': 'Purple Daisy View',
+  'Snowdrop': 'Snowdrop Patch View',
+  'SnowdropDouble': 'Double Snowdrop View',
 };
 
 function normalizeMutationFilterKey(raw: unknown): string | null {
@@ -514,8 +517,12 @@ function resetFiltersOnStage(
 
 /**
  * Build the two label sets used for PIXI matching from a list of species keys.
- * speciesToShow — PIXI child labels to match (3 candidates per species).
- * unknownSpeciesToShow — catalog keys that had no static or catalog name, fall back to tile data.
+ * speciesToShow — PIXI child labels to match (best-effort candidates per species).
+ * unknownSpeciesToShow — species keys to verify via tile data when the PIXI fast path misses.
+ *
+ * Every species is added to BOTH sets. The PIXI fast path fires first (no tile data needed).
+ * If the PIXI label is wrong — e.g. rare variants like FourLeafClover that may share the base
+ * plant's View label ('Clover Patch View') — the tile data fallback catches it via tileData.species.
  */
 function buildSpeciesLabelSets(
   species: string[]
@@ -523,20 +530,17 @@ function buildSpeciesLabelSets(
   const speciesToShow = new Set<string>();
   const unknownSpeciesToShow = new Set<string>();
   for (const s of species) {
-    let mapped = false;
     const staticLabel = SPECIES_TO_VIEW[s];
-    if (staticLabel) { speciesToShow.add(staticLabel); mapped = true; }
+    if (staticLabel) { speciesToShow.add(staticLabel); }
     const catalogEntry = getPlantSpecies(s);
     const plantDisplayName = (catalogEntry?.plant as any)?.name as string | undefined;
     if (plantDisplayName) {
-      // PIXI label = plant.name + ' View' (e.g. 'Carrot Plant View', 'Clover Patch View')
       speciesToShow.add(plantDisplayName + ' View');
-      // Also add the older 'Plant View' suffix form as a fallback for resilience
       speciesToShow.add(plantDisplayName + ' Plant View');
-      mapped = true;
     }
     speciesToShow.add(s + ' Plant View');
-    if (!mapped) unknownSpeciesToShow.add(s);
+    // Always add as tile-data fallback — if the PIXI fast path matches, tile data is skipped.
+    unknownSpeciesToShow.add(s);
   }
   return { speciesToShow, unknownSpeciesToShow };
 }
@@ -1083,21 +1087,44 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
     } catch { return 'access-error'; }
   })();
 
-  // 10. Try a direct stage walk to see if we can find Tile nodes
+  // 10. Species audit — cross-reference static map, catalog, and live PIXI labels
+  const catalogKeys = getCatalogPlantSpecies();
+  const allKeys = new Set([...Object.keys(SPECIES_TO_VIEW), ...catalogKeys]);
+  const livePixiLabels = new Set<string>();
   if (app?.stage) {
-    const directTiles: string[] = [];
-    const walk = (node: any, depth: number) => {
-      if (!node || depth > 6 || directTiles.length >= 5) return;
+    const walkLabels = (node: any, depth: number) => {
+      if (!node || depth > 10) return;
       if (node.label && /^Tile \(\d+, \d+\)$/.test(node.label)) {
-        directTiles.push(node.label);
+        const cl = node.children?.[0]?.label;
+        if (cl && cl !== 'Sprite') livePixiLabels.add(cl);
+        return;
       }
       if (node.children) {
-        for (const c of node.children) walk(c, depth + 1);
+        for (const c of node.children) walkLabels(c, depth + 1);
       }
     };
-    walk(app.stage, 0);
-    diag.directTileWalk = { found: directTiles.length, sample: directTiles };
+    walkLabels(app.stage, 0);
   }
+  const speciesAudit: Array<{
+    key: string; staticLabel: string | null; catalogPlantName: string | null;
+    catalogLabel: string | null; inLivePixi: boolean | string;
+  }> = [];
+  for (const key of [...allKeys].sort()) {
+    const staticLabel = SPECIES_TO_VIEW[key] ?? null;
+    const entry = getPlantSpecies(key);
+    const plantName = (entry?.plant as any)?.name as string | undefined ?? null;
+    const catalogLabel = plantName ? plantName + ' View' : null;
+    const expectedLabel = staticLabel ?? catalogLabel;
+    speciesAudit.push({
+      key,
+      staticLabel,
+      catalogPlantName: plantName,
+      catalogLabel,
+      inLivePixi: expectedLabel ? (livePixiLabels.has(expectedLabel) ? '✅' : 'not planted') : 'no label',
+    });
+  }
+  diag.speciesAudit = speciesAudit;
+  diag.livePixiLabels = [...livePixiLabels].sort();
 
   // Pretty-print
   console.group('[QPM] Garden Filters Diagnostics');
