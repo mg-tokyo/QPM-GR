@@ -7,7 +7,7 @@ import { log } from '../../utils/logger';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { getGardenSnapshot, getMapSnapshot } from './bridge';
 import { normalizeMutationName } from '../../utils/game/cropMultipliers';
-import { getAllPlantSpecies as getCatalogPlantSpecies, getEggCatalog, getPlantSpecies } from '../../catalogs/gameCatalogs';
+import { getAllPlantSpecies as getCatalogPlantSpecies, getEggCatalog, getPlantSpecies, onCatalogsReady } from '../../catalogs/gameCatalogs';
 import { pageWindow, isIsolatedContext, shareGlobal } from '../../core/pageContext';
 
 const STORAGE_KEY = 'qpm.gardenFilters.v1';
@@ -70,10 +70,18 @@ const SPECIES_TO_VIEW: Record<string, string> = {
   'Starweaver': 'Starweaver Plant View',
   'DawnCelestial': 'Dawnbinder View',
   'MoonCelestial': 'Moonbinder View',
-  // Clover species — plant.name is 'Clover Patch' / 'Four-Leaf Clover' (no 'Plant' suffix),
+  'Saffron': 'Saffron Plant View',
+  'Eggplant': 'Eggplant Plant View',
+  // Dawn content (plant.name from floraSpeciesDex)
+  'Lavender': 'Lavender Plant View',
+  'Ube': 'Ube Plant View',
+  'Dawnbreaker': 'Dawnbreaker Plant View',
+  // Special variants — plant.name has no 'Plant' suffix or uses an alternate word,
   // so PIXI label is plant.name + ' View', NOT plant.name + ' Plant View'.
   'Clover': 'Clover Patch View',
   'FourLeafClover': 'Four-Leaf Clover View',
+  'Daisy': 'Daisy Patch View',
+  'PurpleDaisy': 'Purple Daisy View',
 };
 
 function normalizeMutationFilterKey(raw: unknown): string | null {
@@ -779,6 +787,19 @@ function stopFilteringPolling(): void {
 export function initializeGardenFilters(): void {
   loadConfig();
   startFilteringPolling();
+
+  // When catalogs arrive (possibly after filters are already cached), invalidate
+  // the cached label sets so the dynamic plant.name lookup gets a second chance.
+  // Also log any catalog species missing from the static SPECIES_TO_VIEW map.
+  onCatalogsReady(() => {
+    cachedFilterSets = null;
+    const catalogKeys = getCatalogPlantSpecies();
+    const missing = catalogKeys.filter(k => !SPECIES_TO_VIEW[k]);
+    if (missing.length > 0) {
+      log(`⚠️ [GARDEN-FILTERS] ${missing.length} catalog species not in static SPECIES_TO_VIEW:`, missing.join(', '));
+    }
+  });
+
   // Expose diagnostic command — always available, not gated by debug globals
   shareGlobal('QPM_GARDEN_DIAG', diagnoseGardenFilters);
   log('✅ [GARDEN-FILTERS] System initialized (run QPM_GARDEN_DIAG() in console for diagnostics)', config);

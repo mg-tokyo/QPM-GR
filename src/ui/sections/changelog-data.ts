@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.26",
+    date: "2026-06-10",
+    notes: [
+      "Fixed garden filters not matching Dawn plants (Daisy, Purple Daisy, Lavender, Ube, Dawnbreaker) and two missing pre-Dawn species (Saffron, Eggplant)",
+      "Fixed garden filter cache not refreshing when catalogs load, causing missed matches for new species",
+      "Added runtime warning when new game species are missing from the garden filter map",
+    ],
+  },
+  {
     version: "3.2.25",
     date: "2026-06-06",
     notes: [
