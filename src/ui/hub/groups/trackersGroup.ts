@@ -37,6 +37,13 @@ function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => vo
           const { renderXpTrackerContent } = await import('../../pets/xpTracker');
           spinner.remove();
           contentCleanup = renderXpTrackerContent(container);
+          // Tour — only in detached window context
+          if (isWindowOpen('trackers-v2-xp')) {
+            import('../../tour').then(({ checkTour, injectReplayButton }) => {
+              checkTour('trackers-v2-xp', container);
+              injectReplayButton('trackers-v2-xp');
+            });
+          }
         } else if (key === 'crops') {
           const { renderCropBoostContent } = await import('../../pets/cropBoostTrackerWindow');
           // renderCropBoostSection overwrites root.style.cssText with overflow-y:auto

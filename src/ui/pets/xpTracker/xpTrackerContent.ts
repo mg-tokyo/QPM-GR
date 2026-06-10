@@ -363,6 +363,7 @@ function createPetCard(
 
       // Time chips row
       const chips = document.createElement('div');
+      chips.className = 'qpm-xp-time-chips';
       chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;align-items:center;';
 
       if (teamXpPerHour > 0) {
@@ -506,6 +507,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
     'color:var(--qpm-text-muted)',
     'flex-shrink:0',
   ].join(';');
+  summaryStrip.dataset.tour = 'xp-summary';
   summaryStrip.textContent = t('common.loading');
   container.appendChild(summaryStrip);
 
@@ -527,6 +529,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   const activeSec = createCollapsible(`🐾 ${t('feature.xpTracker.activePets')}`, true);
   const petCardsContainer = document.createElement('div');
   petCardsContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px 12px 10px;';
+  petCardsContainer.dataset.tour = 'xp-pet-cards';
 
   petCardsContainer.appendChild(createSpinner(t('common.loading')));
 
@@ -535,6 +538,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
 
   // Near Max Level section (collapsed by default)
   const nearMaxSec = createCollapsible(`🏆 ${t('feature.xpTracker.nearMaxLevel')}`, false);
+  nearMaxSec.wrapper.dataset.tour = 'xp-near-max';
   const nearMaxContainer = document.createElement('div');
   nearMaxSec.content.appendChild(nearMaxContainer);
   contentWrap.appendChild(nearMaxSec.wrapper);

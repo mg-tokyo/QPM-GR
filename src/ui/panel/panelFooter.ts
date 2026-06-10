@@ -80,11 +80,30 @@ export function renderPanelFooter(): PanelFooterResult {
     }
   });
 
+  const aboutBtn = document.createElement('button');
+  aboutBtn.type = 'button';
+  aboutBtn.className = 'qpm-panel-footer__icon-btn';
+  aboutBtn.title = t('panel.footer.aboutTooltip');
+  aboutBtn.textContent = 'ℹ\uFE0E';
+  aboutBtn.addEventListener('click', () => {
+    void (async () => {
+      try {
+        const { toggleWindow } = await import('../core/modalWindow');
+        const { renderAboutContent } = await import('../sections/aboutWindow');
+        toggleWindow('about-window', 'ℹ About QPM', (root) => {
+          renderAboutContent(root);
+        }, '320px', '280px');
+      } catch (err) {
+        log('About window failed', err);
+      }
+    })();
+  });
+
   const keybindHint = document.createElement('span');
   keybindHint.className = 'qpm-panel-footer__keybind-hint';
   keybindHint.textContent = IS_MAC ? t('panel.footer.keybindHintMac') : t('panel.footer.keybindHint');
 
-  actions.append(resetBtn, importBtn, exportBtn);
+  actions.append(resetBtn, importBtn, exportBtn, aboutBtn);
   row.append(changelogToggle, keybindHint, actions);
   footer.appendChild(row);
 

@@ -98,6 +98,8 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     border-radius: 8px;
   `;
 
+  header.dataset.tour = 'cropboost-pets';
+
   const petSummary = document.createElement('div');
   petSummary.style.cssText = 'font-size: 14px; font-weight: 600; color: #4CAF50; margin-bottom: 8px;';
   petSummary.textContent = `🐾 ${analysis.totalBoostPets !== 1 ? t('feature.cropBoost.activeBoostPets', { count: String(analysis.totalBoostPets) }) : t('feature.cropBoost.activeBoostPet', { count: String(analysis.totalBoostPets) })}`;
@@ -189,6 +191,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     cursor: pointer;
     transition: all 0.2s;
   `;
+  toggleBtn.dataset.tour = 'cropboost-toggle';
   toggleBtn.textContent = showDetailedView ? `📊 ${t('feature.cropBoost.simpleView')}` : `📈 ${t('feature.cropBoost.detailedView')}`;
   toggleBtn.addEventListener('click', () => {
     showDetailedView = !showDetailedView;
@@ -214,6 +217,8 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
   `;
+
+  statsCard.dataset.tour = 'cropboost-stats';
 
   const statsTitle = document.createElement('div');
   statsTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
@@ -259,6 +264,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
       border-radius: 8px;
     `;
     allCropsCard.setAttribute('data-countdown-section', 'overall');
+    allCropsCard.dataset.tour = 'cropboost-estimate';
 
     const allCropsTitle = document.createElement('div');
     allCropsTitle.style.cssText = 'font-size: 14px; font-weight: 600; color: #FFC107; margin-bottom: 12px;';
@@ -335,6 +341,8 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
   `;
+
+  selectionCard.dataset.tour = 'cropboost-filter';
 
   const selectionTitle = document.createElement('div');
   selectionTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
@@ -689,6 +697,12 @@ export function openCropBoostTrackerWindow(): void {
       }
 
       renderCropBoostSection(root, { preserveScroll: false });
+
+      // Tour system — auto-fire on first open + inject help button
+      import('../tour').then(({ checkTour, injectReplayButton }) => {
+        checkTour('crop-boost-tracker', root);
+        injectReplayButton('crop-boost-tracker');
+      });
     },
     '650px',
     '75vh'

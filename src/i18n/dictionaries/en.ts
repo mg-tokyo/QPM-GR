@@ -54,6 +54,14 @@ const en: Dictionary = {
   'panel.footer.changelogTooltip': 'Show recent QPM changes',
   'panel.footer.keybindHintMac': 'Option + Q to Show/Hide',
   'panel.footer.keybindHint': 'Alt + Q to Show/Hide',
+  'panel.footer.about': 'About',
+  'panel.footer.aboutTooltip': 'About QPM',
+
+  // ── About window ───────────────────────────────────────────────────────────
+  'about.title': 'QPM',
+  'about.author': 'by tokyo.#6464',
+  'about.sponsorText': 'Support QPM on GitHub Sponsors (if u want)',
+  'about.sponsorTooltip': 'Open GitHub Sponsors',
 
   // ── Panel nav / original panel ────────────────────────────────────────────
   'panel.nav.home': 'Home',

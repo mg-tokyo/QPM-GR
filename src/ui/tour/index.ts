@@ -23,6 +23,28 @@ export { openHelpPanel, closeHelpPanel } from './help/panel';
 export async function initTourSystem(): Promise<void> {
   // Tour system disabled pending final QA
   return;
+
+  // eslint-disable-next-line no-unreachable
+  const { registerDiscovery: regDisc, registerHelp: regHelp } = await import('./registry');
+
+  const [
+    { cropBoostTour },
+    { xpTrackerTour },
+  ] = await Promise.all([
+    import('./tours/trackers/cropBoost'),
+    import('./tours/trackers/xpTracker'),
+  ]);
+
+  registerTour(cropBoostTour);
+  registerTour(xpTrackerTour);
+
+  const { cropBoostDiscovery, xpTrackerDiscovery } = await import('./discovery/trackers');
+  regDisc(cropBoostDiscovery);
+  regDisc(xpTrackerDiscovery);
+
+  const { cropBoostHelp, xpTrackerHelp } = await import('./help/trackers');
+  regHelp(cropBoostHelp);
+  regHelp(xpTrackerHelp);
 }
 
 /**

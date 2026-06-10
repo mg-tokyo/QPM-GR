@@ -50,7 +50,7 @@
 4. Verify the QPM panel appears (version shows **3.1.25**)
 
 ### First Launch
-On first launch, a tutorial popup introduces the main features. Dismiss it and explore the panel buttons in the game's HUD.
+On first launch, a guided tour walks through the main features step by step. Each window also has a `?` replay button in its header to re-run the tour at any time.
 
 ---
 

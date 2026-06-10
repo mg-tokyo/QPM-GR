@@ -40,6 +40,9 @@ todo.md
 .superpowers/
 docs/analysis/
 docs/superpowers/
+.claude/
+.claudeignore
+.gitignore
 
 
 # OS files

@@ -205,6 +205,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code conventions, and how to s
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
+## Support
+
+QPM is free and open source, always has been, always will be.
+
+https://github.com/sponsors/mg-tokyo
+
 ## License
 
 [MIT](LICENSE) — Copyright (c) 2025 TOKYO.#6464

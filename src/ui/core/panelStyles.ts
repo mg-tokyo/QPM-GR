@@ -869,6 +869,100 @@ export function ensurePanelStyles(): void {
     border-color: rgba(143, 130, 255, 0.7);
   }
 
+  /* ── Footer icon button ── */
+  .qpm-panel-footer__icon-btn {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(143, 130, 255, 0.055);
+    border: 1px solid rgba(143, 130, 255, 0.22);
+    border-radius: 6px;
+    color: var(--qpm-accent);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  }
+  .qpm-panel-footer__icon-btn:hover {
+    background: rgba(143, 130, 255, 0.11);
+    border-color: rgba(143, 130, 255, 0.38);
+    transform: translateY(-1px);
+  }
+
+  /* ── About window ── */
+  @keyframes qpm-heart-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+  .qpm-about {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .qpm-about__title {
+    font-size: var(--qpm-font-size-lg);
+    font-weight: var(--qpm-font-weight-bold);
+    color: var(--qpm-accent);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .qpm-about__version {
+    font-size: var(--qpm-font-size-sm);
+    font-weight: var(--qpm-font-weight-normal);
+    color: var(--qpm-text-muted);
+  }
+  .qpm-about__author {
+    font-size: var(--qpm-font-size-sm);
+    color: var(--qpm-text);
+  }
+  .qpm-about__sponsor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .qpm-about__sponsor-text {
+    font-size: var(--qpm-font-size-xs);
+    color: var(--qpm-text-muted);
+  }
+  .qpm-about__sponsor-accent {
+    color: var(--qpm-accent);
+  }
+  .qpm-about__heart-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--qpm-surface-2);
+    border: 1px solid rgba(143, 130, 255, 0.22);
+    border-radius: var(--qpm-radius-sm);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+  }
+  .qpm-about__heart-btn:hover {
+    background: var(--qpm-surface-3);
+  }
+  .qpm-about__heart-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: #db61a2;
+  }
+  .qpm-about__heart-btn--pop {
+    animation: qpm-heart-pop 250ms ease-out;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .qpm-tile,
     .qpm-tile-row,
@@ -879,7 +973,8 @@ export function ensurePanelStyles(): void {
       transition: none;
       animation: none;
     }
-    .qpm-tile-placeholder {
+    .qpm-tile-placeholder,
+    .qpm-about__heart-btn--pop {
       animation: none;
     }
   }
