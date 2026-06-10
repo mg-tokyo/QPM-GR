@@ -57,6 +57,65 @@ export const xpTrackerHelp: HelpPanelDefinition = {
   ],
 };
 
+export const turtleTimerHelp: HelpPanelDefinition = {
+  windowId: 'trackers-v2-turtle',
+  groups: [
+    {
+      id: 'timers',
+      label: 'Timers',
+      cards: [
+        {
+          id: 'how-turtle-boosts-work',
+          icon: { kind: 'emoji', value: '\uD83D\uDC22' },
+          title: 'How turtle boosts work',
+          body: 'Turtles with Plant Growth Boost or Egg Growth Boost abilities speed up growing times. Their strength determines the rate — stronger turtles cut more time per hour.',
+          showMeSelector: '[data-tour="turtle-contributions"]',
+        },
+        {
+          id: 'eta-countdown',
+          icon: { kind: 'emoji', value: '\u23F1\uFE0F' },
+          title: 'ETA countdown',
+          body: 'The large timer shows adjusted time remaining with turtle boosts factored in. Below it you can see the natural time without turtles and how many minutes are saved.',
+          showMeSelector: '[data-tour="turtle-dynamic"]',
+        },
+        {
+          id: 'focus-modes',
+          icon: { kind: 'emoji', value: '\uD83C\uDFAF' },
+          title: 'Focus modes',
+          body: 'Latest tracks the last crop to finish, earliest tracks the first. Use specific to pin a single plant or egg and watch its countdown.',
+          showMeSelector: '[data-tour="turtle-focus"]',
+        },
+      ],
+    },
+    {
+      id: 'turtles',
+      label: 'Turtles',
+      cards: [
+        {
+          id: 'contribution-rates',
+          icon: { kind: 'emoji', value: '\u26A1' },
+          title: 'Boost rates',
+          body: 'Each turtle shows minutes saved per hour. Higher-strength turtles contribute more. The combined rate is shown at the top of the list.',
+          showMeSelector: '[data-tour="turtle-contributions"]',
+        },
+        {
+          id: 'hunger-activity',
+          icon: { kind: 'emoji', value: '\uD83C\uDF56' },
+          title: 'Hunger and activity',
+          body: 'Turtles stop boosting when hungry. The hunger column shows each turtle\'s food level — keep them above 2% to maintain the speed boost.',
+        },
+        {
+          id: 'plant-vs-egg',
+          icon: { kind: 'emoji', value: '\uD83E\uDD5A' },
+          title: 'Plants vs eggs',
+          body: 'Plant boost turtles and egg boost turtles work independently. Use the tab bar to switch between them and see separate countdowns.',
+          showMeSelector: '[data-tour="turtle-tabs"]',
+        },
+      ],
+    },
+  ],
+};
+
 export const cropBoostHelp: HelpPanelDefinition = {
   windowId: 'crop-boost-tracker',
   groups: [

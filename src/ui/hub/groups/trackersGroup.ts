@@ -33,6 +33,13 @@ function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => vo
           const { renderTurtleTimerContent } = await import('../../pets/turtleTimerWindow');
           spinner.remove();
           contentCleanup = renderTurtleTimerContent(container);
+          // Tour — only in detached window context
+          if (isWindowOpen('trackers-v2-turtle')) {
+            import('../../tour').then(({ checkTour, injectReplayButton }) => {
+              checkTour('trackers-v2-turtle', container);
+              injectReplayButton('trackers-v2-turtle');
+            });
+          }
         } else if (key === 'xp') {
           const { renderXpTrackerContent } = await import('../../pets/xpTracker');
           spinner.remove();

@@ -18,3 +18,13 @@ export const xpTrackerDiscovery: DiscoveryDefinition = {
     { id: 'time-chips', selector: '.qpm-xp-time-chips' },
   ],
 };
+
+export const turtleTimerDiscovery: DiscoveryDefinition = {
+  windowId: 'trackers-v2-turtle',
+  maxVisible: 2,
+  items: [
+    { id: 'focus', selector: '[data-tour="turtle-focus"]' },
+    { id: 'tabs', selector: '[data-tour="turtle-tabs"]' },
+    { id: 'contributions', selector: '[data-tour="turtle-contributions"]' },
+  ],
+};

@@ -30,21 +30,26 @@ export async function initTourSystem(): Promise<void> {
   const [
     { cropBoostTour },
     { xpTrackerTour },
+    { turtleTimerTour },
   ] = await Promise.all([
     import('./tours/trackers/cropBoost'),
     import('./tours/trackers/xpTracker'),
+    import('./tours/trackers/turtleTimer'),
   ]);
 
   registerTour(cropBoostTour);
   registerTour(xpTrackerTour);
+  registerTour(turtleTimerTour);
 
-  const { cropBoostDiscovery, xpTrackerDiscovery } = await import('./discovery/trackers');
+  const { cropBoostDiscovery, xpTrackerDiscovery, turtleTimerDiscovery } = await import('./discovery/trackers');
   regDisc(cropBoostDiscovery);
   regDisc(xpTrackerDiscovery);
+  regDisc(turtleTimerDiscovery);
 
-  const { cropBoostHelp, xpTrackerHelp } = await import('./help/trackers');
+  const { cropBoostHelp, xpTrackerHelp, turtleTimerHelp } = await import('./help/trackers');
   regHelp(cropBoostHelp);
   regHelp(xpTrackerHelp);
+  regHelp(turtleTimerHelp);
 }
 
 /**

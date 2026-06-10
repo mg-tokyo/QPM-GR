@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.2.28",
+    date: "2026-06-10",
+    notes: [
+      "Added About window with version, author credit, and GitHub Sponsors heart button",
+      "Added info icon button to the panel footer to open the About window",
+      "Added Support section to README",
+    ],
+  },
+  {
     version: "3.2.27",
     date: "2026-06-10",
     notes: [

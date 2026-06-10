@@ -343,6 +343,7 @@ function updateDynamicZone(
   // Turtle contribution list
   if (channel.contributions.length > 0) {
     const contribCard = document.createElement('div');
+    contribCard.dataset.tour = 'turtle-contributions';
     contribCard.style.cssText = [
       'background:var(--qpm-surface-2)',
       'border:1px solid var(--qpm-border)',
@@ -430,6 +431,7 @@ export function renderTurtleTimerContent(container: HTMLElement): () => void {
     'overflow:hidden',
     'text-overflow:ellipsis',
   ].join(';');
+  summaryStrip.dataset.tour = 'turtle-summary';
   summaryStrip.textContent = t('common.loading');
   container.appendChild(summaryStrip);
 
@@ -449,6 +451,7 @@ export function renderTurtleTimerContent(container: HTMLElement): () => void {
       },
     },
   );
+  tabBarRoot.dataset.tour = 'turtle-tabs';
   container.appendChild(tabBarRoot);
 
   // Scroll wrapper with focus + dynamic zones
@@ -460,10 +463,12 @@ export function renderTurtleTimerContent(container: HTMLElement): () => void {
 
   const focusZone = document.createElement('div');
   focusZone.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  focusZone.dataset.tour = 'turtle-focus';
   contentWrap.appendChild(focusZone);
 
   const dynamicZone = document.createElement('div');
   dynamicZone.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  dynamicZone.dataset.tour = 'turtle-dynamic';
   contentWrap.appendChild(dynamicZone);
 
   scrollWrapper.appendChild(contentWrap);
