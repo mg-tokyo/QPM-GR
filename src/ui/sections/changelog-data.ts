@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.1",
+    date: "2026-06-28",
+    notes: [
+      "Improved Garden Painter performance: eliminated redundant scene-graph walks that caused 5+ FPS drops even with few rules",
+      "Fixed Garden Painter running full sprite matching every frame due to pet position and game data updates triggering unnecessary refreshes",
+      "Fixed childAdded feedback loop where overlay sprite creation caused infinite re-apply cycles",
+    ],
+  },
+  {
     version: "3.3.0",
     date: "2026-06-27",
     notes: [

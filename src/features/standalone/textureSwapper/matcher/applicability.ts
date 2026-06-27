@@ -9,10 +9,17 @@ export function normalizeHintForSearch(raw: string): string {
   return raw.trim().toLowerCase().replace(/[_\-./\\]+/g, '');
 }
 
-export function hintContainsTargetId(raw: string, targetIdLower: string): boolean {
+export function buildHintRegex(targetIdLower: string): RegExp | null {
+  if (!targetIdLower) return null;
+  const escaped = targetIdLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, 'i');
+}
+
+export function hintContainsTargetId(raw: string, targetIdLower: string, precompiled?: RegExp | null): boolean {
   if (!targetIdLower) return false;
   const normHint = normalizeHintForSearch(raw);
   if (!normHint) return false;
+  if (precompiled) return precompiled.test(normHint);
   const escaped = targetIdLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, 'i');
   return re.test(normHint);
@@ -27,7 +34,7 @@ function hintLooksLikeMutationAsset(raw: string): boolean {
     || hint.includes('sprite/mutation');
 }
 
-function spriteLooksLikeMutationAsset(spriteKeys: Set<string>, hints: string[]): boolean {
+export function spriteLooksLikeMutationAsset(spriteKeys: Set<string>, hints: string[]): boolean {
   for (const key of spriteKeys) {
     if (key.startsWith('sprite/mutation/') || key.startsWith('sprite/mutation-overlay/')) {
       return true;
@@ -39,12 +46,8 @@ function spriteLooksLikeMutationAsset(spriteKeys: Set<string>, hints: string[]):
   return false;
 }
 
-export function ruleCanApplyToSprite(entry: { rule: TextureOverrideRule }, spriteKeys: Set<string>, hints: string[]): boolean {
-  const mutationSprite = spriteLooksLikeMutationAsset(spriteKeys, hints);
-  const isMutationRule = isMutationSpriteKey(entry.rule.targetSpriteKey);
-  const isPlantBaseRule = isPlantBaseSpriteKey(entry.rule.targetSpriteKey);
-
-  if (isPlantBaseRule && mutationSprite) return false;
-  if (isMutationRule && !mutationSprite) return false;
+export function ruleCanApplyToSprite(entry: { rule: TextureOverrideRule; isMutationRule: boolean; isPlantBaseRule: boolean }, isMutationAsset: boolean): boolean {
+  if (entry.isPlantBaseRule && isMutationAsset) return false;
+  if (entry.isMutationRule && !isMutationAsset) return false;
   return true;
 }

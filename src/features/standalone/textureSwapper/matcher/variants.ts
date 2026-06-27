@@ -45,13 +45,15 @@ function canonicalMutationName(raw: string): string | null {
   return KNOWN_MUTATION_ALIASES[key] ?? null;
 }
 
+const SORTED_MUTATION_PREFIXES = [...new Set([...KNOWN_MUTATION_CANONICAL, ...Object.keys(KNOWN_MUTATION_ALIASES)])]
+  .map((m) => m.toLowerCase())
+  .sort((a, b) => b.length - a.length);
+
 function parseMutationPrefixedSpecies(rawId: string): { speciesKey: string; mutations: string[] } | null {
   let rest = normalizeSpeciesMatchKey(rawId);
   if (!rest) return null;
   const mutations: string[] = [];
-  const sortedPrefixes = [...new Set([...KNOWN_MUTATION_CANONICAL, ...Object.keys(KNOWN_MUTATION_ALIASES)])]
-    .map((m) => m.toLowerCase())
-    .sort((a, b) => b.length - a.length);
+  const sortedPrefixes = SORTED_MUTATION_PREFIXES;
 
   let changed = true;
   while (changed) {

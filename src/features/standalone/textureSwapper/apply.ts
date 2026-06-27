@@ -6,6 +6,7 @@ import {
 import { revertAllLayerB } from './layerB-apply';
 import { destroyAllSpriteOverlays } from './layerB-overlay';
 import { clearAllRuleVariantTextures } from './layerB-variants';
+import { invalidateLayerBRuleIndexCache } from './layerB-prepare';
 
 // ---------------------------------------------------------------------------
 // Texture-swap apply orchestrator
@@ -57,11 +58,7 @@ export function revertAll(): void {
     }
   }
   clearAllRuleVariantTextures();
-  // Defensive: destroy any overlay child sprites that may still be attached.
-  // revertAllLayerB already restored each tracked sprite via the snapshot
-  // path, which calls destroySpriteOverlay — this catches stragglers from
-  // earlier sessions or future code paths that don't go through the
-  // snapshot.
+  invalidateLayerBRuleIndexCache();
   destroyAllSpriteOverlays();
   flushPendingTextureDestroy();
 }

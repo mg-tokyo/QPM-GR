@@ -25,11 +25,11 @@ import {
   extractMutationPrefixedPlantMatchFromKey,
   extractAncestorSpeciesHints,
   normalizeHintForSearch,
-  hintContainsTargetId,
   hintMentionsSlotForSpecies,
   parseSlotIndexFromHint,
   parseSlotContainerHint,
   ruleCanApplyToSprite,
+  spriteLooksLikeMutationAsset,
 } from './matching';
 import { walkSpriteTree, getPixiApp, isTextureRenderable } from './pixi-walk';
 import {
@@ -222,12 +222,9 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
   const slotIndexMemo = new WeakMap<object, 0 | 1 | 2 | null>();
   const svc = ctx.currentSvc;
 
-  // Hoisted above the walk (PR #4 task 16 / audit CRITICAL #3). The order map
-  // depends only on ctx.state.rules and is invariant across the whole pass —
-  // previously rebuilt per matched sprite at O(S × M) iterations + S Map
-  // allocations.
   const stateRulesOrder = new Map<string, number>();
   ctx.state.rules.forEach((r, i) => stateRulesOrder.set(r.id, i));
+  const hintNormCache = new Map<string, string>();
 
   walkSpriteTree(app.stage, (sprite) => {
     // Skip our own per-sprite tint overlays — they share the parent sprite's
@@ -280,12 +277,32 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
       else if (via === 'hintId') hintIdMatchCount++;
     };
 
-    const variant = extractVariantInfoFromTexture(sprite.texture) ?? extractVariantInfoFromSpriteNode(sprite);
-    const plantContext = plantRulesBySpecies.size > 0 ? extractPlantContextFromSprite(sprite, plantCtxMemo) : null;
-    const spriteHints = [
-      ...extractTextureHintStrings(sprite.texture),
-      ...extractSpriteHintStrings(sprite),
-    ];
+    // Lazy extraction — expensive data only computed on first access.
+    // Most sprites fail Strategy 1 and never need hints/variant/plantContext.
+    let _variant: SpriteVariantInfo | null | undefined;
+    const getVariant = (): SpriteVariantInfo | null => {
+      if (_variant === undefined) {
+        _variant = extractVariantInfoFromTexture(sprite.texture) ?? extractVariantInfoFromSpriteNode(sprite);
+      }
+      return _variant;
+    };
+    let _plantContext: PlantSpriteContext | null | undefined;
+    const getPlantContext = (): PlantSpriteContext | null => {
+      if (_plantContext === undefined) {
+        _plantContext = plantRulesBySpecies.size > 0 ? extractPlantContextFromSprite(sprite, plantCtxMemo) : null;
+      }
+      return _plantContext;
+    };
+    let _spriteHints: string[] | null = null;
+    const getSpriteHints = (): string[] => {
+      if (!_spriteHints) {
+        _spriteHints = [
+          ...extractTextureHintStrings(sprite.texture),
+          ...extractSpriteHintStrings(sprite),
+        ];
+      }
+      return _spriteHints;
+    };
     const spriteKeys = new Set<string>(extractTextureSpriteKeys(sprite.texture));
     for (const key of extractSpriteNodeSpriteKeys(sprite)) {
       spriteKeys.add(key);
@@ -302,6 +319,15 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
         spriteKeys.add(key);
       }
     }
+    // Cache mutation-asset classification once per sprite (was recomputed per
+    // (sprite, rule) pair in ruleCanApplyToSprite).
+    let _isMutationAsset: boolean | undefined;
+    const isMutationAsset = (): boolean => {
+      if (_isMutationAsset === undefined) {
+        _isMutationAsset = spriteLooksLikeMutationAsset(spriteKeys, getSpriteHints());
+      }
+      return _isMutationAsset;
+    };
 
     // Strategy 1: direct sprite key match — record every rule whose targetKeys
     // contain this sprite key (previously first-wins; see ruleBySpriteKey
@@ -310,10 +336,10 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
       const byKey = ruleBySpriteKey.get(key);
       if (!byKey) continue;
       for (const entry of byKey) {
-        if (ruleCanApplyToSprite(entry, spriteKeys, spriteHints)) {
+        if (ruleCanApplyToSprite(entry, isMutationAsset())) {
           recordMatch(entry);
         }
-        if (isPlantBaseSpriteKey(entry.rule.targetSpriteKey)) {
+        if (entry.isPlantBaseRule) {
           skippedMutationOverlayForBaseRule++;
         }
       }
@@ -325,30 +351,33 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
       if (sig) {
         const bySig = rulesByFrameSig.get(sig);
         if (bySig) for (const entry of bySig) {
-          if (ruleCanApplyToSprite(entry, spriteKeys, spriteHints)) recordMatch(entry);
+          if (ruleCanApplyToSprite(entry, isMutationAsset())) recordMatch(entry);
         }
       }
     }
 
     // Strategy 3: variant key match
-    if (variant?.baseKey) {
-      const variantBaseKey = normalizeSpriteKeyCandidate(variant.baseKey)?.toLowerCase() ?? null;
-      if (variantBaseKey) {
-        const byVariantKey = ruleBySpriteKey.get(variantBaseKey);
-        if (byVariantKey) {
-          for (const entry of byVariantKey) {
-            if (ruleCanApplyToSprite(entry, spriteKeys, spriteHints)) {
-              recordMatch(entry);
+    {
+      const variant = getVariant();
+      if (variant?.baseKey) {
+        const variantBaseKey = normalizeSpriteKeyCandidate(variant.baseKey)?.toLowerCase() ?? null;
+        if (variantBaseKey) {
+          const byVariantKey = ruleBySpriteKey.get(variantBaseKey);
+          if (byVariantKey) {
+            for (const entry of byVariantKey) {
+              if (ruleCanApplyToSprite(entry, isMutationAsset())) {
+                recordMatch(entry);
+              }
             }
           }
         }
-      }
-      const { id: variantId } = parseAtlasKey(variant.baseKey);
-      const normalizedVariantId = variantId.toLowerCase();
-      if (normalizedVariantId) {
-        for (const entry of ruleList) {
-          if (entry.targetIdLower === normalizedVariantId && ruleCanApplyToSprite(entry, spriteKeys, spriteHints)) {
-            recordMatch(entry);
+        const { id: variantId } = parseAtlasKey(variant.baseKey);
+        const normalizedVariantId = variantId.toLowerCase();
+        if (normalizedVariantId) {
+          for (const entry of ruleList) {
+            if (entry.targetIdLower === normalizedVariantId && ruleCanApplyToSprite(entry, isMutationAsset())) {
+              recordMatch(entry);
+            }
           }
         }
       }
@@ -361,10 +390,13 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
     // sprites and mask the species-specific rule the user actually wants.
     // Live-overlay paths are handled by Strategy 1 (tex.label) and Strategy 6
     // (crop-slot pattern).
-    if (plantContext?.speciesKey) {
-      const byPlantCtx = plantRulesBySpecies.get(plantContext.speciesKey) ?? null;
-      if (byPlantCtx && !byPlantCtx.isLiveOverlay && ruleCanApplyToSprite(byPlantCtx, spriteKeys, spriteHints)) {
-        recordMatch(byPlantCtx, 'plantContext');
+    {
+      const plantContext = getPlantContext();
+      if (plantContext?.speciesKey) {
+        const byPlantCtx = plantRulesBySpecies.get(plantContext.speciesKey) ?? null;
+        if (byPlantCtx && !byPlantCtx.isLiveOverlay && ruleCanApplyToSprite(byPlantCtx, isMutationAsset())) {
+          recordMatch(byPlantCtx, 'plantContext');
+        }
       }
     }
 
@@ -375,7 +407,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
         if (!prefixed) continue;
         const bySpecies = plantRulesBySpecies.get(prefixed.speciesKey);
         if (!bySpecies) continue;
-        if (!ruleCanApplyToSprite(bySpecies, spriteKeys, spriteHints)) continue;
+        if (!ruleCanApplyToSprite(bySpecies, isMutationAsset())) continue;
         recordMatch(bySpecies, 'mutationPrefix');
         if (inferredMutations.length === 0) inferredMutations = prefixed.mutations;
       }
@@ -400,85 +432,70 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
     // the optional rule.slotIndex. Non-crop rules of any kind are rejected
     // for that specific hint, but other hints in the same hintsForEntry list
     // still get checked.
-    if (spriteHints.length > 0) {
-      const closestLabelHintsCache = extractSpriteClosestLabelHints(sprite);
-      // Non-live (texture-swap) rules skip NineSlice / TilingSprite at this
-      // strategy: the hint scope is the full ancestor walk, so an inventory
-      // slot's NineSliceSprite background trivially picks up the parent
-      // InventoryItemView(Daisy) label and gets the customTex tiled across
-      // the panel. Live-overlay rules still apply — tint/scale/alpha on a
-      // 9-slice is well-defined and harmless.
-      const spriteRejectsNonLiveSwap = isNineSliceOrTiledSprite(sprite);
-      for (const entry of ruleList) {
-        if (matchedIds.has(entry.rule.id)) continue;
-        if (!ruleCanApplyToSprite(entry, spriteKeys, spriteHints)) continue;
-        if (spriteRejectsNonLiveSwap && !entry.isLiveOverlay) continue;
-        // Live-overlay rules normally use the closest-labeled-ancestor hint
-        // scope to prevent a platform's tint rule from cascading onto child
-        // crop sprites. For Rive PET sprites that cascade concern doesn't
-        // apply (no child crops underneath a pet), and the closest labeled
-        // ancestor sits ABOVE the pet name in the container hierarchy, so the
-        // narrow scope misses every tint/scale/transparency rule. Use the
-        // broader spriteHints scope for Rive sprites instead.
-        const hintsForEntry = entry.isLiveOverlay && !isRive
-          ? closestLabelHintsCache
-          : spriteHints;
-        if (hintsForEntry.length === 0) continue;
-        const targetKey = entry.rule.targetSpriteKey.toLowerCase();
-        let hit: 'targetKey' | 'hintId' | null = null;
-        for (const hint of hintsForEntry) {
-          const slot = parseSlotContainerHint(hint);
-          if (slot) {
-            // Slot containers hold crops of the parent plant's family.
-            if (!entry.endsWithCrop) continue;
-            const root = entry.targetSpeciesLower;
-            if (!root) continue;
-            const slotSpecies = slot.plantSpeciesLower;
-            const familyMatch = slotSpecies === root
-              || slotSpecies === `${root}plant`
-              || slotSpecies === `${root}tallplant`;
-            if (!familyMatch) continue;
-            const wantedIdx = entry.rule.slotIndex;
-            if (wantedIdx != null && wantedIdx !== slot.slotIndex) continue;
-            hit = 'hintId';
-            break;
-          }
-          const normalizedHint = normalizeHintForSearch(hint);
-          if (normalizedHint.includes(targetKey)) { hit = 'targetKey'; break; }
-          if (hintContainsTargetId(hint, entry.targetIdLower)) { hit = 'hintId'; break; }
-          if (entry.targetSpeciesLower !== entry.targetIdLower && hintContainsTargetId(hint, entry.targetSpeciesLower)) {
-            hit = 'hintId';
-            break;
-          }
-          // Defensive fallback for any future label form that still uses the
-          // crop species directly (e.g. `${cropSpecies} slot-N`). Current
-          // GrowingCropVisual uses the plant species, which the slot-container
-          // gate above handles — this branch never fires on present beta, but
-          // keeps the matcher robust to label-format changes.
-          if (
-            entry.isLiveOverlay
-            && entry.endsWithCrop
-            && entry.targetSpeciesLower
-            && hintMentionsSlotForSpecies(hint, entry.targetSpeciesLower)
-          ) {
-            const wantedIdx = entry.rule.slotIndex;
-            if (wantedIdx != null) {
-              const idx = parseSlotIndexFromHint(hint, entry.targetSpeciesLower);
-              if (idx !== wantedIdx) continue;
+    {
+      const spriteHints = getSpriteHints();
+      if (spriteHints.length > 0) {
+        const closestLabelHintsCache = extractSpriteClosestLabelHints(sprite);
+        const spriteRejectsNonLiveSwap = isNineSliceOrTiledSprite(sprite);
+        for (const entry of ruleList) {
+          if (matchedIds.has(entry.rule.id)) continue;
+          if (!ruleCanApplyToSprite(entry, isMutationAsset())) continue;
+          if (spriteRejectsNonLiveSwap && !entry.isLiveOverlay) continue;
+          const hintsForEntry = entry.isLiveOverlay && !isRive
+            ? closestLabelHintsCache
+            : spriteHints;
+          if (hintsForEntry.length === 0) continue;
+          const targetKey = entry.rule.targetSpriteKey.toLowerCase();
+          let hit: 'targetKey' | 'hintId' | null = null;
+          for (const hint of hintsForEntry) {
+            const slot = parseSlotContainerHint(hint);
+            if (slot) {
+              if (!entry.endsWithCrop) continue;
+              const root = entry.targetSpeciesLower;
+              if (!root) continue;
+              const slotSpecies = slot.plantSpeciesLower;
+              const familyMatch = slotSpecies === root
+                || slotSpecies === `${root}plant`
+                || slotSpecies === `${root}tallplant`;
+              if (!familyMatch) continue;
+              const wantedIdx = entry.rule.slotIndex;
+              if (wantedIdx != null && wantedIdx !== slot.slotIndex) continue;
+              hit = 'hintId';
+              break;
             }
-            hit = 'hintId';
-            break;
+            let cachedNorm = hintNormCache.get(hint);
+            if (cachedNorm === undefined) {
+              cachedNorm = normalizeHintForSearch(hint);
+              hintNormCache.set(hint, cachedNorm);
+            }
+            if (cachedNorm.includes(targetKey)) { hit = 'targetKey'; break; }
+            if (entry.targetIdRegex && entry.targetIdRegex.test(cachedNorm)) { hit = 'hintId'; break; }
+            if (entry.targetSpeciesRegex && entry.targetSpeciesRegex.test(cachedNorm)) {
+              hit = 'hintId';
+              break;
+            }
+            if (
+              entry.isLiveOverlay
+              && entry.endsWithCrop
+              && entry.targetSpeciesLower
+              && hintMentionsSlotForSpecies(hint, entry.targetSpeciesLower)
+            ) {
+              const wantedIdx = entry.rule.slotIndex;
+              if (wantedIdx != null) {
+                const idx = parseSlotIndexFromHint(hint, entry.targetSpeciesLower);
+                if (idx !== wantedIdx) continue;
+              }
+              hit = 'hintId';
+              break;
+            }
           }
+          if (hit === 'targetKey') recordMatch(entry);
+          else if (hit === 'hintId') recordMatch(entry, 'hintId');
         }
-        if (hit === 'targetKey') recordMatch(entry);
-        else if (hit === 'hintId') recordMatch(entry, 'hintId');
       }
     }
 
     // Strategy 7: ancestor species match — texture-replacement rules only.
-    // NineSlice / TilingSprite are excluded here too: this strategy walks the
-    // ancestor chain for any species token, and chrome sprites inside an
-    // ItemView container would otherwise get the customTex tiled into them.
     {
       const speciesHints = extractAncestorSpeciesHints(sprite);
       if (speciesHints.length > 0 && !isNineSliceOrTiledSprite(sprite)) {
@@ -486,7 +503,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
           if (entry.isLiveOverlay) continue;
           if (matchedIds.has(entry.rule.id)) continue;
           if (!speciesHints.includes(entry.targetIdLower) && !speciesHints.includes(entry.targetSpeciesLower)) continue;
-          if (!ruleCanApplyToSprite(entry, spriteKeys, spriteHints)) continue;
+          if (!ruleCanApplyToSprite(entry, isMutationAsset())) continue;
           recordMatch(entry);
         }
       }
@@ -517,9 +534,10 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
       // rule matched but the sprite has a mutation variant and there are
       // mutation-asset rules elsewhere, rebuild the variant texture so the
       // mutation visuals composite correctly.
-      if (hasMutationAssetRules && svc && variant && variant.mutations.length > 0) {
-        const cacheKey = `mutation-only|${ctx.ruleRevision}|${variant.baseKey}|${variant.sig}`;
-        const nextTexture = buildVariantTextureForStage(cacheKey, variant.baseKey, variant.mutations, svc);
+      const mutVariant = hasMutationAssetRules ? getVariant() : null;
+      if (hasMutationAssetRules && svc && mutVariant && mutVariant.mutations.length > 0) {
+        const cacheKey = `mutation-only|${ctx.ruleRevision}|${mutVariant.baseKey}|${mutVariant.sig}`;
+        const nextTexture = buildVariantTextureForStage(cacheKey, mutVariant.baseKey, mutVariant.mutations, svc);
         if (nextTexture && isTextureRenderable(nextTexture)) {
           if (!ctx.layerBOriginals.has(sprite)) {
             ctx.layerBOriginals.set(sprite, {
@@ -657,9 +675,11 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
           // replacement rules → the later one's texture wins (last write to
           // sprite.texture).
           const behavior = entry.rule.mutationBehavior ?? 'preserve';
-          const preserveMutations = variant?.mutations.length
-            ? variant.mutations
-            : (plantContext?.mutations.length ? plantContext.mutations : inferredMutations);
+          const v = getVariant();
+          const pc = getPlantContext();
+          const preserveMutations = v?.mutations.length
+            ? v.mutations
+            : (pc?.mutations.length ? pc.mutations : inferredMutations);
           // Asset-family variant detection — Phase C of the 2026-06-27 work.
           // When the rule was matched via a family-variant sprite key (e.g.
           // rule on DawnCelestialPlant matched DawnCelestialPlantActive after
@@ -672,7 +692,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
               ? findMatchedFamilyVariantKey(spriteKeys, entry.familyVariantKeyByLower)
               : null;
           const preserveBaseKey =
-            variant?.baseKey ?? matchedFamilyVariantKey ?? entry.rule.targetSpriteKey;
+            v?.baseKey ?? matchedFamilyVariantKey ?? entry.rule.targetSpriteKey;
           const cosmeticMutations = entry.rule.cosmeticMutations ?? [];
           let nextTexture: any | null = null;
           if (entry.rule.forceNoMutations && svc) {

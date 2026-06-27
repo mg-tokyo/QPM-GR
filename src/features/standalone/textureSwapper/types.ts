@@ -15,7 +15,7 @@ export const TEXTURE_MANIPULATOR_ENABLED = true;
 export const UPLOADS_ENABLED = true;
 export const MAX_UPLOAD_BYTES = 512 * 1024;
 export const COMPRESS_SIZE = 256;
-export const LAYER_B_REFRESH_DELAYS_MS = [0, 300, 1200, 3000, 7000] as const;
+export const LAYER_B_REFRESH_DELAYS_MS = [0, 500, 2500] as const;
 export const MAX_WALK_DEPTH = 25;
 
 export const SPRITE_KEY_EXT_RE = /\.(png|webp|avif|jpg|jpeg|ktx2)$/i;
@@ -210,8 +210,8 @@ export const ctx = {
   scaledSpriteTargets: new WeakMap<object, { sx: number; sy: number }>(),
   scaleAsserterCallback: null as (() => void) | null,
 
-  objectIdentity: new WeakMap<object, number>(),
-  nextObjectIdentity: 1,
+  layerBStructureDirty: false,
+  suppressChildAdded: false,
 
   contextRevision: 0,
   debugEnabled: false,

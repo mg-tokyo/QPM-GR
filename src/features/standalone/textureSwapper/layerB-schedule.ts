@@ -23,14 +23,10 @@ function maybeApplyLayerB(rules: TextureOverrideRule[], force = false): void {
     if (ctx.layerBModified.length > 0) {
       revertAllLayerB();
     } else {
-      // Rive sprites are never in layerBModified (they bypass the standard
-      // snapshot/restore loop), so revertAllLayerB wouldn't be called above
-      // when only Rive state is dirty. Call directly so Reset All Rules
-      // clears Rive scale multipliers / overlays even with no non-Rive
-      // modifications to revert.
       revertAllRiveOverlays();
     }
     ctx.lastLayerBApplyToken = `empty|${ctx.ruleRevision}`;
+    ctx.layerBStructureDirty = false;
     return;
   }
 
@@ -41,15 +37,20 @@ function maybeApplyLayerB(rules: TextureOverrideRule[], force = false): void {
       ctx.lastLayerBApplyToken = noStageToken;
       if (force) applyAllLayerB(rules);
     }
+    ctx.layerBStructureDirty = false;
     return;
   }
 
-  const beforeToken = buildLayerBApplyToken(rules, app.stage);
-  if (!force && beforeToken && beforeToken === ctx.lastLayerBApplyToken) return;
+  const token = buildLayerBApplyToken(rules);
+  const dirty = ctx.layerBStructureDirty;
+  ctx.layerBStructureDirty = false;
 
+  if (!force && !dirty && token === ctx.lastLayerBApplyToken) return;
+
+  ctx.suppressChildAdded = true;
   applyAllLayerB(rules);
-  const afterToken = buildLayerBApplyToken(rules, app.stage);
-  ctx.lastLayerBApplyToken = afterToken ?? beforeToken ?? `${ctx.ruleRevision}|unknown`;
+  ctx.suppressChildAdded = false;
+  ctx.lastLayerBApplyToken = buildLayerBApplyToken(rules);
 }
 
 export function clearLayerBRefreshTimers(): void {
@@ -114,7 +115,11 @@ export function initStageChildAddedHook(): () => void {
   if (stageHookCleanup) return stageHookCleanup;
   const app = getPixiApp();
   if (!app?.stage) return () => {};
-  const onChildAdded = (): void => { refreshLayerBNow(); };
+  const onChildAdded = (): void => {
+    if (ctx.suppressChildAdded) return;
+    ctx.layerBStructureDirty = true;
+    refreshLayerBNow();
+  };
   app.stage.on?.('childAdded', onChildAdded);
   stageHookCleanup = () => {
     app.stage.off?.('childAdded', onChildAdded);

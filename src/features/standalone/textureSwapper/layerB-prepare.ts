@@ -17,6 +17,7 @@ import {
   makeFrameSignature,
   extractTextureSpriteKeys,
   buildRuntimeTextureRefKeyMap,
+  buildHintRegex,
 } from './matching';
 import { isLiveOverlayRule } from './layerB-overlay';
 import { isTextureRenderable } from './pixi-walk';
@@ -58,6 +59,10 @@ export interface RuleEntry {
    * assetFamily.ts for the mapping source.
    */
   familyVariantKeyByLower: Map<string, string>;
+  isMutationRule: boolean;
+  isPlantBaseRule: boolean;
+  targetIdRegex: RegExp | null;
+  targetSpeciesRegex: RegExp | null;
 }
 
 export interface LayerBRuleIndex {
@@ -69,28 +74,27 @@ export interface LayerBRuleIndex {
   hasMutationAssetRules: boolean;
 }
 
+let cachedIndex: LayerBRuleIndex | null = null;
+let cachedRevision = -1;
+
+export function invalidateLayerBRuleIndexCache(): void {
+  cachedIndex = null;
+  cachedRevision = -1;
+}
+
 /**
  * Build the per-rule index Layer B uses to match sprites against rules.
- * Returns null when no rules are applicable (the empty case the apply loop
- * was already short-circuiting on).
- *
- * Pipeline:
- *   1. For each rule, resolve its origTex + customTex (skip rules whose
- *      texture cache is missing) and accumulate every cache key the texture
- *      is reachable under (including animation-frame keys).
- *   2. Build ruleBySpriteKey: a key → rules[] map so Strategy 1 can match
- *      directly by sprite key.
- *   3. Build rulesByFrameSig: a frame-signature → rules[] map so Strategy 2
- *      can match by texture frame coords (handles unlabeled / mid-anim sprites).
- *   4. Build plantRulesBySpecies: a species → rule map so Strategy 4 can
- *      match plant base sprites by their species-normalized key.
- *   5. Build runtimeRefKeys: walks the PIXI cache once and indexes every
- *      texture container so Strategy 5 can resolve runtime refs.
+ * Cached on ctx.ruleRevision — burst ticks 2+ reuse the index from tick 1.
+ * Returns null when no rules are applicable.
  */
 export function buildLayerBRuleIndex(
   rules: ReadonlyArray<TextureOverrideRule>,
 ): LayerBRuleIndex | null {
   if (rules.length === 0) return null;
+
+  if (cachedIndex && cachedRevision === ctx.ruleRevision) {
+    return cachedIndex;
+  }
 
   const ruleList: RuleEntry[] = [];
   for (const rule of rules) {
@@ -215,18 +219,23 @@ export function buildLayerBRuleIndex(
     }
 
     const targetIdLower = parseAtlasKey(rule.targetSpriteKey).id.toLowerCase();
+    const targetSpeciesLower = targetIdLower.replace(/(seed|plant|baby|fruit|crop)$/i, '');
     ruleList.push({
       origTex,
       origSig: makeFrameSignature(origTex),
       targetKeys,
       targetIdLower,
       targetMatchKey: normalizeSpeciesMatchKey(parseAtlasKey(rule.targetSpriteKey).id),
-      targetSpeciesLower: targetIdLower.replace(/(seed|plant|baby|fruit|crop)$/i, ''),
+      targetSpeciesLower,
       rule,
       customTex,
       isLiveOverlay: isLive,
       endsWithCrop: targetIdLower.endsWith('crop'),
       familyVariantKeyByLower,
+      isMutationRule: isMutationSpriteKey(rule.targetSpriteKey),
+      isPlantBaseRule: isPlantBaseSpriteKey(rule.targetSpriteKey),
+      targetIdRegex: buildHintRegex(targetIdLower),
+      targetSpeciesRegex: targetSpeciesLower !== targetIdLower ? buildHintRegex(targetSpeciesLower) : null,
     });
   }
 
@@ -269,7 +278,7 @@ export function buildLayerBRuleIndex(
 
   const runtimeRefKeys = buildRuntimeTextureRefKeyMap();
 
-  return {
+  const result: LayerBRuleIndex = {
     ruleList,
     ruleBySpriteKey,
     rulesByFrameSig,
@@ -277,4 +286,7 @@ export function buildLayerBRuleIndex(
     runtimeRefKeys,
     hasMutationAssetRules,
   };
+  cachedIndex = result;
+  cachedRevision = ctx.ruleRevision;
+  return result;
 }

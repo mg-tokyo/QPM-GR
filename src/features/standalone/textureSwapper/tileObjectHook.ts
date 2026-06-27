@@ -7,11 +7,16 @@ export function initTileObjectHook(): () => void {
   let unsub: (() => void) | null = null;
   let disposed = false;
   let firstFire = true;
+  let debounceTimer = 0;
 
   void subscribeAtomValue('myData', () => {
     if (firstFire) { firstFire = false; return; }
-    ctx.contextRevision++;
-    refreshLayerBNow();
+    if (debounceTimer) return;
+    debounceTimer = window.setTimeout(() => {
+      debounceTimer = 0;
+      ctx.contextRevision++;
+      refreshLayerBNow();
+    }, 2000);
   }).then((cleanup) => {
     if (disposed) { cleanup?.(); return; }
     unsub = cleanup;
@@ -19,12 +24,17 @@ export function initTileObjectHook(): () => void {
 
   return () => {
     disposed = true;
+    if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = 0; }
     unsub?.();
   };
 }
 
 export function initPetSwapHook(): () => void {
-  return onActivePetInfos(() => {
+  let lastPetIdKey = '';
+  return onActivePetInfos((infos) => {
+    const key = infos.map((p) => p.petId).sort().join(',');
+    if (key === lastPetIdKey) return;
+    lastPetIdKey = key;
     ctx.contextRevision++;
     refreshLayerBNow();
   }, false);
