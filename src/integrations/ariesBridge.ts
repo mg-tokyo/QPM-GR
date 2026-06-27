@@ -2,8 +2,12 @@
 // Exposes lightweight data snapshots for Aries Mod to consume (pet teams)
 
 import { getActivePetInfos } from '../store/pets';
-import { log } from '../utils/logger';
+import { createNamedLogger } from '../diagnostics/logger';
+import { healthBus } from '../diagnostics/healthBus';
 import { shareGlobal } from '../core/pageContext';
+
+const ariesLog = createNamedLogger('integrationAries');
+let busRegistered = false;
 
 export type AriesBridgeTeam = {
   id: string;
@@ -125,8 +129,9 @@ export function readTeamsFromLocalStorage(): AriesBridgeTeam[] {
         });
       });
     } catch (error) {
-      // ignore parse errors
-      log('⚠️ AriesBridge: failed parsing team storage', error);
+      // Most TEAM_STORAGE_KEYS won't be present; parse failures are expected.
+      // Keep at debug so verbose-logs surfaces them but the bus stays clean.
+      ariesLog.debug('failed parsing team storage', { key, error: String(error) });
     }
   });
   return teams;
@@ -153,14 +158,32 @@ function buildTeamsPayload(): AriesBridgeTeam[] {
 }
 
 export function exposeAriesBridge(): void {
+  if (!busRegistered) {
+    healthBus.register('integrationAries', {
+      category: 'integration',
+      status: 'starting',
+      message: 'Exposing bridge',
+    });
+    busRegistered = true;
+  }
+
   const payload = {
     getTeams: (): AriesBridgeTeam[] => buildTeamsPayload(),
   };
 
   try {
     shareGlobal('QPM_ARIES_BRIDGE', payload);
-    log('✅ AriesBridge: exposed QPM_ARIES_BRIDGE with teams');
+    // Sample the team count once at expose time so Diagnostics has something
+    // to show. The bridge function itself is read-on-demand by consumers.
+    const teamCount = buildTeamsPayload().length;
+    ariesLog.info('exposed QPM_ARIES_BRIDGE', { teams: teamCount });
+    healthBus.publish({
+      subsystem: 'integrationAries',
+      status: 'ok',
+      message: 'Bridge exposed',
+      metrics: { teams: teamCount },
+    });
   } catch (error) {
-    log('⚠️ AriesBridge: failed to expose bridge', error);
+    ariesLog.error('QPM-ARIES-001', { what: 'expose' }, error);
   }
 }

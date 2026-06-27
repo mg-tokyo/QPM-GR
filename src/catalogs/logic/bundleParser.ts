@@ -121,6 +121,32 @@ export function extractBalancedBlock(text: string, openBraceIndex: number): stri
 }
 
 /**
+ * Extract balanced array literal from text starting at open bracket index.
+ */
+export function extractBalancedArray(text: string, openBracketIndex: number): string | null {
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+
+  for (let i = openBracketIndex; i < text.length; i += 1) {
+    const ch = text[i];
+
+    if (quote) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === quote) quote = '';
+      continue;
+    }
+
+    if (ch === '"' || ch === '\'' || ch === '`') { quote = ch; continue; }
+    if (ch === '[') depth += 1;
+    else if (ch === ']' && --depth === 0) return text.slice(openBracketIndex, i + 1);
+  }
+
+  return null;
+}
+
+/**
  * Extract balanced object literal from text starting near an anchor index.
  * Looks backward for const/let/var assignment and returns the object block.
  */

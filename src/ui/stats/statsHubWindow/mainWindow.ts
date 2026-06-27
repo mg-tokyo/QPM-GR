@@ -97,15 +97,24 @@ export function renderStatsHub(root: HTMLElement): void {
   gardenBtn.addEventListener('click', () => setActiveTab('garden'));
   economyBtn.addEventListener('click', () => setActiveTab('economy'));
 
-  // Cleanup subscriptions when window is removed from DOM
-  const observer = new MutationObserver(() => {
-    if (!document.contains(root)) {
-      gardenCleanup?.();
-      economyCleanup?.();
-      observer.disconnect();
+  // Cleanup subscriptions when window is closed; re-render on restore
+  const WINDOW_ID = 'stats-hub';
+  let needsRebuild = false;
+  const onWindowClosed = (e: Event) => {
+    if ((e as CustomEvent).detail?.id !== WINDOW_ID) return;
+    gardenCleanup?.(); gardenCleanup = null;
+    economyCleanup?.(); economyCleanup = null;
+    needsRebuild = true;
+  };
+  const onWindowRestored = (e: Event) => {
+    if ((e as CustomEvent).detail?.id !== WINDOW_ID) return;
+    if (needsRebuild) {
+      needsRebuild = false;
+      setActiveTab(activeTab);
     }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  };
+  window.addEventListener('qpm:window-closed', onWindowClosed);
+  window.addEventListener('qpm:window-restored', onWindowRestored);
 
   setActiveTab(activeTab);
 

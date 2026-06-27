@@ -1,21 +1,11 @@
 // src/ui/panel/tileStatuses.ts
-// Status helpers, defaults, new tile status updaters, and the orchestrator.
+// Status helpers, version tracking, and the orchestrator.
 
-import { getAllTileDefinitions } from './tileRegistry';
-import { t } from '../../i18n';
-import {
-  startPetDerivedStatuses,
-  startPublicRoomsStatus,
-  startShopRestockStatus,
-  startJournalStatus,
-  startTurtleTimerStatus,
-  startCropBoostStatus,
-  startValueDisplayStatus,
-  startActivityLogStatus,
-  startProtectionStatus,
-  startCropCalculatorStatus,
-  startControllerStatus,
-} from './tileStatusesCore';
+import { getAllTileDefinitions, getMultiTileProviders } from './tileRegistry';
+import { registerTileStatusesBusEntry } from './tileHealth';
+
+// Re-export shared types from canonical location
+export type { GetStatusEl, AddLiveCleanup } from './tileStatusTypes';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,11 +20,8 @@ export type RestockTileItem = {
   predicted_next_ms?: number | null;
 };
 
-export type GetStatusEl = (tileId: string) => HTMLElement | null;
-export type AddLiveCleanup = (version: number, cleanup: () => void) => void;
-
 // ---------------------------------------------------------------------------
-// Version tracking (shared with tileStatusesCore)
+// Version tracking (shared with tileStatusesCore / tileStatusesNew)
 // ---------------------------------------------------------------------------
 
 let currentVersion = 0;
@@ -42,39 +29,6 @@ let currentVersion = 0;
 export function getCurrentVersion(): number {
   return currentVersion;
 }
-
-// ---------------------------------------------------------------------------
-// Default status strings (shown before live data loads)
-// ---------------------------------------------------------------------------
-
-const TILE_STATUS_DEFAULTS: Record<string, string> = {
-  // Existing tiles
-  'pet-teams': '0 active / 0 teams / 0 slots',
-  'shop-restock': '0 tracked / 0 due',
-  'public-rooms': '0 rooms / 0 players',
-  'journal-checker': '0% / catalog loading',
-  'ability-tracker': '0 abilities / 0.0 procs/hr',
-  'xp-tracker': '0 XP skills / 0 XP/hr',
-  'turtle-timer': '0 turtles / 0 crops / 0 eggs',
-  'crop-boosts': '0 boosters / 0 crops / ETA n/a',
-  'value-display': '0/4 surfaces / 0 inv / 0 coins',
-  'activity-log': '0 saved / 0 replay / watching',
-  'locker': 'locker off / 0 slots / 0 fav',
-  'crop-calculator': '0 crops / 0 pets / catalogs loading',
-  'controller': '0 binds / medium / no gamepad',
-  // New tiles
-  'garden-filters': 'Off / 0 filters',
-  'reminders': '0 ready / 0 pending',
-  'garden-stats': '0 species / $0',
-  'favorites': 'Off / 0 rules',
-  'shop-keybinds': 'Off',
-  'panel-shortcut': 'Alt+Q',
-  'guide': 'Game reference',
-  'decor-layout': 'External tool',
-  'sprite-customizer': 'External tool',
-  'celestial-calculator': 'External tool',
-  'texture-manipulator': '0 rules / 0 active',
-};
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -213,212 +167,30 @@ export function renderShopRestockSprites(
 }
 
 // ---------------------------------------------------------------------------
-// NEW tile status functions
-// ---------------------------------------------------------------------------
-
-function startGardenFiltersStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('garden-filters');
-  if (!el) return;
-
-  import('../../features/garden/filters').then(({ getGardenFiltersConfig, subscribeToGardenFiltersConfig }) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      const cfg = getGardenFiltersConfig();
-      if (!cfg.enabled) {
-        setStatusText(el, t('common.off'), 'muted');
-        return;
-      }
-      const count = cfg.mutations.length + cfg.cropSpecies.length + cfg.eggTypes.length + cfg.growthStates.length;
-      setStatusText(el, t('tile.status.enabledFilterCount', { count }), 'positive');
-    };
-    render();
-    const unsub = subscribeToGardenFiltersConfig(render);
-    addLiveCleanup(version, unsub);
-  }).catch(() => {});
-}
-
-function startRemindersStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('reminders');
-  if (!el) return;
-
-  Promise.all([
-    import('../../features/garden/harvestReminder'),
-    import('../../store/mutationSummary'),
-  ]).then(([harvest, mutation]) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      const summary = harvest.getHarvestSummary();
-      const mutSummary = mutation.getMutationSummary();
-      const readyCount = summary.readyCount;
-      const pendingCount = mutSummary?.overallPendingFruitCount ?? 0;
-
-      if (readyCount > 0) {
-        setStatusText(el, `${readyCount} ready / ${formatCompactNumber(summary.totalValue)} coins`, 'positive');
-      } else if (pendingCount > 0) {
-        setStatusText(el, `0 ready / ${pendingCount} pending`, 'normal');
-      } else {
-        setStatusText(el, '0 ready / 0 pending', 'muted');
-      }
-    };
-    render();
-    const unsubHarvest = harvest.onHarvestSummary(render, false);
-    const unsubMutation = mutation.onMutationSummary(render, false);
-    addLiveCleanup(version, () => {
-      unsubHarvest();
-      unsubMutation();
-    });
-  }).catch(() => {});
-}
-
-function startGardenStatsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('garden-stats');
-  if (!el) return;
-
-  Promise.all([
-    import('../../features/garden/bridge'),
-    import('../stats/statsHubWindow/tileHelpers'),
-  ]).then(([gardenBridge, tileHelpers]) => {
-    if (version !== currentVersion) return;
-    const render = (snapshot: import('../../features/garden/bridge').GardenSnapshot): void => {
-      if (!snapshot) {
-        setStatusText(el, '0 species / $0', 'muted');
-        return;
-      }
-      const tiles = tileHelpers.extractTiles(snapshot);
-      const speciesSet = new Set(tiles.flatMap(t => t.slots.map(s => s.species)).filter(Boolean));
-      const gardenValue = tiles.reduce((sum, t) => sum + tileHelpers.tileValue(t), 0);
-      const valueStr = formatCompactNumber(gardenValue);
-      setStatusText(el, `${speciesSet.size} species / $${valueStr}`, speciesSet.size > 0 ? 'positive' : 'muted');
-    };
-    const unsub = gardenBridge.onGardenSnapshot(render);
-    addLiveCleanup(version, unsub);
-  }).catch(() => {});
-}
-
-function startFavoritesStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('favorites');
-  if (!el) return;
-
-  import('../../features/standalone/autoFavorite').then(({ getAutoFavoriteConfig, subscribeToAutoFavoriteConfig }) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      const cfg = getAutoFavoriteConfig();
-      if (!cfg.enabled) {
-        setStatusText(el, t('tile.status.offRuleCount', { count: 0 }), 'muted');
-        return;
-      }
-      const count = cfg.species.length + cfg.mutations.length + cfg.petAbilities.length;
-      setStatusText(el, t('tile.status.enabledRuleCount', { count }), 'positive');
-    };
-    render();
-    const unsub = subscribeToAutoFavoriteConfig(render);
-    addLiveCleanup(version, unsub);
-  }).catch(() => {});
-}
-
-function startShopKeybindsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('shop-keybinds');
-  if (!el) return;
-
-  import('../../features/shop/keybinds').then(({ isShopKeybindsEnabled, getAllShopKeybinds }) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      if (!isShopKeybindsEnabled()) {
-        setStatusText(el, t('common.off'), 'muted');
-        return;
-      }
-      const count = Object.keys(getAllShopKeybinds()).length;
-      setStatusText(el, t('tile.status.enabledBindCount', { count }), 'positive');
-    };
-    render();
-    const timer = window.setInterval(render, 5_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
-  }).catch(() => {});
-}
-
-function startPanelShortcutStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('panel-shortcut');
-  if (!el) return;
-
-  Promise.all([
-    import('../../features/input/panelHotkey'),
-    import('../pets/petsWindow/helpers'),
-  ]).then(([hotkey, helpers]) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      const combo = hotkey.getPanelToggleKeybind();
-      setStatusText(el, helpers.formatKeybind(combo));
-    };
-    render();
-    const unsub = hotkey.onPanelToggleKeybindChange(() => render());
-    addLiveCleanup(version, unsub);
-  }).catch(() => {});
-}
-
-function startTextureManipulatorStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const el = getStatusEl('texture-manipulator');
-  if (!el) return;
-
-  import('../../features/standalone/textureSwapper').then(({ getTextureSwapperState }) => {
-    if (version !== currentVersion) return;
-    const render = (): void => {
-      const state = getTextureSwapperState();
-      const total = state.rules.length;
-      const active = state.rules.filter(r => r.enabled).length;
-      if (active > 0) {
-        setStatusText(el, t('tile.status.ruleCountActive', { total, active }), 'positive');
-      } else if (total > 0) {
-        setStatusText(el, t('tile.status.ruleCountActive', { total, active: 0 }), 'normal');
-      } else {
-        setStatusText(el, t('tile.status.ruleCountActive', { total: 0, active: 0 }), 'muted');
-      }
-    };
-    render();
-    const handler = (): void => render();
-    window.addEventListener('qpm:texture-manipulator-updated', handler);
-    addLiveCleanup(version, () => window.removeEventListener('qpm:texture-manipulator-updated', handler));
-  }).catch(() => {});
-}
-
-// ---------------------------------------------------------------------------
-// Orchestrator
+// Orchestrator — generic loop over registry
 // ---------------------------------------------------------------------------
 
 export function startAllLiveStatuses(
-  getStatusEl: GetStatusEl,
-  addLiveCleanup: AddLiveCleanup,
+  getStatusEl: (tileId: string) => HTMLElement | null,
+  addLiveCleanup: (version: number, cleanup: () => void) => void,
   version: number,
 ): void {
   currentVersion = version;
+  registerTileStatusesBusEntry();
 
-  // Set defaults for all tiles
+  // Set defaults and start per-tile providers from tile definitions
   for (const def of getAllTileDefinitions()) {
-    const fallback = TILE_STATUS_DEFAULTS[def.id];
-    if (fallback) {
-      setStatusText(getStatusEl(def.id), fallback, 'muted');
+    const el = getStatusEl(def.id);
+    if (def.defaultStatus) {
+      setStatusText(el, def.defaultStatus, 'muted');
+    }
+    if (def.statusProvider && el) {
+      def.statusProvider(el, addLiveCleanup, version);
     }
   }
 
-  // Existing tile statuses (from tileStatusesCore)
-  startPetDerivedStatuses(getStatusEl, addLiveCleanup, version);
-  startPublicRoomsStatus(getStatusEl, addLiveCleanup, version);
-  startShopRestockStatus(getStatusEl, addLiveCleanup, version);
-  startJournalStatus(getStatusEl, addLiveCleanup, version);
-  startTurtleTimerStatus(getStatusEl, addLiveCleanup, version);
-  startCropBoostStatus(getStatusEl, addLiveCleanup, version);
-  startValueDisplayStatus(getStatusEl, addLiveCleanup, version);
-  startActivityLogStatus(getStatusEl, addLiveCleanup, version);
-  startProtectionStatus(getStatusEl, addLiveCleanup, version);
-  startCropCalculatorStatus(getStatusEl, addLiveCleanup, version);
-  startControllerStatus(getStatusEl, addLiveCleanup, version);
-
-  // New tile statuses
-  startGardenFiltersStatus(getStatusEl, addLiveCleanup, version);
-  startRemindersStatus(getStatusEl, addLiveCleanup, version);
-  startGardenStatsStatus(getStatusEl, addLiveCleanup, version);
-  startFavoritesStatus(getStatusEl, addLiveCleanup, version);
-  startShopKeybindsStatus(getStatusEl, addLiveCleanup, version);
-  startPanelShortcutStatus(getStatusEl, addLiveCleanup, version);
-  // guide, decor-layout, sprite-customizer, celestial-calculator are static — defaults only
-  startTextureManipulatorStatus(getStatusEl, addLiveCleanup, version);
+  // Multi-tile providers (e.g. startPetDerivedStatuses)
+  for (const provider of getMultiTileProviders()) {
+    provider(getStatusEl, addLiveCleanup, version);
+  }
 }

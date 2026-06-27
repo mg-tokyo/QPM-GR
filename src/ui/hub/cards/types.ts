@@ -1,5 +1,7 @@
 // src/ui/hubWindow/cards/types.ts
 
+import type { PerTileStatusProvider } from '../../panel/tileStatusTypes';
+
 export type CardTier = 'inline-toggle' | 'expandable' | 'launcher';
 export type HubGroupId = 'trackers' | 'items' | 'garden' | 'config' | 'tools';
 
@@ -24,6 +26,25 @@ export interface CardIcon {
   readonly bunched?: ReadonlyArray<BunchedSpriteEntry>;
 }
 
+/**
+ * Tile metadata for auto-registering a panel tile from a hub card.
+ * When present on a card, `registerTilesFromGroups` derives a `TileDefinition`.
+ */
+export interface TileMeta {
+  /** Tile ID. Defaults to `card.key` if omitted. */
+  readonly tileId?: string;
+  /** Emoji icon shown on the tile. */
+  readonly icon: string;
+  /** rgba color for background tint + glow. */
+  readonly color: string;
+  /** Fallback status string shown before live data loads. */
+  readonly defaultStatus?: string;
+  /** Per-tile live status provider. Omit for multi-tile providers or static tiles. */
+  readonly statusProvider?: PerTileStatusProvider;
+  /** Explicit tile action. Auto-derived from `onOpen`/`onDetach` if omitted. */
+  readonly action?: () => void;
+}
+
 interface CardConfigBase {
   readonly key: string;
   readonly label: string;
@@ -31,6 +52,8 @@ interface CardConfigBase {
   readonly icon: CardIcon;
   /** Optional color for the card label text (e.g. '#4ade80'). */
   readonly labelColor?: string;
+  /** When present, a panel tile is auto-registered for this card. */
+  readonly tile?: TileMeta;
 }
 
 export interface InlineToggleConfig extends CardConfigBase {

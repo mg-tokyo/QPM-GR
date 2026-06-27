@@ -99,6 +99,14 @@ const QPM_STORAGE_KEYS = [
   'qpm.petTeams.uiState.v1',
   'qpm.petFloatingCards.v1',
 
+  // Charged Abilities (player-activated ability awareness panel)
+  'qpm.chargedAbilities.panel.v1',
+  'qpm.chargedAbilities.expanded.v1',
+  'qpm.chargedAbilities.autoOpenOverlay.v1',
+
+  // Blobling Customiser presets
+  'qpm.bloblingPresets.v1',
+
   // Shop Restock (Supabase)
   'qpm.restockCache',
   'qpm.restockCache.v2',
@@ -152,6 +160,13 @@ const QPM_STORAGE_KEYS = [
   // Texture Manipulator
   'qpm.textureSwaps.v1',
 
+  // Blobling Custom Skins
+  'qpm.bloblingCustomSkins.v1',
+
+  // Custom Cards (native card presets)
+  'qpm.customCards.presets.v1',
+  'qpm.customCards.overridesExpanded.v1',
+
   // Action Guard (Locker)
   'qpm.locker.config.v1',
 
@@ -197,6 +212,18 @@ const QPM_STORAGE_KEYS = [
   // Texture Debug
   'qpm.textureSwaps.debugLogs',
 
+  // Garden Painter (window state for the texture manipulator)
+  'qpm.gardenPainter.gridOpen.v1',
+  'qpm.gardenPainter.disableGating.v1',
+  'qpm.gardenPainter.gatingDebug.v1',
+  'qpm.gardenPainter.slideOutTab.v1',
+
+  // Rive Engine
+  'qpm.riveEngine.debug.v1',
+  // Note: file overrides are persisted in IndexedDB (qpm-rive-overrides),
+  // not via this layer, because they're multi-MB binary blobs that exceed
+  // the localStorage quota. See src/rive-engine/fileOverrideStore.ts.
+
   // Restock cache / tracked
   'qpm.restockCache.v4',
   'qpm.ariedam.gamedata',
@@ -240,6 +267,9 @@ const QPM_STORAGE_KEYS = [
 
   // Locale
   'qpm.localeOverride.v1',
+
+  // Diagnostics
+  'qpm.diagnostics.errorBuffer.v1',
 
   // Tour system (dynamic keys: qpm.tour.<windowId>)
   // Cleared by storage.clear() via the qpm.* prefix match

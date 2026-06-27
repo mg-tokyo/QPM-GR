@@ -129,6 +129,16 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
 
   // Expanded content area — no max-height so trackers/filters can fill naturally
   // overflow-y left to 'visible' so scroll events propagate to the hub's scroll container
+  //
+  // Two-element structure (framework-owned outer, consumer-owned inner):
+  //   body       — framework-owned. Holds display state, border, AND the inner
+  //                horizontal/vertical padding. Consumers never see this.
+  //   bodyInner  — consumer-owned render target. Plain div. Consumers can wipe
+  //                its cssText freely without breaking framework styling, because
+  //                the body's padding pushes bodyInner inward regardless.
+  // Without this split, consumers commonly do `container.style.cssText = ...`
+  // to set their own flex layout and inadvertently wipe the body's inline padding,
+  // making expanded content go flush to the card edges.
   const body = document.createElement('div');
   body.setAttribute('data-card-body', '');
   body.style.cssText = [
@@ -137,6 +147,10 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     'padding:12px 14px',
   ].join(';');
 
+  const bodyInner = document.createElement('div');
+  bodyInner.setAttribute('data-card-body-inner', '');
+
+  body.appendChild(bodyInner);
   container.append(header, body);
 
   const expand = () => {
@@ -149,9 +163,10 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     expandBtn.style.display = 'none';
     if (config.detachWindowId) detachBtn.style.display = 'block';
 
-    // Render expanded content
-    body.innerHTML = '';
-    const cleanup = config.renderExpanded(body);
+    // Render expanded content into the inner wrapper. Consumers may wipe its
+    // cssText freely without breaking framework styling.
+    bodyInner.innerHTML = '';
+    const cleanup = config.renderExpanded(bodyInner);
     if (cleanup) expandedCleanup = cleanup;
   };
 
@@ -165,12 +180,13 @@ export function renderExpandableCard(config: ExpandableCardConfig): ExpandableCa
     expandBtn.style.display = 'block';
     detachBtn.style.display = 'none';
 
-    // Clean up expanded content
+    // Clean up expanded content. Clear bodyInner (consumer's render target),
+    // not body itself — body still owns the framework-side bodyInner child.
     if (expandedCleanup) {
       expandedCleanup();
       expandedCleanup = null;
     }
-    body.innerHTML = '';
+    bodyInner.innerHTML = '';
   };
 
   header.addEventListener('click', () => {

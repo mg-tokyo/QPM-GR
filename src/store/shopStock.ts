@@ -4,24 +4,30 @@
 import { readAtomValue as readRegistryAtomValue, subscribeAtomValue } from '../core/atomRegistry';
 import { getAtomByLabel, readAtomValue as readJotaiAtomValue, subscribeAtom, getCachedStore } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeShops', 'shops');
+let shopFirstPublished = false;
 import type {
   ShopsAtomSnapshot,
   ShopPurchasesAtomSnapshot,
 } from '../types/gameAtoms';
-import { SHOP_CATEGORIES, type ShopCategory } from '../types/shops';
+import { type ShopCategory } from '../types/shops';
 import {
-  ATOM_KEY_BY_CATEGORY,
-  SHOP_PURCHASE_KEYS,
+  getAtomKeyForCategory,
   buildCategoryState,
   extractCustomInventories,
   extractMyDataShopPurchases,
-  hasPurchaseBucket,
   type CustomInventoryMap,
-  type ShopPurchaseKey,
   type ShopStockItem,
   type ShopStockCategoryState,
   type ShopStockState,
 } from './shopStockParsers';
+import {
+  getKnownShopIds,
+  getWeatherGatedShopIds,
+  onShopDiscovered,
+} from './shopRegistry';
 import { getPlantSpecies, getEggType, getItem, getDecor } from '../catalogs/gameCatalogs';
 
 // Re-export types so existing importers of shopStock.ts continue to work.
@@ -31,36 +37,36 @@ const MY_USER_SLOT_ATOM_LABEL = 'myUserSlotAtom';
 const MY_DATA_ATOM_LABEL = 'myDataAtom';
 const QUINOA_DATA_ATOM_LABEL = 'quinoaDataAtom';
 
-const ITEM_TYPE_BY_CATEGORY: Record<ShopCategory, 'Seed' | 'Egg' | 'Tool' | 'Decor' | 'Dawn' | 'Snow'> = {
-  seeds: 'Seed',
-  eggs: 'Egg',
-  tools: 'Tool',
-  decor: 'Decor',
-  dawn: 'Dawn',
-  snow: 'Snow',
-};
+function itemTypeLabel(category: string): string {
+  switch (category) {
+    case 'seeds': return 'Seed';
+    case 'eggs': return 'Egg';
+    case 'tools': return 'Tool';
+    case 'decor': return 'Decor';
+    default: return category.charAt(0).toUpperCase() + category.slice(1);
+  }
+}
 
 const listeners = new Set<(state: ShopStockState) => void>();
 let shopsSnapshot: ShopsAtomSnapshot | null = null;
-let purchasesSnapshot: ShopPurchasesAtomSnapshot | null = null;
 let myDataPurchasesSnapshot: ShopPurchasesAtomSnapshot | null = null;
 let customInventories: CustomInventoryMap = null;
 let quinoaDataShopsSnapshot: ShopsAtomSnapshot | null = null;
 let cachedState: ShopStockState = createEmptyState();
 let startPromise: Promise<void> | null = null;
 let shopsUnsubscribe: (() => void) | null = null;
-let purchasesUnsubscribe: (() => void) | null = null;
 let myDataPurchasesUnsubscribe: (() => void) | null = null;
 let customInventoriesUnsubscribe: (() => void) | null = null;
 let quinoaDataShopsUnsubscribe: (() => void) | null = null;
 let myDataAtomRef: unknown = null;
 let myUserSlotAtomRef: unknown = null;
 let quinoaDataAtomRef: unknown = null;
+let discoveryUnsubscribe: (() => void) | null = null;
 
 function createEmptyState(): ShopStockState {
   const categories = Object.create(null) as Record<ShopCategory, ShopStockCategoryState>;
   const now = Date.now();
-  for (const category of SHOP_CATEGORIES) {
+  for (const category of getKnownShopIds()) {
     categories[category] = {
       category,
       secondsUntilRestock: null,
@@ -81,35 +87,24 @@ function notifyState(): void {
     try {
       listener(cachedState);
     } catch (error) {
-      log('⚠️ ShopStock listener error', error);
+      diag.warn('QPM-STORE-003', { phase: 'notifyState' }, error);
     }
+  }
+  if (!shopFirstPublished) {
+    shopFirstPublished = true;
+    const totalItems = Object.values(cachedState.categories).reduce(
+      (sum, cat) => sum + (cat?.items?.length ?? 0),
+      0,
+    );
+    diag.publishOk(
+      `${totalItems} item(s) across ${Object.keys(cachedState.categories).length} shop(s)`,
+      { totalItems, categoryCount: Object.keys(cachedState.categories).length },
+    );
   }
 }
 
 function getEffectivePurchasesSnapshot(): ShopPurchasesAtomSnapshot | null {
-  if (!purchasesSnapshot && !myDataPurchasesSnapshot) {
-    return null;
-  }
-
-  const merged: ShopPurchasesAtomSnapshot = {};
-  let hasAny = false;
-  for (const key of SHOP_PURCHASE_KEYS) {
-    const typedKey = key as ShopPurchaseKey;
-    const primaryHas = hasPurchaseBucket(purchasesSnapshot, typedKey);
-    const fallbackHas = hasPurchaseBucket(myDataPurchasesSnapshot, typedKey);
-    if (primaryHas && purchasesSnapshot) {
-      merged[key] = purchasesSnapshot[key] ?? null;
-      hasAny = true;
-      continue;
-    }
-    if (fallbackHas && myDataPurchasesSnapshot) {
-      merged[key] = myDataPurchasesSnapshot[key] ?? null;
-      hasAny = true;
-      continue;
-    }
-    merged[key] = null;
-  }
-  return hasAny ? merged : null;
+  return myDataPurchasesSnapshot;
 }
 
 /**
@@ -145,15 +140,17 @@ function rebuildState(): void {
   const categories = Object.create(null) as Record<ShopCategory, ShopStockCategoryState>;
   const effectivePurchases = getEffectivePurchasesSnapshot();
   const effectiveShops = shopsSnapshot ?? quinoaDataShopsSnapshot;
-  for (const category of SHOP_CATEGORIES) {
-    const atomKey = ATOM_KEY_BY_CATEGORY[category];
+  for (const category of getKnownShopIds()) {
+    const atomKey = getAtomKeyForCategory(category);
     const snapshot = effectiveShops?.[atomKey] ?? null;
     const customInventory = customInventories?.[atomKey] ?? null;
     categories[category] = buildCategoryState(category, snapshot, effectivePurchases, customInventory);
   }
   // Weather-gated shop items have no price fields in raw atom data — resolve from game catalogs.
-  resolveWeatherShopCatalogPrices(categories.dawn.items);
-  resolveWeatherShopCatalogPrices(categories.snow.items);
+  for (const id of getWeatherGatedShopIds()) {
+    const cat = categories[id];
+    if (cat) resolveWeatherShopCatalogPrices(cat.items);
+  }
   cachedState = { updatedAt: now, categories };
   notifyState();
 }
@@ -162,19 +159,13 @@ export async function startShopStockStore(): Promise<void> {
   if (startPromise) {
     return startPromise;
   }
+  diag.register('Resolving shop atoms');
   startPromise = (async () => {
     try {
       shopsSnapshot = await readRegistryAtomValue('shops');
     } catch (error) {
-      log('⚠️ Failed to read shops atom initially', error);
+      diag.warn('QPM-STORE-002', { atom: 'shops', phase: 'initial-read' }, error);
       shopsSnapshot = null;
-    }
-
-    try {
-      purchasesSnapshot = await readRegistryAtomValue('shopPurchases');
-    } catch (error) {
-      log('⚠️ Failed to read shop purchases atom initially', error);
-      purchasesSnapshot = null;
     }
 
     myDataAtomRef = getAtomByLabel(MY_DATA_ATOM_LABEL);
@@ -197,15 +188,6 @@ export async function startShopStockStore(): Promise<void> {
       });
     } catch (error) {
       log('⚠️ Failed to subscribe to shops atom', error);
-    }
-
-    try {
-      purchasesUnsubscribe = await subscribeAtomValue('shopPurchases', (value) => {
-        purchasesSnapshot = value;
-        rebuildState();
-      });
-    } catch (error) {
-      log('⚠️ Failed to subscribe to shop purchases atom', error);
     }
 
     if (myDataAtomRef) {
@@ -231,6 +213,11 @@ export async function startShopStockStore(): Promise<void> {
       }
     }
 
+    // Newly-discovered shop ids get their bucket created on the next rebuild.
+    discoveryUnsubscribe = onShopDiscovered(() => {
+      rebuildState();
+    });
+
     // Fallback: subscribe to quinoaDataAtom.shops for categories not covered
     // by customRestockInventories (e.g. dawn shop, which has no custom restock).
     quinoaDataAtomRef = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
@@ -248,7 +235,7 @@ export async function startShopStockStore(): Promise<void> {
       }
     }
   })().catch((error) => {
-    log('⚠️ startShopStockStore error', error);
+    diag.warn('QPM-STORE-001', { phase: 'startShopStockStore' }, error);
     startPromise = null;
   });
   return startPromise;
@@ -259,9 +246,6 @@ export function stopShopStockStore(): void {
     shopsUnsubscribe?.();
   } catch {}
   try {
-    purchasesUnsubscribe?.();
-  } catch {}
-  try {
     myDataPurchasesUnsubscribe?.();
   } catch {}
   try {
@@ -270,14 +254,16 @@ export function stopShopStockStore(): void {
   try {
     quinoaDataShopsUnsubscribe?.();
   } catch {}
+  try {
+    discoveryUnsubscribe?.();
+  } catch {}
   shopsUnsubscribe = null;
-  purchasesUnsubscribe = null;
   myDataPurchasesUnsubscribe = null;
   customInventoriesUnsubscribe = null;
   quinoaDataShopsUnsubscribe = null;
+  discoveryUnsubscribe = null;
   startPromise = null;
   shopsSnapshot = null;
-  purchasesSnapshot = null;
   myDataPurchasesSnapshot = null;
   customInventories = null;
   quinoaDataShopsSnapshot = null;
@@ -285,6 +271,7 @@ export function stopShopStockStore(): void {
   myUserSlotAtomRef = null;
   quinoaDataAtomRef = null;
   cachedState = createEmptyState();
+  shopFirstPublished = false;
 }
 
 /**
@@ -305,18 +292,6 @@ export function forceRefreshShopStock(): void {
       const fresh = store.get(shopsAtom) as ShopsAtomSnapshot | null;
       if (fresh !== shopsSnapshot) {
         shopsSnapshot = fresh;
-        changed = true;
-      }
-    }
-  } catch {}
-
-  // Re-read purchases atom
-  try {
-    const purchasesAtom = getAtomByLabel('myShopPurchasesAtom');
-    if (purchasesAtom) {
-      const fresh = store.get(purchasesAtom) as ShopPurchasesAtomSnapshot | null;
-      if (fresh !== purchasesSnapshot) {
-        purchasesSnapshot = fresh;
         changed = true;
       }
     }
@@ -390,7 +365,7 @@ export function getAvailableItems(category: ShopCategory): ShopStockItem[] {
 }
 
 export function describeItemForLog(item: ShopStockItem): string {
-  const pieces = [ITEM_TYPE_BY_CATEGORY[item.category], item.label];
+  const pieces = [itemTypeLabel(item.category), item.label];
   if (item.remaining != null) {
     if (item.initialStock != null) {
       pieces.push(`${item.remaining}/${item.initialStock}`);

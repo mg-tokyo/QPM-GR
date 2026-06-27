@@ -14,7 +14,7 @@ export type MutationName =
   | 'Ambercharged'
   | 'Thunderstruck';
 
-export type SpriteCategory = 'plant' | 'tallplant' | 'crop' | 'decor' | 'item' | 'pet' | 'seed' | 'mutation' | 'mutation-overlay' | 'any';
+export type SpriteCategory = 'plant' | 'tallplant' | 'crop' | 'decor' | 'item' | 'pet' | 'seed' | 'mutation' | 'mutation-overlay' | 'avatar' | 'any';
 
 export interface MutationMeta {
   overlayTall: string | null;

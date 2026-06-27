@@ -3,7 +3,6 @@
 
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import { getPetDiet, getCropBaseSellPrice } from '../../../catalogs/gameCatalogs';
-import { log } from '../../../utils/logger';
 import { pageWindow } from '../../../core/pageContext';
 import {
   HUNGER_POTION_KEY,
@@ -27,6 +26,7 @@ import {
   DEFAULT_SAFE_FOODS,
   DEFAULT_SAFE_NORMALIZED,
   formatFriendlyName,
+  warnPetFoodRulesFeature,
 } from './rules';
 
 function resolveDiet(species: string | null): NormalizedDiet {
@@ -390,7 +390,7 @@ export function readInventorySnapshot(): InventorySnapshot | null {
       };
     }
   } catch (error) {
-    log('⚠️ Unable to read inventory snapshot', error);
+    warnPetFoodRulesFeature('QPM-FEATURE-004', { what: 'inventory:read' }, error);
   }
 
   return null;

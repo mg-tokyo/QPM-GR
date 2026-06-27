@@ -6,9 +6,8 @@
 // When ariesHold is enabled, its rapid tap cycle (20ms keydown->keyup)
 // never reaches the 500ms threshold, so actions never fire.
 //
-// This module intercepts Space keydowns and sends the WS message directly,
-// bypassing the game's hold-to-act timer. The guard layer still runs
-// (sendMessage is the hooked version), so Locker rules still apply.
+// This module intercepts Space keydowns and sends the WS message via the
+// centralised sendRoomAction facade (Locker guard rules still apply).
 //
 // Handled actions:
 //   removeGardenObject (shovel)
@@ -22,17 +21,28 @@
 
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
+import { healthBus } from '../../diagnostics/healthBus';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { Subsystem } from '../../diagnostics/types';
+import { sendRoomAction, type RoomActionType, type WebSocketSendResult } from '../../websocket/api';
 import { getGardenQolConfig } from './state';
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Diagnostics ───────────────────────────────────────────────────────────
 
-interface RoomConnectionLike {
-  sendMessage: (payload: unknown) => unknown;
-}
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenInstaAction';
+const FEATURE_NAME = 'gardenInstaAction';
+const log = createNamedLogger(FEATURE_SUBSYSTEM);
 
-interface PageWithRoomConnection extends Window {
-  MagicCircle_RoomConnection?: RoomConnectionLike;
-  __mga_lastScopePath?: string[];
+/**
+ * Re-attribute a FEATURE-* code emission to this feature's bus row. The
+ * registered placeholder subsystem on FEATURE-001 is `'feature'`; without this
+ * override the bus would degrade a generic `feature` entry instead of
+ * `feature:gardenInstaAction`.
+ */
+function warnFeature(code: Parameters<typeof buildError>[0], ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -47,67 +57,51 @@ const HANDLED_ACTIONS: ReadonlySet<string> = new Set([
   'mutationpotion',
 ]);
 
-// ── WS send ────────────────────────────────────────────────────────────────
-
-const DEFAULT_SCOPE_PATH = ['Room', 'Quinoa'];
-
-function getScopePath(): string[] {
-  const dynamic = (pageWindow as PageWithRoomConnection).__mga_lastScopePath;
-  if (Array.isArray(dynamic) && dynamic.length > 0) return dynamic.slice();
-  return [...DEFAULT_SCOPE_PATH];
-}
-
-function sendMessage(payload: Record<string, unknown>): boolean {
-  const connection = (pageWindow as PageWithRoomConnection).MagicCircle_RoomConnection;
-  if (!connection || typeof connection.sendMessage !== 'function') return false;
-  try {
-    connection.sendMessage({ scopePath: getScopePath(), ...payload });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // ── Action handlers ────────────────────────────────────────────────────────
 
-function handleRemoveGardenObject(): boolean {
+function sendAction(type: RoomActionType, payload: Record<string, unknown>): WebSocketSendResult {
+  // Skip the per-key throttle: the keydown handler already filters natural
+  // key-repeat and only synthetic ariesHold taps re-enter; a per-(type,key)
+  // throttle here would silently drop legitimate retries after Locker
+  // rejection.
+  return sendRoomAction(type, payload, { skipThrottle: true });
+}
+
+function handleRemoveGardenObject(): WebSocketSendResult | null {
   const tile = readAtomValueSync('gardenTile') as { localTileIndex?: number; tileType?: string } | null;
   if (!tile || typeof tile.localTileIndex !== 'number' || typeof tile.tileType !== 'string') {
-    return false;
+    return null;
   }
-  return sendMessage({
-    type: 'RemoveGardenObject',
+  return sendAction('RemoveGardenObject', {
     slot: tile.localTileIndex,
     slotType: tile.tileType,
   });
 }
 
-function handleCropCleanser(): boolean {
+function handleCropCleanser(): WebSocketSendResult | null {
   const tileIdx = readAtomValueSync('dirtTileIndex');
-  if (tileIdx == null) return false;
-  const slotIdx = readAtomValueSync('growSlotIndex');
-  if (slotIdx == null) return false;
-  return sendMessage({
-    type: 'CropCleanser',
+  if (tileIdx == null) return null;
+  const slotIdx = readAtomValueSync('selectedSlotId');
+  if (slotIdx == null) return null;
+  return sendAction('CropCleanser', {
     tileObjectIdx: tileIdx,
     growSlotIdx: slotIdx,
   });
 }
 
-function handleMutationPotion(): boolean {
+function handleMutationPotion(): WebSocketSendResult | null {
   const tileIdx = readAtomValueSync('dirtTileIndex');
-  if (tileIdx == null) return false;
-  const slotIdx = readAtomValueSync('growSlotIndex');
-  if (slotIdx == null) return false;
-  // Read the selected item to resolve the toolId → mutation mapping.
-  // Game tool IDs for potions follow the pattern <Mutation>Potion
-  // (e.g. WetPotion → Wet, FrozenPotion → Frozen, AmberlitPotion → Amberlit).
-  const selectedItem = readAtomValueSync('selectedItem') as { toolId?: string } | null;
-  if (!selectedItem || typeof selectedItem.toolId !== 'string') return false;
-  const mutation = resolveGrantedMutation(selectedItem.toolId);
-  if (!mutation) return false;
-  return sendMessage({
-    type: 'MutationPotion',
+  if (tileIdx == null) return null;
+  const slotIdx = readAtomValueSync('selectedSlotId');
+  if (slotIdx == null) return null;
+  // For Tool items, mySelectedItemIdAtom holds the toolId directly (game's
+  // getInventoryItemId returns toolId for tools). Potion toolIds follow
+  // <Mutation>Potion — WetPotion → Wet, FrozenPotion → Frozen, etc.
+  const selectedItemId = readAtomValueSync('selectedItemId');
+  if (typeof selectedItemId !== 'string') return null;
+  const mutation = resolveGrantedMutation(selectedItemId);
+  if (!mutation) return null;
+  return sendAction('MutationPotion', {
     tileObjectIdx: tileIdx,
     growSlotIdx: slotIdx,
     mutation,
@@ -155,23 +149,35 @@ function onKeyDownCapture(event: KeyboardEvent): void {
 
   if (!HANDLED_ACTIONS.has(action.toLowerCase())) return;
 
-  let sent = false;
+  let result: WebSocketSendResult | null = null;
   switch (action) {
     case 'removeGardenObject':
-      sent = handleRemoveGardenObject();
+      result = handleRemoveGardenObject();
       break;
     case 'cropCleanser':
-      sent = handleCropCleanser();
+      result = handleCropCleanser();
       break;
     case 'mutationPotion':
-      sent = handleMutationPotion();
+      result = handleMutationPotion();
       break;
   }
 
-  if (sent) {
+  if (!result) return;
+
+  if (result.ok) {
     event.stopImmediatePropagation();
     event.preventDefault();
+    return;
   }
+
+  // Result-aware path — the WS layer already logs a WS-* code with the
+  // underlying reason (no_connection / invalid_payload / send_failed /
+  // locker_blocked). FEATURE-001 re-attributes that failure to this
+  // feature's bus row so the user can see which feature degraded.
+  warnFeature('QPM-FEATURE-001', {
+    type: action,
+    reason: result.reason ?? 'unknown',
+  });
 }
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -181,9 +187,21 @@ let listening = false;
 export function startInstaAction(): void {
   if (listening) return;
   listening = true;
+  // Register the feature's bus row on first start; idempotent (healthBus
+  // .register preserves an existing entry's status if it's already there).
+  healthBus.register(FEATURE_SUBSYSTEM, {
+    category: 'feature',
+    status: 'starting',
+  });
   (pageWindow as unknown as Window).addEventListener(
     'keydown', onKeyDownCapture as EventListener, true,
   );
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message: 'Listening (capture-phase keydown)',
+  });
 }
 
 export function stopInstaAction(): void {

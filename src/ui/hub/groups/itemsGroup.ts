@@ -5,6 +5,12 @@ import { toggleWindow } from '../../core/modalWindow';
 import { log } from '../../../utils/logger';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
+import {
+  startProtectionStatus,
+  startCropCalculatorStatus,
+  startValueDisplayStatus,
+} from '../../panel/tileStatusesCore';
+import { startFavoritesStatus } from '../../panel/tileStatusesNew';
 
 /** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
@@ -20,6 +26,12 @@ export function getItemsGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '⭐', spriteKey: 'sprite/ui/HeartSticker', fallback: '⭐' },
     labelColor: '#f472b6',
     tier: 'expandable',
+    tile: {
+      icon: '⭐',
+      color: 'rgba(244, 114, 182, 0.28)',
+      defaultStatus: 'Off / 0 rules',
+      statusProvider: startFavoritesStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.favorites.summary');
@@ -65,6 +77,13 @@ export function getItemsGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '🛡️', spriteKey: 'sprite/ui/Locked', fallback: '🛡️' },
     labelColor: '#fb923c',
     tier: 'expandable',
+    tile: {
+      tileId: 'locker',
+      icon: '🔒',
+      color: 'rgba(244, 67, 54, 0.28)',
+      defaultStatus: 'locker off / 0 slots / 0 fav',
+      statusProvider: startProtectionStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.protection.summary');
@@ -91,9 +110,9 @@ export function getItemsGroup(): HubGroupDef {
       })();
       return () => { if (cleanup) cleanup(); };
     },
-    detachWindowId: 'hub-protection',
+    detachWindowId: 'utility-feature-protection',
     onDetach: () => {
-      toggleWindow('hub-protection', '🛡️ Protection', (root) => {
+      toggleWindow('utility-feature-protection', '🛡️ Protection', (root) => {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
         import('../../sections/protectionSection').then(({ createProtectionSection }) => {
           const { element } = createProtectionSection();
@@ -110,6 +129,13 @@ export function getItemsGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '🧮', spriteKey: 'sprite/ui/Coin', fallback: '🧮' },
     labelColor: '#fbbf24',
     tier: 'expandable',
+    tile: {
+      tileId: 'crop-calculator',
+      icon: '🧮',
+      color: 'rgba(3, 169, 244, 0.28)',
+      defaultStatus: '0 crops / 0 pets / catalogs loading',
+      statusProvider: startCropCalculatorStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.calculator.summary');
@@ -156,6 +182,12 @@ export function getItemsGroup(): HubGroupDef {
     },
     labelColor: '#818cf8',
     tier: 'launcher',
+    tile: {
+      icon: '👥',
+      color: 'rgba(255, 152, 0, 0.28)',
+      defaultStatus: '0 active / 0 teams / 0 slots',
+      // statusProvider handled by multi-tile startPetDerivedStatuses
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.petTeams.summary');
@@ -174,6 +206,12 @@ export function getItemsGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '💰', spriteKey: 'sprite/ui/CoinBag', fallback: '💰' },
     labelColor: '#a3e635',
     tier: 'launcher',
+    tile: {
+      icon: '💰',
+      color: 'rgba(255, 193, 7, 0.28)',
+      defaultStatus: '0/4 surfaces / 0 inv / 0 coins',
+      statusProvider: startValueDisplayStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.items.valueDisplay.summary');

@@ -1,0 +1,464 @@
+// src/diagnostics/codes.ts — Error code registry (§4.2)
+//
+// Add codes here as subsystems migrate. A code, once shipped, NEVER changes
+// meaning (§4.3). If the failure mode shifts, retire the old code and add a
+// new one.
+
+import type { ErrorCode, ErrorCodeDefinition } from './types';
+
+const CURRENT_VERSION = '3.2.29';
+
+const REGISTRY: Record<ErrorCode, ErrorCodeDefinition> = Object.create(null);
+
+function register(def: ErrorCodeDefinition): void {
+  REGISTRY[def.code] = def;
+}
+
+export function lookupCode(code: ErrorCode): ErrorCodeDefinition | undefined {
+  return REGISTRY[code];
+}
+
+export function listCodes(): readonly ErrorCodeDefinition[] {
+  return Object.values(REGISTRY);
+}
+
+// ── Initial code set (10 entries spanning the highest-traffic subsystems) ──
+// These exist so that buildError() resolves cleanly during Phase 1; the
+// subsystems they describe do not yet publish to the bus.
+
+register({
+  code: 'QPM-WS-001',
+  subsystem: 'websocket',
+  category: 'core',
+  severity: 'warn',
+  title: 'No active connection',
+  description: 'sendRoomAction() called before a room connection was established.',
+  userAction: 'Reconnect to the game (refresh the tab if it persists).',
+  devNotes: 'src/websocket/api.ts — guards against missing MagicCircle_RoomConnection.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — fires only during user-driven sends; user can act (reconnect/refresh); not transient
+  // (each fire is a real failed action). Default warn throttle (30s) suppresses send-spam.
+  notifyUser: true,
+});
+
+register({
+  code: 'QPM-WS-002',
+  subsystem: 'websocket',
+  category: 'core',
+  severity: 'info',
+  title: 'Throttled',
+  description: 'sendRoomAction() was throttled by the per-key rate limit.',
+  devNotes: 'src/websocket/api.ts — throttle bucket per (type, key).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-WS-003',
+  subsystem: 'websocket',
+  category: 'core',
+  severity: 'warn',
+  title: 'WebSocket send failed',
+  description: 'sendRoomAction() returned ok:false from the underlying connection.',
+  devNotes: 'src/websocket/api.ts — non-ok return path.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-WS-004',
+  subsystem: 'websocket',
+  category: 'core',
+  severity: 'warn',
+  title: 'Invalid payload',
+  description: 'sendRoomAction() rejected a payload that failed validation.',
+  devNotes: 'src/websocket/api.ts — validatePayload(); likely a caller bug.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-WS-005',
+  subsystem: 'websocket',
+  category: 'core',
+  severity: 'info',
+  title: 'Locker blocked send',
+  description: 'A registered preflight (locker guard) blocked the send.',
+  devNotes: 'src/websocket/api.ts — registerSendPreflight() returned ok:false.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-ATOM-001',
+  subsystem: 'atomRegistry',
+  category: 'core',
+  severity: 'warn',
+  title: 'Missing atom',
+  description: 'A registered atom key could not be resolved from the Jotai store.',
+  devNotes: 'src/core/atomRegistry.ts — fallback applied; feature still works on stale data.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-ATOM-002',
+  subsystem: 'atomRegistry',
+  category: 'core',
+  severity: 'warn',
+  title: 'Atom transform error',
+  description: 'A registered atom resolved but its path/transform threw — fallback applied.',
+  devNotes: 'src/core/atomRegistry.ts applyTransform — likely a shape change on the game side.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-CATALOG-001',
+  subsystem: 'catalogs',
+  category: 'core',
+  severity: 'error',
+  title: 'Catalog never arrived',
+  description: 'Game catalogs were not captured within the expected window.',
+  userAction: 'Refresh the game tab.',
+  devNotes: 'src/catalogs/gameCatalogs.ts — Object.* hook missed the capture.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — affects every catalog-dependent feature; clear user action; the watchdog only fires
+  // after the timeout, so not transient. Default error throttle (10s) is fine — fires once.
+  notifyUser: true,
+});
+
+register({
+  code: 'QPM-CATALOG-002',
+  subsystem: 'catalogs',
+  category: 'core',
+  severity: 'warn',
+  title: 'Partial catalog load',
+  description: 'A catalog was captured but is missing some expected entries.',
+  userAction: 'Refresh the game tab if features that depend on the missing catalog look incomplete.',
+  devNotes: 'src/catalogs/gameCatalogs.ts — enrichment incomplete.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — pet/plant/egg gaps break dependent features (journal, calculator, optimizer); user can
+  // refresh; the 30s grace timer ensures it is not a transient capture race.
+  notifyUser: true,
+});
+
+register({
+  code: 'QPM-CATALOG-003',
+  subsystem: 'catalogs',
+  category: 'core',
+  severity: 'warn',
+  title: 'Catalog enrichment timed out',
+  description: 'A secondary catalog enrichment (ability colors, weather, cosmetics) exhausted its retry budget before completing.',
+  devNotes: 'src/catalogs/catalogLoader.ts — startAbilityColorPolling / startWeatherCatalogPolling / startCosmeticCatalogPolling. Fallback data still applied; affected catalog may be partial.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-JOTAI-001',
+  subsystem: 'jotaiBridge',
+  category: 'core',
+  severity: 'error',
+  title: 'Jotai store unavailable',
+  description: 'No Jotai store could be captured through any of the 6 fallback tiers.',
+  userAction: 'Refresh the game tab.',
+  devNotes: 'src/core/jotaiBridge.ts — polyfill engaged.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — all atom-driven features (pets/inventory/shops/weather) broken; user can refresh;
+  // not transient (6 tiers already exhausted). reportJotaiCapture dedups via lastReportedMode.
+  notifyUser: true,
+});
+
+register({
+  code: 'QPM-JOTAI-002',
+  subsystem: 'jotaiBridge',
+  category: 'core',
+  severity: 'info',
+  title: 'Jotai capture source recorded',
+  description: 'ensureJotaiStore() resolved via one of the 6 fallback tiers (aries / shared / fiber / write / cache-read / none). The tier is published as metrics.source on the health bus row.',
+  devNotes: 'src/core/jotaiBridge.ts reportJotaiCapture — informational only; surfaces in Diagnostics window via metrics.source rather than the error buffer.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-SPRITE-001',
+  subsystem: 'spriteV2',
+  category: 'core',
+  severity: 'error',
+  title: 'Sprite system init failed',
+  description: 'initSpriteSystem() rejected (PIXI never resolved, hydration produced zero frames, or boot threw).',
+  userAction: 'Refresh the game tab.',
+  devNotes: 'src/sprite-v2/index.ts start() — see cause for the underlying error.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — all sprite rendering broken for this session; user can refresh; init failure is terminal.
+  notifyUser: true,
+});
+
+register({
+  code: 'QPM-SPRITE-002',
+  subsystem: 'spriteV2',
+  category: 'core',
+  severity: 'warn',
+  title: 'Sprite hydration degraded',
+  description: 'Sprite atlas hydration completed with missing frames or alias misses.',
+  devNotes: 'src/sprite-v2/* — fallback render still active.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-SPRITE-003',
+  subsystem: 'spriteV2',
+  category: 'core',
+  severity: 'info',
+  title: 'Atlas frame missing',
+  description: 'A specific sprite frame could not be resolved; fallback applied.',
+  devNotes: 'src/sprite-v2/compat.ts — check PLANT_SPRITE_ALIASES.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-SPRITE-004',
+  subsystem: 'spriteV2',
+  category: 'core',
+  severity: 'warn',
+  title: 'Sprite render failed',
+  description: 'Texture extract / canvas conversion threw or returned blank. Falls through to other render strategies; deduped by failure signature.',
+  devNotes: 'src/sprite-v2/index.ts rememberRenderFailure — GPU extract issues, lost WebGL context, or KTX2 fallback path.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// STORE-* codes are shared by every src/store/* module. The `subsystem` field
+// here is a placeholder ('store'); the bus subsystem is overridden per-call by
+// _storeDiagnostics.ts so each store gets its own row attributed via
+// `context.store` (e.g. context.store === 'hutch').
+register({
+  code: 'QPM-STORE-001',
+  subsystem: 'store',
+  category: 'store',
+  severity: 'warn',
+  title: 'Store init failed',
+  description: 'A reactive store could not start. context.store identifies which store.',
+  devNotes: 'src/store/* — see context.store + cause.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-STORE-002',
+  subsystem: 'store',
+  category: 'store',
+  severity: 'warn',
+  title: 'Store atom unavailable',
+  description: 'A reactive store could not resolve its Jotai atom (label not found in cache).',
+  devNotes: 'src/store/* — getAtomByLabel returned null; capture race or game-side rename. context.store identifies which store; context.atom names the missing label.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-STORE-003',
+  subsystem: 'store',
+  category: 'store',
+  severity: 'warn',
+  title: 'Store listener threw',
+  description: 'A subscriber/listener inside a reactive store threw during a state update.',
+  devNotes: 'src/store/* — listener bug; the store stays subscribed and the next update will re-emit. context.store identifies which store.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-UI-001',
+  subsystem: 'ui.window',
+  category: 'ui',
+  severity: 'error',
+  title: 'Window render failed',
+  description: 'A modal window threw during render. The shell remains intact; the body shows a structured error card via the error boundary.',
+  devNotes: 'src/ui/core/modalWindow.ts try/catch around render() — context.id names the failing window; cause carries the original throw. src/ui/core/modalWindowErrorBoundary.ts paints the user-visible card.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-TILE-001',
+  subsystem: 'ui.tileStatuses',
+  category: 'ui',
+  severity: 'warn',
+  title: 'Tile provider import failed',
+  description: 'A dynamic import inside a tile-status provider rejected. The tile keeps its last status text instead of updating.',
+  devNotes: 'src/ui/panel/tileStatuses{Core,New}.ts — context.tile names the affected tile.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-TILE-002',
+  subsystem: 'ui.tileStatuses',
+  category: 'ui',
+  severity: 'warn',
+  title: 'Tile provider async work failed',
+  description: 'An async operation inside a tile-status provider threw (fetch, store start, atom read). The tile keeps its last status text.',
+  devNotes: 'src/ui/panel/tileStatuses{Core,New}.ts — context.tile + context.op identify the call site.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-TOUR-001',
+  subsystem: 'ui.tour',
+  category: 'ui',
+  severity: 'warn',
+  title: 'Tour overlay step failed',
+  description: 'The tour engine swallowed an exception in an overlay render or step-progression path. The active tour is torn down so the user can keep using the app; previous behaviour silently dropped the rejection on the floor.',
+  devNotes: 'src/ui/tour/engine.ts — context.phase identifies the call site (createOverlay | updateOverlayStep | destroyOverlay | showStep | teardown | startTour | positionTracking). src/ui/tour/help/panel.ts also uses phase=helpPanelSpriteImport / helpPanelReplayImport for its lazy-import failure paths. notifyUser intentionally false — a broken tour does not block the user\'s current task (criterion 1 of §9 fails).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// FEATURE-* codes are shared by every src/features/* module that has migrated.
+// The `subsystem` field here is a placeholder ('feature'); the bus subsystem is
+// overridden per-call to the calling feature's `feature:*` id so each feature
+// gets its own bus row attributed via `context.feature` (e.g. context.feature
+// === 'gardenInstaHarvest').
+register({
+  code: 'QPM-FEATURE-001',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Feature WS send failed',
+  description: 'A migrated feature attempted a WS send via sendRoomAction() that returned ok:false. The underlying WS layer also emits a WS-* code with the reason; this entry attributes the failure to the calling feature so its bus row reflects the problem.',
+  devNotes: 'src/features/* — see context.feature for which feature; context.type names the RoomAction; context.reason carries the WS layer reason (no_connection | invalid_payload | throttled | send_failed | locker_blocked).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-FEATURE-002',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Feature bulk action partial failure',
+  description: 'A migrated bulk feature finished with one or more failed per-item sends. context.feature names the feature; context.ok / context.failed / context.throttled / context.total carry the per-reason aggregate so Diagnostics surfaces the partial result without one row per item.',
+  devNotes: 'src/features/* (bulkFavorite, autoFavorite, …) — each per-item failure is already attributed via WS-*; FEATURE-002 surfaces the aggregate. notifyUser intentionally false — features call notify() directly with the actual count, which the registry title cannot carry.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-FEATURE-003',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Feature lifecycle step failed',
+  description: 'A migrated feature\'s init / patch / lifecycle step threw without crashing the feature. context.feature names the feature; context.what identifies the step (e.g. patch:hidden, audio:init, audio:resume, init).',
+  devNotes: 'src/features/* (antiAfk, …) — fired when a non-WS lifecycle step fails non-fatally. Severity gets forced to error at call sites that publish failed status. notifyUser intentionally false — most steps are transient/recoverable; init-failure callers publish failed via log.error which the bus surfaces.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// Integration: Aries bridge — exposes QPM_ARIES_BRIDGE on the page for Aries
+// Mod consumption. One-shot expose at startup; no periodic work.
+register({
+  code: 'QPM-ARIES-001',
+  subsystem: 'integrationAries',
+  category: 'integration',
+  severity: 'error',
+  title: 'Aries bridge expose failed',
+  description: 'shareGlobal() threw while publishing QPM_ARIES_BRIDGE on the page. The bridge is unavailable to consumers (Aries Mod and other userscripts).',
+  devNotes: 'src/integrations/ariesBridge.ts exposeAriesBridge — typically a page-context issue (locked window, sandbox, or shareGlobal target missing). context.what identifies the step (expose).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// Integration: Native card view — bridges to the game\'s InventoryCardView PIXI
+// canvas. Lazy — first resolves on first openNativeCard() call. Codes share
+// the integrationNativeCard subsystem so a single bus row reflects health.
+register({
+  code: 'QPM-NCARD-001',
+  subsystem: 'integrationNativeCard',
+  category: 'integration',
+  severity: 'warn',
+  title: 'Native card view unavailable',
+  description: 'Could not resolve the game\'s InventoryCardView through the quinoaEngineAtom chain. openNativeCard() returns false; callers fall back to their own UI.',
+  devNotes: 'src/integrations/nativeCardView.ts resolveCardView — context.reason names the failure tier (atom_missing | engine_invalid | system_missing | cardview_missing | exception).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-NCARD-002',
+  subsystem: 'integrationNativeCard',
+  category: 'integration',
+  severity: 'warn',
+  title: 'Native card open failed',
+  description: 'cv.open() threw or a precondition for opening (origin sprite, sprite class) was missing. The cardView is force-closed and dex overrides restored.',
+  devNotes: 'src/integrations/nativeCardView.ts openNativeCard — context.what identifies the failing step (open | no_sprite | sprite_class_missing | sprite_build).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-NCARD-003',
+  subsystem: 'integrationNativeCard',
+  category: 'integration',
+  severity: 'warn',
+  title: 'Native card teardown step failed',
+  description: 'Overlay restore, dex-override restore, or forceClose threw during card close. The card may be visually inconsistent until the next open clears state.',
+  devNotes: 'src/integrations/nativeCardView.ts wrapCloseForRestore / closeNativeCard — context.what identifies the step (overlay_restore | dex_restore | force_close).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-NCARD-004',
+  subsystem: 'integrationNativeCard',
+  category: 'integration',
+  severity: 'info',
+  title: 'Native card portrait asset failed',
+  description: 'A portrait image or video asset failed to load. The card still opens — video falls back to portraitUrl; portraitUrl failure proceeds without overlay.',
+  devNotes: 'src/integrations/nativeCardView.ts loadImageSource / loadVideoSource — context.what is image|video. URL omitted by design (user-supplied; may carry presigned tokens).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-FEATURE-004',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Feature helper failed',
+  description: 'A migrated feature\'s runtime helper threw without crashing the feature — separate from FEATURE-003 (lifecycle/init) and FEATURE-001 (WS sends). Examples: event dispatch failure, inventory snapshot read failure, state persistence failure. context.feature names the feature; context.what identifies the helper (e.g. emit:rulesChanged, inventory:read).',
+  devNotes: 'src/features/* (petFoodRules, …) — recurring runtime helpers that fail non-fatally. Distinguished from FEATURE-003 because FEATURE-003 is one-time lifecycle work whereas FEATURE-004 is recurring helper work. notifyUser intentionally false — most helpers degrade gracefully with fallback paths.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// UI: Notification hub itself (§4.4 borderline → promoted Phase 5.4). The hub
+// is the user-facing end of the logger pipeline; if it breaks, the user gets
+// zero feedback for everything else, so its own degradation is uniquely
+// meta-critical and not surfaced anywhere else on the bus.
+register({
+  code: 'QPM-NOTIF-001',
+  subsystem: 'ui.notifications',
+  category: 'ui',
+  severity: 'warn',
+  title: 'Notification subscriber threw',
+  description: 'A subscriber registered via onNotifications() threw during fan-out or its initial replay. The hub stays subscribed and the next notify() call will re-emit; the misbehaving subscriber may still be running.',
+  devNotes: 'src/core/notifications.ts emit() / onNotifications() — context.at identifies the path (emit | initial). notifyUser intentionally false — a misbehaving subscriber typically belongs to a single UI surface that is already broken; the notification hub itself keeps working.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// Service: Restock data fetcher (§4.4 borderline → promoted Phase 5.4).
+// External Supabase fetch with real failure modes (network, schema drift,
+// CORS). Consumers (tile statuses, dashboard, shop window) see stale data on
+// failure but no upstream signal told them WHY without this row.
+register({
+  code: 'QPM-RESTOCK-001',
+  subsystem: 'restockData',
+  category: 'service',
+  severity: 'warn',
+  title: 'Restock fetch failed',
+  description: 'fetchRestockData() could not get a usable response from Supabase. Stale cache is served when present; otherwise consumers see an empty list.',
+  devNotes: 'src/utils/restock/dataService.ts fetchRestockData — context.where identifies the attempted endpoint (extended | base | outer), context.gm whether GM_xmlhttpRequest was available, context.errors carries the per-transport reason snippets.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-RESTOCK-002',
+  subsystem: 'restockData',
+  category: 'service',
+  severity: 'warn',
+  title: 'Restock response unparseable',
+  description: 'JSON parse failed or the response was not the expected array shape. Cache fallback applied (if present).',
+  devNotes: 'src/utils/restock/dataService.ts fetchRestockData — context.what is parse | shape.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-RESTOCK-003',
+  subsystem: 'restockData',
+  category: 'service',
+  severity: 'warn',
+  title: 'Restock API config invalid',
+  description: 'RESTOCK_URL malformed or anon key missing. Network fetch disabled for the session — only cached data is served.',
+  devNotes: 'src/utils/restock/dataService.ts getRestockRequestConfig — most likely a build-time misconfiguration. The hub stays degraded for the session because config is static; restart required to recover.',
+  sinceVersion: CURRENT_VERSION,
+});

@@ -5,7 +5,9 @@ import { renderHomeView, type HomeViewResult } from './homeView';
 import { renderPanelFooter, type PanelFooterResult } from './panelFooter';
 import { renderHubGroup, type HubGroupResult } from '../hub/hubGroup';
 import { setActiveGroup } from '../hub/state';
-import { registerBuiltinTiles } from './tileRegistry';
+import { registerTilesFromGroups, registerMultiTileProvider } from './tileRegistry';
+import { registerStandaloneTiles } from './standaloneTiles';
+import { startPetDerivedStatuses } from './tileStatusesCore';
 
 export interface ViewSwitcherResult {
   navElement: HTMLElement;
@@ -17,8 +19,10 @@ export interface ViewSwitcherResult {
 export function createViewSwitcher(groups: ReadonlyArray<HubGroupDef>): ViewSwitcherResult {
   const cleanups: Array<() => void> = [];
 
-  // Register tiles on first call
-  registerBuiltinTiles();
+  // Register tiles from card definitions + standalone tiles + multi-tile providers
+  registerTilesFromGroups(groups);
+  registerStandaloneTiles();
+  registerMultiTileProvider(startPetDerivedStatuses);
 
   let currentHomeView: HomeViewResult | null = null;
   let currentGroupView: HubGroupResult | null = null;

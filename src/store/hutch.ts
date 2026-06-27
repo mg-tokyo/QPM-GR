@@ -3,6 +3,10 @@
 
 import { getAtomByLabel, subscribeAtom, readAtomValue } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeHutch', 'hutch');
+let firstAtomValueSeen = false;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -61,8 +65,22 @@ const listeners = new Set<(state: HutchState) => void>();
 function notify(): void {
   const snapshot = getHutchState();
   for (const listener of listeners) {
-    try { listener(snapshot); } catch (err) { log('[Hutch] listener threw', err); }
+    try { listener(snapshot); } catch (err) {
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, err);
+    }
   }
+}
+
+function publishHutchHealth(): void {
+  diag.publishMetrics(
+    `count=${state.count}/${state.capacity} (level ${state.capacityLevel})`,
+    {
+      count: state.count,
+      capacity: state.capacity,
+      capacityLevel: state.capacityLevel,
+      full: state.count >= state.capacity ? 1 : 0,
+    },
+  );
 }
 
 function updateHutchItems(raw: unknown): void {
@@ -84,6 +102,20 @@ function updateHutchItems(raw: unknown): void {
 
   state = { ...state, count, petIds, updatedAt: Date.now() };
   notify();
+  if (!firstAtomValueSeen) {
+    firstAtomValueSeen = true;
+    diag.publishOk(
+      `count=${state.count}/${state.capacity} (level ${state.capacityLevel})`,
+      {
+        count: state.count,
+        capacity: state.capacity,
+        capacityLevel: state.capacityLevel,
+        full: state.count >= state.capacity ? 1 : 0,
+      },
+    );
+  } else {
+    publishHutchHealth();
+  }
 }
 
 function updateCapacityLevel(level: number): void {
@@ -92,6 +124,10 @@ function updateCapacityLevel(level: number): void {
   if (state.capacityLevel === clamped && state.capacity === capacity) return;
   state = { ...state, capacityLevel: clamped, capacity, updatedAt: Date.now() };
   notify();
+  if (firstAtomValueSeen) {
+    // §7.2 — capacity upgrade is a meaningful state transition.
+    publishHutchHealth();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -100,28 +136,36 @@ function updateCapacityLevel(level: number): void {
 
 export async function startHutchStore(): Promise<void> {
   if (hutchUnsub) return;
+  diag.register('Waiting for myPetHutchPetItemsAtom');
 
-  // Subscribe to hutch items atom
-  const hutchAtom = getAtomByLabel(HUTCH_ATOM_LABEL);
-  if (hutchAtom) {
-    hutchUnsub = await subscribeAtom(hutchAtom, (value: unknown) => {
-      updateHutchItems(value);
-    });
-  }
+  try {
+    // Subscribe to hutch items atom
+    const hutchAtom = getAtomByLabel(HUTCH_ATOM_LABEL);
+    if (hutchAtom) {
+      hutchUnsub = await subscribeAtom(hutchAtom, (value: unknown) => {
+        updateHutchItems(value);
+      });
+    } else {
+      diag.warn('QPM-STORE-002', { atom: HUTCH_ATOM_LABEL });
+    }
 
-  // Subscribe to capacity level — try dedicated atom first
-  const capAtom = getAtomByLabel(CAPACITY_ATOM_LABEL);
-  if (capAtom) {
-    capacityUnsub = await subscribeAtom(capAtom, (value: unknown) => {
-      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-        updateCapacityLevel(value);
-      }
-    });
-    log('[Hutch] Store initialized (reactive capacity via atom)');
-  } else {
-    // Fallback: read capacityLevel from myInventoryAtom.storages[] once
-    await resolveCapacityFromStorages();
-    log('[Hutch] Store initialized (capacity from storages fallback)');
+    // Subscribe to capacity level — try dedicated atom first
+    const capAtom = getAtomByLabel(CAPACITY_ATOM_LABEL);
+    if (capAtom) {
+      capacityUnsub = await subscribeAtom(capAtom, (value: unknown) => {
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+          updateCapacityLevel(value);
+        }
+      });
+      log('[Hutch] Store initialized (reactive capacity via atom)');
+    } else {
+      // Fallback: read capacityLevel from myInventoryAtom.storages[] once
+      await resolveCapacityFromStorages();
+      log('[Hutch] Store initialized (capacity from storages fallback)');
+    }
+  } catch (err) {
+    diag.warn('QPM-STORE-001', { phase: 'startHutchStore' }, err);
+    throw err;
   }
 }
 
@@ -154,6 +198,7 @@ export function stopHutchStore(): void {
   capacityUnsub?.();
   capacityUnsub = null;
   capacityFromStorages = false;
+  firstAtomValueSeen = false;
   listeners.clear();
   state = {
     count: 0,
@@ -207,7 +252,9 @@ export function onHutchChange(
 ): () => void {
   listeners.add(callback);
   if (fireImmediately) {
-    try { callback(getHutchState()); } catch (err) { log('[Hutch] immediate callback threw', err); }
+    try { callback(getHutchState()); } catch (err) {
+      diag.warn('QPM-STORE-003', { phase: 'onHutchChange.immediate' }, err);
+    }
   }
   return () => { listeners.delete(callback); };
 }

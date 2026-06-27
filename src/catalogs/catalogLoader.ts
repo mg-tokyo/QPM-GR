@@ -6,7 +6,11 @@
 
 import { DEFAULT_ABILITY_COLOR, getAbilityColorMap } from './logic/abilityColors';
 import { getWeatherCatalogMap } from './logic/weatherCatalog';
+import { getCosmeticCatalogFromBundle } from './logic/cosmeticCatalog';
 import { pageWindow, readSharedGlobal, shareGlobal } from '../core/pageContext';
+import { healthBus } from '../diagnostics/healthBus';
+import { createNamedLogger } from '../diagnostics/logger';
+import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
 import type { GameCatalogs } from './types';
 
 // Local log function to avoid circular imports
@@ -20,6 +24,20 @@ function catalogLog(...args: unknown[]): void {
     console.log(CATALOG_PREFIX, ...args);
   }
 }
+
+// ── Diagnostics bus wiring (Phase 2 item 2.3) ──────────────────────────────
+const CATALOGS_SUBSYSTEM: Subsystem = 'catalogs';
+const diagLog = createNamedLogger('catalogs');
+
+/** Watchdog: if essential catalogs do not arrive in this window, fire CATALOG-001. */
+const READY_WATCHDOG_MS = 30_000;
+/** Grace period after ready before non-essential gaps are reported as partial. */
+const PARTIAL_GRACE_MS = 30_000;
+
+let diagnosticsStarted = false;
+let readyWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+let partialCheckTimer: ReturnType<typeof setTimeout> | null = null;
+let diagnosticsStartedAt = 0;
 
 // ============================================================================
 // GLOBAL STATE
@@ -38,6 +56,7 @@ const capturedCatalogs: GameCatalogs = {
   petAbilities: null,
   plantCatalog: null,
   weatherCatalog: null,
+  cosmeticCatalog: null,
 };
 
 // Track objects we've already scanned to avoid infinite loops
@@ -67,6 +86,13 @@ const MAX_WEATHER_CATALOG_POLL_ATTEMPTS = 20;
 let weatherCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
 let weatherCatalogPollAttempts = 0;
 let weatherCatalogEnrichInFlight: Promise<boolean> | null = null;
+const COSMETIC_CATALOG_POLL_INTERVAL_MS = 1000;
+const MAX_COSMETIC_CATALOG_POLL_ATTEMPTS = 10;
+let cosmeticCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
+let cosmeticCatalogPollAttempts = 0;
+let cosmeticCatalogEnrichInFlight: Promise<boolean> | null = null;
+let cosmeticOwnershipSet: Set<string> | null = null;
+let cosmeticOwnershipFetchInFlight: Promise<void> | null = null;
 const shouldLogAbilityColorDebug = (): boolean => {
   try {
     return readSharedGlobal('__QPM_DEBUG_ABILITY_COLORS') === true;
@@ -78,6 +104,9 @@ const shouldLogAbilityColorDebug = (): boolean => {
 function publishCatalogs(): void {
   try {
     shareGlobal('__QPM_CATALOGS', capturedCatalogs);
+    if (cosmeticOwnershipSet) {
+      shareGlobal('__QPM_COSMETIC_OWNERSHIP', [...cosmeticOwnershipSet]);
+    }
   } catch (err) {
     catalogLog('Failed to expose __QPM_CATALOGS to window:', err);
   }
@@ -207,6 +236,12 @@ function startAbilityColorPolling(): void {
         if (shouldLogAbilityColorDebug()) {
           catalogLog('Ability color enrichment timed out, using fallback colors.');
         }
+        if (diagnosticsStarted) {
+          diagLog.warn('QPM-CATALOG-003', {
+            what: 'abilityColors',
+            attempts: abilityColorPollAttempts,
+          });
+        }
         stopAbilityColorPolling();
       }
     })();
@@ -229,10 +264,137 @@ function startWeatherCatalogPolling(): void {
         return;
       }
       if (weatherCatalogPollAttempts >= MAX_WEATHER_CATALOG_POLL_ATTEMPTS) {
+        if (diagnosticsStarted) {
+          diagLog.warn('QPM-CATALOG-003', {
+            what: 'weatherCatalog',
+            attempts: weatherCatalogPollAttempts,
+          });
+        }
         stopWeatherCatalogPolling();
       }
     })();
   }, WEATHER_CATALOG_POLL_INTERVAL_MS);
+}
+
+async function enrichCosmeticCatalog(): Promise<boolean> {
+  if (capturedCatalogs.cosmeticCatalog) return true;
+  if (cosmeticCatalogEnrichInFlight) return cosmeticCatalogEnrichInFlight;
+
+  cosmeticCatalogEnrichInFlight = (async () => {
+    const catalog = await getCosmeticCatalogFromBundle();
+    if (!catalog) return false;
+
+    capturedCatalogs.cosmeticCatalog = catalog as GameCatalogs['cosmeticCatalog'];
+    catalogLog(`Enriched cosmetic catalog from bundle (${catalog.length} items).`);
+    publishCatalogs();
+    return true;
+  })().finally(() => {
+    cosmeticCatalogEnrichInFlight = null;
+  });
+
+  return cosmeticCatalogEnrichInFlight;
+}
+
+function stopCosmeticCatalogPolling(): void {
+  if (!cosmeticCatalogPollTimer) return;
+  clearInterval(cosmeticCatalogPollTimer);
+  cosmeticCatalogPollTimer = null;
+}
+
+function startCosmeticCatalogPolling(): void {
+  if (cosmeticCatalogPollTimer) return;
+  cosmeticCatalogPollAttempts = 0;
+
+  void enrichCosmeticCatalog();
+
+  cosmeticCatalogPollTimer = setInterval(() => {
+    void (async () => {
+      const enriched = await enrichCosmeticCatalog();
+      cosmeticCatalogPollAttempts += 1;
+      if (enriched) {
+        stopCosmeticCatalogPolling();
+        return;
+      }
+      if (cosmeticCatalogPollAttempts >= MAX_COSMETIC_CATALOG_POLL_ATTEMPTS) {
+        if (diagnosticsStarted) {
+          diagLog.warn('QPM-CATALOG-003', {
+            what: 'cosmeticCatalog',
+            attempts: cosmeticCatalogPollAttempts,
+          });
+        }
+        stopCosmeticCatalogPolling();
+      }
+    })();
+  }, COSMETIC_CATALOG_POLL_INTERVAL_MS);
+}
+
+// ============================================================================
+// COSMETIC OWNERSHIP (single fetch from /me/cosmetics API)
+// ============================================================================
+
+function getRoomApiBase(): string | null {
+  try {
+    const pathname = pageWindow.location?.pathname ?? '';
+    const segments = pathname.split('/').filter(Boolean);
+    const roomCode = segments[segments.length - 1];
+    if (!roomCode) return null;
+    return `/api/rooms/${roomCode}`;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCosmeticOwnership(): Promise<void> {
+  if (cosmeticOwnershipSet) return;
+  if (cosmeticOwnershipFetchInFlight) return cosmeticOwnershipFetchInFlight;
+
+  cosmeticOwnershipFetchInFlight = (async () => {
+    const base = getRoomApiBase();
+    if (!base) return;
+
+    const fetchFn = typeof pageWindow.fetch === 'function'
+      ? pageWindow.fetch.bind(pageWindow)
+      : fetch;
+
+    try {
+      const res = await fetchFn(`${base}/me/cosmetics`, { credentials: 'include' });
+      if (!res.ok) return;
+
+      const data: unknown = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const filenames = new Set<string>();
+      for (const item of data) {
+        if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).cosmeticFilename === 'string') {
+          filenames.add((item as Record<string, unknown>).cosmeticFilename as string);
+        }
+      }
+
+      cosmeticOwnershipSet = filenames;
+      catalogLog(`Fetched cosmetic ownership: ${filenames.size} items acquired.`);
+      publishCatalogs();
+    } catch {
+      catalogLog('Failed to fetch cosmetic ownership.');
+    }
+  })().finally(() => {
+    cosmeticOwnershipFetchInFlight = null;
+  });
+
+  return cosmeticOwnershipFetchInFlight;
+}
+
+export function getCosmeticOwnership(): Set<string> | null {
+  return cosmeticOwnershipSet;
+}
+
+export function isCosmeticOwned(filename: string): boolean | null {
+  if (!cosmeticOwnershipSet) return null;
+  return cosmeticOwnershipSet.has(filename);
+}
+
+export function isCosmeticAvailable(filename: string, availability: string): boolean | null {
+  if (availability === 'default' || availability === 'authenticated') return true;
+  return isCosmeticOwned(filename);
 }
 
 // ============================================================================
@@ -405,6 +567,21 @@ function looksLikeWeatherCatalog(obj: Record<string, unknown>, keys: string[]): 
   return true;
 }
 
+function looksLikeCosmeticArray(arr: unknown[]): boolean {
+  if (arr.length < 10) return false;
+  const sample = arr[0];
+  return (
+    sample !== null &&
+    typeof sample === 'object' &&
+    'id' in sample &&
+    'type' in sample &&
+    'filename' in sample &&
+    'displayName' in sample &&
+    'availability' in sample &&
+    'price' in sample
+  );
+}
+
 function normalizeWeatherCatalog(
   source: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -520,6 +697,17 @@ function deepScan(obj: unknown, depth: number): void {
       stopWeatherCatalogPolling();
     }
 
+    if (!capturedCatalogs.cosmeticCatalog) {
+      for (const v of Object.values(record)) {
+        if (Array.isArray(v) && looksLikeCosmeticArray(v)) {
+          capturedCatalogs.cosmeticCatalog = v as GameCatalogs['cosmeticCatalog'];
+          catalogLog(`Captured cosmeticCatalog with ${v.length} items`);
+          didCapture = true;
+          break;
+        }
+      }
+    }
+
     if (didCapture) {
       publishCatalogs();
     }
@@ -578,6 +766,16 @@ function checkAndNotifyReady(): void {
     // Expose globally for debugging
     publishCatalogs();
 
+    // Health-bus publish: ready. Watchdog can stand down.
+    if (diagnosticsStarted) {
+      if (readyWatchdogTimer !== null) {
+        clearTimeout(readyWatchdogTimer);
+        readyWatchdogTimer = null;
+      }
+      publishCatalogsHealth();
+      schedulePartialCheck();
+    }
+
     // Notify all waiting callbacks
     for (const callback of readyCallbacks) {
       try {
@@ -588,6 +786,113 @@ function checkAndNotifyReady(): void {
     }
     readyCallbacks.length = 0;
   }
+}
+
+function countLoadedCatalogs(): { loaded: number; total: number } {
+  const slots = [
+    capturedCatalogs.itemCatalog,
+    capturedCatalogs.decorCatalog,
+    capturedCatalogs.mutationCatalog,
+    capturedCatalogs.eggCatalog,
+    capturedCatalogs.petCatalog,
+    capturedCatalogs.petAbilities,
+    capturedCatalogs.plantCatalog,
+    capturedCatalogs.weatherCatalog,
+    capturedCatalogs.cosmeticCatalog,
+  ];
+  const loaded = slots.reduce<number>((n, slot) => n + (slot !== null ? 1 : 0), 0);
+  return { loaded, total: slots.length };
+}
+
+function publishCatalogsHealth(): void {
+  if (!diagnosticsStarted) return;
+  const { loaded, total } = countLoadedCatalogs();
+  const message = catalogsReady
+    ? `${loaded}/${total} catalogs loaded`
+    : `Capturing… (${loaded}/${total} so far)`;
+  const status: SubsystemHealth['status'] | undefined = catalogsReady ? 'ok' : undefined;
+  healthBus.publish({
+    subsystem: CATALOGS_SUBSYSTEM,
+    category: 'core',
+    ...(status === undefined ? {} : { status }),
+    message,
+    metrics: { loaded, total, ready: catalogsReady ? 1 : 0 },
+  });
+}
+
+function listMissingEssentials(): string[] {
+  const missing: string[] = [];
+  if (!capturedCatalogs.petCatalog) missing.push('petCatalog');
+  if (!capturedCatalogs.plantCatalog) missing.push('plantCatalog');
+  if (!capturedCatalogs.eggCatalog) missing.push('eggCatalog');
+  if (!capturedCatalogs.petAbilities) missing.push('petAbilities');
+  return missing;
+}
+
+function schedulePartialCheck(): void {
+  if (!diagnosticsStarted) return;
+  if (partialCheckTimer !== null) return;
+  partialCheckTimer = setTimeout(() => {
+    partialCheckTimer = null;
+    if (!diagnosticsStarted) return;
+    const missing = listMissingEssentials();
+    if (missing.length > 0) {
+      diagLog.warn('QPM-CATALOG-002', { missing });
+    }
+  }, PARTIAL_GRACE_MS);
+}
+
+function startReadyWatchdog(): void {
+  if (readyWatchdogTimer !== null) return;
+  readyWatchdogTimer = setTimeout(() => {
+    readyWatchdogTimer = null;
+    if (!diagnosticsStarted) return;
+    if (catalogsReady) return;
+    const elapsedMs = Date.now() - diagnosticsStartedAt;
+    diagLog.error('QPM-CATALOG-001', {
+      elapsedMs,
+      capturedSoFar: countLoadedCatalogs().loaded,
+    });
+  }, READY_WATCHDOG_MS);
+}
+
+/**
+ * Wire the catalogs subsystem into the diagnostics health bus. Idempotent.
+ * Must run after initDiagnostics() so the bus exists. Safe to call before
+ * initCatalogLoader() — the watchdog measures time-to-ready from this call.
+ */
+export function startCatalogsDiagnostics(): void {
+  if (diagnosticsStarted) return;
+  diagnosticsStarted = true;
+  diagnosticsStartedAt = Date.now();
+
+  healthBus.register(CATALOGS_SUBSYSTEM, {
+    category: 'core',
+    status: 'starting',
+    message: 'Waiting for game catalogs',
+  });
+
+  if (catalogsReady) {
+    // Catalog capture finished before diagnostics started (unusual but harmless).
+    publishCatalogsHealth();
+    schedulePartialCheck();
+    return;
+  }
+
+  startReadyWatchdog();
+}
+
+export function stopCatalogsDiagnostics(): void {
+  if (!diagnosticsStarted) return;
+  if (readyWatchdogTimer !== null) {
+    clearTimeout(readyWatchdogTimer);
+    readyWatchdogTimer = null;
+  }
+  if (partialCheckTimer !== null) {
+    clearTimeout(partialCheckTimer);
+    partialCheckTimer = null;
+  }
+  diagnosticsStarted = false;
 }
 
 // ============================================================================
@@ -734,6 +1039,8 @@ export function initCatalogLoader(): void {
   installHooks();
   startAbilityColorPolling();
   startWeatherCatalogPolling();
+  startCosmeticCatalogPolling();
+  void fetchCosmeticOwnership();
 
   // Auto-remove hooks after catalogs are ready (optimization)
   // Keep them for longer to catch late-loading catalog updates
@@ -759,6 +1066,7 @@ export function cleanupCatalogLoader(): void {
   removeHooks();
   stopAbilityColorPolling();
   stopWeatherCatalogPolling();
+  stopCosmeticCatalogPolling();
   readyCallbacks.length = 0;
   errorCallbacks.length = 0;
 }

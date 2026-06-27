@@ -51,7 +51,9 @@ export async function createOriginalUI(): Promise<HTMLElement> {
   const titleText = document.createElement('span');
   titleText.textContent = `🍖 ${t('panel.title')}`;
 
-  // Create version bubble
+  // Create version bubble. This signal is deliberately decoupled from the
+  // diagnostics health bus — the bubble is about version, the titlebar dot
+  // (src/diagnostics/panelBadge.ts) is about subsystem health.
   const versionBubble = document.createElement('a');
   versionBubble.className = 'qpm-version-bubble';
   versionBubble.dataset.status = 'checking';
@@ -376,10 +378,13 @@ export async function createOriginalUI(): Promise<HTMLElement> {
 
   titleBar.addEventListener('pointerdown', (event: PointerEvent) => {
     const target = event.target as HTMLElement | null;
-    if (target && target.closest('[data-qpm-collapse-button]')) {
-      return;
-    }
-    if (target && target.closest('.qpm-version-bubble')) {
+    // Cancel the drag when the press lands on any interactive element inside
+    // the titlebar — buttons, links, form controls, anything role=button, or
+    // anything that explicitly opts out via [data-no-drag]. This replaces the
+    // previous per-selector exclusion list (collapse button, version bubble)
+    // so future titlebar elements (e.g. the diagnostics health dot) don't
+    // need to remember to register themselves.
+    if (target && target.closest('button, a, input, select, textarea, [role="button"], [data-no-drag]')) {
       return;
     }
     if (!event.isPrimary) return;

@@ -4,6 +4,9 @@
 
 import { readSharedGlobal, shareGlobal, pageWindow } from './pageContext';
 import { log } from '../utils/logger';
+import { healthBus } from '../diagnostics/healthBus';
+import { createNamedLogger } from '../diagnostics/logger';
+import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
 
 export type JotaiStore = {
   get(atom: unknown): any;
@@ -12,6 +15,84 @@ export type JotaiStore = {
   __polyfill?: boolean;
   __source?: string;
 };
+
+// ── Diagnostics bus wiring (Phase 2 item 2.4) ──────────────────────────────
+const JOTAI_SUBSYSTEM: Subsystem = 'jotaiBridge';
+const diagLog = createNamedLogger('jotaiBridge');
+
+type CaptureMode = 'aries' | 'shared' | 'fiber' | 'write' | 'cache-read' | 'none';
+
+let diagnosticsStarted = false;
+let lastReportedMode: CaptureMode | null = null;
+
+const MODE_TO_STATUS: Record<CaptureMode, SubsystemHealth['status']> = {
+  aries: 'ok',
+  shared: 'ok',
+  fiber: 'ok',
+  write: 'ok',
+  'cache-read': 'degraded',
+  none: 'failed',
+};
+
+const MODE_TO_MESSAGE: Record<CaptureMode, string> = {
+  aries: 'Captured via Aries Mod store',
+  shared: 'Captured via shared global store',
+  fiber: 'Captured via React fiber walk',
+  write: 'Captured via write-once patch',
+  'cache-read': 'Read-only cache-read fallback (polyfill)',
+  none: 'No store available — polyfill that throws',
+};
+
+/**
+ * Wire the jotaiBridge subsystem into the diagnostics health bus. Idempotent.
+ * Must run after initDiagnostics() so the bus exists.
+ */
+export function startJotaiBridgeDiagnostics(): void {
+  if (diagnosticsStarted) return;
+  diagnosticsStarted = true;
+  healthBus.register(JOTAI_SUBSYSTEM, {
+    category: 'core',
+    status: 'starting',
+    message: 'Awaiting first ensureJotaiStore() resolution',
+  });
+
+  // If a capture already happened before diagnostics started, replay it now.
+  if (lastCaptureMode !== null) {
+    reportJotaiCapture(lastCaptureMode);
+  }
+}
+
+export function stopJotaiBridgeDiagnostics(): void {
+  if (!diagnosticsStarted) return;
+  diagnosticsStarted = false;
+  lastReportedMode = null;
+}
+
+function reportJotaiCapture(mode: CaptureMode): void {
+  if (!diagnosticsStarted) return;
+  if (mode === lastReportedMode) return;
+  lastReportedMode = mode;
+
+  const status = MODE_TO_STATUS[mode];
+  const message = MODE_TO_MESSAGE[mode];
+
+  healthBus.publish({
+    subsystem: JOTAI_SUBSYSTEM,
+    category: 'core',
+    status,
+    message,
+    metrics: { source: mode },
+  });
+
+  // 'none' tier is a true failure — fire JOTAI-001 for the error buffer.
+  // Other tiers (including cache-read) are recorded via metrics.source per
+  // JOTAI-002 — info-severity, no error-buffer noise.
+  if (mode === 'none') {
+    diagLog.error('QPM-JOTAI-001', {
+      ariesPresent: !!(pageWindow as any)?.AriesMod,
+    });
+  }
+}
 
 const STORE_GLOBAL_KEY = '__qpmJotaiStore__';
 const CACHE_GLOBAL_KEY = '__qpmJotaiAtomCache__';
@@ -481,6 +562,7 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
     storeRef = existing;
     lastCaptureMode = existing.__source === 'aries' ? 'aries' : 'shared';
     shareStoreNonInvasively(storeRef);
+    reportJotaiCapture(lastCaptureMode);
     return storeRef;
   }
 
@@ -496,6 +578,7 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
         storeRef = existing;
         lastCaptureMode = existing.__source === 'aries' ? 'aries' : 'shared';
         shareStoreNonInvasively(storeRef);
+        reportJotaiCapture(lastCaptureMode);
         return storeRef;
       }
     }
@@ -521,6 +604,7 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       storeRef = fiberStore;
       lastCaptureMode = 'fiber';
       shareStoreNonInvasively(storeRef);
+      reportJotaiCapture(lastCaptureMode);
       return storeRef;
     }
 
@@ -530,6 +614,7 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       storeRef = writeStore;
       lastCaptureMode = 'write';
       shareStoreNonInvasively(storeRef);
+      reportJotaiCapture(lastCaptureMode);
       return storeRef;
     }
 
@@ -541,6 +626,7 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       lastCaptureMode = 'cache-read';
       shareStoreNonInvasively(storeRef);
       log('[jotaiBridge] Using cache-read fallback store');
+      reportJotaiCapture(lastCaptureMode);
       return storeRef;
     }
 
@@ -553,6 +639,8 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       __polyfill: true,
       __source: 'none',
     };
+    lastCaptureMode = null;
+    reportJotaiCapture('none');
     return storeRef;
   } finally {
     captureInFlight = false;

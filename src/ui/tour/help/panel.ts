@@ -3,6 +3,7 @@
 import type { HelpPanelDefinition, HelpCard, HelpGroup } from '../types';
 import { lookupHelp } from '../registry';
 import { updateOverlayStep, destroyOverlay } from '../overlay';
+import { logTourFailure } from '../engine';
 
 // ── State ─────────────────────────────────────────────────────
 
@@ -88,9 +89,13 @@ function renderPanel(
   replayLink.addEventListener('click', () => {
     closeHelpPanel();
     const windowId = getActiveWindowId();
-    import('../engine').then(({ replayTour }) => {
-      replayTour(windowId, windowBody);
-    });
+    import('../engine')
+      .then(({ replayTour }) => {
+        replayTour(windowId, windowBody);
+      })
+      .catch((err) => {
+        logTourFailure('QPM-TOUR-001', { phase: 'helpPanelReplayImport', windowId }, err);
+      });
   });
   panel.appendChild(replayLink);
 
@@ -141,14 +146,20 @@ function renderCard(card: HelpCard, windowBody: HTMLElement): HTMLElement {
     icon.textContent = card.icon.value;
   } else {
     icon.textContent = '\u2728';
-    import('../../../sprite-v2/compat').then(({ renderBySpriteKey }) => {
-      const canvas = renderBySpriteKey(card.icon.value);
-      if (canvas) {
-        icon.textContent = '';
-        canvas.style.cssText = 'width:32px;height:32px;';
-        icon.appendChild(canvas);
-      }
-    }).catch(() => { /* keep fallback */ });
+    import('../../../sprite-v2/compat')
+      .then(({ renderBySpriteKey }) => {
+        const canvas = renderBySpriteKey(card.icon.value);
+        if (canvas) {
+          icon.textContent = '';
+          canvas.style.cssText = 'width:32px;height:32px;';
+          icon.appendChild(canvas);
+        }
+      })
+      .catch((err) => {
+        // Sprite fetch failed — the ✨ fallback already painted above stays. Log so the bus
+        // sees the failure instead of silently swallowing.
+        logTourFailure('QPM-TOUR-001', { phase: 'helpPanelSpriteImport', icon: card.icon.value }, err);
+      });
   }
 
   const content = document.createElement('div');

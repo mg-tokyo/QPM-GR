@@ -19,6 +19,9 @@ import {
 } from '../../../features/input/panelHotkey';
 import { normalizeKeybind, formatKeybind, createKeybindButton } from '../../pets/petsWindow/helpers';
 import { t } from '../../../i18n';
+import { startControllerStatus } from '../../panel/tileStatusesCore';
+import { startShopKeybindsStatus, startPanelShortcutStatus } from '../../panel/tileStatusesNew';
+import { getDiagnosticsCard } from '../../../diagnostics/configCard';
 
 const SHOP_IDS: readonly ShopId[] = ['seedShop', 'eggShop', 'toolShop', 'decorShop'];
 const SHOP_I18N_KEYS: Record<ShopId, string> = {
@@ -269,6 +272,12 @@ export function getConfigGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '🎮', spriteKey: 'sprite/ui/Touchpad', fallback: '🎮' },
     labelColor: '#60a5fa',
     tier: 'expandable',
+    tile: {
+      icon: '🎮',
+      color: 'rgba(96, 125, 139, 0.28)',
+      defaultStatus: '0 binds / medium / no gamepad',
+      statusProvider: startControllerStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.config.controller.summary');
@@ -296,6 +305,18 @@ export function getConfigGroup(): HubGroupDef {
     description: t('hub.config.shopKeybinds.description'),
     icon: { kind: 'sprite', value: '⌨️', spriteKey: 'sprite/ui/ArrowKeys', fallback: '⌨️' },
     tier: 'expandable',
+    tile: {
+      icon: '⌨️',
+      color: 'rgba(96, 165, 250, 0.28)',
+      defaultStatus: 'Off',
+      statusProvider: startShopKeybindsStatus,
+      action: () => {
+        toggleWindow('config-shop-keybinds', `⌨️ ${t('hub.config.shopKeybinds.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          renderShopKeybindsExpanded(root);
+        }, '420px', '60vh');
+      },
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = isShopKeybindsEnabled() ? t('common.enabled') : t('common.disabled');
@@ -310,6 +331,18 @@ export function getConfigGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '⌨️', spriteKey: 'sprite/ui/ArrowKeys', fallback: '⌨️' },
     labelColor: '#a78bfa',
     tier: 'expandable',
+    tile: {
+      icon: '⌨️',
+      color: 'rgba(167, 139, 250, 0.28)',
+      defaultStatus: 'Alt+Q',
+      statusProvider: startPanelShortcutStatus,
+      action: () => {
+        toggleWindow('config-panel-shortcut', `⌨️ ${t('hub.config.panelShortcut.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          renderPanelShortcutExpanded(root);
+        }, '420px', '50vh');
+      },
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       return onPanelToggleKeybindChange((combo) => {
@@ -414,6 +447,6 @@ export function getConfigGroup(): HubGroupDef {
     id: 'config',
     label: t('hub.config.label'),
     icon: { kind: 'emoji', value: '⚙️' },
-    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, resetToursCard],
+    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, getDiagnosticsCard(), resetToursCard],
   };
 }

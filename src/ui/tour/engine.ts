@@ -4,7 +4,27 @@ import type { TourDefinition, TourStep } from './types';
 import { readTourProgress, writeTourProgress, areToursEnabled } from './persistence';
 import { createOverlay, updateOverlayStep, updateSpotlightPosition, destroyOverlay } from './overlay';
 import { lookupTour } from './registry';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode } from '../../diagnostics/types';
+
+const tourLog = createNamedLogger('ui.tour');
+
+/**
+ * Route a tour-engine failure through the named logger so the bus row for
+ * `ui.tour` degrades and the error buffer captures the throw. Re-attributes
+ * the failure away from the registry's placeholder subsystem onto `ui.tour`
+ * even though they happen to match — keeps the pattern parallel with the
+ * feature:* helpers used elsewhere in the codebase.
+ */
+export function logTourFailure(
+  code: ErrorCode,
+  context: Record<string, unknown>,
+  cause?: unknown,
+): void {
+  const error = buildError(code, context, cause);
+  tourLog.warn({ ...error, subsystem: 'ui.tour', severity: 'warn' });
+}
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -71,7 +91,7 @@ function waitForElement(
       }
 
       if (Date.now() - start > WAIT_FOR_TIMEOUT_MS) {
-        log(`[Tour] waitFor timed out for step "${step.id}", skipping`);
+        tourLog.debug(`waitFor timed out for step "${step.id}", skipping`);
         resolve(null);
         return;
       }
@@ -123,12 +143,22 @@ function startPositionTracking(): void {
 
     const target = activeTour.currentTarget;
     if (target && isTargetAlive(target)) {
-      updateSpotlightPosition(target);
+      try {
+        updateSpotlightPosition(target);
+      } catch (err) {
+        logTourFailure('QPM-TOUR-001', { phase: 'positionTracking' }, err);
+        teardown().catch((teardownErr) => {
+          logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'positionTracking' }, teardownErr);
+        });
+        return;
+      }
       activeTour.rafId = requestAnimationFrame(track);
     } else {
       // Target disappeared (window closed) — persist and teardown
       persistCurrentProgress();
-      void teardown();
+      teardown().catch((err) => {
+        logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'positionTracking:targetLost' }, err);
+      });
     }
   };
 
@@ -192,7 +222,7 @@ async function showStep(index: number): Promise<void> {
   const target = await waitForElement(step, windowBody);
   if (!target || !isTargetAlive(target)) {
     // Skip this step — target missing or hidden (e.g., inactive tab)
-    log(`[Tour] Target not found or hidden for step "${step.id}", skipping`);
+    tourLog.debug(`Target not found or hidden for step "${step.id}", skipping`);
     await showStep(index + 1);
     return;
   }
@@ -205,25 +235,38 @@ async function showStep(index: number): Promise<void> {
 
   const isLastStep = index === steps.length - 1;
 
-  updateOverlayStep({
-    target,
-    step,
-    stepIndex: index,
-    totalSteps: steps.length,
-    isLastStep,
-    onNext: () => {
-      writeTourProgress(definition.windowId, {
-        version: definition.version,
-        lastCompletedStep: index,
-        completed: false,
-      });
-      void showStep(index + 1);
-    },
-    onSkip: () => {
-      markCompleted();
-      void teardown();
-    },
-  });
+  try {
+    updateOverlayStep({
+      target,
+      step,
+      stepIndex: index,
+      totalSteps: steps.length,
+      isLastStep,
+      onNext: () => {
+        writeTourProgress(definition.windowId, {
+          version: definition.version,
+          lastCompletedStep: index,
+          completed: false,
+        });
+        showStep(index + 1).catch((err) => {
+          logTourFailure('QPM-TOUR-001', { phase: 'showStep', from: 'onNext', windowId: definition.windowId, stepIndex: index + 1 }, err);
+          teardown().catch((teardownErr) => {
+            logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'onNext' }, teardownErr);
+          });
+        });
+      },
+      onSkip: () => {
+        markCompleted();
+        teardown().catch((err) => {
+          logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'onSkip' }, err);
+        });
+      },
+    });
+  } catch (err) {
+    logTourFailure('QPM-TOUR-001', { phase: 'updateOverlayStep', windowId: definition.windowId, stepIndex: index, stepId: step.id }, err);
+    await teardown();
+    return;
+  }
 
   // Set up advanceOn: 'click' handler
   if (step.advanceOn === 'click') {
@@ -237,7 +280,12 @@ async function showStep(index: number): Promise<void> {
           lastCompletedStep: index,
           completed: false,
         });
-        void showStep(index + 1);
+        showStep(index + 1).catch((stepErr) => {
+          logTourFailure('QPM-TOUR-001', { phase: 'showStep', from: 'clickAdvance', windowId: definition.windowId, stepIndex: index + 1 }, stepErr);
+          teardown().catch((teardownErr) => {
+            logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'clickAdvance' }, teardownErr);
+          });
+        });
       }
     };
     activeTour.clickHandler = handler;
@@ -260,7 +308,11 @@ export async function teardown(): Promise<void> {
   }
 
   activeTour = null;
-  await destroyOverlay();
+  try {
+    await destroyOverlay();
+  } catch (err) {
+    logTourFailure('QPM-TOUR-001', { phase: 'destroyOverlay' }, err);
+  }
 
   // Process queue
   processQueue();
@@ -286,8 +338,20 @@ export async function startTour(definition: TourDefinition, windowBody: HTMLElem
     clickHandler: null,
   };
 
-  createOverlay();
-  await showStep(fromStep);
+  try {
+    createOverlay();
+  } catch (err) {
+    logTourFailure('QPM-TOUR-001', { phase: 'createOverlay', windowId: definition.windowId }, err);
+    activeTour = null;
+    return;
+  }
+
+  try {
+    await showStep(fromStep);
+  } catch (err) {
+    logTourFailure('QPM-TOUR-001', { phase: 'showStep', from: 'startTour', windowId: definition.windowId, stepIndex: fromStep }, err);
+    await teardown();
+  }
 }
 
 function processQueue(): void {
@@ -306,7 +370,9 @@ function processQueue(): void {
   if (!isTargetAlive(next.windowBody)) return;
 
   const startStep = progress ? progress.lastCompletedStep + 1 : 0;
-  void startTour(definition, next.windowBody, startStep);
+  startTour(definition, next.windowBody, startStep).catch((err) => {
+    logTourFailure('QPM-TOUR-001', { phase: 'startTour', from: 'processQueue', windowId: next.windowId, stepIndex: startStep }, err);
+  });
 }
 
 /**
@@ -330,7 +396,9 @@ export function check(windowId: string, windowBody: HTMLElement): void {
 
   // Version changed — restart from beginning
   if (progress && progress.version !== definition.version) {
-    void startTour(definition, windowBody, 0);
+    startTour(definition, windowBody, 0).catch((err) => {
+      logTourFailure('QPM-TOUR-001', { phase: 'startTour', from: 'check:versionChange', windowId }, err);
+    });
     return;
   }
 
@@ -342,7 +410,9 @@ export function check(windowId: string, windowBody: HTMLElement): void {
     return;
   }
 
-  void startTour(definition, windowBody, startStep);
+  startTour(definition, windowBody, startStep).catch((err) => {
+    logTourFailure('QPM-TOUR-001', { phase: 'startTour', from: 'check:resume', windowId, stepIndex: startStep }, err);
+  });
 }
 
 /**
@@ -355,13 +425,17 @@ export function replayTour(windowId: string, windowBody: HTMLElement): void {
 
   // If this tour is currently active, teardown first
   if (activeTour?.definition.windowId === windowId) {
-    void teardown().then(() => {
-      void startTour(definition, windowBody, 0);
-    });
+    teardown()
+      .then(() => startTour(definition, windowBody, 0))
+      .catch((err) => {
+        logTourFailure('QPM-TOUR-001', { phase: 'startTour', from: 'replayTour:afterTeardown', windowId }, err);
+      });
     return;
   }
 
-  void startTour(definition, windowBody, 0);
+  startTour(definition, windowBody, 0).catch((err) => {
+    logTourFailure('QPM-TOUR-001', { phase: 'startTour', from: 'replayTour', windowId }, err);
+  });
 }
 
 /** Check if a tour is currently active. */

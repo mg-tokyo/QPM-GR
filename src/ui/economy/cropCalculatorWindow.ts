@@ -13,6 +13,7 @@ import {
   getPetHoursToMature,
   getAllEggTypes,
   getEggSpawnWeights,
+  getMutation,
 } from '../../catalogs/gameCatalogs';
 import {
   getCropSpriteDataUrl,
@@ -56,12 +57,18 @@ const PILL_INACTIVE_BORDER = 'rgba(143,130,255,0.18)';
 const MUT_INACTIVE_BG = 'rgba(255,255,255,0.03)';
 const MUT_INACTIVE_BORDER = 'rgba(255,255,255,0.08)';
 
-/** Map internal mutation key → user-facing display name */
-const MUTATION_DISPLAY_NAMES: Record<string, string> = {
+/** Map internal mutation key → user-facing display name (hardcoded fallback) */
+const MUTATION_DISPLAY_NAMES_FALLBACK: Record<string, string> = {
   Dawncharged: 'Dawnbound',
   Ambershine: 'Amberlit',
   Ambercharged: 'Amberbound',
 };
+
+function getMutationDisplayName(mutationKey: string): string {
+  const catalogEntry = getMutation(mutationKey);
+  if (catalogEntry?.name) return catalogEntry.name;
+  return MUTATION_DISPLAY_NAMES_FALLBACK[mutationKey] ?? mutationKey;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -214,10 +221,16 @@ const DUST_RARITY_MULT: Record<string, number> = {
   Celestial: 50,
 };
 
-const DUST_MUTATION_MULT: Record<string, number> = {
+const DUST_MUTATION_MULT_FALLBACK: Record<string, number> = {
   Rainbow: 50,
   Gold: 25,
 };
+
+function getDustMutationMult(mutationName: string): number {
+  const catalogEntry = getMutation(mutationName);
+  if (catalogEntry) return catalogEntry.coinMultiplier;
+  return DUST_MUTATION_MULT_FALLBACK[mutationName] ?? 1;
+}
 
 function getPullRateMult(spawnWeightPct: number): number {
   if (spawnWeightPct >= 51) return 1;
@@ -248,7 +261,7 @@ function computePetDustValue(state: PetCalcState): { dustValue: number; rarityMu
   const eggInfo = getSourceEggForSpecies(state.pet.key);
   const pullRateMult = eggInfo ? getPullRateMult(eggInfo.spawnWeightPct) : 1;
 
-  const dustMutMult = state.colorMutation ? (DUST_MUTATION_MULT[state.colorMutation] ?? 1) : 1;
+  const dustMutMult = state.colorMutation ? getDustMutationMult(state.colorMutation) : 1;
   const dustValue = Math.floor(100 * rarityMult * pullRateMult * dustMutMult * scale);
 
   return { dustValue, rarityMult, pullRateMult, dustMutMult, scale };
@@ -1199,7 +1212,7 @@ function renderCropTab(container: HTMLElement): () => void {
 
     const tileOptions: MutationTileOption[] = defs.map((d) => {
       const vb = findVariantBadge(d.name);
-      const displayName = MUTATION_DISPLAY_NAMES[d.name] ?? d.name;
+      const displayName = getMutationDisplayName(d.name);
       return {
         value: d.name,
         displayName,
@@ -1498,7 +1511,7 @@ function renderPetTab(container: HTMLElement): () => void {
 
     const tileOptions: MutationTileOption[] = colorDefs.map((d) => {
       const vb = findVariantBadge(d.name);
-      const displayName = MUTATION_DISPLAY_NAMES[d.name] ?? d.name;
+      const displayName = getMutationDisplayName(d.name);
       return {
         value: d.name,
         displayName,

@@ -1,5 +1,5 @@
 export interface ButtonOptions {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'tonal' | 'confirm';
   size?: 'default' | 'sm';
   pill?: boolean;
   onClick?: () => void;
@@ -33,9 +33,19 @@ const VARIANT_STYLES: Record<ButtonVariant, VariantStyle> = {
     active: 'background:#c62828;',
   },
   ghost: {
-    base: 'background:transparent;color:var(--qpm-accent);border:none;',
-    hover: 'background:var(--qpm-accent-tint);',
-    active: 'background:var(--qpm-accent-subtle);',
+    base: 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:rgba(224,224,224,0.55);',
+    hover: 'background:rgba(255,255,255,0.08);',
+    active: 'background:rgba(255,255,255,0.02);',
+  },
+  tonal: {
+    base: 'background:rgba(143,130,255,0.18);border:1px solid rgba(143,130,255,0.4);color:#c8c0ff;',
+    hover: 'background:rgba(143,130,255,0.25);',
+    active: 'background:rgba(143,130,255,0.14);',
+  },
+  confirm: {
+    base: 'background:rgba(76,175,80,0.18);border:1px solid rgba(76,175,80,0.4);color:#81c784;',
+    hover: 'background:rgba(76,175,80,0.25);',
+    active: 'background:rgba(76,175,80,0.14);',
   },
 };
 

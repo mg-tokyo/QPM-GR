@@ -27,7 +27,7 @@ export interface AbilityDefinition {
   effectBaseValue?: number; // e.g., 10 for "10% × STR"
   effectSuffix?: string; // e.g., "%", "m", "" for ranges
   // Weather requirement (for abilities like SnowyPetXpBoost)
-  requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber';
+  requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm';
 }
 
 type CatalogParameterMetadata = Pick<
@@ -638,6 +638,9 @@ function normalizeCatalogRequiredWeather(value: unknown): AbilityDefinition['req
     case 'amber':
     case 'ambermoon':
       return 'amber';
+    case 'thunderstorm':
+    case 'thunder':
+      return 'thunderstorm';
     default:
       return undefined;
   }

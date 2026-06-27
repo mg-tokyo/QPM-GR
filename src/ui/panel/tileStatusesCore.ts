@@ -1,6 +1,9 @@
 // src/ui/panel/tileStatusesCore.ts
-// Live status updaters for the original 13 tile types (pet-teams, shop-restock, etc.).
+// Live status updaters for the original tile types.
+// Per-tile providers receive a pre-resolved HTMLElement.
+// startPetDerivedStatuses is a multi-tile provider (updates 3 tiles from shared subscriptions).
 
+import type { AddLiveCleanup, GetStatusEl } from './tileStatusTypes';
 import {
   setStatusText,
   formatCompactNumber,
@@ -10,11 +13,13 @@ import {
   truncateStatusText,
   uniqueMapValues,
   renderShopRestockSprites,
-  type TileStatusTone,
   getCurrentVersion,
-  type GetStatusEl,
-  type AddLiveCleanup,
 } from './tileStatuses';
+import { logTileAsyncFailed, logTileImportFailed, makeDepGuard } from './tileHealth';
+
+// ---------------------------------------------------------------------------
+// Multi-tile: pet-derived statuses (pet-teams + ability-tracker + xp-tracker)
+// ---------------------------------------------------------------------------
 
 export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
   const petStatus = getStatusEl('pet-teams');
@@ -92,9 +97,9 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
       }
     };
 
-    void petsStore.startPetInfoStore().catch(() => {});
+    void petsStore.startPetInfoStore().catch((err) => logTileAsyncFailed('pet-teams', 'startPetInfoStore', err));
     teamsStore.initPetTeamsStore();
-    void abilityLogs.startAbilityTriggerStore().then(render).catch(() => {});
+    void abilityLogs.startAbilityTriggerStore().then(render).catch((err) => logTileAsyncFailed('ability-tracker', 'startAbilityTriggerStore', err));
     xpTracker.initializeXpTracker();
 
     const unsubPets = petsStore.onActivePetInfos((pets) => {
@@ -111,37 +116,35 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
       unsubAbility();
       unsubXp();
     });
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('pet-derived', err));
 }
 
-export function startPublicRoomsStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const roomsStatus = getStatusEl('public-rooms');
-  if (!roomsStatus) return;
+// ---------------------------------------------------------------------------
+// Per-tile providers (el: HTMLElement already resolved by the orchestrator)
+// ---------------------------------------------------------------------------
 
+export function startPublicRoomsStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   import('../../features/standalone/publicRooms').then((publicRooms) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
       publicRooms.fetchRooms().then(() => {
         const rooms = Object.values(publicRooms.getState().allRooms || {});
         if (rooms.length === 0) {
-          setStatusText(roomsStatus, '0 rooms / 0 players', 'muted');
+          setStatusText(el, '0 rooms / 0 players', 'muted');
           return;
         }
         const players = rooms.reduce((sum, room) => sum + Math.max(0, room.playersCount ?? room.userSlots?.length ?? 0), 0);
         const busiest = rooms.reduce((max, room) => Math.max(max, room.playersCount ?? room.userSlots?.length ?? 0), 0);
-        setStatusText(roomsStatus, `${rooms.length} rooms / ${players} players / top ${busiest}`, 'positive');
-      }).catch(() => {});
+        setStatusText(el, `${rooms.length} rooms / ${players} players / top ${busiest}`, 'positive');
+      }).catch((err) => logTileAsyncFailed('public-rooms', 'fetchRooms', err));
     };
     render();
     const timer = window.setInterval(render, 60_000);
     addLiveCleanup(version, () => window.clearInterval(timer));
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('public-rooms', err));
 }
 
-export function startShopRestockStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const shopStatus = getStatusEl('shop-restock');
-  if (!shopStatus) return;
-
+export function startShopRestockStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   Promise.all([
     import('../../utils/storage'),
     import('../shop/restockAlerts/types'),
@@ -155,7 +158,7 @@ export function startShopRestockStatus(getStatusEl: GetStatusEl, addLiveCleanup:
       if (version !== getCurrentVersion()) return;
       const merged = meta.mergeToolFallbackRows(items);
       renderShopRestockSprites(
-        shopStatus,
+        el,
         readTracked(),
         merged,
         (item) => meta.getSpriteUrl(item as Parameters<typeof meta.getSpriteUrl>[0]),
@@ -164,7 +167,7 @@ export function startShopRestockStatus(getStatusEl: GetStatusEl, addLiveCleanup:
     };
 
     render();
-    void restockData.fetchRestockData(false).then(render).catch(() => {});
+    void restockData.fetchRestockData(false).then(render).catch((err) => logTileAsyncFailed('shop-restock', 'fetchRestockData', err));
     const offData = restockData.onRestockDataUpdated((detail) => render(detail.items ?? restockData.getRestockDataSync() ?? []));
     const onTrackedChanged = (): void => render(restockData.getRestockDataSync() ?? []);
     window.addEventListener(TRACKED_UPDATED_EVENT, onTrackedChanged);
@@ -172,55 +175,53 @@ export function startShopRestockStatus(getStatusEl: GetStatusEl, addLiveCleanup:
       offData();
       window.removeEventListener(TRACKED_UPDATED_EVENT, onTrackedChanged);
     });
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('shop-restock', err));
 }
 
-export function startJournalStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const journalStatus = getStatusEl('journal-checker');
-  if (!journalStatus) return;
-
+export function startJournalStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   import('../../features/journal/checker').then(({ getJournalStats }) => {
     if (version !== getCurrentVersion()) return;
-    const render = (): void => {
+    const renderInner = (): void => {
       getJournalStats().then((stats) => {
         if (!stats || stats.overall.total === 0) {
-          setStatusText(journalStatus, '0% / catalog loading', 'muted');
+          setStatusText(el, '0% / catalog loading', 'muted');
           return;
         }
         const pct = formatPercent(stats.overall.percentage);
         const missing = Math.max(0, stats.overall.total - stats.overall.collected);
         setStatusText(
-          journalStatus,
+          el,
           `${pct} / ${missing} missing / ${stats.produce.typesCollected}/${stats.produce.typesTotal} crops`,
           stats.overall.percentage >= 100 ? 'positive' : 'normal',
         );
-      }).catch(() => {});
+      }).catch((err) => logTileAsyncFailed('journal', 'getJournalStats', err));
     };
-    render();
-    const timer = window.setInterval(render, 45_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
-  }).catch(() => {});
+    const { guardedRender, cleanup: depCleanup } = makeDepGuard(el, renderInner, ['catalogs'], 'catalogs');
+    guardedRender();
+    const timer = window.setInterval(guardedRender, 45_000);
+    addLiveCleanup(version, () => {
+      window.clearInterval(timer);
+      depCleanup();
+    });
+  }).catch((err) => logTileImportFailed('journal', err));
 }
 
-export function startTurtleTimerStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const turtleStatus = getStatusEl('turtle-timer');
-  if (!turtleStatus) return;
-
+export function startTurtleTimerStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   import('../../features/pets/turtleTimer').then(({ initializeTurtleTimer, onTurtleTimerState }) => {
     if (version !== getCurrentVersion()) return;
     initializeTurtleTimer();
     const render = (state: import('../../features/pets/turtleTimer').TurtleTimerState): void => {
       if (!state.enabled) {
-        setStatusText(turtleStatus, 'Timer disabled', 'muted');
+        setStatusText(el, 'Timer disabled', 'muted');
         return;
       }
       const cropTargets = state.plant.trackedSlots || state.plant.growingSlots;
       const eggTargets = state.egg.trackedSlots || state.egg.growingSlots;
       const totalTargets = cropTargets + eggTargets;
       if (totalTargets === 0) {
-        setStatusText(turtleStatus, `${state.availableTurtles} turtles / 0 crops / 0 eggs`, 'muted');
+        setStatusText(el, `${state.availableTurtles} turtles / 0 crops / 0 eggs`, 'muted');
       } else if (state.availableTurtles === 0) {
-        setStatusText(turtleStatus, `${plural(totalTargets, 'target')} / 0 turtles / no boost`, 'alert');
+        setStatusText(el, `${plural(totalTargets, 'target')} / 0 turtles / no boost`, 'alert');
       } else {
         const nextRemaining = [
           state.plant.focusSlot?.remainingMs,
@@ -229,120 +230,112 @@ export function startTurtleTimerStatus(getStatusEl: GetStatusEl, addLiveCleanup:
           state.egg.adjustedMsRemaining,
         ].filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0).sort((a, b) => a - b)[0] ?? null;
         const eta = nextRemaining ? ` / next ${formatDurationShort(nextRemaining)}` : '';
-        setStatusText(turtleStatus, `${state.availableTurtles} turtles / ${cropTargets} crops / ${eggTargets} eggs${eta}`, 'positive');
+        setStatusText(el, `${state.availableTurtles} turtles / ${cropTargets} crops / ${eggTargets} eggs${eta}`, 'positive');
       }
     };
     const unsub = onTurtleTimerState(render);
     addLiveCleanup(version, unsub);
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('turtle-timer', err));
 }
 
-export function startCropBoostStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const cropBoostStatus = getStatusEl('crop-boosts');
-  if (!cropBoostStatus) return;
-
+export function startCropBoostStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   import('../../features/pets/cropBoostTracker').then(({ startCropBoostTracker, getConfig, getCurrentAnalysis, manualRefresh, onAnalysisChange }) => {
     if (version !== getCurrentVersion()) return;
     startCropBoostTracker();
-    const render = (): void => {
+    const renderInner = (): void => {
       const config = getConfig();
       const analysis = getCurrentAnalysis();
       if (!config.enabled) {
-        setStatusText(cropBoostStatus, 'Boost tracker disabled', 'muted');
+        setStatusText(el, 'Boost tracker disabled', 'muted');
       } else if (!analysis) {
-        setStatusText(cropBoostStatus, 'Scanning garden boosts', 'muted');
+        setStatusText(el, 'Scanning garden boosts', 'muted');
       } else if (analysis.totalBoostPets === 0) {
-        setStatusText(cropBoostStatus, `${analysis.totalCropsNeedingBoost} crops / no boost pets`, analysis.totalCropsNeedingBoost > 0 ? 'alert' : 'muted');
+        setStatusText(el, `${analysis.totalCropsNeedingBoost} crops / no boost pets`, analysis.totalCropsNeedingBoost > 0 ? 'alert' : 'muted');
       } else if (analysis.totalCropsNeedingBoost > 0) {
         const eta = analysis.overallEstimate.timeEstimateP50;
-        setStatusText(cropBoostStatus, `${analysis.totalBoostPets} boosters / ${analysis.totalCropsNeedingBoost} crops / ${formatDurationShort(eta * 60_000)}`);
+        setStatusText(el, `${analysis.totalBoostPets} boosters / ${analysis.totalCropsNeedingBoost} crops / ${formatDurationShort(eta * 60_000)}`);
       } else {
-        setStatusText(cropBoostStatus, `${analysis.totalBoostPets} boosters / ${analysis.totalCropsAtMax}/${analysis.totalMatureCrops} maxed`, 'positive');
+        setStatusText(el, `${analysis.totalBoostPets} boosters / ${analysis.totalCropsAtMax}/${analysis.totalMatureCrops} maxed`, 'positive');
       }
     };
+    const { guardedRender, cleanup: depCleanup } = makeDepGuard(el, renderInner, ['catalogs'], 'catalogs');
     manualRefresh();
-    render();
-    const unsub = onAnalysisChange(render);
+    guardedRender();
+    const unsub = onAnalysisChange(guardedRender);
     const timer = window.setInterval(() => {
       manualRefresh();
-      render();
+      guardedRender();
     }, 30_000);
     addLiveCleanup(version, () => {
       unsub();
       window.clearInterval(timer);
+      depCleanup();
     });
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('crop-boost', err));
 }
 
-export function startValueDisplayStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const valueStatus = getStatusEl('value-display');
-  if (!valueStatus) return;
-
+export function startValueDisplayStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   Promise.all([
     import('../../features/economy/storageValue'),
     import('../../store/inventory'),
   ]).then(([storageValue, inventory]) => {
     if (version !== getCurrentVersion()) return;
     storageValue.startStorageValue();
-    void inventory.startInventoryStore().catch(() => {});
-    const render = (): void => {
+    void inventory.startInventoryStore().catch((err) => logTileAsyncFailed('value-display', 'startInventoryStore', err));
+    const renderInner = (): void => {
       const config = storageValue.getStorageValueConfig();
       const state = storageValue.getStorageValueState();
       const enabledCount = [config.seedSilo, config.petHutch, config.decorShed, config.inventory].filter(Boolean).length;
       if (enabledCount === 0) {
-        setStatusText(valueStatus, '0/4 value surfaces / 0 coins', 'muted');
+        setStatusText(el, '0/4 value surfaces / 0 coins', 'muted');
       } else if (state.status === 'ready' && state.activeModal && state.value > 0) {
-        setStatusText(valueStatus, `${formatCompactNumber(state.value)} coins / ${state.activeModal}`, 'positive');
+        setStatusText(el, `${formatCompactNumber(state.value)} coins / ${state.activeModal}`, 'positive');
       } else {
         const items = inventory.getInventoryItems();
         const inventoryValue = storageValue.computeStorageItemsValue(items);
-        setStatusText(valueStatus, `${enabledCount}/4 surfaces / ${items.length} inv / ${formatCompactNumber(inventoryValue)} coins`, inventoryValue > 0 ? 'positive' : 'normal');
+        setStatusText(el, `${enabledCount}/4 surfaces / ${items.length} inv / ${formatCompactNumber(inventoryValue)} coins`, inventoryValue > 0 ? 'positive' : 'normal');
       }
     };
-    render();
-    const offState = storageValue.onStorageValueChange(render);
-    const offData = storageValue.onStorageDataChange(render);
-    const offInventory = inventory.onInventoryChange(render);
-    const timer = window.setInterval(render, 10_000);
+    const { guardedRender, cleanup: depCleanup } = makeDepGuard(el, renderInner, ['storeInventory'], 'inventory');
+    guardedRender();
+    const offState = storageValue.onStorageValueChange(guardedRender);
+    const offData = storageValue.onStorageDataChange(guardedRender);
+    const offInventory = inventory.onInventoryChange(guardedRender);
+    const timer = window.setInterval(guardedRender, 10_000);
     addLiveCleanup(version, () => {
       offState();
       offData();
       offInventory();
       window.clearInterval(timer);
+      depCleanup();
     });
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('value-display', err));
 }
 
-export function startActivityLogStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const activityStatus = getStatusEl('activity-log');
-  if (!activityStatus) return;
-
+export function startActivityLogStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   import('../../features/activity/activityLogNativeEnhancer').then(({ startActivityLogEnhancer, getActivityLogEnhancerStatus }) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
       const status = getActivityLogEnhancerStatus();
       if (!status.enabled) {
-        setStatusText(activityStatus, 'Activity log disabled', 'muted');
+        setStatusText(el, 'Activity log disabled', 'muted');
       } else if (!status.started) {
-        setStatusText(activityStatus, 'Starting event capture', 'muted');
+        setStatusText(el, 'Starting event capture', 'muted');
       } else if (status.historyCount > 0) {
         const shown = status.totalFiltered > 0 ? status.totalFiltered : status.historyCount;
-        setStatusText(activityStatus, `${status.historyCount} saved / ${status.replaySafeCount} replay / ${shown} shown`, 'positive');
+        setStatusText(el, `${status.historyCount} saved / ${status.replaySafeCount} replay / ${shown} shown`, 'positive');
       } else {
-        setStatusText(activityStatus, '0 saved / 0 replay / watching', 'positive');
+        setStatusText(el, '0 saved / 0 replay / watching', 'positive');
       }
     };
-    void startActivityLogEnhancer().finally(render).catch(() => {});
+    void startActivityLogEnhancer().catch((err) => logTileAsyncFailed('activity-log', 'startActivityLogEnhancer', err)).finally(render);
     render();
     const timer = window.setInterval(render, 15_000);
     addLiveCleanup(version, () => window.clearInterval(timer));
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('activity-log', err));
 }
 
-export function startProtectionStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const protectionStatus = getStatusEl('locker');
-  if (!protectionStatus) return;
-
+export function startProtectionStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   Promise.all([
     import('../../features/economy/inventoryCapacity'),
     import('../../features/locker/index'),
@@ -350,10 +343,10 @@ export function startProtectionStatus(getStatusEl: GetStatusEl, addLiveCleanup: 
   ]).then(([capacity, locker, inventory]) => {
     if (version !== getCurrentVersion()) return;
     capacity.startInventoryCapacity();
-    void inventory.startInventoryStore().catch(() => {});
+    void inventory.startInventoryStore().catch((err) => logTileAsyncFailed('protection', 'startInventoryStore', err));
 
     const countEnabled = (flags: Record<string, boolean>): number => Object.values(flags).filter(Boolean).length;
-    const render = (): void => {
+    const renderInner = (): void => {
       const capacityState = capacity.getInventoryCapacityState();
       const capacityConfig = capacity.getInventoryCapacityConfig();
       const lockerConfig = locker.getLockerConfig();
@@ -377,31 +370,30 @@ export function startProtectionStatus(getStatusEl: GetStatusEl, addLiveCleanup: 
       const lockText = lockerConfig.enabled ? `${activeRules} rules` : 'locker off';
       const capacityText = capacityConfig.enabled ? `${capacityState.count}/${capacityState.max} slots` : 'capacity off';
       setStatusText(
-        protectionStatus,
+        el,
         `${lockText} / ${capacityText} / ${favoriteCount} fav`,
         capacityState.level === 'full' || capacityState.level === 'warning' ? 'alert' : (lockerConfig.enabled ? 'positive' : 'muted'),
       );
     };
 
-    render();
-    const offCapacity = capacity.onInventoryCapacityChange(render);
-    const offInventory = inventory.onInventoryChange(render);
-    const timer = window.setInterval(render, 5_000);
+    const { guardedRender, cleanup: depCleanup } = makeDepGuard(el, renderInner, ['storeInventory'], 'inventory');
+    guardedRender();
+    const offCapacity = capacity.onInventoryCapacityChange(guardedRender);
+    const offInventory = inventory.onInventoryChange(guardedRender);
+    const timer = window.setInterval(guardedRender, 5_000);
     addLiveCleanup(version, () => {
       offCapacity();
       offInventory();
       window.clearInterval(timer);
+      depCleanup();
     });
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('protection', err));
 }
 
-export function startCropCalculatorStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const calculatorStatus = getStatusEl('crop-calculator');
-  if (!calculatorStatus) return;
-
+export function startCropCalculatorStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   import('../../catalogs/gameCatalogs').then((catalogs) => {
     if (version !== getCurrentVersion()) return;
-    const render = (): void => {
+    const renderInner = (): void => {
       const cropValues = catalogs.getAllPlantSpecies()
         .map((species) => {
           const entry = catalogs.getPlantSpecies(species);
@@ -417,22 +409,23 @@ export function startCropCalculatorStatus(getStatusEl: GetStatusEl, addLiveClean
         })
         .filter((entry) => entry.price > 0);
       if (cropValues.length === 0 && petValues.length === 0) {
-        setStatusText(calculatorStatus, '0 crops / 0 pets / catalogs loading', 'muted');
+        setStatusText(el, '0 crops / 0 pets / catalogs loading', 'muted');
         return;
       }
-      setStatusText(calculatorStatus, `${cropValues.length} crops / ${petValues.length} pets / ${catalogs.getAllMutations().length} mutations`, 'positive');
+      setStatusText(el, `${cropValues.length} crops / ${petValues.length} pets / ${catalogs.getAllMutations().length} mutations`, 'positive');
     };
 
-    render();
-    const offCatalogs = catalogs.onCatalogsReady(render);
-    addLiveCleanup(version, offCatalogs);
-  }).catch(() => {});
+    const { guardedRender, cleanup: depCleanup } = makeDepGuard(el, renderInner, ['catalogs'], 'catalogs');
+    guardedRender();
+    const offCatalogs = catalogs.onCatalogsReady(guardedRender);
+    addLiveCleanup(version, () => {
+      offCatalogs();
+      depCleanup();
+    });
+  }).catch((err) => logTileImportFailed('crop-calculator', err));
 }
 
-export function startControllerStatus(getStatusEl: GetStatusEl, addLiveCleanup: AddLiveCleanup, version: number): void {
-  const controllerStatus = getStatusEl('controller');
-  if (!controllerStatus) return;
-
+export function startControllerStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   Promise.all([
     import('../../features/input/controller/index'),
     import('../../features/input/controller/bindings'),
@@ -442,18 +435,18 @@ export function startControllerStatus(getStatusEl: GetStatusEl, addLiveCleanup: 
       const bindingCount = Object.keys(bindings.loadBindings()).length;
       const speed = bindings.loadCursorSpeed();
       if (!controller.isControllerEnabled()) {
-        setStatusText(controllerStatus, `${bindingCount} binds / ${speed} / disabled`, 'muted');
+        setStatusText(el, `${bindingCount} binds / ${speed} / disabled`, 'muted');
         return;
       }
       const profile = controller.getRunningPoller()?.getProfile();
       if (profile) {
-        setStatusText(controllerStatus, `${bindingCount} binds / ${speed} / ${truncateStatusText(profile.name, 14)}`, 'positive');
+        setStatusText(el, `${bindingCount} binds / ${speed} / ${truncateStatusText(profile.name, 14)}`, 'positive');
       } else {
-        setStatusText(controllerStatus, `${bindingCount} binds / ${speed} / no gamepad`, 'muted');
+        setStatusText(el, `${bindingCount} binds / ${speed} / no gamepad`, 'muted');
       }
     };
     render();
     const timer = window.setInterval(render, 3_000);
     addLiveCleanup(version, () => window.clearInterval(timer));
-  }).catch(() => {});
+  }).catch((err) => logTileImportFailed('controller', err));
 }

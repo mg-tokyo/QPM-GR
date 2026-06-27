@@ -2,6 +2,7 @@ import { renderIcon } from './icon';
 
 export interface SectionHeaderOptions {
   icon?: string;
+  size?: 'default' | 'compact';
   collapsible?: boolean;
   collapsed?: boolean;
   onToggle?: (collapsed: boolean) => void;
@@ -21,6 +22,7 @@ export function createSectionHeader(
 ): SectionHeaderResult {
   const {
     icon,
+    size = 'default',
     collapsible = false,
     collapsed: initialCollapsed = false,
     onToggle,
@@ -29,12 +31,15 @@ export function createSectionHeader(
 
   let isCollapsed = initialCollapsed;
 
+  const isCompact = size === 'compact';
+
   const root = document.createElement('div');
-  root.style.cssText =
-    'display:flex;align-items:center;justify-content:space-between;' +
-    'padding:var(--qpm-space-3) 0;' +
-    'border-bottom:1px solid var(--qpm-divider);' +
-    `${collapsible ? 'cursor:pointer;user-select:none;' : ''}`;
+  root.style.cssText = isCompact
+    ? `${collapsible ? 'cursor:pointer;user-select:none;' : ''}`
+    : 'display:flex;align-items:center;justify-content:space-between;' +
+      'padding:var(--qpm-space-3) 0;' +
+      'border-bottom:1px solid var(--qpm-divider);' +
+      `${collapsible ? 'cursor:pointer;user-select:none;' : ''}`;
 
   const leftSide = document.createElement('div');
   leftSide.style.cssText =
@@ -47,11 +52,12 @@ export function createSectionHeader(
 
   const titleEl = document.createElement('span');
   titleEl.textContent = title;
-  titleEl.style.cssText =
-    'font-size:var(--qpm-font-subtitle);' +
-    'font-weight:var(--qpm-weight-semibold);' +
-    'color:var(--qpm-text);' +
-    'font-family:var(--qpm-font);';
+  titleEl.style.cssText = isCompact
+    ? 'font-size:9px;font-weight:600;color:rgba(224,224,224,0.3);text-transform:uppercase;letter-spacing:0.5px;'
+    : 'font-size:var(--qpm-font-subtitle);' +
+      'font-weight:var(--qpm-weight-semibold);' +
+      'color:var(--qpm-text);' +
+      'font-family:var(--qpm-font);';
   leftSide.appendChild(titleEl);
 
   root.appendChild(leftSide);

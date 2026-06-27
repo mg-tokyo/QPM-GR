@@ -155,6 +155,22 @@ export interface PlantCatalogEntry {
 export type PlantCatalog = Record<string, PlantCatalogEntry>;
 
 // ============================================================================
+// COSMETIC CATALOG - Avatar cosmetic items
+// ============================================================================
+
+export interface CosmeticCatalogEntry {
+  id: string;
+  type: string;
+  filename: string;
+  displayName: string;
+  availability: string;
+  price: number;
+  [key: string]: unknown;
+}
+
+export type CosmeticCatalog = CosmeticCatalogEntry[];
+
+// ============================================================================
 // AGGREGATED CATALOGS CONTAINER
 // ============================================================================
 
@@ -167,6 +183,7 @@ export interface GameCatalogs {
   petAbilities: PetAbilities | null;
   plantCatalog: PlantCatalog | null;
   weatherCatalog: Record<string, unknown> | null;
+  cosmeticCatalog: CosmeticCatalog | null;
 }
 
 /**
@@ -188,6 +205,7 @@ export const CATALOG_KEYS = [
   'petAbilities',
   'plantCatalog',
   'weatherCatalog',
+  'cosmeticCatalog',
 ] as const;
 
 export type CatalogKey = typeof CATALOG_KEYS[number];

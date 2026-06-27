@@ -19,6 +19,18 @@ import { storage } from '../utils/storage';
 import { createKtx2DecoderPool, type Ktx2DecoderPool, type Ktx2DecoderTelemetry } from './ktx2';
 import { spriteLog } from './diagnostics';
 import { pageWindow } from '../core/pageContext';
+import { healthBus } from '../diagnostics/healthBus';
+import { createNamedLogger } from '../diagnostics/logger';
+import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
+
+// ── Diagnostics bus wiring (Phase 2 item 2.5) ──────────────────────────────
+const SPRITE_SUBSYSTEM: Subsystem = 'spriteV2';
+const diagLog = createNamedLogger('spriteV2');
+const HYDRATION_EVENT = 'qpm:sprite-hydration-state-change';
+
+let spriteDiagnosticsStarted = false;
+let hydrationEventHandler: ((event: Event) => void) | null = null;
+let lastPublishedSig = '';
 
 // Global state
 let ctx: {
@@ -312,6 +324,9 @@ function rememberRenderFailure(sig: string, detail: Record<string, unknown>): vo
     spriteRenderFailureSignatures.clear();
   }
   spriteLog('warn', 'render-to-canvas-failed', 'Sprite render to canvas failed', detail);
+  if (spriteDiagnosticsStarted) {
+    diagLog.warn('QPM-SPRITE-004', detail);
+  }
 }
 
 function cloneBootReport(report: SpriteBootReport | null): SpriteBootReport | null {
@@ -2249,6 +2264,165 @@ function resolveActiveRenderer(state: SpriteState, preferred?: any): any {
     updateBootReportRenderer(state);
   }
   return picked;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Diagnostics bus integration (Phase 2 item 2.5)
+//
+// §4.4 ruling: single 'spriteV2' bus entry; sub-state (boot, renderer, hooks,
+// detector, compat) lives in `metrics`, not split into multiple subsystems.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildSpriteMetrics(detail?: Record<string, unknown>): Readonly<Record<string, number | string>> {
+  const report = spriteBootReport;
+  const coverage = Number(
+    (detail?.['coverage'] as number | undefined) ?? report?.coverage ?? 0,
+  );
+  const expected = Number(
+    (detail?.['expectedFrames'] as number | undefined) ?? report?.expectedFrames ?? 0,
+  );
+  const hydrated = Number(
+    (detail?.['hydratedFrames'] as number | undefined) ?? report?.hydratedFrames ?? 0,
+  );
+  const finalMode = String(
+    (detail?.['mode'] as string | undefined) ?? report?.finalMode ?? 'unknown',
+  );
+  const loadMode = String(
+    (detail?.['loadMode'] as string | undefined) ?? report?.loadMode ?? ctx?.state.loadMode ?? 'unknown',
+  );
+  return {
+    coverage: Number.isFinite(coverage) ? Number(coverage.toFixed(3)) : 0,
+    expectedFrames: Number.isFinite(expected) ? expected : 0,
+    hydratedFrames: Number.isFinite(hydrated) ? hydrated : 0,
+    finalMode,
+    loadMode,
+    textures: ctx?.state.tex.size ?? 0,
+    items: ctx?.state.items.length ?? 0,
+  };
+}
+
+function publishSpriteHealth(
+  status: SubsystemHealth['status'] | undefined,
+  message: string,
+  detail?: Record<string, unknown>,
+): void {
+  if (!spriteDiagnosticsStarted) return;
+  const metrics = buildSpriteMetrics(detail);
+  const sig = `${status ?? ''}|${message}|${metrics.coverage}|${metrics.hydratedFrames}|${metrics.expectedFrames}`;
+  if (sig === lastPublishedSig) return;
+  lastPublishedSig = sig;
+  healthBus.publish({
+    subsystem: SPRITE_SUBSYSTEM,
+    category: 'core',
+    ...(status === undefined ? {} : { status }),
+    message,
+    metrics,
+  });
+}
+
+function describeHydration(detail: Record<string, unknown>): string {
+  const hydrated = Number(detail['hydratedFrames'] ?? 0);
+  const expected = Number(detail['expectedFrames'] ?? 0);
+  const coverage = Number(detail['coverage'] ?? 0);
+  return `Hydration ${(coverage * 100).toFixed(0)}% (${hydrated}/${expected})`;
+}
+
+function handleHydrationStateChange(detail: Record<string, unknown>): void {
+  const reason = String(detail['reason'] ?? '');
+  const status = String(detail['status'] ?? '');
+  const degraded = Boolean(detail['degraded']);
+
+  // 'boot' fires when start() begins — we already registered as 'starting'.
+  if (reason === 'boot') return;
+
+  if (status === 'failed') {
+    diagLog.error('QPM-SPRITE-001', {
+      reason,
+      coverage: detail['coverage'] ?? 0,
+      expectedFrames: detail['expectedFrames'] ?? 0,
+      hydratedFrames: detail['hydratedFrames'] ?? 0,
+      finalMode: detail['mode'],
+      loadMode: detail['loadMode'],
+    });
+    return;
+  }
+
+  if (status === 'degraded' || degraded) {
+    diagLog.warn('QPM-SPRITE-002', {
+      reason,
+      coverage: detail['coverage'] ?? 0,
+      expectedFrames: detail['expectedFrames'] ?? 0,
+      hydratedFrames: detail['hydratedFrames'] ?? 0,
+      finalMode: detail['mode'],
+      loadMode: detail['loadMode'],
+    });
+    return;
+  }
+
+  // status === 'ok' or no explicit degradation — publish healthy state.
+  publishSpriteHealth('ok', describeHydration(detail), detail);
+}
+
+/**
+ * Wire the sprite-v2 subsystem into the diagnostics health bus. Idempotent.
+ * Must run after initDiagnostics() so the bus exists. Safe to call before
+ * initSpriteSystem() — registers as 'starting' and listens for hydration
+ * events from the existing dispatchHydrationEvent() flow.
+ */
+export function startSpriteV2Diagnostics(): void {
+  if (spriteDiagnosticsStarted) return;
+  spriteDiagnosticsStarted = true;
+
+  healthBus.register(SPRITE_SUBSYSTEM, {
+    category: 'core',
+    status: 'starting',
+    message: 'Waiting for PIXI + atlas hydration',
+  });
+
+  // If sprite boot already completed before diagnostics started, replay state.
+  if (spriteBootReport) {
+    const reason = spriteBootReport.status === 'ok' ? 'hydrated' : 'degraded/final';
+    handleHydrationStateChange({
+      reason,
+      status: spriteBootReport.status,
+      degraded: spriteBootReport.status !== 'ok',
+      mode: spriteBootReport.finalMode,
+      loadMode: spriteBootReport.loadMode,
+      expectedFrames: spriteBootReport.expectedFrames,
+      hydratedFrames: spriteBootReport.hydratedFrames,
+      coverage: spriteBootReport.coverage,
+    });
+  }
+
+  hydrationEventHandler = (event: Event) => {
+    const detail = (event as CustomEvent).detail as Record<string, unknown> | null | undefined;
+    if (!detail) return;
+    handleHydrationStateChange(detail);
+  };
+  try {
+    window.addEventListener(HYDRATION_EVENT, hydrationEventHandler);
+  } catch {
+    // window unavailable — bus stays in 'starting' until publish via report path.
+  }
+}
+
+export function stopSpriteV2Diagnostics(): void {
+  if (!spriteDiagnosticsStarted) return;
+  if (hydrationEventHandler) {
+    try { window.removeEventListener(HYDRATION_EVENT, hydrationEventHandler); } catch { /* ignore */ }
+    hydrationEventHandler = null;
+  }
+  spriteDiagnosticsStarted = false;
+  lastPublishedSig = '';
+}
+
+/**
+ * Surface a sprite init failure on the health bus. Called from main.ts when
+ * the initSpriteSystem() promise rejects — otherwise the bus would sit in
+ * 'starting' forever.
+ */
+export function reportSpriteV2InitFailed(error: unknown): void {
+  diagLog.error('QPM-SPRITE-001', { phase: 'initSpriteSystem' }, error);
 }
 
 async function start(): Promise<SpriteService> {

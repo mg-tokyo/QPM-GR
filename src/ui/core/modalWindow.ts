@@ -4,8 +4,12 @@
 
 import { removeStorageKeysByPrefix, storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
 import { clampPct } from '../../utils/windowPosition';
 import { t } from '../../i18n';
+import { renderWindowRenderError } from './modalWindowErrorBoundary';
+
+const windowLog = createNamedLogger('ui.window');
 
 export type PanelRender = (root: HTMLElement) => void;
 
@@ -636,11 +640,18 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
   windows.set(id, state);
   saveWindowState(id, true, false);
 
-  // Render content
+  // Render content — error boundary per diagnostics design §13 Phase 5.
+  // QPM-UI-001 lands in the bus + error buffer; renderWindowRenderError paints
+  // a structured card in the body so the window is never left blank.
   try {
     render(body);
   } catch (error) {
-    log(`[Window] Render failed for "${id}"`, error);
+    windowLog.error('QPM-UI-001', { id }, error);
+    try {
+      renderWindowRenderError(body, id, error);
+    } catch (boundaryErr) {
+      log(`[Window] Error boundary failed for "${id}"`, boundaryErr);
+    }
   }
 
   // Restore size first (so we know dimensions for ratio conversion)
@@ -669,6 +680,7 @@ export function closeWindow(id: string): void {
 
   w.el.style.display = 'none';
   saveWindowState(id, false, w.isMinimized);
+  emitWindowEvent('qpm:window-closed', id);
 }
 
 /**
@@ -794,8 +806,12 @@ export function resetAllWindowLayouts(): void {
       w.isMinimized = false;
       restoreWindowFromMinimize(w);
     }
-    w.el.style.width = '';
-    w.el.style.height = '';
+    // Restore to the originally configured size, not blank — clearing
+    // `width`/`height` leaves the window with no inline size, so flex shrinks
+    // it to the min-width default. Match the initial creation at
+    // openWindow() (line 525).
+    w.el.style.width = w.maxWidth;
+    w.el.style.height = w.maxHeight;
     w.el.style.maxWidth = w.maxWidth;
     w.el.style.maxHeight = w.maxHeight;
 

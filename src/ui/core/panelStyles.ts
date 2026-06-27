@@ -38,6 +38,7 @@ export function ensurePanelStyles(): void {
     --qpm-info: #64b5f6;
     --qpm-dust: #ab47bc;
     --qpm-credits: #42a5f5;
+    --qpm-dawn: #c084fc;
 
     /* ── Hunger tri-state ── */
     --qpm-hunger-low: #ff6464;
@@ -962,6 +963,33 @@ export function ensurePanelStyles(): void {
   .qpm-about__heart-btn--pop {
     animation: qpm-heart-pop 250ms ease-out;
   }
+  .qpm-about__tokyo-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 240px;
+    height: 343px;
+    padding: 0;
+    border: 1px solid rgba(143, 130, 255, 0.32);
+    border-radius: var(--qpm-radius-md);
+    background: transparent;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .qpm-about__tokyo-card:hover {
+    transform: scale(1.04);
+    border-color: var(--qpm-accent);
+    box-shadow: 0 4px 16px rgba(143, 130, 255, 0.4);
+  }
+  .qpm-about__tokyo-card img,
+  .qpm-about__tokyo-card video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .qpm-tile,
@@ -974,8 +1002,10 @@ export function ensurePanelStyles(): void {
       animation: none;
     }
     .qpm-tile-placeholder,
-    .qpm-about__heart-btn--pop {
+    .qpm-about__heart-btn--pop,
+    .qpm-about__tokyo-card {
       animation: none;
+      transition: none;
     }
   }
   `;

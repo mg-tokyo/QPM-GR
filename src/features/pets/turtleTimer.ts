@@ -6,7 +6,6 @@ import { storage } from '../../utils/storage';
 import { GardenSnapshot, GardenState, getGardenSnapshot, onGardenSnapshot } from '../garden/bridge';
 import { ActivePetInfo, getActivePetInfos, onActivePetInfos, startPetInfoStore } from '../../store/pets';
 import { pageWindow } from '../../core/pageContext';
-import { startGrowSlotIndexTracker } from '../../store/growSlotIndex';
 import { getAbilityDefinition, computeAbilityStats, type AbilityDefinition } from './data/petAbilities';
 
 declare global {
@@ -1505,10 +1504,6 @@ export function initializeTurtleTimer(initialConfig?: TurtleTimerConfig): void {
   } catch (error) {
     log('⚠️ Unable to attach debugEggDetection helper', error);
   }
-
-  void startGrowSlotIndexTracker().catch((error) => {
-    log('⚠️ Failed to start grow slot index tracker', error);
-  });
 
   void startPetInfoStore();
 

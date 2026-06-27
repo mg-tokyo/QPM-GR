@@ -6,6 +6,9 @@ import { debounce } from '../utils/scheduling/debounce';
 import type { ActivePetInfo } from './pets';
 import { getAllPetXpEstimates, inferXpPerLevel } from '../utils/xpInference';
 import { areCatalogsReady, onCatalogsReady, getPetMaxScale } from '../catalogs/gameCatalogs';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeXp', 'xp');
 
 const STORAGE_KEY_PROCS = 'qpm.xpTrackerProcs.v1';
 const STORAGE_KEY_CONFIG = 'qpm.xpTrackerConfig.v1';
@@ -111,8 +114,8 @@ export function calculateXpStats(
   abilityName: string,
   baseChance: number, // Base probability percentage per minute (e.g., 30 for XP Boost I)
   baseXp: number, // Base XP per proc (e.g., 300 for XP Boost I)
-  requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | null,
-  currentWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'unknown' | null,
+  requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null,
+  currentWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'unknown' | null,
 ): XpAbilityStats {
   const strength = pet.strength ?? 100;
   const petId = pet.petId ?? '';
@@ -340,6 +343,7 @@ function autoPopulateXpEstimates(): void {
  * Initialize XP tracker from storage
  */
 export function initializeXpTracker(): void {
+  diag.register('Restoring XP tracker from storage');
   try {
     const savedProcs = storage.get<{ procs: XpProcEntry[] } | null>(STORAGE_KEY_PROCS, null);
     if (savedProcs?.procs) {
@@ -351,7 +355,7 @@ export function initializeXpTracker(): void {
       Object.assign(configData.speciesXpPerLevel, savedConfig.speciesXpPerLevel);
     }
   } catch (error) {
-    log('⚠️ Failed to restore XP tracker data', error);
+    diag.warn('QPM-STORE-001', { phase: 'restoreFromStorage' }, error);
   }
 
   // Auto-populate XP estimates from catalog (FUTUREPROOF!)
@@ -363,6 +367,11 @@ export function initializeXpTracker(): void {
       autoPopulateXpEstimates();
     });
   }
+
+  diag.publishOk(`${procHistory.length} proc(s) restored`, {
+    procCount: procHistory.length,
+    speciesEstimates: Object.keys(configData.speciesXpPerLevel).length,
+  });
 }
 
 /**

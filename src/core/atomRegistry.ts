@@ -14,10 +14,16 @@ import {
   getCachedStore,
 } from './jotaiBridge';
 import { log } from '../utils/logger';
+import { healthBus } from '../diagnostics/healthBus';
+import { createNamedLogger } from '../diagnostics/logger';
+import type { Subsystem } from '../diagnostics/types';
+
+const diagLog = createNamedLogger('atomRegistry');
+const ATOM_SUBSYSTEM: Subsystem = 'atomRegistry';
+let atomDiagnosticsStarted = false;
 import type {
   WeatherAtomValue,
   ShopsAtomSnapshot,
-  ShopPurchasesAtomSnapshot,
   ShopCategorySnapshot,
   GridPosition,
   PlayerAtomValue,
@@ -58,7 +64,6 @@ interface AtomValueMap {
   eggShop: ShopCategorySnapshot | null;
   toolShop: ShopCategorySnapshot | null;
   decorShop: ShopCategorySnapshot | null;
-  shopPurchases: ShopPurchasesAtomSnapshot | null;
   coinsBalance: number;
   creditsBalance: number;
   magicDustBalance: number;
@@ -79,15 +84,14 @@ interface AtomValueMap {
   inventory: unknown | null;
   cropInventory: unknown | null;
   toolInventory: unknown[] | null;
+  selectedItemId: string | null;
   // Garden
   myData: Record<string, unknown> | null;
   map: Record<string, unknown> | null;
   dirtTileIndex: number | null;
   gardenObject: unknown | null;
   ownGardenObject: unknown | null;
-  growSlotIndex: number | null;
   gardenTile: unknown | null;
-  selectedItem: unknown | null;
   // UI State
   activeModal: string | null;
   selectedSlotId: number | null;
@@ -122,7 +126,6 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg' },
   toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool' },
   decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor' },
-  shopPurchases: { label: /^my(?:Shop)?Purchases(?:Atom)?$/i },
   coinsBalance: { label: /^my(?:Coins|coins)(?:Count|Balance)?Atom$/i, fallback: 0 },
   creditsBalance: { label: /^credits(?:Balance|Count)?Atom$/i, fallback: 0 },
   magicDustBalance: { label: /^my(?:MagicDust|magicDust)(?:Count|Balance)?Atom$/i, fallback: 0 },
@@ -175,6 +178,7 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   },
   cropInventory: { label: /^myCrop(?:s)?Inventory(?:Data)?Atom$/i },
   toolInventory: { label: /^myTool(?:s)?Inventory(?:Data)?Atom$/i },
+  selectedItemId: { label: /^mySelectedItemIdAtom$/, fallback: null },
 
   // ── Garden ────────────────────────────────────────────────────────────
   myData: {
@@ -190,16 +194,14 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   dirtTileIndex: { label: /^myOwn(?:Current)?DirtTile(?:Index|Idx)(?:Data)?Atom$/i },
   gardenObject: { label: /^myCurrent(?:Garden)?Object(?:Data)?Atom$/i },
   ownGardenObject: { label: /^myOwn(?:Current)?(?:Garden)?Object(?:Data)?Atom$/i },
-  growSlotIndex: { label: /^myCurrent(?:Grow)?Slot(?:Index|Idx)(?:Data)?Atom$/i },
   gardenTile: { label: /^myCurrent(?:Garden)?Tile(?:Data)?Atom$/i },
-  selectedItem: { label: /^my(?:Selected|Current)Item(?:Data)?Atom$/i },
 
   // ── UI State ──────────────────────────────────────────────────────────
   activeModal: {
     label: /^active(?:Modal|Dialog)(?:Name)?(?:Data)?Atom$/i,
     structure: (v) => typeof v === 'string' && KNOWN_MODALS.has(v),
   },
-  selectedSlotId: { label: /^my(?:Selected|Current)Slot(?:Id)?(?:Data)?Atom$/i },
+  selectedSlotId: { label: /^mySelectedSlotIdAtom$/, fallback: null },
 
   // ── Mount ──────────────────────────────────────────────────────────────
   riddenPetId: { label: /^myRiddenPetId(?:Atom)?$/i, fallback: null },
@@ -286,7 +288,7 @@ function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
 
   // All fail
   if (!missingLog.has(key)) {
-    log(`[AtomRegistry] ⚠️ Missing atom for key '${key}'`);
+    diagLog.warn('QPM-ATOM-001', { key });
     missingLog.add(key);
   }
   return null;
@@ -320,13 +322,13 @@ function getPathValue(root: unknown, path?: AtomPath): unknown {
   return cursor;
 }
 
-function applyTransform<T>(finder: AtomFinder<T>, raw: unknown): T | null {
+function applyTransform<T>(finder: AtomFinder<T>, raw: unknown, key: AtomRegistryKey): T | null {
   try {
     const base = getPathValue(raw, finder.path);
     if (finder.transform) return finder.transform(base);
     return (base ?? finder.fallback ?? null) as T | null;
   } catch (error) {
-    log('[AtomRegistry] Transform error', error);
+    diagLog.warn('QPM-ATOM-002', { key }, error);
     return (finder.fallback ?? null) as T | null;
   }
 }
@@ -344,7 +346,7 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
 
   try {
     const raw = await readRawAtomValue(resolution.atom);
-    return applyTransform(finder, raw) as RegistryValue<K>;
+    return applyTransform(finder, raw, key) as RegistryValue<K>;
   } catch {
     // Cached ref might be stale — clear and retry once
     invalidateKey(key);
@@ -352,7 +354,7 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
     if (retry) {
       try {
         const raw = await readRawAtomValue(retry.atom);
-        return applyTransform(finder, raw) as RegistryValue<K>;
+        return applyTransform(finder, raw, key) as RegistryValue<K>;
       } catch { /* fall through */ }
     }
     return (finder?.fallback ?? null) as RegistryValue<K>;
@@ -373,7 +375,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
   }
 
   const unsubscribe = await subscribeRawAtom(resolution.atom, (raw: unknown) => {
-    const value = applyTransform(finder, raw);
+    const value = applyTransform(finder, raw, key);
     cb((value ?? null) as RegistryValue<K>);
   });
 
@@ -400,14 +402,14 @@ export function readAtomValueSync<K extends AtomRegistryKey>(key: K): RegistryVa
 
   try {
     const raw = store.get(resolution.atom);
-    return applyTransform(finder, raw) as RegistryValue<K>;
+    return applyTransform(finder, raw, key) as RegistryValue<K>;
   } catch {
     invalidateKey(key);
     const retry = resolveAtom(key);
     if (retry) {
       try {
         const raw = store.get(retry.atom);
-        return applyTransform(finder, raw) as RegistryValue<K>;
+        return applyTransform(finder, raw, key) as RegistryValue<K>;
       } catch { /* fall through */ }
     }
     return (finder?.fallback ?? null) as RegistryValue<K>;
@@ -432,6 +434,55 @@ export interface AtomHealthCheckResult {
   registered: Array<{ key: string; label: string; resolvedVia: 'label' | 'structure' }>;
   missing: string[];
   unregistered: Array<{ label: string; populated: boolean }>;
+}
+
+/**
+ * Wire the atomRegistry subsystem into the diagnostics health bus. Idempotent.
+ * Call once on init BEFORE any atom resolution so the 'starting' state is
+ * visible briefly; later `runAtomHealthCheck()` publishes the final state.
+ */
+export function startAtomRegistryDiagnostics(): void {
+  if (atomDiagnosticsStarted) return;
+  atomDiagnosticsStarted = true;
+  healthBus.register(ATOM_SUBSYSTEM, {
+    category: 'core',
+    status: 'starting',
+    message: 'Awaiting health check',
+  });
+}
+
+function publishHealthFromResult(result: AtomHealthCheckResult): void {
+  if (!atomDiagnosticsStarted) return;
+  const total = result.registered.length + result.missing.length;
+  const metrics: Readonly<Record<string, number>> = {
+    registered: result.registered.length,
+    missing: result.missing.length,
+    unregisteredDiscovered: result.unregistered.length,
+    total,
+  };
+  const message = result.missing.length === 0
+    ? `${result.registered.length}/${total} atoms resolved`
+    : `${result.registered.length}/${total} resolved, ${result.missing.length} missing`;
+
+  if (result.missing.length === 0) {
+    healthBus.publish({
+      subsystem: ATOM_SUBSYSTEM,
+      category: 'core',
+      status: 'ok',
+      message,
+      metrics,
+    });
+    return;
+  }
+
+  // Bus is already 'degraded' from ATOM-001 emissions during resolution. Omit
+  // status here so the bus preserves it; just refresh message + metrics.
+  healthBus.publish({
+    subsystem: ATOM_SUBSYSTEM,
+    category: 'core',
+    message,
+    metrics,
+  });
 }
 
 /** Scan all registered keys and catalog all game atoms. Diagnostic only. */
@@ -473,7 +524,9 @@ export function runAtomHealthCheck(): AtomHealthCheckResult {
     log(`[AtomRegistry] ⚠️ Missing keys: ${missing.join(', ')}`);
   }
 
-  return { registered, missing, unregistered };
+  const result: AtomHealthCheckResult = { registered, missing, unregistered };
+  publishHealthFromResult(result);
+  return result;
 }
 
 /** List all registered keys with resolution status. */

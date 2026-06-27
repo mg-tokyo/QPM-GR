@@ -1,6 +1,6 @@
 // src/features/gardenFilters.ts
 // Filter visible crops and eggs in the garden by dimming non-matching tiles
-// Uses PIXI stage traversal and child labels for filtering
+// Uses PIXI stage traversal + tile data (species key) for filtering
 
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
@@ -13,17 +13,74 @@ import { pageWindow, isIsolatedContext, shareGlobal } from '../../core/pageConte
 const STORAGE_KEY = 'qpm.gardenFilters.v1';
 const DIM_ALPHA = 0.1; // Barely visible
 
-// Tile node cache — rebuilt only when stage children count changes
+// ── Per-frame alpha guards (PIXI ticker) ────────────────────────────────────
+// The game toggles `visible` on Tile containers when the player walks.  When
+// visible goes false→true, PIXI may render with stale worldAlpha (1.0) because
+// color-update dirty flags are cleared while the node was invisible.
+//
+// Fix: hook into the PIXI app's own ticker so our guard runs BEFORE render
+// (not after, like rAF would).  Force-dirty alpha by toggling the value past
+// PIXI's same-value check — the intermediate value is never rendered because
+// render happens after all ticker callbacks complete.
+
+const guardedNodes = new Set<any>();
+let guardTickerCleanup: (() => void) | null = null;
+
+function guardTick(): void {
+  for (const node of guardedNodes) {
+    // Force PIXI to re-process alpha even if localAlpha already matches.
+    // Setting to 1 then DIM_ALPHA ensures the setter's change-detection fires
+    // and marks the node's color dirty before the renderer reads it.
+    node.alpha = 1;
+    node.alpha = DIM_ALPHA;
+  }
+}
+
+/** Start the guard on the PIXI ticker. Called lazily when the first node is guarded. */
+function startGuardTicker(): void {
+  if (guardTickerCleanup) return;
+  const app = getPixiApp();
+  if (!app?.ticker) return;
+  app.ticker.add(guardTick);
+  guardTickerCleanup = () => {
+    app.ticker.remove(guardTick);
+    guardTickerCleanup = null;
+  };
+}
+
+function stopGuardTicker(): void {
+  if (guardTickerCleanup) {
+    guardTickerCleanup();
+  }
+}
+
+function installVisibleGuard(node: any): void {
+  if (guardedNodes.has(node)) return;
+  guardedNodes.add(node);
+  startGuardTicker();
+}
+
+function removeVisibleGuard(node: any): void {
+  guardedNodes.delete(node);
+  if (guardedNodes.size === 0) stopGuardTicker();
+}
+
+function removeAllVisibleGuards(): void {
+  guardedNodes.clear();
+  stopGuardTicker();
+}
+
+// Tile node cache — rebuilt every poll from the live stage tree
 interface TileNode {
   node: any;
   x: number;
   y: number;
 }
 let tileNodeCache: TileNode[] | null = null;
-let tileNodeCacheStageLength = -1;
 
-// Species name to PIXI View label mapping
-// Derived from floraSpeciesDex: PIXI label = plant.name + ' View'
+// Species name to PIXI View label mapping (used ONLY by getAllPlantSpecies() as
+// a UI fallback when catalogs aren't loaded yet, and by diagnostics).
+// NOT used for filter matching — filters use tileData.species directly.
 const SPECIES_TO_VIEW: Record<string, string> = {
   'Carrot': 'Carrot Plant View',
   'Cabbage': 'Cabbage Plant View',
@@ -165,10 +222,9 @@ let config: GardenFiltersConfig = {
 const listeners = new Set<(config: GardenFiltersConfig) => void>();
 let cleanupInterval: (() => void) | null = null;
 
-// Cached filter label sets — rebuilt only when config changes, not on every 2s poll
+// Cached filter sets — rebuilt only when config changes, not on every poll
 interface CachedFilterSets {
-  speciesToShow: Set<string>;
-  unknownSpeciesToShow: Set<string>;
+  speciesKeysToShow: Set<string>;
   mutationsToShow: Set<string>;
   eggTypesToShow: Set<string>;
   growthStatesToShow: Set<string>;
@@ -177,15 +233,13 @@ let cachedFilterSets: CachedFilterSets | null = null;
 
 function getOrBuildFilterSets(): CachedFilterSets {
   if (cachedFilterSets !== null) return cachedFilterSets;
-  const { speciesToShow, unknownSpeciesToShow } = buildSpeciesLabelSets(config.cropSpecies);
   const mutationsToShow = new Set<string>();
   for (const mutation of config.mutations) {
     const normalized = normalizeMutationFilterKey(mutation);
     if (normalized) mutationsToShow.add(normalized);
   }
   cachedFilterSets = {
-    speciesToShow,
-    unknownSpeciesToShow,
+    speciesKeysToShow: new Set<string>(config.cropSpecies),
     mutationsToShow,
     eggTypesToShow: new Set<string>(config.eggTypes),
     growthStatesToShow: new Set<string>(config.growthStates),
@@ -315,7 +369,9 @@ function getGardenTileData(x: number, y: number): any {
 
 /**
  * Recursively collect all Tile nodes from the PIXI stage into a flat array.
- * Called only when the stage children count changes.
+ * Rebuilt every poll cycle — the previous stage.children.length check was too coarse
+ * (tiles are nested deep in the tree, so top-level count rarely changes when tiles are
+ * created/destroyed during viewport scrolling or player movement).
  */
 function buildTileNodeCache(node: any, out: TileNode[] = [], depth = 0, maxDepth = 10): TileNode[] {
   if (!node || depth > maxDepth) return out;
@@ -337,15 +393,13 @@ function buildTileNodeCache(node: any, out: TileNode[] = [], depth = 0, maxDepth
 }
 
 /**
- * Return cached tile nodes, rebuilding only when stage children count changes.
+ * Rebuild tile node list from the live stage tree.
+ * Always rebuilds — the old stage.children.length cache key was broken because tiles
+ * sit deep in the tree (Stage → World → TileLayer → Tile) and top-level count doesn't
+ * change when tiles are recycled during viewport panning or player movement.
  */
 function getOrBuildTileNodeCache(stage: any): TileNode[] {
-  const currentLength: number = stage?.children?.length ?? -1;
-  if (tileNodeCache !== null && tileNodeCacheStageLength === currentLength) {
-    return tileNodeCache;
-  }
   tileNodeCache = buildTileNodeCache(stage);
-  tileNodeCacheStageLength = currentLength;
   return tileNodeCache;
 }
 
@@ -361,8 +415,7 @@ function getOrBuildTileNodeCache(stage: any): TileNode[] {
  */
 function applyFiltersToStage(
   node: any,
-  speciesToShow: Set<string>,
-  unknownSpeciesToShow: Set<string>,
+  speciesKeysToShow: Set<string>,
   mutationsToShow: Set<string>,
   eggTypesToShow: Set<string>,
   growthStatesToShow: Set<string>,
@@ -381,59 +434,34 @@ function applyFiltersToStage(
     if (match && childLabel && childLabel !== 'Sprite') {
       const x = parseInt(match[1]!);
       const y = parseInt(match[2]!);
-
-      // Species/Egg filtering can work from PIXI labels alone (no garden data needed)
-      let speciesMatches = true;
-      let eggMatches = true;
-
       const isEgg = childLabel === 'Egg';
 
-      if (isEgg) {
-        // Egg filtering - for now, we can't filter eggs without garden data
-        // TODO: Add egg type to PIXI label or use different approach
-        if (eggTypesToShow.size > 0) {
-          // For eggs, we need garden data to get egg type
-          const tileData = getGardenTileData(x, y);
-          if (tileData) {
-            const eggType = tileData.eggType || tileData.species;
-            eggMatches = eggTypesToShow.has(eggType);
-          } else {
-            // No data for egg, show it (don't filter unknown eggs)
-            eggMatches = true;
-          }
-        }
-      } else {
-        // Plant/Decor filtering.
-        // Known species (in SPECIES_TO_VIEW): fast path via PIXI child label.
-        // Unknown species (new crops not yet in SPECIES_TO_VIEW): deferred to tile data.
-        if (speciesToShow.size > 0 || unknownSpeciesToShow.size > 0) {
-          if (speciesToShow.has(childLabel)) {
-            speciesMatches = true; // fast path — no tile data needed
-          } else if (unknownSpeciesToShow.size > 0) {
-            speciesMatches = false; // may be resolved after tile data fetch below
-          } else {
-            speciesMatches = false;
-          }
-        }
-      }
+      // All filter types use tile data — single fetch serves species, egg, mutation, and growth
+      const needsTileData =
+        speciesKeysToShow.size > 0 ||
+        eggTypesToShow.size > 0 ||
+        mutationsToShow.size > 0 ||
+        growthStatesToShow.size > 0;
 
-      // Mutation and growth state filtering REQUIRE garden data.
-      // Unknown-species tiles that didn't match via PIXI label also need tile data.
+      let speciesMatches = true;
+      let eggMatches = true;
       let mutationMatches = true;
       let growthStateMatches = true;
-      const needsGardenData =
-        mutationsToShow.size > 0 ||
-        growthStatesToShow.size > 0 ||
-        (!isEgg && !speciesMatches && unknownSpeciesToShow.size > 0);
 
-      if (needsGardenData) {
+      if (needsTileData) {
         const tileData = getGardenTileData(x, y);
         if (tileData) {
           stats.withData++;
 
-          // Resolve unknown-species match via tile data species field
-          if (!isEgg && !speciesMatches && unknownSpeciesToShow.size > 0) {
-            speciesMatches = unknownSpeciesToShow.has(tileData.species);
+          // Species match via tile data species field (handles all variants correctly)
+          if (!isEgg && speciesKeysToShow.size > 0) {
+            speciesMatches = speciesKeysToShow.has(tileData.species);
+          }
+
+          // Egg match
+          if (isEgg && eggTypesToShow.size > 0) {
+            const eggType = tileData.eggType || tileData.species;
+            eggMatches = eggTypesToShow.has(eggType);
           }
 
           // Check mutations
@@ -447,7 +475,6 @@ function applyFiltersToStage(
                 mutationMatches = !hasMutation;
               } else {
                 // ANY mode (default): show tile if it's missing AT LEAST ONE selected mutation
-                // (hide only when the tile already has ALL selected mutations = fully complete)
                 const tileMutSet = new Set<string>(tileMutations);
                 const hasAllMutations = Array.from(mutationsToShow).every(m => tileMutSet.has(m));
                 mutationMatches = !hasAllMutations;
@@ -465,22 +492,22 @@ function applyFiltersToStage(
           }
         } else {
           stats.withoutData++;
-          // No garden data — can't verify mutations or growth state, so default to visible
-          if (!isEgg && unknownSpeciesToShow.size > 0) speciesMatches = false;
-          // mutationMatches and growthStateMatches stay true — can't verify, show by default
+          // No garden data — can't verify, default to visible for mutations/growth,
+          // but species/egg can't match without data
+          if (!isEgg && speciesKeysToShow.size > 0) speciesMatches = false;
+          if (isEgg && eggTypesToShow.size > 0) eggMatches = true; // don't filter unknown eggs
         }
-      } else {
-        // Not filtering by mutations, growth state, or unknown species — no tile data needed
-        stats.withoutData++;
       }
 
       const shouldShow = speciesMatches && eggMatches && mutationMatches && growthStateMatches;
 
       if (shouldShow) {
+        removeVisibleGuard(node);
         node.alpha = 1.0;
         stats.visible++;
       } else {
         node.alpha = DIM_ALPHA;
+        installVisibleGuard(node);
         stats.dimmed++;
       }
     }
@@ -489,7 +516,7 @@ function applyFiltersToStage(
   // Recursively traverse children
   if (node.children && Array.isArray(node.children)) {
     for (const child of node.children) {
-      applyFiltersToStage(child, speciesToShow, unknownSpeciesToShow, mutationsToShow, eggTypesToShow, growthStatesToShow, stats, depth + 1, maxDepth);
+      applyFiltersToStage(child, speciesKeysToShow, mutationsToShow, eggTypesToShow, growthStatesToShow, stats, depth + 1, maxDepth);
     }
   }
 }
@@ -505,6 +532,7 @@ function resetFiltersOnStage(
   if (!node || depth > maxDepth) return;
 
   if (node.label && /^Tile \(\d+, \d+\)$/.test(node.label)) {
+    removeVisibleGuard(node);
     node.alpha = 1.0;
   }
 
@@ -513,36 +541,6 @@ function resetFiltersOnStage(
       resetFiltersOnStage(child, depth + 1, maxDepth);
     }
   }
-}
-
-/**
- * Build the two label sets used for PIXI matching from a list of species keys.
- * speciesToShow — PIXI child labels to match (best-effort candidates per species).
- * unknownSpeciesToShow — species keys to verify via tile data when the PIXI fast path misses.
- *
- * Every species is added to BOTH sets. The PIXI fast path fires first (no tile data needed).
- * If the PIXI label is wrong — e.g. rare variants like FourLeafClover that may share the base
- * plant's View label ('Clover Patch View') — the tile data fallback catches it via tileData.species.
- */
-function buildSpeciesLabelSets(
-  species: string[]
-): { speciesToShow: Set<string>; unknownSpeciesToShow: Set<string> } {
-  const speciesToShow = new Set<string>();
-  const unknownSpeciesToShow = new Set<string>();
-  for (const s of species) {
-    const staticLabel = SPECIES_TO_VIEW[s];
-    if (staticLabel) { speciesToShow.add(staticLabel); }
-    const catalogEntry = getPlantSpecies(s);
-    const plantDisplayName = (catalogEntry?.plant as any)?.name as string | undefined;
-    if (plantDisplayName) {
-      speciesToShow.add(plantDisplayName + ' View');
-      speciesToShow.add(plantDisplayName + ' Plant View');
-    }
-    speciesToShow.add(s + ' Plant View');
-    // Always add as tile-data fallback — if the PIXI fast path matches, tile data is skipped.
-    unknownSpeciesToShow.add(s);
-  }
-  return { speciesToShow, unknownSpeciesToShow };
 }
 
 /**
@@ -561,7 +559,7 @@ function applyFilters(): void {
       const stats = { visible: 0, dimmed: 0, withData: 0, withoutData: 0 };
       const tileNodes = getOrBuildTileNodeCache(app.stage);
       for (const { node } of tileNodes) {
-        applyFiltersToStage(node, emptySet, emptySet, statsHubExcludeMutationsSet, emptySet, emptySet, stats, 0, 0);
+        applyFiltersToStage(node, emptySet, statsHubExcludeMutationsSet, emptySet, emptySet, stats, 0, 0);
       }
       log(`🔍 [GARDEN-FILTERS] Exclude override: ${stats.visible} visible, ${stats.dimmed} dimmed`);
     } catch (error) {
@@ -597,10 +595,12 @@ function applyFilters(): void {
           }
         }
         if (tileKey !== null && statsHubTileKeySet.has(tileKey)) {
+          removeVisibleGuard(node);
           node.alpha = 1.0;
           visible++;
         } else {
           node.alpha = DIM_ALPHA;
+          installVisibleGuard(node);
           dimmed++;
         }
       }
@@ -617,12 +617,12 @@ function applyFilters(): void {
     try {
       const app = getPixiApp();
       if (!app || !app.stage) return;
-      const { speciesToShow, unknownSpeciesToShow } = buildSpeciesLabelSets(statsHubOverride);
+      const speciesKeysToShow = new Set<string>(statsHubOverride);
       const emptySet = new Set<string>();
       const stats = { visible: 0, dimmed: 0, withData: 0, withoutData: 0 };
       const tileNodes = getOrBuildTileNodeCache(app.stage);
       for (const { node } of tileNodes) {
-        applyFiltersToStage(node, speciesToShow, unknownSpeciesToShow, emptySet, emptySet, emptySet, stats, 0, 0);
+        applyFiltersToStage(node, speciesKeysToShow, emptySet, emptySet, emptySet, stats, 0, 0);
       }
       log(`🔍 [GARDEN-FILTERS] Override: ${stats.visible} visible, ${stats.dimmed} dimmed`);
     } catch (error) {
@@ -644,18 +644,17 @@ function applyFilters(): void {
       return;
     }
 
-    const { speciesToShow, unknownSpeciesToShow, mutationsToShow, eggTypesToShow, growthStatesToShow } = getOrBuildFilterSets();
+    const { speciesKeysToShow, mutationsToShow, eggTypesToShow, growthStatesToShow } = getOrBuildFilterSets();
 
     const stats = { visible: 0, dimmed: 0, withData: 0, withoutData: 0 };
     const tileNodes = getOrBuildTileNodeCache(app.stage);
     for (const { node } of tileNodes) {
-      applyFiltersToStage(node, speciesToShow, unknownSpeciesToShow, mutationsToShow, eggTypesToShow, growthStatesToShow, stats, 0, 0);
+      applyFiltersToStage(node, speciesKeysToShow, mutationsToShow, eggTypesToShow, growthStatesToShow, stats, 0, 0);
     }
 
     if (stats.visible + stats.dimmed > 0) {
       const filterInfo = [];
-      const totalSpecies = speciesToShow.size + unknownSpeciesToShow.size;
-      if (totalSpecies > 0) filterInfo.push(`${totalSpecies} species`);
+      if (speciesKeysToShow.size > 0) filterInfo.push(`${speciesKeysToShow.size} species`);
       if (mutationsToShow.size > 0) {
         filterInfo.push(`${mutationsToShow.size} mutations`);
         filterInfo.push(`${stats.withData} mapped, ${stats.withoutData} unmapped`);
@@ -683,8 +682,8 @@ function resetFilters(): void {
       return;
     }
 
+    removeAllVisibleGuards();
     tileNodeCache = null;
-    tileNodeCacheStageLength = -1;
     resetFiltersOnStage(app.stage);
     log('🔍 [GARDEN-FILTERS] All tiles visible');
   } catch (error) {
@@ -757,10 +756,10 @@ function startFilteringPolling(): void {
       if (!config.enabled) return;
       applyFilters();
     },
-    2000 // Every 2 seconds
+    500 // Every 500ms — fast enough to catch tiles created during viewport scrolling
   );
 
-  log('✅ [GARDEN-FILTERS] Polling started (2s interval, visibility-aware)');
+  log('✅ [GARDEN-FILTERS] Polling started (500ms interval, visibility-aware)');
 }
 
 /**
@@ -770,12 +769,12 @@ function stopFilteringPolling(): void {
   if (cleanupInterval !== null) {
     cleanupInterval();
     cleanupInterval = null;
+    removeAllVisibleGuards();
     statsHubOverride = null;
     statsHubExcludeMutationsSet = null;
     statsHubExcludeMutationsAllMode = false;
     statsHubTileKeySet = null;
     tileNodeCache = null;
-    tileNodeCacheStageLength = -1;
     log('⏹️ [GARDEN-FILTERS] Polling stopped');
   }
 }
@@ -792,21 +791,17 @@ export function initializeGardenFilters(): void {
   loadConfig();
   startFilteringPolling();
 
-  // When catalogs arrive (possibly after filters are already cached), invalidate
-  // the cached label sets so the dynamic plant.name lookup gets a second chance.
-  // Also log any catalog species missing from the static SPECIES_TO_VIEW map.
+  // When catalogs arrive, invalidate cached filter sets so getAllPlantSpecies()
+  // picks up new species for the UI.
   onCatalogsReady(() => {
     cachedFilterSets = null;
-    const catalogKeys = getCatalogPlantSpecies();
-    const missing = catalogKeys.filter(k => !SPECIES_TO_VIEW[k]);
-    if (missing.length > 0) {
-      log(`⚠️ [GARDEN-FILTERS] ${missing.length} catalog species not in static SPECIES_TO_VIEW:`, missing.join(', '));
-    }
   });
 
-  // Expose diagnostic command — always available, not gated by debug globals
+  // Expose diagnostic commands — always available, not gated by debug globals
   shareGlobal('QPM_GARDEN_DIAG', diagnoseGardenFilters);
-  log('✅ [GARDEN-FILTERS] System initialized (run QPM_GARDEN_DIAG() in console for diagnostics)', config);
+  shareGlobal('QPM_GARDEN_TEST', testSpeciesFilter);
+  shareGlobal('QPM_GARDEN_NODES', watchNodeIdentity);
+  log('✅ [GARDEN-FILTERS] System initialized — console commands: QPM_GARDEN_DIAG() QPM_GARDEN_TEST("species") QPM_GARDEN_NODES()', config);
 }
 
 /**
@@ -852,10 +847,18 @@ export function applyGardenFiltersNow(): void {
 }
 
 /**
- * Manually reset all filters (for "Reset All" button)
+ * Manually reset all filters (for "Reset All" button).
+ * Disables filtering, clears all selections, saves to storage, and resets tile alphas.
  */
 export function resetGardenFiltersNow(): void {
-  resetFilters();
+  updateGardenFiltersConfig({
+    enabled: false,
+    mutations: [],
+    excludeMutations: false,
+    cropSpecies: [],
+    eggTypes: [],
+    growthStates: [],
+  });
 }
 
 /**
@@ -978,6 +981,21 @@ export function getAllEggTypes(): string[] {
 // ============================================================================
 
 /**
+ * Check whether a PIXI node is still attached to the live scene graph.
+ * Walks up the parent chain — if it reaches stage, the node is live.
+ */
+function isNodeAttached(node: any, stage: any): boolean {
+  let current = node;
+  let depth = 0;
+  while (current && depth < 50) {
+    if (current === stage) return true;
+    current = current.parent;
+    depth++;
+  }
+  return false;
+}
+
+/**
  * Full diagnostic dump of garden filters pipeline.
  * Reports the state of every dependency so we can see exactly what's broken.
  */
@@ -1034,11 +1052,19 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
     hasRenderer: !!app.renderer,
   } : 'null';
 
-  // 6. Stage tile traversal
+  // 6. Stage tile traversal + attachment audit
   if (app?.stage) {
     const tileNodes = getOrBuildTileNodeCache(app.stage);
+    let attachedCount = 0;
+    let detachedCount = 0;
+    for (const t of tileNodes) {
+      if (isNodeAttached(t.node, app.stage)) { attachedCount++; } else { detachedCount++; }
+    }
     diag.tileNodes = {
       count: tileNodes.length,
+      attached: attachedCount,
+      detached: detachedCount,
+      detachedWarning: detachedCount > 0 ? '⚠️ STALE CACHE — detached nodes found' : '✅ all live',
       sample: tileNodes.slice(0, 3).map(t => ({
         label: t.node?.label,
         x: t.x,
@@ -1046,6 +1072,7 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
         childCount: t.node?.children?.length ?? 0,
         firstChildLabel: t.node?.children?.[0]?.label ?? 'none',
         alpha: t.node?.alpha,
+        attached: isNodeAttached(t.node, app.stage),
       })),
     };
   } else {
@@ -1091,12 +1118,43 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
   const catalogKeys = getCatalogPlantSpecies();
   const allKeys = new Set([...Object.keys(SPECIES_TO_VIEW), ...catalogKeys]);
   const livePixiLabels = new Set<string>();
+  // Also collect per-label tile details for target species
+  const targetSpecies = new Set(['FourLeafClover', 'PurpleDaisy', 'Clover', 'Daisy', 'Snowdrop', 'SnowdropDouble']);
+  const targetTileDetails: Array<Record<string, unknown>> = [];
   if (app?.stage) {
     const walkLabels = (node: any, depth: number) => {
       if (!node || depth > 10) return;
       if (node.label && /^Tile \(\d+, \d+\)$/.test(node.label)) {
         const cl = node.children?.[0]?.label;
-        if (cl && cl !== 'Sprite') livePixiLabels.add(cl);
+        if (cl && cl !== 'Sprite') {
+          livePixiLabels.add(cl);
+          // Collect detailed info for target species tiles
+          const match = node.label.match(/^Tile \((\d+), (\d+)\)$/);
+          if (match) {
+            const x = parseInt(match[1]!);
+            const y = parseInt(match[2]!);
+            const tileData = getGardenTileData(x, y);
+            const isTarget = tileData?.species && targetSpecies.has(tileData.species);
+            // Also check if the label matches any target species' expected label
+            const isTargetByLabel = [...targetSpecies].some(s => {
+              const expected = SPECIES_TO_VIEW[s];
+              return expected && cl === expected;
+            });
+            if (isTarget || isTargetByLabel) {
+              targetTileDetails.push({
+                pixiLabel: node.label,
+                childLabel: cl,
+                tileAlpha: node.alpha,
+                childAlpha: node.children?.[0]?.alpha,
+                tileDataSpecies: tileData?.species ?? 'no-tile-data',
+                tileDataObjectType: tileData?.objectType ?? 'unknown',
+                attached: isNodeAttached(node, app.stage),
+                hasParent: !!node.parent,
+                parentLabel: node.parent?.label ?? 'none',
+              });
+            }
+          }
+        }
         return;
       }
       if (node.children) {
@@ -1125,6 +1183,25 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
   }
   diag.speciesAudit = speciesAudit;
   diag.livePixiLabels = [...livePixiLabels].sort();
+  // 10b. Unmatched labels — live PIXI labels not covered by static map or catalog
+  const allExpectedLabels = new Set<string>();
+  for (const key of allKeys) {
+    const sl = SPECIES_TO_VIEW[key]; if (sl) allExpectedLabels.add(sl);
+    const entry = getPlantSpecies(key);
+    const pn = (entry?.plant as any)?.name as string | undefined;
+    if (pn) { allExpectedLabels.add(pn + ' View'); allExpectedLabels.add(pn + ' Plant View'); }
+    allExpectedLabels.add(key + ' Plant View');
+  }
+  allExpectedLabels.add('Egg');
+  const unmatchedLabels = [...livePixiLabels].filter(l => !allExpectedLabels.has(l));
+  diag.unmatchedPixiLabels = unmatchedLabels.length > 0
+    ? { warning: '⚠️ These live labels are not covered by any species mapping', labels: unmatchedLabels }
+    : '✅ all live labels matched';
+
+  // 11. Target species deep dive — FourLeafClover, PurpleDaisy, etc.
+  diag.targetSpeciesTiles = targetTileDetails.length > 0
+    ? targetTileDetails
+    : 'none found in garden (not planted or not in viewport)';
 
   // Pretty-print
   console.group('[QPM] Garden Filters Diagnostics');
@@ -1138,4 +1215,330 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
   console.groupEnd();
 
   return diag;
+}
+
+/**
+ * Filter test for a specific species — enables the filter, applies once, then reports
+ * exactly which tiles matched and which didn't, with full detail on why.
+ *
+ * Call QPM_GARDEN_TEST('FourLeafClover') in the console.
+ */
+export function testSpeciesFilter(species: string): Record<string, unknown> {
+  const app = getPixiApp();
+  if (!app?.stage) return { error: 'No PIXI app/stage' };
+
+  const result: Record<string, unknown> = {};
+  result.species = species;
+  result.staticLabel = SPECIES_TO_VIEW[species] ?? 'NOT IN STATIC MAP';
+
+  const catalogEntry = getPlantSpecies(species);
+  const plantName = (catalogEntry?.plant as any)?.name as string | undefined;
+  result.catalogPlantName = plantName ?? 'NOT IN CATALOG';
+  result.catalogLabel = plantName ? plantName + ' View' : 'N/A';
+
+  // Build candidate PIXI labels for diagnostic matching
+  const candidates = new Set<string>();
+  const staticLabel = SPECIES_TO_VIEW[species];
+  if (staticLabel) candidates.add(staticLabel);
+  if (plantName) {
+    candidates.add(plantName + ' View');
+    candidates.add(plantName + ' Plant View');
+  }
+  candidates.add(species + ' Plant View');
+  result.allCandidateLabels = [...candidates];
+
+  // Walk tiles and check matches
+  const tiles = buildTileNodeCache(app.stage);
+  const matches: Array<Record<string, unknown>> = [];
+  const nearMisses: Array<Record<string, unknown>> = [];
+
+  for (const { node, x, y } of tiles) {
+    const childLabel = node.children?.[0]?.label;
+    if (!childLabel || childLabel === 'Sprite') continue;
+
+    const tileData = getGardenTileData(x, y);
+
+    // Check if this tile matches our species via PIXI label
+    const pixiMatch = candidates.has(childLabel);
+    // Check if this tile matches via tile data species
+    const tileDataMatch = tileData?.species === species;
+
+    if (pixiMatch || tileDataMatch) {
+      matches.push({
+        tile: `(${x}, ${y})`,
+        childLabel,
+        tileDataSpecies: tileData?.species ?? 'no-data',
+        pixiMatch,
+        tileDataMatch,
+        currentAlpha: node.alpha,
+        childAlpha: node.children?.[0]?.alpha,
+        attached: isNodeAttached(node, app.stage),
+      });
+    }
+
+    // Near-miss: tile data species contains our species name (case-insensitive partial)
+    if (!pixiMatch && !tileDataMatch && tileData?.species) {
+      const s = String(tileData.species).toLowerCase();
+      const target = species.toLowerCase();
+      if (s.includes(target) || target.includes(s)) {
+        nearMisses.push({
+          tile: `(${x}, ${y})`,
+          childLabel,
+          tileDataSpecies: tileData.species,
+          note: 'partial match — possible naming mismatch',
+        });
+      }
+    }
+  }
+
+  result.totalTiles = tiles.length;
+  result.matchCount = matches.length;
+  result.matches = matches;
+  result.nearMisses = nearMisses.length > 0 ? nearMisses : 'none';
+
+  // Pretty-print
+  console.group(`[QPM] Species Filter Test: ${species}`);
+  console.log('Candidate PIXI labels:', [...candidates]);
+  console.log(`Found ${matches.length} matching tiles out of ${tiles.length} total`);
+  if (matches.length > 0) console.table(matches);
+  if (nearMisses.length > 0) { console.warn('Near misses (possible naming mismatch):'); console.table(nearMisses); }
+  console.groupEnd();
+
+  return result;
+}
+
+/**
+ * Node-identity & property monitor — determines exactly what the game changes
+ * on tile PIXI nodes when the player walks.
+ *
+ * IMPORTANT: Disables the rAF alpha guard during monitoring so we see what the
+ * game actually does, unmasked.  Re-enables the guard on stop.
+ *
+ * Call QPM_GARDEN_NODES() in the console with filters active, then walk around.
+ * Runs per-frame via rAF — catches single-frame changes.
+ * Returns a stop function (also exposed as QPM_GARDEN_NODES_STOP).
+ */
+export function watchNodeIdentity(): () => void {
+  const app = getPixiApp();
+  if (!app?.stage) {
+    console.warn('[QPM-NODES] No PIXI app/stage');
+    return () => {};
+  }
+
+  // ── Pause the ticker guard so it doesn't mask changes ──
+  const hadGuardTicker = guardTickerCleanup !== null;
+  stopGuardTicker();
+  console.log('[QPM-NODES] Ticker alpha guard PAUSED for clean observation');
+
+  let stampCounter = 0;
+  const STAMP_KEY = '__qpmNodeId';
+
+  interface NodeSnapshot {
+    stamp: number;
+    node: any;
+    alpha: number;
+    visible: boolean;
+    renderable: boolean;
+    parentRef: any;
+    worldAlpha: number;
+    childCount: number;
+    childLabel: string;
+    childAlpha: number;
+    childVisible: boolean;
+  }
+
+  const knownNodes = new Map<string, NodeSnapshot>();
+  const eventLog: Array<Record<string, unknown>> = [];
+  let frameCount = 0;
+  let monitorRafId: number | null = null;
+  let stopped = false;
+
+  function snap(node: any, stamp: number): NodeSnapshot {
+    const child = node.children?.[0];
+    return {
+      stamp,
+      node,
+      alpha: node.alpha ?? 1,
+      visible: node.visible ?? true,
+      renderable: node.renderable ?? true,
+      parentRef: node.parent ?? null,
+      worldAlpha: node.worldAlpha ?? node.groupAlpha ?? -1,
+      childCount: node.children?.length ?? 0,
+      childLabel: child?.label ?? 'none',
+      childAlpha: child?.alpha ?? 1,
+      childVisible: child?.visible ?? true,
+    };
+  }
+
+  function stampAll(): void {
+    const tiles = buildTileNodeCache(app.stage);
+    knownNodes.clear();
+    for (const { node, x, y } of tiles) {
+      const key = `${x},${y}`;
+      const stamp = stampCounter++;
+      node[STAMP_KEY] = stamp;
+      knownNodes.set(key, snap(node, stamp));
+    }
+  }
+
+  function logEvent(event: string, key: string, data: Record<string, unknown>): void {
+    if (eventLog.length < 100) {
+      eventLog.push({ frame: frameCount, event, tile: key, ...data });
+    }
+    // Also log live for immediate feedback
+    console.warn(`[QPM-NODES] ${event} @ frame ${frameCount}: tile ${key}`, data);
+  }
+
+  function checkFrame(): void {
+    if (stopped) return;
+    frameCount++;
+    const tiles = buildTileNodeCache(app.stage);
+
+    for (const { node, x, y } of tiles) {
+      const key = `${x},${y}`;
+      const prev = knownNodes.get(key);
+
+      if (!prev) {
+        const stamp = stampCounter++;
+        node[STAMP_KEY] = stamp;
+        knownNodes.set(key, snap(node, stamp));
+        continue;
+      }
+
+      // ── Node identity check ──
+      if (node !== prev.node || node[STAMP_KEY] !== prev.stamp) {
+        logEvent('NODE_REPLACED', key, {
+          oldAlpha: prev.alpha,
+          newAlpha: node.alpha,
+          oldVisible: prev.visible,
+          newVisible: node.visible,
+          oldChildLabel: prev.childLabel,
+          newChildLabel: node.children?.[0]?.label ?? 'none',
+          oldAttached: isNodeAttached(prev.node, app.stage),
+        });
+        const stamp = stampCounter++;
+        node[STAMP_KEY] = stamp;
+        knownNodes.set(key, snap(node, stamp));
+        continue;
+      }
+
+      // ── Same node — check every property ──
+      const cur = snap(node, prev.stamp);
+
+      // Alpha on tile container
+      if (Math.abs(cur.alpha - prev.alpha) > 0.001) {
+        logEvent('TILE_ALPHA', key, {
+          from: prev.alpha.toFixed(3),
+          to: cur.alpha.toFixed(3),
+        });
+      }
+
+      // Visible on tile container
+      if (cur.visible !== prev.visible) {
+        logEvent('TILE_VISIBLE', key, {
+          from: prev.visible,
+          to: cur.visible,
+        });
+      }
+
+      // Renderable on tile container
+      if (cur.renderable !== prev.renderable) {
+        logEvent('TILE_RENDERABLE', key, {
+          from: prev.renderable,
+          to: cur.renderable,
+        });
+      }
+
+      // Parent changed (reparented)
+      if (cur.parentRef !== prev.parentRef) {
+        logEvent('TILE_REPARENTED', key, {
+          oldParentLabel: prev.parentRef?.label ?? 'null',
+          newParentLabel: cur.parentRef?.label ?? 'null',
+        });
+      }
+
+      // World alpha (computed for rendering)
+      if (Math.abs(cur.worldAlpha - prev.worldAlpha) > 0.001 && prev.worldAlpha >= 0) {
+        logEvent('WORLD_ALPHA', key, {
+          from: prev.worldAlpha.toFixed(3),
+          to: cur.worldAlpha.toFixed(3),
+        });
+      }
+
+      // Child alpha
+      if (Math.abs(cur.childAlpha - prev.childAlpha) > 0.001) {
+        logEvent('CHILD_ALPHA', key, {
+          childLabel: cur.childLabel,
+          from: prev.childAlpha.toFixed(3),
+          to: cur.childAlpha.toFixed(3),
+        });
+      }
+
+      // Child visible
+      if (cur.childVisible !== prev.childVisible) {
+        logEvent('CHILD_VISIBLE', key, {
+          childLabel: cur.childLabel,
+          from: prev.childVisible,
+          to: cur.childVisible,
+        });
+      }
+
+      // Child count changed (children added/removed)
+      if (cur.childCount !== prev.childCount) {
+        logEvent('CHILD_COUNT', key, {
+          from: prev.childCount,
+          to: cur.childCount,
+        });
+      }
+
+      // First child changed entirely
+      if (cur.childLabel !== prev.childLabel) {
+        logEvent('CHILD_SWAPPED', key, {
+          from: prev.childLabel,
+          to: cur.childLabel,
+        });
+      }
+
+      knownNodes.set(key, cur);
+    }
+
+    monitorRafId = requestAnimationFrame(checkFrame);
+  }
+
+  // Dim tiles, then snapshot
+  applyFilters();
+  stampAll();
+
+  // Start per-frame monitoring
+  monitorRafId = requestAnimationFrame(checkFrame);
+
+  const dimmedCount = [...knownNodes.values()].filter(s => Math.abs(s.alpha - DIM_ALPHA) < 0.01).length;
+  console.log(`[QPM-NODES] Monitoring ${knownNodes.size} tiles (${dimmedCount} dimmed) — walk around, then call QPM_GARDEN_NODES_STOP()`);
+
+  const stop = () => {
+    stopped = true;
+    if (monitorRafId !== null) {
+      cancelAnimationFrame(monitorRafId);
+      monitorRafId = null;
+    }
+    // Re-enable ticker guard
+    if (hadGuardTicker && guardedNodes.size > 0) {
+      startGuardTicker();
+    }
+    console.group(`[QPM-NODES] Results after ${frameCount} frames`);
+    const counts: Record<string, number> = {};
+    for (const e of eventLog) { counts[e.event as string] = (counts[e.event as string] ?? 0) + 1; }
+    console.log('Event counts:', counts);
+    if (eventLog.length > 0) {
+      console.log('Full event log:');
+      console.table(eventLog);
+    } else {
+      console.log('No property changes detected on any tile node.');
+    }
+    console.groupEnd();
+    return { frameCount, counts, eventLog };
+  };
+
+  shareGlobal('QPM_GARDEN_NODES_STOP', stop);
+  return stop;
 }

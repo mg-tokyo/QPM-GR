@@ -17,7 +17,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   const config = getGardenFiltersConfig();
 
   // === MAIN TOGGLE ===
-  const { root: enableRow } = createToggle({
+  const { root: enableRow, setChecked: setEnableChecked } = createToggle({
     checked: config.enabled,
     onChange: (checked) => updateGardenFiltersConfig({ enabled: checked }),
     label: t('feature.gardenFilters.enableToggle'),
@@ -67,7 +67,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   mutTitle.style.borderBottom = 'none';
   mutTitle.style.padding = '0';
 
-  const { root: filterRemainRow, input: filterRemainInput } = createToggle({
+  const { root: filterRemainRow, setChecked: setExcludeMutChecked } = createToggle({
     size: 'compact',
     checked: config.excludeMutations,
     onChange: (checked) => updateGardenFiltersConfig({ excludeMutations: checked }),
@@ -78,6 +78,9 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   mutationsHeader.appendChild(mutTitle);
   mutationsHeader.appendChild(filterRemainRow);
   mutationsSection.appendChild(mutationsHeader);
+
+  // Track all filter checkbox inputs so Reset All can uncheck them
+  const allFilterInputs: HTMLInputElement[] = [];
 
   function updateFilterRemainingVisibility(): void {
     const hasMutations = getGardenFiltersConfig().mutations.length > 0;
@@ -119,6 +122,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     input.checked = config.mutations.includes(mutationId);
     input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
+    allFilterInputs.push(input);
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().mutations;
       const updated = input.checked
@@ -193,6 +197,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     input.checked = config.cropSpecies.includes(species);
     input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
+    allFilterInputs.push(input);
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().cropSpecies;
       const updated = input.checked
@@ -264,6 +269,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     input.checked = config.eggTypes.includes(eggType);
     input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
+    allFilterInputs.push(input);
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().eggTypes;
       const updated = input.checked
@@ -325,6 +331,7 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
     input.checked = config.growthStates.includes(state.id);
     input.style.cssText = 'width: 16px; height: 16px; cursor: pointer; accent-color: var(--qpm-accent);';
 
+    allFilterInputs.push(input);
     input.addEventListener('change', () => {
       const current = getGardenFiltersConfig().growthStates;
       const updated = input.checked
@@ -355,7 +362,13 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
   const resetButton = createButton(t('feature.gardenFilters.resetAll'), {
     variant: 'secondary',
-    onClick: () => resetGardenFiltersNow(),
+    onClick: () => {
+      resetGardenFiltersNow();
+      setEnableChecked(false);
+      setExcludeMutChecked(false);
+      for (const cb of allFilterInputs) cb.checked = false;
+      updateFilterRemainingVisibility();
+    },
   });
 
   actionsRow.appendChild(applyButton);

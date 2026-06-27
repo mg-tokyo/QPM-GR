@@ -2,13 +2,35 @@
 // Automatically favorites rare (gold/rainbow) pets and produce when detected
 
 import { storage } from '../../utils/storage';
-import { log } from '../../utils/logger';
 import { pageWindow } from '../../core/pageContext';
 import { getInventoryItems, getFavoritedItemIds, isInventoryStoreActive } from '../../store/inventory';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { getCropCategory, getAllCropCategories } from '../../utils/cropCategorizer';
 import { getAllPlantSpecies, getAllAbilities, getAllMutations, areCatalogsReady } from '../../catalogs/gameCatalogs';
-import { sendRoomAction } from '../../websocket/api';
+import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
+import { notify } from '../../core/notifications';
+import { healthBus } from '../../diagnostics/healthBus';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { Subsystem } from '../../diagnostics/types';
+
+// ── Diagnostics ───────────────────────────────────────────────────────────
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:autoFavorite';
+const FEATURE_NAME = 'autoFavorite';
+const log = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+/**
+ * Re-attribute a FEATURE-* code emission to this feature's bus row. The
+ * registered placeholder subsystem on FEATURE-* is `'feature'`; without this
+ * override the bus would degrade a generic `feature` entry instead of
+ * `feature:autoFavorite`.
+ */
+function warnFeature(code: Parameters<typeof buildError>[0], ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 const STORAGE_KEY = 'qpm.autoFavorite.v1';
 
@@ -175,7 +197,7 @@ function loadConfig(): void {
       };
     }
   } catch (error) {
-    log('⚠️ Failed to load auto-favorite config', error);
+    log.info('Failed to load auto-favorite config', { error: String(error) });
   }
 }
 
@@ -184,7 +206,7 @@ function saveConfig(): void {
     storage.set(STORAGE_KEY, config);
     notifyListeners();
   } catch (error) {
-    log('⚠️ Failed to save auto-favorite config', error);
+    log.info('Failed to save auto-favorite config', { error: String(error) });
   }
 }
 
@@ -193,7 +215,7 @@ function notifyListeners(): void {
     try {
       listener({ ...config });
     } catch (error) {
-      log('⚠️ Auto-favorite listener error', error);
+      log.info('Listener threw', { error: String(error) });
     }
   }
 }
@@ -281,8 +303,8 @@ function checkAndFavoriteNewItems(inventory: any): void {
       }
 
       if (shouldFavoritePet) {
-        if (sendFavoriteMessage(item.id)) {
-          log(`🌟 [AUTO-FAVORITE] Auto-favorited pet: ${item.petSpecies || item.species || 'unknown'} (${reason})`);
+        if (sendFavoriteMessage(item.id).ok) {
+          log.debug(`Auto-favorited pet: ${item.petSpecies || item.species || 'unknown'} (${reason})`);
           petCount++;
         }
       }
@@ -313,7 +335,7 @@ function checkAndFavoriteNewItems(inventory: any): void {
       }
 
       if (shouldFavoriteCrop) {
-        if (sendFavoriteMessage(item.id)) {
+        if (sendFavoriteMessage(item.id).ok) {
           cropCount++;
         }
       }
@@ -321,10 +343,10 @@ function checkAndFavoriteNewItems(inventory: any): void {
   }
 
   if (cropCount > 0) {
-    log(`🌟 [AUTO-FAVORITE] Auto-favorited ${cropCount} new crops`);
+    log.debug(`Auto-favorited ${cropCount} new crops`);
   }
   if (petCount > 0) {
-    log(`🌟 [AUTO-FAVORITE] Auto-favorited ${petCount} new pets`);
+    log.debug(`Auto-favorited ${petCount} new pets`);
   }
 }
 
@@ -333,13 +355,13 @@ function favoriteSpecies(speciesName: string): void {
   const typedPageWindow = pageWindow as QPMPageWindow;
 
   if (!typedPageWindow?.myData?.inventory?.items) {
-    log('🌟 [AUTO-FAVORITE] No myData available yet - waiting for game to load');
+    log.debug('No myData available yet - waiting for game to load');
     return;
   }
 
   const items = typedPageWindow.myData.inventory.items;
   const favoritedIds = new Set(typedPageWindow.myData.inventory.favoritedItemIds || []);
-  let count = 0;
+  const tally = emptyTally();
 
   for (const item of items) {
     // CRITICAL: Multiple checks to ensure ONLY crops are favorited
@@ -348,22 +370,16 @@ function favoriteSpecies(speciesName: string): void {
     if (item.species && (item.species.includes('Pet') || item.species.includes('Egg'))) continue;
 
     if (item.species === speciesName && !favoritedIds.has(item.id ?? '')) {
-      if (sendFavoriteMessage(item.id ?? '')) {
-        count++;
-      }
+      tallySend(tally, sendFavoriteMessage(item.id ?? ''));
     }
   }
 
-  if (count > 0) {
-    log(`✅ [AUTO-FAVORITE] Favorited ${count} ${speciesName} crops`);
-  } else {
-    log(`ℹ️ [AUTO-FAVORITE] No ${speciesName} crops to favorite (already favorited or none in inventory)`);
-  }
+  reportUserBatch('Favorite', speciesName, tally, 'species');
 }
 
 // DISABLED: Script never unfavorites - only adds favorites
 function unfavoriteSpecies(speciesName: string): void {
-  log(`🔒 [AUTO-FAVORITE] Checkbox unchecked for ${speciesName} - Auto-favorite disabled, but existing favorites are preserved (script never removes favorites)`);
+  log.debug(`Checkbox unchecked for ${speciesName} - existing favorites preserved`);
   // Do nothing - script only adds favorites, never removes them
   // This protects user's manually-favorited items (pets, eggs, crops, etc.)
 }
@@ -373,13 +389,13 @@ function favoriteMutation(mutationName: string): void {
   const typedPageWindow = pageWindow as QPMPageWindow;
 
   if (!typedPageWindow?.myData?.inventory?.items) {
-    log('🌟 [AUTO-FAVORITE] No myData available yet - waiting for game to load');
+    log.debug('No myData available yet - waiting for game to load');
     return;
   }
 
   const items = typedPageWindow.myData.inventory.items;
   const favoritedIds = new Set(typedPageWindow.myData.inventory.favoritedItemIds || []);
-  let count = 0;
+  const tally = emptyTally();
 
   for (const item of items) {
     // CRITICAL: Multiple checks to ensure ONLY crops are favorited
@@ -389,22 +405,16 @@ function favoriteMutation(mutationName: string): void {
 
     const itemMutations = item.mutations || [];
     if (itemMutations.includes(mutationName) && !favoritedIds.has(item.id ?? '')) {
-      if (sendFavoriteMessage(item.id ?? '')) {
-        count++;
-      }
+      tallySend(tally, sendFavoriteMessage(item.id ?? ''));
     }
   }
 
-  if (count > 0) {
-    log(`✅ [AUTO-FAVORITE] Favorited ${count} crops with ${mutationName} mutation`);
-  } else {
-    log(`ℹ️ [AUTO-FAVORITE] No crops with ${mutationName} mutation to favorite (already favorited or none in inventory)`);
-  }
+  reportUserBatch('Favorite', mutationName, tally, 'mutation');
 }
 
 // DISABLED: Script never unfavorites - only adds favorites
 function unfavoriteMutation(mutationName: string): void {
-  log(`🔒 [AUTO-FAVORITE] Checkbox unchecked for ${mutationName} mutation - Auto-favorite disabled, but existing favorites are preserved (script never removes favorites)`);
+  log.debug(`Checkbox unchecked for ${mutationName} - existing favorites preserved`);
   // Do nothing - script only adds favorites, never removes them
   // This protects user's manually-favorited items (pets, eggs, crops, etc.)
 }
@@ -414,28 +424,16 @@ function favoritePetAbility(abilityName: string): void {
   const typedPageWindow = pageWindow as QPMPageWindow;
 
   if (!typedPageWindow?.myData?.inventory?.items) {
-    log('🌟 [AUTO-FAVORITE-PET] No myData available yet - waiting for game to load');
+    log.debug('No myData available yet - waiting for game to load');
     return;
   }
 
-  log(`🔍 [AUTO-FAVORITE-PET] Searching for pets with ${abilityName}...`);
+  log.debug(`Searching for pets with ${abilityName}...`);
 
   const items = typedPageWindow.myData.inventory.items;
   const favoritedIds = new Set(typedPageWindow.myData.inventory.favoritedItemIds || []);
-  let count = 0;
+  const tally = emptyTally();
   let petsChecked = 0;
-
-  // Debug: Log first pet structure to understand data format
-  const firstPet = items.find((i: any) => i.itemType === 'Pet');
-  if (firstPet) {
-    log('🐾 [AUTO-FAVORITE-PET-DEBUG] Sample pet structure:', {
-      species: firstPet.petSpecies,
-      mutations: firstPet.mutations,
-      abilities: firstPet.abilities,
-      hasAbilitiesArray: Array.isArray(firstPet.abilities),
-      hasMutationsArray: Array.isArray(firstPet.mutations),
-    });
-  }
 
   for (const item of items) {
     if (item.itemType !== 'Pet') continue;
@@ -452,30 +450,46 @@ function favoritePetAbility(abilityName: string): void {
       (abilityName === 'Rainbow Granter' && hasGranterAbility(petAbilities, petMutations, 'rainbow'));
 
     if (shouldFavorite) {
-      log(`✨ [AUTO-FAVORITE-PET] Found matching pet: ${item.petSpecies || item.species} (${item.id}) - mutations: [${petMutations.join(', ')}], abilities: ${petAbilities.length}`);
-
-      if (sendFavoriteMessage(item.id ?? '')) {
-        count++;
-      }
+      log.debug(`Found matching pet: ${item.petSpecies || item.species} (${item.id})`);
+      tallySend(tally, sendFavoriteMessage(item.id ?? ''));
     }
   }
 
-  log(`✅ [AUTO-FAVORITE-PET] Scanned ${petsChecked} pets, favorited ${count} with ${abilityName}`);
+  log.debug(`Scanned ${petsChecked} pets, favorited ${tally.ok} with ${abilityName}`);
+  reportUserBatch('Favorite', abilityName, tally, 'ability');
 }
 
 // DISABLED: Script never unfavorites - only adds favorites
 function unfavoritePetAbility(abilityName: string): void {
-  log(`🔒 [AUTO-FAVORITE-PET] Checkbox unchecked for ${abilityName} - Auto-favorite disabled, but existing favorites are preserved (script never removes favorites)`);
+  log.debug(`Checkbox unchecked for ${abilityName} - existing favorites preserved`);
   // Do nothing - script only adds favorites, never removes them
 }
 
-// Function to actually send the favorite message via websocket
-function sendFavoriteMessage(itemId: string): boolean {
-  const sent = sendRoomAction('ToggleFavoriteItem', { itemId }, { throttleMs: 80 });
-  if (!sent.ok && sent.reason !== 'throttled') {
-    log(`⚠️ Failed to favorite item ${itemId} (${sent.reason ?? 'unknown'})`);
-  }
-  return sent.ok;
+// Function to actually send the favorite message via websocket.
+// The WS layer already emits the appropriate WS-* code on failure (no_connection,
+// invalid_payload, send_failed, locker_blocked). Callers aggregate per-reason
+// counts and surface them via FEATURE-002.
+function sendFavoriteMessage(itemId: string): WebSocketSendResult {
+  return sendRoomAction('ToggleFavoriteItem', { itemId }, { throttleMs: 80 });
+}
+
+// Classify a WebSocketSendResult into ok / failed / throttled buckets for
+// aggregate FEATURE-002 emission at end of a batch.
+type SendOutcome = 'ok' | 'failed' | 'throttled';
+function classifySend(result: WebSocketSendResult): SendOutcome {
+  if (result.ok) return 'ok';
+  if (result.reason === 'throttled') return 'throttled';
+  return 'failed';
+}
+
+interface SendTally { ok: number; failed: number; throttled: number; total: number }
+function emptyTally(): SendTally { return { ok: 0, failed: 0, throttled: 0, total: 0 }; }
+function tallySend(tally: SendTally, result: WebSocketSendResult): void {
+  tally.total += 1;
+  const outcome = classifySend(result);
+  if (outcome === 'ok') tally.ok += 1;
+  else if (outcome === 'throttled') tally.throttled += 1;
+  else tally.failed += 1;
 }
 
 function startAutoFavoritePolling(): void {
@@ -534,6 +548,7 @@ function startAutoFavoritePolling(): void {
     }
 
     // Process new items only
+    const tickTally = emptyTally();
     if (newItemIds.size > 0) {
       // Filter to only new items
       const newItems = currentItems.filter(item => item.id && newItemIds.has(item.id));
@@ -557,10 +572,8 @@ function startAutoFavoritePolling(): void {
         if (itemType === 'Pet') {
           // Debug logging for pet abilities
           if (config.filterByAbilities && config.filterByAbilities.length > 0) {
-            log(`[AUTO-FAVORITE-DEBUG] Pet detected:`, {
+            log.debug('Pet detected', {
               species: item.species,
-              abilitiesFromItem: item.abilities,
-              abilitiesFromRaw: rawItem?.abilities,
               abilitiesUsed: abilities,
               filterByAbilities: config.filterByAbilities,
             });
@@ -665,10 +678,22 @@ function startAutoFavoritePolling(): void {
         }
 
         if (shouldFavorite) {
-          log(`[AUTO-FAVORITE] Favoriting ${item.species || 'item'} (${reason})`);
-          sendFavoriteMessage(item.id);
+          log.debug(`Favoriting ${item.species || 'item'} (${reason})`);
+          tallySend(tickTally, sendFavoriteMessage(item.id));
         }
       }
+    }
+
+    // Aggregate any per-item failures/throttles into a single FEATURE-002 row.
+    // Background path — no notify(); the bus row + error buffer are sufficient.
+    if (tickTally.failed > 0 || tickTally.throttled > 0) {
+      warnFeature('QPM-FEATURE-002', {
+        verb: 'auto',
+        ok: tickTally.ok,
+        failed: tickTally.failed,
+        throttled: tickTally.throttled,
+        total: tickTally.total,
+      });
     }
 
     // Update seen IDs to current state
@@ -685,7 +710,7 @@ function startAutoFavoritePolling(): void {
   };
   document.addEventListener('visibilitychange', visibilityListener);
 
-  log('✅ Auto-favorite polling started (2 second visible-only interval)');
+  log.info('Auto-favorite polling started (2s visible-only interval)');
 }
 
 function stopAutoFavoritePolling(): void {
@@ -697,12 +722,44 @@ function stopAutoFavoritePolling(): void {
     document.removeEventListener('visibilitychange', visibilityListener);
     visibilityListener = null;
   }
-  log('⏹️ Auto-favorite polling stopped');
+  log.info('Auto-favorite polling stopped');
 }
 
+/**
+ * Surface the result of a user-initiated batch favorite (species/mutation/ability
+ * checkbox). Success → success toast. Partial failure → FEATURE-002 bus row +
+ * warn toast carrying the actual counts (the registry title cannot).
+ */
+function reportUserBatch(
+  verb: 'Favorite',
+  target: string,
+  tally: SendTally,
+  kind: 'species' | 'mutation' | 'ability',
+): void {
+  if (tally.total === 0) {
+    notify({ feature: FEATURE_NAME, level: 'info', message: `No ${target} items to ${verb.toLowerCase()}` });
+    return;
+  }
+  if (tally.failed === 0 && tally.throttled === 0) {
+    notify({ feature: FEATURE_NAME, level: 'success', message: `${verb}d ${tally.ok}/${tally.total} ${target}` });
+    return;
+  }
+  warnFeature('QPM-FEATURE-002', { verb, [kind]: target, ok: tally.ok, failed: tally.failed, throttled: tally.throttled, total: tally.total });
+  notify({
+    feature: FEATURE_NAME,
+    level: tally.failed > 0 ? 'warn' : 'info',
+    message: `${verb}d ${tally.ok}/${tally.total} ${target}${tally.failed > 0 ? ` — ${tally.failed} failed` : ''}${tally.throttled > 0 ? ` (${tally.throttled} throttled)` : ''}`,
+  });
+}
 
 export function initializeAutoFavorite(): void {
   loadConfig();
+
+  if (!busRegistered) {
+    healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+    busRegistered = true;
+  }
+
   startAutoFavoritePolling();
 
   // Expose helper functions on pageWindow for UI integration
@@ -714,7 +771,13 @@ export function initializeAutoFavorite(): void {
   typedPageWindow.qpm_favoritePetAbility = favoritePetAbility;
   typedPageWindow.qpm_unfavoritePetAbility = unfavoritePetAbility;
 
-  log('✅ [AUTO-FAVORITE] System initialized - monitoring inventory changes', config);
+  log.info('System initialized - monitoring inventory changes', { enabled: config.enabled });
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message: 'Polling inventory every 2s',
+  });
 }
 
 export function getAutoFavoriteConfig(): AutoFavoriteConfig {

@@ -68,7 +68,7 @@ export interface PlantData {
   domBoldCounts: Record<'D' | 'A', number>;
 }
 
-export type WeatherType = 'rain' | 'snow' | 'dawn' | 'amber' | 'sunny' | 'unknown';
+export type WeatherType = 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'sunny' | 'unknown';
 
 const MUTATION_CONFIG_KEY = 'quinoa-mutation-reminder-config';
 const INVENTORY_CONTAINER = '.McFlex.css-zo8r2v'; // NEW - Graphics engine 2025-12-13
@@ -451,6 +451,8 @@ function weatherTypeToDetailed(weather: WeatherType): DetailedWeather | null {
       return 'dawn';
     case 'amber':
       return 'amber';
+    case 'thunderstorm':
+      return 'thunderstorm';
     case 'sunny':
       return 'sunny';
     default:
@@ -2359,6 +2361,7 @@ export function buildMutationSummary(
     snow: { weather: 'snow', plantCount: 0, pendingFruitCount: 0, needsSnowFruitCount: 0 },
     dawn: { weather: 'dawn', plantCount: 0, pendingFruitCount: 0 },
     amber: { weather: 'amber', plantCount: 0, pendingFruitCount: 0 },
+    thunderstorm: { weather: 'thunderstorm', plantCount: 0, pendingFruitCount: 0 },
   };
 
   const uniqueEligible = new Set<string>();
@@ -2378,6 +2381,7 @@ export function buildMutationSummary(
       snow: evaluatePlantForWeather(plant, 'snow', false),
       dawn: evaluatePlantForWeather(plant, 'dawn', false),
       amber: evaluatePlantForWeather(plant, 'amber', false),
+      thunderstorm: evaluatePlantForWeather(plant, 'thunderstorm', false),
     } satisfies EvaluationMap;
 
     // For multi-fruit plants: ALLOW both dawn and amber to be true simultaneously

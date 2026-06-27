@@ -1,9 +1,35 @@
 import { getPlayerPosition as getPlayerPosFromContext } from '../../core/playerContext';
 import { readAtomValue as readRegistryAtom } from '../../core/atomRegistry';
 import { pageWindow } from '../../core/pageContext';
-import { log } from '../../utils/logger';
 import { isRecord } from '../../utils/typeGuards';
 import { sendRoomAction } from '../../websocket/api';
+import { healthBus } from '../../diagnostics/healthBus';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
+
+// ── Diagnostics ───────────────────────────────────────────────────────────
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:antiAfk';
+const FEATURE_NAME = 'antiAfk';
+const log = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+/**
+ * Re-attribute a FEATURE-* code emission to this feature's bus row. The
+ * registered placeholder subsystem on FEATURE-* is `'feature'`; without this
+ * override the bus would degrade a generic `feature` entry instead of
+ * `feature:antiAfk`.
+ */
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
+
+function errorFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  log.error({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'error' });
+}
 
 type XY = { x: number; y: number };
 
@@ -200,20 +226,20 @@ function patchDocumentVisibility(): void {
 
   try {
     Object.defineProperty(docProto, 'hidden', { configurable: true, get: () => false });
-  } catch {
-    // no-op
+  } catch (err) {
+    warnFeature('QPM-FEATURE-003', { what: 'patch:hidden' }, err);
   }
 
   try {
     Object.defineProperty(docProto, 'visibilityState', { configurable: true, get: () => 'visible' });
-  } catch {
-    // no-op
+  } catch (err) {
+    warnFeature('QPM-FEATURE-003', { what: 'patch:visibilityState' }, err);
   }
 
   try {
     (document as Document & { hasFocus?: () => boolean }).hasFocus = () => true;
-  } catch {
-    // no-op
+  } catch (err) {
+    warnFeature('QPM-FEATURE-003', { what: 'patch:hasFocus' }, err);
   }
 }
 
@@ -268,12 +294,15 @@ function startAudioKeepAlive(): void {
 
     audioResumeHandler = () => {
       if (!audioCtx || audioCtx.state === 'running') return;
-      void audioCtx.resume().catch(() => {});
+      void audioCtx.resume().catch((err) => {
+        warnFeature('QPM-FEATURE-003', { what: 'audio:resume' }, err);
+      });
     };
 
     document.addEventListener('visibilitychange', audioResumeHandler, { capture: true });
     window.addEventListener('focus', audioResumeHandler, { capture: true });
-  } catch {
+  } catch (err) {
+    warnFeature('QPM-FEATURE-003', { what: 'audio:init' }, err);
     stopAudioKeepAlive();
   }
 }
@@ -314,8 +343,8 @@ function startHeartbeat(): void {
   heartbeatTimer = window.setInterval(() => {
     try {
       target.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 1, clientY: 1 }));
-    } catch {
-      // no-op
+    } catch (err) {
+      log.debug('Heartbeat dispatch failed', { error: String(err) });
     }
   }, HEARTBEAT_MS);
 }
@@ -330,11 +359,16 @@ async function pingCurrentPosition(): Promise<void> {
   const position = await resolveCurrentPosition();
   if (!position) return;
 
-  sendRoomAction(
+  const result = sendRoomAction(
     'PlayerPosition',
     { position: normalizePosition(position) },
     { throttleMs: 0, skipThrottle: true },
   );
+  // Throttled is impossible (skipThrottle:true) but check defensively. WS layer
+  // already emits the per-reason WS-* code; FEATURE-001 attributes to antiAfk.
+  if (!result.ok && result.reason !== 'throttled') {
+    warnFeature('QPM-FEATURE-001', { type: 'PlayerPosition', reason: result.reason ?? 'unknown' });
+  }
 }
 
 function startPositionPing(): void {
@@ -354,6 +388,11 @@ function stopPositionPing(): void {
 export async function initializeAntiAfk(): Promise<void> {
   if (isActive) return;
 
+  if (!busRegistered) {
+    healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+    busRegistered = true;
+  }
+
   isActive = true;
   try {
     patchDocumentVisibility();
@@ -361,8 +400,18 @@ export async function initializeAntiAfk(): Promise<void> {
     startAudioKeepAlive();
     startHeartbeat();
     startPositionPing();
-    log('[Anti-AFK] initialized');
+    log.info('Initialized');
+    // Patch failures during startup degrade the bus via warnFeature; if the bus
+    // is already 'degraded' from a patch, the published 'ok' here will be
+    // coerced to 'recovering' by the bus's hysteresis machine (§7.2).
+    healthBus.publish({
+      subsystem: FEATURE_SUBSYSTEM,
+      category: 'feature',
+      status: 'ok',
+      message: 'Lifecycle patched, heartbeat + position ping active',
+    });
   } catch (error) {
+    errorFeature('QPM-FEATURE-003', { what: 'init' }, error);
     stopAntiAfk();
     throw error;
   }
@@ -377,5 +426,5 @@ export function stopAntiAfk(): void {
   stopAudioKeepAlive();
   unswallowLifecycleEvents();
   restoreDocumentVisibility();
-  log('[Anti-AFK] stopped');
+  log.info('Stopped');
 }

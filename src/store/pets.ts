@@ -3,10 +3,16 @@
 
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../features/pets/data/petHungerCaps';
+import { getAbilityDefinition } from '../features/pets/data/petAbilities';
 import { log } from '../utils/logger';
 import { recordPetXP, estimatePetLevel } from './petLevelCalculator';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from './xpTracker';
 import { areCatalogsReady, onCatalogsReady } from '../catalogs/gameCatalogs';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storePets', 'pets');
+let firstAtomValueSeen = false;
+let lastPublishedCount = -1;
 
 export interface ActivePetInfo {
   slotIndex: number;
@@ -55,8 +61,20 @@ function notify(): void {
     try {
       listener(cachedInfos);
     } catch (error) {
-      log('⚠️ Pet info listener threw', error);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
+  }
+  const count = cachedInfos.length;
+  const message = `${count} active pet(s)`;
+  const metrics = { activeCount: count };
+  if (!firstAtomValueSeen) {
+    firstAtomValueSeen = true;
+    lastPublishedCount = count;
+    diag.publishOk(message, metrics);
+  } else if (count !== lastPublishedCount) {
+    // §7.2 — active pet count change is a meaningful state transition.
+    lastPublishedCount = count;
+    diag.publishMetrics(message, metrics);
   }
 }
 
@@ -572,6 +590,18 @@ function extractChargedAbilityId(entry: RawPetInfo): string | null {
       if (keys.length > 0) return keys[0]!;
     }
   }
+  // Fallback: abilityCooldowns is empty until the ability first fires, but the
+  // mount affordance must still appear pre-fire. Scan abilities[] for any ID
+  // whose catalog entry has trigger === 'playerActivated'.
+  const abilities = [
+    ...toStringList(entry.abilities),
+    ...toStringList(slot.abilities),
+    ...toStringList(slot.ability),
+    ...toStringList(nested?.abilities),
+  ];
+  for (const id of abilities) {
+    if (getAbilityDefinition(id)?.trigger === 'playerActivated') return id;
+  }
   return null;
 }
 
@@ -802,9 +832,11 @@ function normalizePetInfos(raw: unknown): ActivePetInfo[] {
 export async function startPetInfoStore(): Promise<void> {
   if (unsubscribe || initializing) return;
   initializing = true;
+  diag.register('Waiting for myPrimitivePetSlotsAtom');
   try {
     petInfosAtomRef = getAtomByLabel(PET_INFOS_LABEL);
     if (!petInfosAtomRef) {
+      diag.warn('QPM-STORE-002', { atom: PET_INFOS_LABEL });
       throw new Error('myPrimitivePetSlotsAtom not found in jotai cache');
     }
     unsubscribe = await subscribeAtom(petInfosAtomRef, (value) => {
@@ -827,7 +859,7 @@ export async function startPetInfoStore(): Promise<void> {
 
     clearStartRetry();
   } catch (error) {
-    log('⚠️ Failed to start pet info store', error);
+    diag.warn('QPM-STORE-001', { phase: 'startPetInfoStore' }, error);
     scheduleStartRetry();
   } finally {
     initializing = false;
@@ -845,6 +877,8 @@ export function stopPetInfoStore(): void {
   lastRawValue = null;
   petInfosAtomRef = null;
   catalogReadyHooked = false;
+  firstAtomValueSeen = false;
+  lastPublishedCount = -1;
   clearStartRetry();
 }
 

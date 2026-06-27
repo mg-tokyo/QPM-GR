@@ -3,6 +3,10 @@
 
 import { getAtomByLabel, subscribeAtom, readAtomValue } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeInventory', 'inventory');
+let firstAtomValueSeen = false;
 
 export interface InventoryItem {
   id: string;
@@ -131,8 +135,19 @@ function notifyListeners(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      log('⚠️ Inventory listener threw', error);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
+  }
+  const message = `${cachedInventory.length} items (${cachedFavorites.size} fav)`;
+  const metrics = {
+    itemCount: cachedInventory.length,
+    favoriteCount: cachedFavorites.size,
+  };
+  if (!firstAtomValueSeen) {
+    firstAtomValueSeen = true;
+    diag.publishOk(message, metrics);
+  } else {
+    diag.publishMetrics(message, metrics);
   }
 }
 
@@ -142,6 +157,7 @@ export async function startInventoryStore(): Promise<void> {
   }
 
   initializing = true;
+  diag.register('Waiting for myInventoryAtom');
   try {
     // Try myInventoryAtom first (full inventory)
     inventoryAtomRef = getAtomByLabel(INVENTORY_ATOM_LABEL);
@@ -153,7 +169,7 @@ export async function startInventoryStore(): Promise<void> {
     }
 
     if (!inventoryAtomRef) {
-      log('⚠️ Inventory atom not found');
+      diag.warn('QPM-STORE-002', { atom: `${INVENTORY_ATOM_LABEL} | ${CROP_INVENTORY_ATOM_LABEL}` });
       initializing = false;
       return;
     }
@@ -165,7 +181,7 @@ export async function startInventoryStore(): Promise<void> {
 
     log('✅ Inventory store initialized');
   } catch (error) {
-    log('❌ Failed to initialize inventory store', error);
+    diag.warn('QPM-STORE-001', { phase: 'startInventoryStore' }, error);
   } finally {
     initializing = false;
   }
@@ -180,6 +196,7 @@ export function stopInventoryStore(): void {
   lastRawInventoryValue = null;
   cachedInventory = [];
   cachedFavorites = new Set();
+  firstAtomValueSeen = false;
 }
 
 /**
@@ -206,7 +223,7 @@ export function onInventoryChange(
     try {
       callback(getSnapshot());
     } catch (error) {
-      log('⚠️ Inventory listener immediate callback failed', error);
+      diag.warn('QPM-STORE-003', { phase: 'onInventoryChange.immediate' }, error);
     }
   }
   return () => {

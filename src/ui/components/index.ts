@@ -16,5 +16,11 @@ export { createNumberInput, type NumberInputOptions } from './numberInput';
 export { showConfirmDialog, type ConfirmDialogOptions } from './confirmDialog';
 export { createSectionHeader, type SectionHeaderOptions } from './sectionHeader';
 
+// Primitives
+export { createSelect, type SelectOption } from './select';
+export { createPillTabs } from './pillTabs';
+export { createSliderRow, type SliderRowOptions } from './sliderRow';
+export { createColorPicker } from './colorPicker';
+
 // Helpers
 export { showToast, type ToastOptions } from './toast';

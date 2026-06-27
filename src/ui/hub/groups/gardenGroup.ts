@@ -6,11 +6,74 @@ import { log } from '../../../utils/logger';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { getGardenQolConfig, updateGardenQolConfig, type HoldContexts } from '../../../features/gardenQol/index';
 import { t } from '../../../i18n';
+import {
+  startGardenFiltersStatus,
+  startRemindersStatus,
+  startGardenStatsStatus,
+  startInstaHarvestStatus,
+  startHoldSettingsStatus,
+  startInventoryCapacityStatus,
+} from '../../panel/tileStatusesNew';
 
 /** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
   try { await waitForCatalogs(10000); }
   catch { log('[Hub] Catalogs not ready yet, rendering with fallbacks'); }
+}
+
+// ── Extracted render functions for tile actions ──────────────────────────────
+
+function renderInstaHarvestExpanded(container: HTMLElement): void {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  wrap.appendChild(buildQolToggle('Rainbow', () => getGardenQolConfig().instaHarvestRainbow, (v) => updateGardenQolConfig({ instaHarvestRainbow: v })));
+  wrap.appendChild(buildQolToggle('Gold', () => getGardenQolConfig().instaHarvestGold, (v) => updateGardenQolConfig({ instaHarvestGold: v })));
+  wrap.appendChild(buildQolToggle(t('feature.locker.ariesHold'), () => getGardenQolConfig().ariesHold, (v) => updateGardenQolConfig({ ariesHold: v })));
+  container.appendChild(wrap);
+}
+
+function renderHoldSettingsExpanded(container: HTMLElement): void {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+
+  // Hold rate slider
+  const rateRow = document.createElement('div');
+  rateRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
+  const rateLabel = document.createElement('div');
+  rateLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff)';
+  rateLabel.textContent = t('feature.locker.holdRate');
+  const rateValue = document.createElement('div');
+  rateValue.style.cssText = 'font-size:12px;color:var(--qpm-accent,#8f82ff);font-weight:600';
+  const cfg = getGardenQolConfig();
+  rateValue.textContent = `${cfg.holdRateHz} Hz`;
+  rateRow.append(rateLabel, rateValue);
+  wrap.appendChild(rateRow);
+
+  const rateSlider = document.createElement('input');
+  rateSlider.type = 'range'; rateSlider.min = '5'; rateSlider.max = '20'; rateSlider.step = '1';
+  rateSlider.value = String(cfg.holdRateHz);
+  rateSlider.style.cssText = 'width:100%;cursor:pointer';
+  rateSlider.addEventListener('input', () => { rateValue.textContent = `${rateSlider.value} Hz`; });
+  rateSlider.addEventListener('change', () => { updateGardenQolConfig({ holdRateHz: Number(rateSlider.value) }); });
+  wrap.appendChild(rateSlider);
+
+  // Hold context checkboxes
+  const ctxKeys: Array<{ key: keyof HoldContexts; label: string }> = [
+    { key: 'harvest', label: t('feature.locker.ctx.harvest') },
+    { key: 'plant',   label: t('feature.locker.ctx.plant') },
+    { key: 'shovel',  label: t('feature.locker.ctx.shovel') },
+    { key: 'sell',    label: t('feature.locker.ctx.sell') },
+    { key: 'hatch',   label: t('feature.locker.ctx.hatch') },
+    { key: 'other',   label: t('feature.locker.ctx.other') },
+  ];
+  for (const { key, label } of ctxKeys) {
+    wrap.appendChild(buildQolToggle(label, () => getGardenQolConfig().holdContexts[key], (v) => {
+      const cur = getGardenQolConfig();
+      updateGardenQolConfig({ holdContexts: { ...cur.holdContexts, [key]: v } });
+    }));
+  }
+
+  container.appendChild(wrap);
 }
 
 export function getGardenGroup(): HubGroupDef {
@@ -21,6 +84,12 @@ export function getGardenGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '🔍', spriteKey: 'sprite/plant/RoseRed', spriteMutations: ['Thunderstruck'], fallback: '🔍' },
     labelColor: '#c084fc',
     tier: 'expandable',
+    tile: {
+      icon: '🔍',
+      color: 'rgba(192, 132, 252, 0.28)',
+      defaultStatus: 'Off / 0 filters',
+      statusProvider: startGardenFiltersStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.gardenFilters.summary');
@@ -62,6 +131,12 @@ export function getGardenGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '🔔', spriteKey: 'sprite/plant/Mushroom', spriteMutations: ['Dawnlit'], fallback: '🔔' },
     labelColor: '#34d399',
     tier: 'expandable',
+    tile: {
+      icon: '🔔',
+      color: 'rgba(52, 211, 153, 0.28)',
+      defaultStatus: '0 ready / 0 pending',
+      statusProvider: startRemindersStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.reminders.summary');
@@ -96,6 +171,13 @@ export function getGardenGroup(): HubGroupDef {
     },
     labelColor: '#93c5fd',
     tier: 'launcher',
+    tile: {
+      tileId: 'garden-stats',
+      icon: '🌿',
+      color: 'rgba(147, 197, 253, 0.28)',
+      defaultStatus: '0 species / $0',
+      statusProvider: startGardenStatsStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.stats.summary');
@@ -114,6 +196,18 @@ export function getGardenGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '⚡', spriteKey: 'sprite/plant/RoseRed', spriteMutations: ['Rainbow'], fallback: '⚡' },
     labelColor: '#fbbf24',
     tier: 'expandable',
+    tile: {
+      icon: '⚡',
+      color: 'rgba(255, 191, 36, 0.28)',
+      defaultStatus: 'Off',
+      statusProvider: startInstaHarvestStatus,
+      action: () => {
+        toggleWindow('garden-insta-harvest', `⚡ ${t('hub.garden.instaHarvest.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          renderInstaHarvestExpanded(root);
+        }, '420px', '50vh');
+      },
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       const cfg = getGardenQolConfig();
@@ -123,14 +217,7 @@ export function getGardenGroup(): HubGroupDef {
       if (cfg.ariesHold) parts.push('Hold');
       el.textContent = parts.length > 0 ? parts.join(', ') : t('common.disabled');
     },
-    renderExpanded: (container) => {
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-      wrap.appendChild(buildQolToggle('Rainbow', () => getGardenQolConfig().instaHarvestRainbow, (v) => updateGardenQolConfig({ instaHarvestRainbow: v })));
-      wrap.appendChild(buildQolToggle('Gold', () => getGardenQolConfig().instaHarvestGold, (v) => updateGardenQolConfig({ instaHarvestGold: v })));
-      wrap.appendChild(buildQolToggle(t('feature.locker.ariesHold'), () => getGardenQolConfig().ariesHold, (v) => updateGardenQolConfig({ ariesHold: v })));
-      container.appendChild(wrap);
-    },
+    renderExpanded: renderInstaHarvestExpanded,
   };
 
   const holdSettingsCard: ExpandableCardConfig = {
@@ -140,54 +227,24 @@ export function getGardenGroup(): HubGroupDef {
     icon: { kind: 'emoji', value: '🎮' },
     labelColor: '#a78bfa',
     tier: 'expandable',
+    tile: {
+      icon: '🎮',
+      color: 'rgba(167, 139, 250, 0.28)',
+      defaultStatus: '10 Hz / 0 ctx',
+      statusProvider: startHoldSettingsStatus,
+      action: () => {
+        toggleWindow('garden-hold-settings', `🎮 ${t('hub.garden.holdSettings.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          renderHoldSettingsExpanded(root);
+        }, '420px', '60vh');
+      },
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       const cfg = getGardenQolConfig();
       el.textContent = `${cfg.holdRateHz} Hz`;
     },
-    renderExpanded: (container) => {
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-
-      // Hold rate slider
-      const rateRow = document.createElement('div');
-      rateRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
-      const rateLabel = document.createElement('div');
-      rateLabel.style.cssText = 'font-size:12px;color:var(--qpm-text,#fff)';
-      rateLabel.textContent = t('feature.locker.holdRate');
-      const rateValue = document.createElement('div');
-      rateValue.style.cssText = 'font-size:12px;color:var(--qpm-accent,#8f82ff);font-weight:600';
-      const cfg = getGardenQolConfig();
-      rateValue.textContent = `${cfg.holdRateHz} Hz`;
-      rateRow.append(rateLabel, rateValue);
-      wrap.appendChild(rateRow);
-
-      const rateSlider = document.createElement('input');
-      rateSlider.type = 'range'; rateSlider.min = '5'; rateSlider.max = '20'; rateSlider.step = '1';
-      rateSlider.value = String(cfg.holdRateHz);
-      rateSlider.style.cssText = 'width:100%;cursor:pointer';
-      rateSlider.addEventListener('input', () => { rateValue.textContent = `${rateSlider.value} Hz`; });
-      rateSlider.addEventListener('change', () => { updateGardenQolConfig({ holdRateHz: Number(rateSlider.value) }); });
-      wrap.appendChild(rateSlider);
-
-      // Hold context checkboxes
-      const ctxKeys: Array<{ key: keyof HoldContexts; label: string }> = [
-        { key: 'harvest', label: t('feature.locker.ctx.harvest') },
-        { key: 'plant',   label: t('feature.locker.ctx.plant') },
-        { key: 'shovel',  label: t('feature.locker.ctx.shovel') },
-        { key: 'sell',    label: t('feature.locker.ctx.sell') },
-        { key: 'hatch',   label: t('feature.locker.ctx.hatch') },
-        { key: 'other',   label: t('feature.locker.ctx.other') },
-      ];
-      for (const { key, label } of ctxKeys) {
-        wrap.appendChild(buildQolToggle(label, () => getGardenQolConfig().holdContexts[key], (v) => {
-          const cur = getGardenQolConfig();
-          updateGardenQolConfig({ holdContexts: { ...cur.holdContexts, [key]: v } });
-        }));
-      }
-
-      container.appendChild(wrap);
-    },
+    renderExpanded: renderHoldSettingsExpanded,
   };
 
   const inventoryCapacityCard: ExpandableCardConfig = {
@@ -197,6 +254,20 @@ export function getGardenGroup(): HubGroupDef {
     icon: { kind: 'emoji', value: '📦' },
     labelColor: '#60a5fa',
     tier: 'expandable',
+    tile: {
+      icon: '📦',
+      color: 'rgba(96, 165, 250, 0.28)',
+      defaultStatus: 'Capacity off',
+      statusProvider: startInventoryCapacityStatus,
+      action: () => {
+        toggleWindow('garden-inventory-capacity', `📦 ${t('hub.garden.inventoryCapacity.label')}`, (root) => {
+          root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+          import('../../economy/inventoryCapacitySection').then(({ createInventoryCapacitySection }) => {
+            root.appendChild(createInventoryCapacitySection());
+          }).catch(e => log('[Hub] Failed to load Inventory Capacity', e));
+        }, '420px', '50vh');
+      },
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.garden.inventoryCapacity.summary');

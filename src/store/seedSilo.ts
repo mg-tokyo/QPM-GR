@@ -3,6 +3,10 @@
 
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeSeedSilo', 'seedSilo');
+let firstAtomValueSeen = false;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -75,8 +79,23 @@ function notifyListeners(): void {
     try {
       listener(snapshot);
     } catch (err) {
-      log('[SeedSilo] listener threw', err);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, err);
     }
+  }
+}
+
+function publishSeedSiloHealth(initial: boolean): void {
+  const message = `count=${state.count}/${state.capacity} (level ${state.capacityLevel})`;
+  const metrics = {
+    count: state.count,
+    capacity: state.capacity,
+    capacityLevel: state.capacityLevel,
+    full: state.count >= state.capacity ? 1 : 0,
+  };
+  if (initial) {
+    diag.publishOk(message, metrics);
+  } else {
+    diag.publishMetrics(message, metrics);
   }
 }
 
@@ -102,11 +121,18 @@ function updateFromInventory(raw: unknown): void {
 
     // Only notify if something changed
     if (state.count === count && state.capacity === capacity && state.capacityLevel === capacityLevel) {
+      if (!firstAtomValueSeen) {
+        firstAtomValueSeen = true;
+        publishSeedSiloHealth(true);
+      }
       return;
     }
 
     state = { count, capacity, capacityLevel, updatedAt: Date.now() };
     notifyListeners();
+    const wasFirst = !firstAtomValueSeen;
+    firstAtomValueSeen = true;
+    publishSeedSiloHealth(wasFirst);
     return;
   }
 }
@@ -117,23 +143,30 @@ function updateFromInventory(raw: unknown): void {
 
 export async function startSeedSiloStore(): Promise<void> {
   if (inventoryUnsub) return;
+  diag.register('Waiting for myInventoryAtom (silo slice)');
 
-  const invAtom = getAtomByLabel(INVENTORY_ATOM_LABEL);
-  if (!invAtom) {
-    log('[SeedSilo] myInventoryAtom not found — store inactive');
-    return;
+  try {
+    const invAtom = getAtomByLabel(INVENTORY_ATOM_LABEL);
+    if (!invAtom) {
+      diag.warn('QPM-STORE-002', { atom: INVENTORY_ATOM_LABEL });
+      return;
+    }
+
+    inventoryUnsub = await subscribeAtom(invAtom, (value: unknown) => {
+      updateFromInventory(value);
+    });
+
+    log(`[SeedSilo] Store initialized (capacity=${state.capacity}, count=${state.count}, level=${state.capacityLevel})`);
+  } catch (err) {
+    diag.warn('QPM-STORE-001', { phase: 'startSeedSiloStore' }, err);
+    throw err;
   }
-
-  inventoryUnsub = await subscribeAtom(invAtom, (value: unknown) => {
-    updateFromInventory(value);
-  });
-
-  log(`[SeedSilo] Store initialized (capacity=${state.capacity}, count=${state.count}, level=${state.capacityLevel})`);
 }
 
 export function stopSeedSiloStore(): void {
   inventoryUnsub?.();
   inventoryUnsub = null;
+  firstAtomValueSeen = false;
   listeners.clear();
   state = {
     count: 0,
@@ -185,7 +218,7 @@ export function onSeedSiloChange(
     try {
       callback(getSeedSiloState());
     } catch (err) {
-      log('[SeedSilo] immediate callback threw', err);
+      diag.warn('QPM-STORE-003', { phase: 'onSeedSiloChange.immediate' }, err);
     }
   }
   return () => { listeners.delete(callback); };

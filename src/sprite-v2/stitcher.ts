@@ -167,6 +167,13 @@ export function clearStitchCache(): void {
   stitchCache.clear();
 }
 
+export function invalidateSpecies(speciesRoot: string): void {
+  const prefix = `stitch:${speciesRoot}:`;
+  for (const k of [...stitchCache.keys()]) {
+    if (k.startsWith(prefix)) stitchCache.delete(k);
+  }
+}
+
 // Hook into hydration events to clear stitch cache alongside the main sprite cache
 if (typeof window !== 'undefined') {
   window.addEventListener('qpm:sprite-hydration-state-change', () => {

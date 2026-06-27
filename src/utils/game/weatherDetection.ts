@@ -82,6 +82,16 @@ export const WEATHER_EVENT_DEFINITIONS: readonly WeatherEventDefinition[] = [
     rawState: 'weather',
     aliases: ['harvestmoon', 'amber_moon'],
   },
+  {
+    id: 'Weather:Thunderstorm',
+    label: 'Thunderstorm',
+    normalized: 'thunderstorm',
+    kind: 'thunderstorm',
+    category: 'weather',
+    durationMs: 5 * 60 * 1000,
+    rawState: 'weather',
+    aliases: ['thunder'],
+  },
 ];
 
 const WEATHER_LOOKUP = new Map<string, WeatherEventDefinition>();
@@ -279,7 +289,7 @@ export function classifyWeather(canvas: HTMLCanvasElement): 'weather' | 'noweath
   }
 }
 
-export type DetailedWeather = 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'unknown';
+export type DetailedWeather = 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'unknown';
 
 export function detectDetailedWeather(canvas: HTMLCanvasElement): DetailedWeather {
   const base = classifyWeather(canvas);

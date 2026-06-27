@@ -116,7 +116,7 @@ function getStrengthScaleFactor(strength: number | null | undefined): number {
   return normalizedStrength / 100;
 }
 
-function normalizeWeatherRequirement(value: unknown): 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | null {
+function normalizeWeatherRequirement(value: unknown): 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
   if (normalized === 'sunny') return 'sunny';
@@ -124,19 +124,20 @@ function normalizeWeatherRequirement(value: unknown): 'sunny' | 'rain' | 'snow' 
   if (normalized === 'frost' || normalized === 'snow') return 'snow';
   if (normalized === 'dawn') return 'dawn';
   if (normalized === 'amber' || normalized === 'ambermoon') return 'amber';
+  if (normalized === 'thunderstorm' || normalized === 'thunder') return 'thunderstorm';
   return null;
 }
 
-function getCurrentWeatherKind(): 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'unknown' {
+function getCurrentWeatherKind(): 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'unknown' {
   return getWeatherSnapshot().kind;
 }
 
-function isRequiredWeatherActive(requirement: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | null): boolean {
+function isRequiredWeatherActive(requirement: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null): boolean {
   if (!requirement) return true;
   return getCurrentWeatherKind() === requirement;
 }
 
-function formatRequiredWeatherLabel(requirement: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | null): string {
+function formatRequiredWeatherLabel(requirement: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null): string {
   switch (requirement) {
     case 'rain':
       return 'Rain';
@@ -146,6 +147,8 @@ function formatRequiredWeatherLabel(requirement: 'sunny' | 'rain' | 'snow' | 'da
       return 'Dawn';
     case 'amber':
       return 'Amber Moon';
+    case 'thunderstorm':
+      return 'Thunderstorm';
     case 'sunny':
       return 'Sunny';
     default:

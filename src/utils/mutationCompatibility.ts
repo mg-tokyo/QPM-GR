@@ -4,6 +4,7 @@ const BASE_WATER_MUTS = new Set(['wet', 'chilled']);
 const UPGRADED_WATER_MUTS = new Set(['frozen']);
 const UPGRADED_DAWN_MUTS = new Set(['dawncharged']);
 const UPGRADED_AMBER_MUTS = new Set(['ambercharged']);
+const UPGRADED_THUNDER_MUTS = new Set(['thundercharged']);
 
 export function normalizeCanonicalMutation(input: string): string {
   return resolveMutation(input)?.name.toLowerCase() ?? input.trim().toLowerCase();
@@ -25,6 +26,12 @@ export function canApplyMutation(
     case 'frozen':
       return !existingCanonical.includes('thunderstruck') && !existingCanonical.includes('frozen');
     case 'thunderstruck':
+      return !existingCanonical.some((mutation) => (
+        BASE_WATER_MUTS.has(mutation)
+        || UPGRADED_WATER_MUTS.has(mutation)
+        || UPGRADED_THUNDER_MUTS.has(mutation)
+      ));
+    case 'thundercharged':
       return !existingCanonical.some((mutation) => (
         BASE_WATER_MUTS.has(mutation) || UPGRADED_WATER_MUTS.has(mutation)
       ));
@@ -87,6 +94,9 @@ export function simulateMutationsAfterApplying(
         break;
       case 'ambercharged':
         state = [...state.filter((entry) => entry !== 'ambershine'), 'ambercharged'];
+        break;
+      case 'thundercharged':
+        state = [...state.filter((entry) => entry !== 'thunderstruck'), 'thundercharged'];
         break;
       default:
         state = [...state, canonicalMutation];

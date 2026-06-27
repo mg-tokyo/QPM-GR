@@ -156,6 +156,14 @@ export const ACTION_MAP: Record<string, ActionKey> = {
   DawnKisser: 'kisser',
   PetRefund: 'refund',
   PetRefundII: 'refund',
+  // Dawn (PR-2644) — currently bucketed as 'Other'
+  dawnCapture: 'boost',
+  // Thunder (PR-3014)
+  thundercharge: 'boost',
+  ThunderstruckGranter: 'granter',
+  ThunderCoinFinder: 'coinFinder',
+  ThunderBoost: 'boost',
+  ThunderPlantGrowthBoost: 'plantGrowth',
 };
 
 export const ACTION_MAP_LOWER: Record<string, ActionKey> = Object.fromEntries(

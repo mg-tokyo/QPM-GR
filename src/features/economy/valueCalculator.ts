@@ -5,38 +5,6 @@ import type { GardenSnapshot } from '../garden/bridge';
 import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { getCropBaseSellPrice, getPlantSpecies } from '../../catalogs/gameCatalogs';
 
-const SPECIES_VALUES: Record<string, number> = {
-  Sunflower: 750000,
-  Starweaver: 10000000,
-  DawnCelestial: 11000000,
-  MoonCelestial: 11000000,
-  Lychee: 50000,
-  DragonFruit: 24500,
-  PassionFruit: 24500,
-  Lemon: 10000,
-  Pepper: 7220,
-  Grape: 7085,
-  Bamboo: 500000,
-  Cactus: 287000,
-  Mushroom: 160000,
-  BurrosTail: 6000,
-  Lily: 20123,
-  Banana: 1750,
-  Coconut: 302,
-  Echeveria: 5520,
-  Pumpkin: 3700,
-  Watermelon: 2708,
-  Corn: 36,
-  Daffodil: 1090,
-  Tomato: 27,
-  OrangeTulip: 767,
-  Apple: 73,
-  Blueberry: 23,
-  Aloe: 310,
-  Strawberry: 14,
-  Carrot: 20,
-};
-
 export function calculateMutationMultiplier(mutations: string[] | null | undefined): number {
   if (!mutations || mutations.length === 0) {
     return 1;
@@ -73,7 +41,7 @@ export function calculatePlantValue(
   mutations: string[] | null | undefined,
   friendBonus = 1,
 ): number {
-  const baseValue = getCropBaseSellPrice(species) ?? SPECIES_VALUES[species];
+  const baseValue = getCropBaseSellPrice(species);
   if (!baseValue) return 0;
   const multiplier = calculateMutationMultiplier(mutations ?? []);
   const basePrice = Math.round(baseValue * multiplier * scale);

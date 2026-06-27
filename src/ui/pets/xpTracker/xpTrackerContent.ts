@@ -37,7 +37,7 @@ import { createEmptyState } from '../../components/emptyState';
 // ============================================================================
 
 const WEATHER_ICONS: Record<string, string> = {
-  snow: '❄️', rain: '🌧️', dawn: '🌅', amber: '🌕', sunny: '☀️',
+  snow: '❄️', rain: '🌧️', dawn: '🌅', amber: '🌕', thunderstorm: '⚡', sunny: '☀️',
 };
 
 // ============================================================================

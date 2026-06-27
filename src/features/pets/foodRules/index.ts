@@ -26,6 +26,7 @@ export {
   getPetSpeciesCatalog,
   getSpeciesPreferredFood,
   setSpeciesPreferredFood,
+  initializeFoodRules,
 } from './rules';
 
 // Diet

@@ -7,24 +7,39 @@ import type {
   ShopCategorySnapshot,
   ShopPurchasesAtomSnapshot,
 } from '../types/gameAtoms';
-import type { ShopCategory } from '../types/shops';
+import { type ShopCategory, type StandardShopId } from '../types/shops';
+import { getKnownShopIds, isStandardShop } from './shopRegistry';
 
 // ---------------------------------------------------------------------------
 // Constants & type aliases (exported for use in shopStock.ts)
 // ---------------------------------------------------------------------------
 
-export const ATOM_KEY_BY_CATEGORY: Record<ShopCategory, 'seed' | 'egg' | 'tool' | 'decor' | 'dawn' | 'snow'> = {
+/** The four standard shops use a plural category id and a singular atom key. */
+const STANDARD_ATOM_KEY: Record<StandardShopId, 'seed' | 'egg' | 'tool' | 'decor'> = {
   seeds: 'seed',
   eggs: 'egg',
   tools: 'tool',
   decor: 'decor',
-  dawn: 'dawn',
-  snow: 'snow',
 };
 
+/**
+ * Translate a shop category id to the key used inside the shopPurchases atom.
+ * Standard shops (`seeds`, `eggs`, `tools`, `decor`) use a singular form;
+ * weather-gated and runtime-discovered ids pass through verbatim.
+ */
+export function getAtomKeyForCategory(category: string): string {
+  if (isStandardShop(category)) {
+    return STANDARD_ATOM_KEY[category as StandardShopId];
+  }
+  return category;
+}
+
+/** The full set of atom-side keys backed by the registry's known shop ids. */
+export function getShopPurchaseKeys(): readonly string[] {
+  return getKnownShopIds().map(getAtomKeyForCategory);
+}
+
 export type CustomInventoryMap = Record<string, { items: ShopInventoryEntry[] } | null> | null;
-export type ShopPurchaseKey = 'seed' | 'egg' | 'tool' | 'decor' | 'dawn' | 'snow';
-export const SHOP_PURCHASE_KEYS: ShopPurchaseKey[] = ['seed', 'egg', 'tool', 'decor', 'dawn', 'snow'];
 
 // ---------------------------------------------------------------------------
 // Public type definitions
@@ -211,7 +226,7 @@ export function getPurchaseCount(
   rawId: string,
   purchases: ShopPurchasesAtomSnapshot | null,
 ): number {
-  const key = ATOM_KEY_BY_CATEGORY[category];
+  const key = getAtomKeyForCategory(category);
   const bucket = purchases?.[key]?.purchases;
   if (!bucket || typeof bucket !== 'object') {
     return 0;
@@ -318,7 +333,7 @@ export function extractMyDataShopPurchases(value: unknown): ShopPurchasesAtomSna
 
   const snapshot: ShopPurchasesAtomSnapshot = {};
   let hasAnyBucket = false;
-  for (const key of SHOP_PURCHASE_KEYS) {
+  for (const key of getShopPurchaseKeys()) {
     const bucket = normalizePurchaseBucket(root[key]);
     snapshot[key] = bucket;
     if (bucket?.purchases && Object.keys(bucket.purchases).length > 0) {
@@ -330,7 +345,7 @@ export function extractMyDataShopPurchases(value: unknown): ShopPurchasesAtomSna
 
 export function hasPurchaseBucket(
   snapshot: ShopPurchasesAtomSnapshot | null,
-  key: ShopPurchaseKey,
+  key: string,
 ): boolean {
   const bucket = snapshot?.[key]?.purchases;
   return !!bucket && typeof bucket === 'object';

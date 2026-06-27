@@ -5,7 +5,7 @@
 //   mutationMultiplier = growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
 // where "growth" = Gold/Rainbow and "environment" = everything else.
 
-import { getMutationCatalog } from '../../catalogs/gameCatalogs';
+import { getMutationCatalog, getMutation as getCatalogMutation } from '../../catalogs/gameCatalogs';
 
 export type MutationCategory = 'color' | 'weather' | 'time';
 
@@ -51,6 +51,7 @@ const WEATHER_MUTATIONS: readonly MutationDefinition[] = [
   { name: 'Chilled', category: 'weather', multiplier: 2 },
   { name: 'Frozen', category: 'weather', multiplier: 6 },
   { name: 'Thunderstruck', category: 'weather', multiplier: 5 },
+  { name: 'Thundercharged', category: 'weather', multiplier: 7, aliases: ['Thunder charged', 'Thunder-charged'] },
 ];
 
 // Internal key → display name mapping:
@@ -102,9 +103,17 @@ export function resolveMutation(input: string | null | undefined): MutationDefin
     return null;
   }
 
-  // Primary: hardcoded lookup covers all known mutations + aliases (fast, always available)
+  // Hardcoded lookup for identity (name, category, aliases)
   const known = NORMALIZED_LOOKUP.get(normalized);
-  if (known) return known;
+
+  if (known) {
+    // Use catalog's coinMultiplier as authoritative when available
+    const catalogEntry = getCatalogMutation(known.name);
+    if (catalogEntry && catalogEntry.coinMultiplier !== known.multiplier) {
+      return { ...known, multiplier: catalogEntry.coinMultiplier };
+    }
+    return known;
+  }
 
   // Fallback: check mutation catalog for mutations added by game updates
   return resolveMutationFromCatalog(input.trim());
@@ -240,7 +249,26 @@ function pickHighest(entries: readonly MutationEntry[]): MutationEntry | null {
 }
 
 export function getAllMutationDefinitions(): readonly MutationDefinition[] {
-  return ALL_MUTATIONS;
+  const catalog = getMutationCatalog();
+  if (!catalog) return ALL_MUTATIONS;
+
+  const knownKeys = new Set(ALL_MUTATIONS.map(m => normalizeKey(m.name)));
+
+  const merged: MutationDefinition[] = ALL_MUTATIONS.map(def => {
+    const entry = catalog[def.name];
+    if (entry && entry.coinMultiplier !== def.multiplier) {
+      return { ...def, multiplier: entry.coinMultiplier };
+    }
+    return def;
+  });
+
+  for (const [id, entry] of Object.entries(catalog)) {
+    if (knownKeys.has(normalizeKey(id))) continue;
+    const category: MutationCategory = entry.coinMultiplier >= 25 ? 'color' : 'weather';
+    merged.push({ name: id, category, multiplier: entry.coinMultiplier });
+  }
+
+  return merged;
 }
 
 /** @deprecated Combo table removed — game uses additive formula. Returns empty array. */

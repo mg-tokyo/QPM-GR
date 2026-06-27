@@ -10,6 +10,9 @@ import {
   initCatalogLoader,
   cleanupCatalogLoader,
   forceWeatherCatalogRefresh,
+  getCosmeticOwnership,
+  isCosmeticOwned,
+  isCosmeticAvailable,
 } from './catalogLoader';
 import type {
   GameCatalogs,
@@ -28,6 +31,8 @@ import type {
   MutationCatalogEntry,
   PetAbilities,
   PetAbilityEntry,
+  CosmeticCatalog,
+  CosmeticCatalogEntry,
 } from './types';
 
 // Re-export for convenience
@@ -573,6 +578,32 @@ export function getAllAbilities(): string[] {
   if (!catalog) return [];
   return Object.keys(catalog);
 }
+
+// ============================================================================
+// COSMETIC CATALOG ACCESS
+// ============================================================================
+
+export function getCosmeticCatalog(): CosmeticCatalog | null {
+  return getCatalogs().cosmeticCatalog;
+}
+
+export function getCosmeticByFilename(filename: string): CosmeticCatalogEntry | undefined {
+  const catalog = getCosmeticCatalog();
+  if (!catalog) return undefined;
+  return catalog.find(c => c.filename === filename);
+}
+
+export function getCosmeticsByType(type: string): CosmeticCatalogEntry[] {
+  const catalog = getCosmeticCatalog();
+  if (!catalog) return [];
+  return catalog.filter(c => c.type === type);
+}
+
+// ============================================================================
+// COSMETIC OWNERSHIP ACCESS
+// ============================================================================
+
+export { getCosmeticOwnership, isCosmeticOwned, isCosmeticAvailable };
 
 // ============================================================================
 // DIAGNOSTIC UTILITIES

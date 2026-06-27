@@ -92,7 +92,7 @@ export function renderPanelFooter(): PanelFooterResult {
         const { renderAboutContent } = await import('../sections/aboutWindow');
         toggleWindow('about-window', 'ℹ About QPM', (root) => {
           renderAboutContent(root);
-        }, '320px', '280px');
+        }, '320px', '540px');
       } catch (err) {
         log('About window failed', err);
       }

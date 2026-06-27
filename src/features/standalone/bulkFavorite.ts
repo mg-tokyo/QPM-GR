@@ -2,14 +2,35 @@
 // Bulk Favorite Feature
 // Shows per-species buttons near inventory and toggles favorites in bulk.
 
-import { log } from '../../utils/logger';
 import { getInventoryItems, getFavoritedItemIds, onInventoryChange, type InventoryItem } from '../../store/inventory';
 import { getCropSpriteDataUrl, getAnySpriteDataUrl, onSpritesReady, Sprites } from '../../sprite-v2/compat';
 import { addStyle } from '../../utils/dom/dom';
 import { getAllPlantSpecies, areCatalogsReady } from '../../catalogs/gameCatalogs';
-import { sendRoomAction } from '../../websocket/api';
+import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
 import { storage } from '../../utils/storage';
 import { pageWindow } from '../../core/pageContext';
+import { notify } from '../../core/notifications';
+import { healthBus } from '../../diagnostics/healthBus';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { Subsystem } from '../../diagnostics/types';
+
+// ── Diagnostics ───────────────────────────────────────────────────────────
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:bulkFavorite';
+const FEATURE_NAME = 'bulkFavorite';
+const log = createNamedLogger(FEATURE_SUBSYSTEM);
+
+/**
+ * Re-attribute a FEATURE-* code emission to this feature's bus row. The
+ * registered placeholder subsystem on FEATURE-* is `'feature'`; without this
+ * override the bus would degrade a generic `feature` entry instead of
+ * `feature:bulkFavorite`.
+ */
+function warnFeature(code: Parameters<typeof buildError>[0], ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 interface ProduceGroup {
   species: string;
@@ -518,7 +539,7 @@ function getProduceGroups(): ProduceGroup[] {
     if (itemType !== 'Produce' || !species || !uuid) continue;
 
     if (!isValidSpecies(species)) {
-      log(`[BulkFavorite] Unknown species in bulk favorite: ${species}`);
+      log.debug(`Unknown species: ${species}`);
     }
 
     const existing = groupMap.get(species);
@@ -538,12 +559,11 @@ function getProduceGroups(): ProduceGroup[] {
   return groups;
 }
 
-function sendFavoriteToggle(itemId: string): boolean {
-  const sent = sendRoomAction('ToggleLockItem', { itemId }, { throttleMs: 50 });
-  if (!sent.ok && sent.reason !== 'throttled') {
-    log(`[BulkFavorite] Failed to send lock toggle (${sent.reason ?? 'unknown'})`);
-  }
-  return sent.ok;
+function sendFavoriteToggle(itemId: string): WebSocketSendResult {
+  // The WS layer already emits the appropriate WS-* code on failure (no_connection,
+  // invalid_payload, send_failed, locker_blocked). We return the full result so
+  // handleToggle can aggregate per-reason counts for the user-visible summary.
+  return sendRoomAction('ToggleLockItem', { itemId }, { throttleMs: 50 });
 }
 
 function tryGetAnySpriteUrl(keys: string[]): string {
@@ -792,7 +812,7 @@ function showSidebar(anchor: InventoryAnchor): void {
   if (!sidebar) {
     sidebar = createSidebar();
     document.body.appendChild(sidebar);
-    log(`[BulkFavorite] Sidebar shown (${anchor.source})`);
+    log.debug(`Sidebar shown (${anchor.source})`);
   }
 
   applySidebarLayout(computeSidebarLayout(anchor.rect), true);
@@ -814,7 +834,7 @@ function hideSidebar(): void {
   lastLayoutSignature = '';
   lastRenderSignature = '';
   anchorMissCount = 0;
-  log('[BulkFavorite] Sidebar hidden');
+  log.debug('Sidebar hidden');
 }
 
 function syncSidebar(refreshContent: boolean, forceHideOnMiss = false): void {
@@ -871,7 +891,7 @@ async function handleToggle(species: string): Promise<void> {
   }
 
   if (itemUUIDs.length === 0) {
-    log(`[BulkFavorite] No items found for species: ${species}`);
+    log.debug(`No items found for species: ${species}`);
     return;
   }
 
@@ -882,19 +902,44 @@ async function handleToggle(species: string): Promise<void> {
     ? itemUUIDs.filter((uuid) => favoritedIds.has(uuid))
     : itemUUIDs.filter((uuid) => !favoritedIds.has(uuid));
 
-  const action = allLocked ? 'Unlocking' : 'Locking';
-  log(`[BulkFavorite] ${action} ${uuidsToToggle.length}/${itemUUIDs.length} ${species} items (${lockedCount} already locked)`);
-
-  let successCount = 0;
+  const verb = allLocked ? 'Unlock' : 'Lock';
+  const total = uuidsToToggle.length;
+  let ok = 0;
+  let throttled = 0;
+  let failed = 0;
   for (const uuid of uuidsToToggle) {
-    if (sendFavoriteToggle(uuid)) {
-      successCount += 1;
+    const result = sendFavoriteToggle(uuid);
+    if (result.ok) {
+      ok += 1;
       await delay(40);
+    } else if (result.reason === 'throttled') {
+      throttled += 1;
+    } else {
+      failed += 1;
     }
   }
 
-  log(`[BulkFavorite] Toggled ${successCount}/${uuidsToToggle.length} ${species} items`);
   setTimeout(() => renderSidebar(true), 250);
+
+  if (failed === 0 && throttled === 0) {
+    notify({
+      feature: FEATURE_NAME,
+      level: 'success',
+      message: `${verb}ed ${ok}/${total} ${species}`,
+    });
+    return;
+  }
+
+  // Partial-failure path — aggregate the per-reason counts into one bus
+  // degrade + one user-visible summary. Per-item WS-* codes were already
+  // emitted by the WS layer; FEATURE-002 attributes the aggregate to this
+  // feature's bus row.
+  warnFeature('QPM-FEATURE-002', { species, verb, ok, failed, throttled, total });
+  notify({
+    feature: FEATURE_NAME,
+    level: failed > 0 ? 'warn' : 'info',
+    message: `${verb}ed ${ok}/${total} ${species}${failed > 0 ? ` — ${failed} failed` : ''}${throttled > 0 ? ` (${throttled} throttled)` : ''}`,
+  });
 }
 
 function handleMutations(): void {
@@ -947,9 +992,16 @@ export function startBulkFavorite(): void {
   }
 
   if (observer) {
-    log('[BulkFavorite] Already started');
+    log.debug('Already started');
     return;
   }
+
+  // Register the feature's bus row on first start; idempotent (healthBus
+  // .register preserves an existing entry's status if it's already there).
+  healthBus.register(FEATURE_SUBSYSTEM, {
+    category: 'feature',
+    status: 'starting',
+  });
 
   ensureStyles();
 
@@ -991,7 +1043,13 @@ export function startBulkFavorite(): void {
   window.addEventListener('resize', resizeListener);
 
   syncSidebar(true);
-  log('[BulkFavorite] Started');
+  log.info('Started');
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message: 'Observing inventory modal',
+  });
 }
 
 export function stopBulkFavorite(): void {
@@ -1041,7 +1099,7 @@ export function stopBulkFavorite(): void {
   lockUiSpriteCache = null;
 
   hideSidebar();
-  log('[BulkFavorite] Stopped');
+  log.info('Stopped');
 }
 
 export function refreshBulkFavorite(): void {

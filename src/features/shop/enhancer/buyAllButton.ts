@@ -540,7 +540,7 @@ export function injectPanelBuyAll(
     btn.hitArea = makeHitArea(buyAllWidth, btnHeight);
   }
 
-  const shopType = CATEGORY_TO_SHOP_TYPE[category];
+  const shopType = CATEGORY_TO_SHOP_TYPE[category] ?? category;
   wirePurchaseHandler(btn, shopType, expandedRow.itemId, expandedRow.remaining!, expandedRow.itemType, updateText);
   inject(panel, btn, PANEL_BUTTON_TAG);
   log(`[ShopEnhancer:BuyAll] Panel button injected for ${expandedRow.itemName} (${nativeCount} native btns resized ${first.width}→${nativeW}, buyAll w=${buyAllWidth})`);

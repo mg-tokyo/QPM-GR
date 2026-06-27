@@ -33,6 +33,12 @@ export const HIGH_VALUE_ABILITIES = new Set([
   'AmberMoonBoost',
   'AmberlitGranter',
   'AmberPlantGrowthBoost',
+  // Thunder content (PR-3014)
+  'Thundercharger',
+  'ThunderstruckGranter',
+  'ThunderCoinFinder',
+  'ThunderBoost',
+  'ThunderPlantGrowthBoost',
 ]);
 
 export const LOW_VALUE_ABILITIES = new Set([
@@ -53,8 +59,8 @@ export const LOW_VALUE_ABILITIES = new Set([
 export const COMMON_SPECIES = new Set(['Worm', 'Snail', 'Bee']);
 export const UNCOMMON_SPECIES = new Set(['Chicken', 'Bunny', 'Dragonfly']);
 export const RARE_SPECIES = new Set(['Pig', 'Cow', 'Turkey']);
-export const LEGENDARY_SPECIES = new Set(['Squirrel', 'Turtle', 'Goat', 'Sheep', 'Horse', 'Pony']);
-export const MYTHICAL_SPECIES = new Set(['Butterfly', 'Peacock', 'Capybara', 'Hedgehog', 'FireHorse']);
+export const LEGENDARY_SPECIES = new Set(['Squirrel', 'Turtle', 'Goat', 'Sheep', 'Horse', 'Pony', 'Bat', 'Platypus']);
+export const MYTHICAL_SPECIES = new Set(['Butterfly', 'Peacock', 'Capybara', 'Hedgehog', 'FireHorse', 'ThunderWolf']);
 
 export const MAX_BETTER_ALTERNATIVES = 12;
 export const GOLD_DISLIKE_FACTOR = 0.5;
@@ -77,6 +83,7 @@ export const SPECIAL_ABILITY_SCORES: Record<string, number> = {
   GoldGranter: 85,
   SeedFinderIV: 100,
   CoinFinderIII: 100,
+  Thundercharger: 85,
 };
 
 export const TIME_FAMILY_KEYS = new Set([

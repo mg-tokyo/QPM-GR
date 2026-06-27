@@ -3,6 +3,9 @@
 import { t } from '../../i18n';
 import { getCurrentVersion } from '../../utils/versionChecker';
 import { openExternalUrl } from '../hub/groups/toolsGroup';
+import { openNativeCard, type OpenNativeCardOptions } from '../../integrations/nativeCardView';
+import { TOKYO_CARD_PREVIEW_URL, TOKYO_CARD_VIDEO_URL } from '../../data/tokyoCard';
+import { BUILT_IN_PRESETS } from '../../data/customCardPresets';
 
 const SPONSORS_URL = 'https://github.com/sponsors/mg-tokyo';
 const FLAG_AU_URL = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f1e6-1f1fa.svg';
@@ -73,5 +76,40 @@ export function renderAboutContent(root: HTMLElement): void {
   });
 
   sponsorRow.append(sponsorText, heartBtn);
-  root.append(titleRow, author, sponsorRow);
+
+  // Clickable TOKYO card thumbnail — opens the native in-game card view.
+  const tokyoCard = document.createElement('button');
+  tokyoCard.type = 'button';
+  tokyoCard.className = 'qpm-about__tokyo-card';
+  tokyoCard.title = "Click to view Tokyo's card";
+
+  // Animated preview — same WebM the in-game card uses. Falls back to the PNG poster
+  // if the video can't autoplay (strict browser policies) or fails to load.
+  const tokyoVideo = document.createElement('video');
+  tokyoVideo.src = TOKYO_CARD_VIDEO_URL;
+  tokyoVideo.poster = TOKYO_CARD_PREVIEW_URL;
+  tokyoVideo.autoplay = true;
+  tokyoVideo.loop = true;
+  tokyoVideo.muted = true;
+  tokyoVideo.playsInline = true;
+  tokyoVideo.preload = 'auto';
+  tokyoVideo.crossOrigin = 'anonymous';
+  tokyoVideo.draggable = false;
+  tokyoCard.appendChild(tokyoVideo);
+
+  // Route through the Custom Cards built-in preset registry rather than the
+  // raw TOKYO_CARD constants. The thumbnail above still uses the URL constants
+  // directly because it's an HTML <video>, not a phantom-item open.
+  tokyoCard.addEventListener('click', () => {
+    const tokyoPreset = BUILT_IN_PRESETS.find((p) => p.id === 'qpm-builtin-tokyo');
+    if (!tokyoPreset) return;
+    const options: OpenNativeCardOptions = {
+      fullTakeover: !!tokyoPreset.fullTakeover,
+    };
+    if (tokyoPreset.videoUrl) options.videoUrl = tokyoPreset.videoUrl;
+    if (tokyoPreset.portraitUrl) options.portraitUrl = tokyoPreset.portraitUrl;
+    void openNativeCard(tokyoPreset.item, options);
+  });
+
+  root.append(titleRow, author, tokyoCard, sponsorRow);
 }

@@ -1,7 +1,14 @@
 // src/websocket/api.ts
 // Centralized send facade for room WebSocket actions.
 
+import { healthBus } from '../diagnostics/healthBus';
+import { createNamedLogger } from '../diagnostics/logger';
+import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
 import { pageWindow } from '../core/pageContext';
+import { visibleInterval } from '../utils/scheduling/timerManager';
+
+const log = createNamedLogger('websocket');
+const WS_SUBSYSTEM: Subsystem = 'websocket';
 
 export type RoomActionType =
   | 'ToggleLockItem'
@@ -21,7 +28,15 @@ export type RoomActionType =
   | 'LogItems'
   | 'RequestPetGreet'
   | 'RidePet'
+  | 'HarvestCrop'
+  | 'RemoveGardenObject'
+  | 'CropCleanser'
+  | 'MutationPotion'
   | 'DismountPet'
+  // Keep the SetRiddenPet member as the final entry of this union — the
+  // QPM FULL PRIVATE overlay's apply-transforms.js anchors ws:extend-union
+  // to that literal line and inserts automation-only types after it. Add
+  // new base members ABOVE this comment, not below.
   | 'SetRiddenPet';
 
 export type WebSocketSendFailureReason =
@@ -182,6 +197,21 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
     case 'SetRiddenPet':
       // petId can be a string (mount) or null (dismount)
       return payload.petId === null || isNonEmptyString(payload.petId);
+    case 'HarvestCrop':
+      // `slot` is the dirt-tile index; `slotsIndex` is the grow-slot id within
+      // that tile. Both required and finite.
+      return isFiniteNumber(payload.slot) && isFiniteNumber(payload.slotsIndex);
+    case 'RemoveGardenObject':
+      // `slot` is the local tile index; `slotType` is the tile type string.
+      return isFiniteNumber(payload.slot) && isNonEmptyString(payload.slotType);
+    case 'CropCleanser':
+      return isFiniteNumber(payload.tileObjectIdx) && isFiniteNumber(payload.growSlotIdx);
+    case 'MutationPotion':
+      return (
+        isFiniteNumber(payload.tileObjectIdx)
+        && isFiniteNumber(payload.growSlotIdx)
+        && isNonEmptyString(payload.mutation)
+      );
     default:
       return false;
   }
@@ -224,6 +254,13 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
       return type;
     case 'SetRiddenPet':
       return type;
+    case 'HarvestCrop':
+      return `${type}:${String(payload.slot ?? '')}:${String(payload.slotsIndex ?? '')}`;
+    case 'RemoveGardenObject':
+      return `${type}:${String(payload.slot ?? '')}:${String(payload.slotType ?? '')}`;
+    case 'CropCleanser':
+    case 'MutationPotion':
+      return `${type}:${String(payload.tileObjectIdx ?? '')}:${String(payload.growSlotIdx ?? '')}`;
     default:
       return type;
   }
@@ -242,22 +279,138 @@ export function onActionSent(listener: ActionSentListener): () => void {
   return () => { actionSentListeners.delete(listener); };
 }
 
+// ---------------------------------------------------------------------------
+// Diagnostics — health bus registration + counters (Phase 2 §13)
+// ---------------------------------------------------------------------------
+
+const counters = {
+  sends: 0,
+  throttles: 0,
+  failures: 0,
+  invalidPayloads: 0,
+  lockerBlocks: 0,
+  noConnections: 0,
+};
+
+let diagnosticsStarted = false;
+let connectionPollStop: (() => void) | null = null;
+let metricsTickStop: (() => void) | null = null;
+let connectionEverSeen = false;
+
+function snapshotMetrics(): Readonly<Record<string, number>> {
+  return {
+    sends: counters.sends,
+    throttles: counters.throttles,
+    failures: counters.failures,
+    invalidPayloads: counters.invalidPayloads,
+    lockerBlocks: counters.lockerBlocks,
+    noConnections: counters.noConnections,
+  };
+}
+
+function serializeCounters(): string {
+  return `${counters.sends}|${counters.throttles}|${counters.failures}|${counters.invalidPayloads}|${counters.lockerBlocks}|${counters.noConnections}`;
+}
+
+function publishWsHealth(
+  status?: SubsystemHealth['status'],
+  message?: string,
+): void {
+  if (!diagnosticsStarted) return;
+  healthBus.publish({
+    subsystem: WS_SUBSYSTEM,
+    category: 'core',
+    ...(status === undefined ? {} : { status }),
+    ...(message === undefined ? {} : { message }),
+    metrics: snapshotMetrics(),
+  });
+}
+
+function maybePublishRecovery(): void {
+  if (!diagnosticsStarted) return;
+  const current = healthBus.read(WS_SUBSYSTEM);
+  if (!current) return;
+  if (current.status === 'degraded' || current.status === 'failed') {
+    publishWsHealth('recovering', 'Send succeeded — recovering');
+  }
+}
+
+/**
+ * Wire the websocket subsystem into the diagnostics health bus. Idempotent.
+ * Must run after initDiagnostics() so the bus exists.
+ */
+export function startWebsocketDiagnostics(): void {
+  if (diagnosticsStarted) return;
+  diagnosticsStarted = true;
+
+  healthBus.register(WS_SUBSYSTEM, {
+    category: 'core',
+    status: 'starting',
+    message: 'Waiting for room connection',
+  });
+
+  if (hasRoomConnection()) {
+    connectionEverSeen = true;
+    publishWsHealth('ok', 'Connected');
+  } else {
+    connectionPollStop = visibleInterval('qpm-ws-diag-connect', () => {
+      if (!hasRoomConnection()) return;
+      connectionEverSeen = true;
+      publishWsHealth('ok', 'Connected');
+      if (connectionPollStop) {
+        connectionPollStop();
+        connectionPollStop = null;
+      }
+    }, 1500);
+  }
+
+  // Slow metrics tick — only publish when counters actually change, so the
+  // bus diff stays cheap (§6.4 budget).
+  let lastSnapshot = serializeCounters();
+  metricsTickStop = visibleInterval('qpm-ws-diag-metrics', () => {
+    const snap = serializeCounters();
+    if (snap === lastSnapshot) return;
+    lastSnapshot = snap;
+    publishWsHealth(undefined, connectionEverSeen ? 'Connected' : undefined);
+  }, 60_000);
+}
+
+export function stopWebsocketDiagnostics(): void {
+  if (!diagnosticsStarted) return;
+  if (connectionPollStop) {
+    connectionPollStop();
+    connectionPollStop = null;
+  }
+  if (metricsTickStop) {
+    metricsTickStop();
+    metricsTickStop = null;
+  }
+  diagnosticsStarted = false;
+}
+
 export function sendRoomAction(
   type: RoomActionType,
   payload: Record<string, unknown>,
   options?: { throttleMs?: number; skipThrottle?: boolean },
 ): WebSocketSendResult {
   if (!validatePayload(type, payload)) {
+    counters.invalidPayloads++;
+    log.warn('QPM-WS-004', { type });
     return { ok: false, reason: 'invalid_payload' };
   }
 
   if (sendPreflightFn) {
     const check = sendPreflightFn(type, payload);
-    if (!check.ok) return { ok: false, reason: 'locker_blocked' };
+    if (!check.ok) {
+      counters.lockerBlocks++;
+      return { ok: false, reason: 'locker_blocked' };
+    }
   }
 
   const connection = getRoomConnection();
   if (!connection) {
+    counters.noConnections++;
+    log.warn('QPM-WS-001', { type });
     return { ok: false, reason: 'no_connection' };
   }
 
@@ -267,6 +420,7 @@ export function sendRoomAction(
     const now = Date.now();
     const prev = lastSentAt.get(key) ?? 0;
     if (now - prev < throttleMs) {
+      counters.throttles++;
       return { ok: false, reason: 'throttled' };
     }
     lastSentAt.set(key, now);
@@ -282,8 +436,93 @@ export function sendRoomAction(
     for (const cb of actionSentListeners) {
       try { cb(type, payload); } catch { /* ignore listener errors */ }
     }
+    counters.sends++;
+    maybePublishRecovery();
     return { ok: true };
-  } catch {
+  } catch (err) {
+    counters.failures++;
+    log.error('QPM-WS-003', { type }, err);
+    return { ok: false, reason: 'send_failed' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SetPlayerData — cosmetic/name changes (scopePath: ['Room'], not Quinoa)
+// ---------------------------------------------------------------------------
+
+export type CosmeticColor =
+  | 'Red' | 'Orange' | 'Yellow' | 'Green'
+  | 'Blue' | 'Purple' | 'White' | 'Black';
+
+export interface SetPlayerDataPayload {
+  name?: string;
+  cosmetic?: {
+    color: CosmeticColor;
+    avatar: [string, string, string, string];
+  };
+}
+
+const PLAYER_NAME_MAX = 32;
+const SET_PLAYER_DATA_COOLDOWN_MS = 2000;
+let lastSetPlayerDataAt = 0;
+
+export function sendSetPlayerData(payload: SetPlayerDataPayload): WebSocketSendResult {
+  if (!payload.name && !payload.cosmetic) {
+    counters.invalidPayloads++;
+    log.warn('QPM-WS-005', { reason: 'empty_payload' });
+    return { ok: false, reason: 'invalid_payload' };
+  }
+
+  if (payload.name != null) {
+    const trimmed = payload.name.trim();
+    if (trimmed.length === 0 || trimmed.length > PLAYER_NAME_MAX) {
+      counters.invalidPayloads++;
+      log.warn('QPM-WS-005', { reason: 'invalid_name' });
+      return { ok: false, reason: 'invalid_payload' };
+    }
+  }
+
+  if (payload.cosmetic) {
+    const { color, avatar } = payload.cosmetic;
+    if (!color || typeof color !== 'string') {
+      counters.invalidPayloads++;
+      return { ok: false, reason: 'invalid_payload' };
+    }
+    if (!Array.isArray(avatar) || avatar.length !== 4 || avatar.some(s => !isNonEmptyString(s))) {
+      counters.invalidPayloads++;
+      return { ok: false, reason: 'invalid_payload' };
+    }
+  }
+
+  const now = Date.now();
+  if (now - lastSetPlayerDataAt < SET_PLAYER_DATA_COOLDOWN_MS) {
+    counters.throttles++;
+    return { ok: false, reason: 'throttled' };
+  }
+
+  const connection = getRoomConnection();
+  if (!connection) {
+    counters.noConnections++;
+    log.warn('QPM-WS-001', { type: 'SetPlayerData' });
+    return { ok: false, reason: 'no_connection' };
+  }
+
+  try {
+    const message: Record<string, unknown> = {
+      scopePath: ['Room'],
+      type: 'SetPlayerData',
+    };
+    if (payload.name != null) message.name = payload.name.trim();
+    if (payload.cosmetic) message.cosmetic = payload.cosmetic;
+
+    connection.sendMessage(message);
+    lastSetPlayerDataAt = now;
+    counters.sends++;
+    maybePublishRecovery();
+    return { ok: true };
+  } catch (err) {
+    counters.failures++;
+    log.error('QPM-WS-003', { type: 'SetPlayerData' }, err);
     return { ok: false, reason: 'send_failed' };
   }
 }

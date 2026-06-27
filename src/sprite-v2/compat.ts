@@ -3,6 +3,7 @@
 import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
 import { scheduleNonBlocking, delay } from '../utils/scheduling/scheduling';
 import { log, isVerboseLogsEnabled } from '../utils/logger';
+import { getFloraBlueprint } from '../catalogs/gameCatalogs';
 import type { SpriteService } from './types';
 import { spriteLog } from './diagnostics';
 
@@ -400,7 +401,11 @@ function renderAcrossCategories(
 export function getCropSpriteCanvas(speciesOrTile: string | number | null | undefined): HTMLCanvasElement | null {
   if (speciesOrTile == null) return null;
   const id = normalizeSpeciesName(speciesOrTile);
-  return renderAcrossCategories(CROP_CATEGORIES, id, [], true);
+  const canvas = renderAcrossCategories(CROP_CATEGORIES, id, [], true);
+  if (canvas) return canvas;
+  const bp = getFloraBlueprint(String(speciesOrTile));
+  if (bp?.cropSpriteKey) return tryRenderCanvas('any', bp.cropSpriteKey, []);
+  return null;
 }
 
 /**
@@ -413,7 +418,11 @@ export function getCropSpriteWithMutations(
   if (speciesOrTile == null) return null;
   const id = normalizeSpeciesName(speciesOrTile);
   const normalizedMutations = normalizeMutations(mutations);
-  return renderAcrossCategories(CROP_CATEGORIES, id, normalizedMutations, true);
+  const canvas = renderAcrossCategories(CROP_CATEGORIES, id, normalizedMutations, true);
+  if (canvas) return canvas;
+  const bp = getFloraBlueprint(String(speciesOrTile));
+  if (bp?.cropSpriteKey) return tryRenderCanvas('any', bp.cropSpriteKey, normalizedMutations);
+  return null;
 }
 
 /**

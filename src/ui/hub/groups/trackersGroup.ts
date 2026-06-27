@@ -5,6 +5,12 @@ import { toggleWindow, openWindow, closeWindow, destroyWindow, isWindowOpen } fr
 import { log } from '../../../utils/logger';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
+import {
+  startTurtleTimerStatus,
+  startCropBoostStatus,
+  startShopRestockStatus,
+  startActivityLogStatus,
+} from '../../panel/tileStatusesCore';
 
 /** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
@@ -107,6 +113,13 @@ export function getTrackersGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '📊', spriteKey: 'sprite/pet/Peacock', spriteMutations: ['Rainbow'], fallback: '📊' },
     labelColor: '#4ade80',
     tier: 'expandable',
+    tile: {
+      tileId: 'ability-tracker',
+      icon: '📊',
+      color: 'rgba(76, 175, 80, 0.28)',
+      defaultStatus: '0.0 procs/hr / $0/hr',
+      // statusProvider handled by multi-tile startPetDerivedStatuses
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.ability.summary');
@@ -123,6 +136,13 @@ export function getTrackersGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '✨', spriteKey: 'sprite/ui/StrengthStar', fallback: '✨' },
     labelColor: '#fbbf24',
     tier: 'expandable',
+    tile: {
+      tileId: 'xp-tracker',
+      icon: '✨',
+      color: 'rgba(255, 215, 0, 0.28)',
+      defaultStatus: '0 XP skills / 0 XP/hr',
+      // statusProvider handled by multi-tile startPetDerivedStatuses
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.xp.summary');
@@ -145,6 +165,13 @@ export function getTrackersGroup(): HubGroupDef {
     },
     labelColor: '#38bdf8',
     tier: 'expandable',
+    tile: {
+      tileId: 'turtle-timer',
+      icon: '🐢',
+      color: 'rgba(102, 187, 106, 0.28)',
+      defaultStatus: '0 turtles / 0 crops / 0 eggs',
+      statusProvider: startTurtleTimerStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.turtle.summary');
@@ -161,6 +188,13 @@ export function getTrackersGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '🌱', spriteKey: 'sprite/plant/Sunflower', spriteMutations: ['Gold'], fallback: '🌱' },
     labelColor: '#a78bfa',
     tier: 'expandable',
+    tile: {
+      tileId: 'crop-boosts',
+      icon: '🌱',
+      color: 'rgba(139, 195, 74, 0.28)',
+      defaultStatus: '0 boosters / 0 crops / ETA n/a',
+      statusProvider: startCropBoostStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.crops.summary');
@@ -185,6 +219,12 @@ export function getTrackersGroup(): HubGroupDef {
     },
     labelColor: '#f9a8d4',
     tier: 'launcher',
+    tile: {
+      icon: '🏪',
+      color: 'rgba(0, 188, 212, 0.28)',
+      defaultStatus: '0 tracked / 0 due',
+      statusProvider: startShopRestockStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.shopRestock.summary');
@@ -203,6 +243,12 @@ export function getTrackersGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '📜', spriteKey: 'sprite/ui/ActivityLog', fallback: '📜' },
     labelColor: '#fdba74',
     tier: 'launcher',
+    tile: {
+      icon: '📜',
+      color: 'rgba(158, 118, 255, 0.28)',
+      defaultStatus: '0 saved / 0 replay / watching',
+      statusProvider: startActivityLogStatus,
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       el.textContent = t('hub.trackers.activityLog.summary');
@@ -214,6 +260,35 @@ export function getTrackersGroup(): HubGroupDef {
           root.appendChild(createActivityLogSection());
         }).catch(e => log('⚠️ Failed to load Activity Log', e));
       }, '580px', '78vh');
+    },
+  };
+
+  const chargedAbilitiesCard: LauncherCardConfig = {
+    key: 'charged-abilities',
+    label: t('hub.trackers.chargedAbilities.label'),
+    description: t('hub.trackers.chargedAbilities.description'),
+    icon: {
+      kind: 'sprite', value: '⚡', fallback: '⚡',
+      bunched: [
+        { spriteKey: 'sprite/ui/MutationThunderstruck', offsetX: -6, offsetY: 0, scale: 0.85 },
+        { spriteKey: 'sprite/ui/MutationDawnlit', offsetX: 8, offsetY: 0, scale: 0.85 },
+      ],
+    },
+    labelColor: '#c084fc',
+    tier: 'launcher',
+    tile: {
+      icon: '⚡',
+      color: 'rgba(192, 132, 252, 0.28)',
+      defaultStatus: '—',
+    },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.textContent = t('hub.trackers.chargedAbilities.summary');
+    },
+    onOpen: () => {
+      import('../../../features/chargedAbilities').then(({ openChargedAbilitiesWindow }) => {
+        openChargedAbilitiesWindow();
+      }).catch(e => log('⚠️ Failed to open Charged Abilities', e));
     },
   };
 
@@ -230,6 +305,6 @@ export function getTrackersGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/Turtle', offsetX: 9, offsetY: 6, scale: 0.7 },
       ],
     },
-    cards: [abilityCard, xpCard, turtleCard, cropsCard, shopRestockCard, activityLogCard],
+    cards: [abilityCard, xpCard, turtleCard, cropsCard, shopRestockCard, activityLogCard, chargedAbilitiesCard],
   };
 }

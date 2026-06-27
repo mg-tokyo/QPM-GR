@@ -3,10 +3,45 @@
 
 import { storage } from '../../../utils/storage';
 import { normalizeSpeciesKey } from '../../../utils/helpers';
-import { log } from '../../../utils/logger';
 import { getAllPetDiets } from '../../../catalogs/gameCatalogs';
+import { healthBus } from '../../../diagnostics/healthBus';
+import { createNamedLogger } from '../../../diagnostics/logger';
+import { buildError } from '../../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
 import type { PetFoodRulesState, SpeciesOverride, SpeciesCatalogEntry } from './types';
 import { formatFoodLabelForSpecies } from './diet';
+
+// ── Diagnostics ───────────────────────────────────────────────────────────
+
+export const PET_FOOD_RULES_SUBSYSTEM: Subsystem = 'feature:petFoodRules';
+const FEATURE_NAME = 'petFoodRules';
+export const petFoodRulesLog = createNamedLogger(PET_FOOD_RULES_SUBSYSTEM);
+let busRegistered = false;
+
+/**
+ * Re-attribute a FEATURE-* code emission to this feature's bus row. The
+ * registered placeholder subsystem on FEATURE-* is `'feature'`; without this
+ * override the bus would degrade a generic `feature` entry instead of
+ * `feature:petFoodRules`.
+ */
+export function warnPetFoodRulesFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  petFoodRulesLog.warn({ ...built, subsystem: PET_FOOD_RULES_SUBSYSTEM, severity: 'warn' });
+}
+
+export function initializeFoodRules(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(PET_FOOD_RULES_SUBSYSTEM, { category: 'feature', status: 'starting' });
+  healthBus.publish({
+    subsystem: PET_FOOD_RULES_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message: 'Rules loaded',
+    metrics: { overrides: Object.keys(rulesState.overrides).length, avoidFavorited: String(rulesState.avoidFavorited) },
+  });
+  petFoodRulesLog.info('Initialized', { overrides: Object.keys(rulesState.overrides).length });
+}
 
 const STORAGE_KEY = 'quinoa-pet-food-rules';
 const PET_FOOD_RULES_EVENT = 'qpm:pet-food-rules-changed';
@@ -62,8 +97,8 @@ function emitRulesChanged(): void {
         updatedAt: rulesState.updatedAt,
       },
     }));
-  } catch {
-    // no-op
+  } catch (err) {
+    warnPetFoodRulesFeature('QPM-FEATURE-004', { what: 'emit:rulesChanged' }, err);
   }
 }
 
@@ -231,8 +266,8 @@ export function setSpeciesPreferredFood(species: string, foodKey: string | null)
   const speciesLabel = formatFriendlyName(species);
   if (hasPreferred && nextOverride.preferred) {
     const foodLabel = formatFoodLabelForSpecies(species, nextOverride.preferred);
-    log(`⚖️ Preferred food set for ${speciesLabel}: ${foodLabel}`);
+    petFoodRulesLog.info(`Preferred food set for ${speciesLabel}: ${foodLabel}`);
   } else {
-    log(`⚖️ Preferred food cleared for ${speciesLabel}`);
+    petFoodRulesLog.info(`Preferred food cleared for ${speciesLabel}`);
   }
 }

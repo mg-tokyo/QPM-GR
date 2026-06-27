@@ -2,6 +2,35 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.0",
+    date: "2026-06-27",
+    notes: [
+      "Added Blobling Customiser: browse, preview, buy, and equip cosmetics with outfit presets, custom skin uploads with trim-to-shape, and a cart/purchase flow",
+      "Added Garden Painter: per-tile sprite editor with tabs for swap, mutations, transparency, and tint/size controls, plus avatar cosmetic editing",
+      "Added Charged Abilities tracker: floating panel for player-activated abilities (Thundercharger, DawnCapture) with per-pet cooldowns, projected gains, and optimal direction",
+      "Added Thunderstorm weather support: Thunder shop category, Thunder pets (Bat, Platypus, ThunderWolf), Thundercharged mutation, and five new Thunder abilities",
+      "Added diagnostics system: structured health monitoring, error tracking, and metrics across all subsystems with a dedicated diagnostics card in the Hub",
+      "Added cosmetic catalog capture: runtime access to all avatar items, ownership status, and availability for the Blobling Customiser",
+      "Added toast notifications for batch favorite and lock/unlock actions showing success and failure counts",
+      "Added animated Tokyo card preview to the About window",
+      "Added new shared UI components: tonal and confirm button variants, select dropdown, pill tabs, slider row, and color picker",
+      "Improved crop calculator: mutation names, dust values, and sell prices now pull from runtime catalogs instead of hardcoded tables",
+      "Improved garden filters: Reset All now clears all selections and visual state, faster polling, and better species matching",
+      "Expanded translations for all new features across German, Spanish, French, and Portuguese",
+    ],
+  },
+  {
+    version: "3.2.29",
+    date: "2026-06-21",
+    notes: [
+      "Fixed garden filter dimming lost when walking over tiles, caused by PIXI visible toggling resetting render state",
+      "Fixed variant species (Four-Leaf Clover, Purple Daisy, Double Snowdrop) not matching filters by removing PIXI-label matching in favor of tile data species lookup",
+      "Added panel tiles for Insta-Harvest, Hold Settings, and Inventory Capacity",
+      "Improved tile system: cards are now the single source of truth, eliminating manual sync between tile registry, status defaults, and status providers",
+      "Fixed protection card and tile using different window IDs, unified to a single ID",
+    ],
+  },
+  {
     version: "3.2.28",
     date: "2026-06-10",
     notes: [

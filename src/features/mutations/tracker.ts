@@ -308,6 +308,7 @@ function mapDetailedWeather(kind: DetailedWeather): WeatherType {
     case 'snow':
     case 'dawn':
     case 'amber':
+    case 'thunderstorm':
       return kind;
     case 'sunny':
       return 'sunny';

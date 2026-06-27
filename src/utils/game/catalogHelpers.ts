@@ -18,8 +18,14 @@ import {
   getSlotOffsets,
   isMultiHarvest,
   getCropMaxScale,
+  getCosmeticCatalog,
+  getCosmeticsByType,
+  getCosmeticByFilename,
+  isCosmeticOwned,
+  isCosmeticAvailable,
 } from '../../catalogs/gameCatalogs';
 import type { FloraBlueprint, SlotOffset } from '../../catalogs/gameCatalogs';
+import type { CosmeticCatalogEntry } from '../../catalogs/types';
 
 export { areCatalogsReady, waitForCatalogs };
 
@@ -141,4 +147,26 @@ export function isMultiHarvestSafe(species: string): boolean {
  */
 export function getCropMaxScaleSafe(species: string): number | null {
   return areCatalogsReady() ? getCropMaxScale(species) : null;
+}
+
+// ============================================================================
+// COSMETIC CATALOG SAFE WRAPPERS
+// ============================================================================
+
+export function getCosmeticItemsSafe(slotType?: string): CosmeticCatalogEntry[] {
+  if (!areCatalogsReady()) return [];
+  return slotType ? getCosmeticsByType(slotType) : (getCosmeticCatalog() ?? []);
+}
+
+export function getCosmeticByFilenameSafe(filename: string): CosmeticCatalogEntry | undefined {
+  if (!areCatalogsReady()) return undefined;
+  return getCosmeticByFilename(filename);
+}
+
+export function isCosmeticOwnedSafe(filename: string): boolean | null {
+  return isCosmeticOwned(filename);
+}
+
+export function isCosmeticAvailableSafe(filename: string, availability: string): boolean | null {
+  return isCosmeticAvailable(filename, availability);
 }

@@ -14,6 +14,7 @@ import { initializeXpTracker } from './store/xpTracker';
 import { initializeMutationValueTracking } from './features/mutations/valueTracking';
 import { initializeAutoFavorite } from './features/standalone/autoFavorite';
 import { startBulkFavorite } from './features/standalone/bulkFavorite';
+import { initializeFoodRules } from './features/pets/foodRules';
 import { initializeGardenFilters } from './features/garden/filters';
 import { getActivePetsDebug, startPetInfoStore, stopPetInfoStore } from './store/pets';
 import { startInventoryStore, readInventoryDirect, getInventoryItems, stopInventoryStore } from './store/inventory';
@@ -25,11 +26,18 @@ import { startSellSnapshotWatcher } from './store/sellSnapshot';
 import { shareGlobal } from './core/pageContext';
 import { estimatePetLevel, getPetXPHistory } from './store/petLevelCalculator';
 import { feedPetInstantly, feedPetByIds, feedAllPetsInstantly, isInstantFeedAvailable } from './features/pets/instantFeed';
-import { startVersionChecker } from './utils/versionChecker';
+import { startVersionChecker, stopVersionChecker } from './utils/versionChecker';
 import { startCropBoostTracker } from './features/pets/cropBoostTracker';
 import { initPublicRooms } from './features/standalone/publicRooms';
 // New sprite system (sprite-v2)
-import { initSpriteSystem, getSpriteBootReport, spriteProbe } from './sprite-v2/index';
+import {
+  initSpriteSystem,
+  getSpriteBootReport,
+  spriteProbe,
+  startSpriteV2Diagnostics,
+  stopSpriteV2Diagnostics,
+  reportSpriteV2InitFailed,
+} from './sprite-v2/index';
 import type { SpriteService } from './sprite-v2/types';
 import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets, scheduleWarmup } from './sprite-v2/compat';
 import { isSpriteLogsEnabled, printSpriteLogDump, setSpriteLogsEnabled } from './sprite-v2/diagnostics';
@@ -77,8 +85,9 @@ import {
   startPetOptimizer,
 } from './features/pets/optimizer';
 import { exposeAriesBridge } from './integrations/ariesBridge';
-import { getAtomByLabel, readAtomValue } from './core/jotaiBridge';
-import { runAtomHealthCheck } from './core/atomRegistry';
+import { startNativeCardViewDiagnostics } from './integrations/nativeCardView';
+import { getAtomByLabel, readAtomValue, startJotaiBridgeDiagnostics, stopJotaiBridgeDiagnostics } from './core/jotaiBridge';
+import { runAtomHealthCheck, startAtomRegistryDiagnostics } from './core/atomRegistry';
 import { openInspectorDirect, setupGardenInspector } from './ui/standalone/publicRoomsWindow';
 import { resetFriendsCache } from './services/ariesPlayers';
 import { exposeValidationCommands } from './utils/validationCommands';
@@ -94,15 +103,22 @@ import { startStorageValueOverlay, stopStorageValueOverlay } from './ui/economy/
 import { startInventoryCapacity, stopInventoryCapacity } from './features/economy/inventoryCapacity';
 import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './ui/economy/inventoryCapacityOverlay';
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/standalone/textureSwapper';
+import { initCustomSkins } from './features/bloblingCustomiser/customSkins';
+import { initBloblingPresets, stopBloblingPresets } from './features/bloblingCustomiser/presets/store';
+import { initRiveEngine, initRivFetchInterceptor, initCanvasRuntimeTrap } from './rive-engine';
 import { openTextureSwapperWindow } from './ui/standalone/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shop/restockAlerts';
-import { fetchWeatherPredictions } from './utils/restock/dataService';
+import { fetchWeatherPredictions, startRestockDataDiagnostics, stopRestockDataDiagnostics } from './utils/restock/dataService';
+import { initNotifications } from './core/notifications';
 import { startDawnShopTracker, stopDawnShopTracker } from './features/dawn/shop';
 import { startCapsuleTracker, stopCapsuleTracker } from './features/dawn/capsule';
 import { startDawnCaptureTracker, stopDawnCaptureTracker } from './features/dawn/capture';
+import { startThunderchargerTracker, stopThunderchargerTracker } from './features/thunder/charger';
+import { startChargedAbilities, stopChargedAbilities } from './features/chargedAbilities';
 import { initDawnEconomy, destroyDawnEconomy } from './store/dawnEconomy';
 import { initGmExportBridge } from './utils/gmExportBridge';
 import { stopNativeSendObserver } from './websocket/nativeSendObserver';
+import { startWebsocketDiagnostics, stopWebsocketDiagnostics } from './websocket/api';
 import { startMountStateTracker, stopMountStateTracker } from './store/mountState';
 import { startLocker } from './features/locker/index';
 import { startGardenQol } from './features/gardenQol/index';
@@ -120,9 +136,34 @@ import {
   onCatalogsReady,
   forceWeatherCatalogRefresh,
 } from './catalogs/gameCatalogs';
+import { startCatalogsDiagnostics, stopCatalogsDiagnostics } from './catalogs/catalogLoader';
+// Diagnostics (Phase 1 foundation — no subsystems publish yet)
+import { initDiagnostics, mountDiagnosticsBadge, teardownDiagnostics } from './diagnostics/init';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 let DEBUG_GLOBALS_ENABLED = false;
+
+// RiveEngine is started during init() and stopped in beforeunload. We hold
+// the disposer at module scope because initRiveEngine() returns a one-shot
+// closure rather than exposing a named stop fn the way other subsystems do.
+let stopRiveEngine: (() => void) | null = null;
+
+// Blobling custom skins — same pattern as stopRiveEngine. Installed early in
+// init so the fetch interceptor catches startup cosmetic requests; torn down
+// in the shutdown chain near stopRiveEngine.
+let stopCustomSkins: (() => void) | null = null;
+
+// The .riv fetch interceptor installs MUCH earlier than initRiveEngine —
+// before the game's own startup fetches its avatar/currency .riv bundles.
+// Tracked separately because its lifetime starts before the engine and ends
+// in the same beforeunload pass.
+let stopRivFetchInterceptor: (() => void) | null = null;
+
+// The Object.prototype.runtime setter trap that catches the
+// @rive-app/canvas-advanced rive instance the moment a RiveFile constructor
+// runs. Must install before the game's first RiveFile creation. Auto-removes
+// itself once both expected runtimes are wrapped or after a timeout.
+let stopCanvasRuntimeTrap: (() => void) | null = null;
 
 // Expose debug API globally (using shareGlobal for userscript sandbox compatibility)
 const QPM_DEBUG_API = {
@@ -1326,7 +1367,9 @@ window.addEventListener('beforeunload', () => {
   stopSeedSiloStore();
   stopDawnShopTracker();
   stopCapsuleTracker();
+  stopChargedAbilities();
   stopDawnCaptureTracker();
+  stopThunderchargerTracker();
   destroyDawnEconomy();
   stopMountStateTracker();
   stopPetInfoStore();
@@ -1335,6 +1378,24 @@ window.addEventListener('beforeunload', () => {
   stopWeatherHub();
   destroyEconomyTracker();
   stopNativeSendObserver();
+  stopWebsocketDiagnostics();
+  stopCatalogsDiagnostics();
+  stopJotaiBridgeDiagnostics();
+  stopSpriteV2Diagnostics();
+  stopRestockDataDiagnostics();
+  stopVersionChecker();
+  try { stopRiveEngine?.(); } catch { /* best effort */ }
+  stopRiveEngine = null;
+  // Custom skins interceptor tears down before the rive fetch interceptor
+  // since it installed AFTER it (LIFO chain — spec §2.4).
+  try { stopCustomSkins?.(); } catch { /* best effort */ }
+  stopCustomSkins = null;
+  try { stopBloblingPresets(); } catch { /* best effort */ }
+  try { stopRivFetchInterceptor?.(); } catch { /* best effort */ }
+  stopRivFetchInterceptor = null;
+  try { stopCanvasRuntimeTrap?.(); } catch { /* best effort */ }
+  stopCanvasRuntimeTrap = null;
+  teardownDiagnostics();
 }, { once: true });
 
 async function waitForGame(): Promise<void> {
@@ -1373,15 +1434,76 @@ async function waitForGame(): Promise<void> {
 
 async function initialize(): Promise<void> {
   importantLog('Quinoa Pet Manager initializing...');
+
+  // Install the canvas-runtime trap FIRST. It must be in place before the
+  // game's first RiveFile constructor runs (otherwise we miss the only
+  // assignment that ever exposes the canvas-advanced runtime instance).
+  // The trap auto-removes once both expected rive runtimes are wrapped.
+  try {
+    stopCanvasRuntimeTrap = initCanvasRuntimeTrap();
+  } catch (error) {
+    log('[Main] canvas-runtime trap install failed (non-fatal)', error);
+  }
+
+  // Install the .riv fetch hook next — must be in place before the game's
+  // initial bundle loads run, otherwise we miss every .riv request and
+  // setAssetInterceptor can't reverse-resolve bytes back to a URL.
+  // initRivFetchInterceptor is idempotent and has no init dependencies.
+  try {
+    stopRivFetchInterceptor = initRivFetchInterceptor();
+  } catch (error) {
+    log('[Main] .riv fetch interceptor install failed (non-fatal)', error);
+  }
+
   registerDebugBootstrap();
   DEBUG_GLOBALS_ENABLED = isDebugGlobalsEnabled();
   initializeGlobalApis();
+
+  // Diagnostics layer (Phase 1 foundation). Must be up before any subsystem
+  // could call into the health bus or named-logger pipeline.
+  initDiagnostics();
+  initNotifications();
+  startWebsocketDiagnostics();
+  startAtomRegistryDiagnostics();
+  startCatalogsDiagnostics();
+  startJotaiBridgeDiagnostics();
+  startSpriteV2Diagnostics();
+  startRestockDataDiagnostics();
+
   const cfg = buildCfg();
 
   // Initialize catalog loader (hooks Object.* methods to capture game data)
   // MUST be called early, before game code runs
   initCatalogLoader();
   log('[Main] Catalog loader initialized');
+
+  // RiveEngine — start it as soon as the catalog loader is running so the
+  // load wrapper has a chance to install before the game's first
+  // rive.load() call. Catalog loader is what populates the Jotai bridge's
+  // cached store; once that's running we can poll for lowLevelRiveAtom.
+  // Phase 8 (the old call site) is far too late — the game has already
+  // loaded all .riv bundles into its shared cache by then, and no future
+  // pet-card open will trigger a fresh rive.load(). Errors are non-fatal.
+  try {
+    stopRiveEngine = initRiveEngine();
+  } catch (error) {
+    log('[Main] RiveEngine init failed (non-fatal)', error);
+  }
+
+  // Blobling custom skins — fetch interceptor must install before the game
+  // requests cosmetic PNGs at startup (otherwise the per-session decoded-image
+  // cache in setAvatarImage.ts locks in vanilla bytes for the rest of the
+  // session). See spec 2026-06-26-blobling-custom-skins-design.md Phase 0
+  // and §2.4. Errors are non-fatal — the feature is purely visual.
+  try {
+    stopCustomSkins = initCustomSkins();
+  } catch (error) {
+    log('[Main] customSkins init failed (non-fatal)', error);
+  }
+
+  void initBloblingPresets().catch((error) => {
+    log('[Main] bloblingPresets init failed (non-fatal)', error);
+  });
   // Auto reconnect disabled — no longer permitted by the game.
   // Force-disable for existing users who had it enabled.
   storage.set('qpm.autoReconnect.enabled.v1', false);
@@ -1413,7 +1535,7 @@ async function initialize(): Promise<void> {
       log('inspectPetSprites() available in console');
     }
   }).catch((err) => {
-    console.error('[QuinoaPetMgr] Sprite system failed to initialize:', err);
+    reportSpriteV2InitFailed(err);
   });
 
   // Wait for game to be ready (parallel with sprite init)
@@ -1473,6 +1595,7 @@ async function initialize(): Promise<void> {
   // Phase 3: Auto-favorite and bulk operations
   initializeAutoFavorite();
   startBulkFavorite();
+  initializeFoodRules();
   await startSellSnapshotWatcher();
   await yieldToBrowser();
 
@@ -1536,8 +1659,13 @@ async function initialize(): Promise<void> {
   startStorageValueOverlay();
   startInventoryCapacity();
   startInventoryCapacityOverlay();
+  // RiveEngine: started above, right after initCatalogLoader, to race
+  // ahead of the game's first rive.load(). Texture swapper depends on the
+  // engine being initialized — it is, by this phase.
   if (TEXTURE_MANIPULATOR_ENABLED) {
     initTextureSwapper();
+    // Expose the gating diagnostic command for catalog↔journal comparison.
+    void import('./ui/standalone/textureSwapperWindow/gatingDiagnostic').then(m => m.exposeGatingDiagnosticGlobal());
   }
   await yieldToBrowser();
 
@@ -1546,8 +1674,9 @@ async function initialize(): Promise<void> {
   startStatsRecorder();
   await yieldToBrowser();
 
-  // Phase 9: Expose Aries bridge
+  // Phase 9: Expose Aries bridge + register native card view diagnostics
   exposeAriesBridge();
+  startNativeCardViewDiagnostics();
   await yieldToBrowser();
 
   // Phase 10: Public rooms and garden inspector
@@ -1677,6 +1806,10 @@ async function initialize(): Promise<void> {
 
   // Create UI (needs sprites to be ready)
   await createOriginalUI();
+
+  // Mount the Diagnostics titlebar badge once the panel DOM exists.
+  // Invisible-when-ok, so no visual change during a healthy boot.
+  mountDiagnosticsBadge();
   // Keep alerts non-blocking: never let this feature break core UI bootstrap.
   try {
     startShopRestockAlerts();
@@ -1689,9 +1822,18 @@ async function initialize(): Promise<void> {
     startDawnShopTracker();
     startCapsuleTracker();
     startDawnCaptureTracker();
+    startThunderchargerTracker();
     initDawnEconomy();
   } catch (error) {
     console.error('[QPM][Dawn] Dawn features failed to start (non-fatal):', error);
+  }
+
+  // Phase 11a — Charged Abilities (depends on pets store, garden bridge,
+  // sprites, mount state, and the Thunder + Dawn trackers above).
+  try {
+    startChargedAbilities();
+  } catch (error) {
+    console.error('[QPM][ChargedAbilities] failed to start (non-fatal):', error);
   }
 
   // Phase 11b — Weather predictions (lightweight, non-blocking)

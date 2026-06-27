@@ -1,4 +1,7 @@
 // src/core/notifications.ts - Central notification hub
+import { healthBus } from '../diagnostics/healthBus';
+import { createNamedLogger } from '../diagnostics/logger';
+
 export type NotificationLevel = 'info' | 'success' | 'warn' | 'error';
 
 export interface NotificationAction {
@@ -22,15 +25,38 @@ const notifications: NotificationEvent[] = [];
 const subscribers = new Set<NotificationSubscriber>();
 let counter = 0;
 
+// Diagnostics — circular-import-safe because both fanOut() (in logger.ts) and
+// emit() below only invoke each other at call time, not at module load.
+const notificationsLog = createNamedLogger('ui.notifications');
+let busRegistered = false;
+
 function emit(): void {
   const snapshot = notifications.slice();
   for (const subscriber of subscribers) {
     try {
       subscriber(snapshot);
     } catch (error) {
-      console.error('[notifications] subscriber error', error);
+      notificationsLog.warn('QPM-NOTIF-001', { at: 'emit' }, error);
     }
   }
+}
+
+/**
+ * Register the notification hub with the health bus. Publishes 'ok' since the
+ * hub is functional the moment the module loads. Idempotent. Call from main.ts
+ * after initDiagnostics() so the bus exists.
+ */
+export function initNotifications(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register('ui.notifications', { category: 'ui', status: 'starting' });
+  healthBus.publish({
+    subsystem: 'ui.notifications',
+    category: 'ui',
+    status: 'ok',
+    message: 'Hub ready',
+    metrics: { notifications: notifications.length, subscribers: subscribers.size },
+  });
 }
 
 export function notify(evt: Omit<NotificationEvent, 'id' | 'timestamp'>): NotificationEvent {
@@ -54,7 +80,7 @@ export function onNotifications(callback: NotificationSubscriber): () => void {
   try {
     callback(notifications.slice());
   } catch (error) {
-    console.error('[notifications] initial subscriber error', error);
+    notificationsLog.warn('QPM-NOTIF-001', { at: 'initial' }, error);
   }
   return () => {
     subscribers.delete(callback);

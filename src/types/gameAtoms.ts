@@ -17,6 +17,17 @@ export interface PlayerAtomValue {
   [key: string]: unknown;
 }
 
+export interface AvatarData {
+  avatar: readonly string[];
+  discordAvatarUrl: string | null;
+  displayName: string;
+  nameTagColors?: {
+    textColor: string;
+    backgroundColor: string;
+  };
+  [key: string]: unknown;
+}
+
 export interface ShopInventoryEntry {
   species?: string;
   eggId?: string;
@@ -53,6 +64,9 @@ export interface ShopsAtomSnapshot {
   egg?: ShopCategorySnapshot;
   tool?: ShopCategorySnapshot;
   decor?: ShopCategorySnapshot;
+  dawn?: ShopCategorySnapshot;
+  snow?: ShopCategorySnapshot;
+  thunder?: ShopCategorySnapshot;
   [key: string]: ShopCategorySnapshot | undefined;
 }
 
@@ -61,5 +75,8 @@ export interface ShopPurchasesAtomSnapshot {
   egg?: { purchases?: Record<string, number> } | null;
   tool?: { purchases?: Record<string, number> } | null;
   decor?: { purchases?: Record<string, number> } | null;
+  dawn?: { purchases?: Record<string, number> } | null;
+  snow?: { purchases?: Record<string, number> } | null;
+  thunder?: { purchases?: Record<string, number> } | null;
   [key: string]: { purchases?: Record<string, number> } | null | undefined;
 }

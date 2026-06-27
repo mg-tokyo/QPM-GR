@@ -2,6 +2,9 @@
 import { storage } from '../utils/storage';
 import { startWeatherHub, onWeatherSnapshot, getWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
 import { visibleInterval } from '../utils/scheduling/timerManager';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeStats', 'stats');
 export type ShopCategoryKey = 'seeds' | 'eggs' | 'tools' | 'decor' | 'dawn';
 
 interface FeedEntry {
@@ -383,7 +386,7 @@ function emitSnapshot(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      console.error('[stats] subscriber error', error);
+      diag.warn('QPM-STORE-003', { phase: 'emitSnapshot' }, error);
     }
   }
 }
@@ -397,7 +400,7 @@ function scheduleSave(): void {
     try {
       storage.set(STORAGE_KEY, state);
     } catch (error) {
-      console.error('[stats] save error', error);
+      diag.warn('QPM-STORE-003', { phase: 'save' }, error);
     }
   }, SAVE_DEBOUNCE_MS) as unknown as number;
 }
@@ -458,10 +461,25 @@ function attachWeatherTracking(): void {
 
 export function initializeStatsStore(): void {
   if (initialized) return;
-  state = hydrateState();
-  initialized = true;
-  attachWeatherTracking();
-  emitSnapshot();
+  diag.register('Hydrating from localStorage');
+  try {
+    state = hydrateState();
+    initialized = true;
+    attachWeatherTracking();
+    emitSnapshot();
+    diag.publishOk(
+      `${state.feed.totalFeeds} feeds, ${state.shop.totalPurchases} purchases`,
+      {
+        totalFeeds: state.feed.totalFeeds,
+        totalPurchases: state.shop.totalPurchases,
+        totalPlanted: state.garden.totalPlanted,
+        totalHarvested: state.garden.totalHarvested,
+      },
+    );
+  } catch (err) {
+    diag.warn('QPM-STORE-001', { phase: 'initializeStatsStore' }, err);
+    throw err;
+  }
 }
 
 export function subscribeToStats(listener: (snapshot: StatsSnapshot) => void): () => void {
@@ -470,7 +488,7 @@ export function subscribeToStats(listener: (snapshot: StatsSnapshot) => void): (
   try {
     listener(getStatsSnapshot());
   } catch (error) {
-    console.error('[stats] immediate subscriber error', error);
+    diag.warn('QPM-STORE-003', { phase: 'subscribeToStats.immediate' }, error);
   }
   return () => {
     listeners.delete(listener);

@@ -5,6 +5,7 @@ import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
 import { onSpritesReady } from '../../../sprite-v2/compat';
 import { getShopStockState, onShopStock, startShopStockStore } from '../../../store/shopStock';
+import { startShopRegistry } from '../../../store/shopRegistry';
 import { onInventoryChange, startInventoryStore } from '../../../store/inventory';
 import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
 import { pageWindow } from '../../../core/pageContext';
@@ -123,6 +124,10 @@ export function startShopRestockAlerts(): void {
     alertState.hasSeedSiloBaseline       = false;
     alertState.hasDecorShedBaseline      = false;
     alertState.hasToolInventoryBaseline  = false;
+
+    void startShopRegistry().catch((error) => {
+      log('[ShopRestockAlerts] Failed to start shop registry', error);
+    });
 
     void startShopStockStore().then(() => {
       if (!alertState.started) return;

@@ -92,6 +92,7 @@ export function createEmptyMutationDebugMap(): MutationDebugWeatherMap {
 		snow: [],
 		dawn: [],
 		amber: [],
+		thunderstorm: [],
 	};
 }
 
@@ -109,6 +110,7 @@ function cloneDebugSnapshot(snapshot: MutationDebugSnapshot): MutationDebugSnaps
 			snow: cloneWeatherEntries(snapshot.perWeather.snow ?? []),
 			dawn: cloneWeatherEntries(snapshot.perWeather.dawn ?? []),
 			amber: cloneWeatherEntries(snapshot.perWeather.amber ?? []),
+			thunderstorm: cloneWeatherEntries(snapshot.perWeather.thunderstorm ?? []),
 		},
 	};
 	if (snapshot.metadata) {
@@ -125,6 +127,7 @@ export function updateMutationDebugSnapshot(snapshot: MutationDebugSnapshot): vo
 			snow: cloneWeatherEntries(snapshot.perWeather.snow ?? []),
 			dawn: cloneWeatherEntries(snapshot.perWeather.dawn ?? []),
 			amber: cloneWeatherEntries(snapshot.perWeather.amber ?? []),
+			thunderstorm: cloneWeatherEntries(snapshot.perWeather.thunderstorm ?? []),
 		},
 	};
 	if (snapshot.metadata) {

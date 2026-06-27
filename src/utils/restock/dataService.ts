@@ -5,6 +5,14 @@ import { storage } from '../storage';
 import { log } from '../logger';
 import { isDebugGlobalsEnabled } from '../debugGlobals';
 import {
+  errorRestockFetch,
+  publishRestockOk,
+  registerRestockBus,
+  warnRestockConfig,
+  warnRestockFetch,
+  warnRestockParse,
+} from './diagnostics';
+import {
   canonicalItemId,
   getItemIdVariants,
   deduplicateItems,
@@ -151,7 +159,7 @@ function getRestockRequestConfig(): { url: string; key: string } | null {
   const validUrl = /^https:\/\/[^ ]+$/i.test(url);
   if (!validUrl || key.length < 16) {
     if (!invalidConfigLogged) {
-      log('[RestockData] Invalid restock API configuration. Network fetch disabled.');
+      warnRestockConfig({ url: validUrl ? '[ok]' : '[invalid]', keyLength: key.length });
       invalidConfigLogged = true;
     }
     return null;
@@ -582,10 +590,9 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
     }
 
     if (!mainText) {
-      const reason = fetchErrors.length ? ` :: ${fetchErrors.join(' | ')}` : '';
-      const msg = `[RestockData] Main fetch failed (force=${force}, gm=${gm ? 'yes' : 'no'})${reason}`;
-      if (force) throw new Error(msg);
-      log(msg);
+      const errors = fetchErrors.join(' | ');
+      warnRestockFetch({ where: 'main', force, gm: gm ? 'yes' : 'no', errors });
+      if (force) throw new Error(`[RestockData] Main fetch failed (force=true, gm=${gm ? 'yes' : 'no'}) :: ${errors}`);
       return safeCacheFallback(cache);
     }
 
@@ -595,15 +602,15 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
       const items = extractItemsArray(raw);
       if (!items || items.length === 0) {
         const shape = raw && typeof raw === 'object' ? Object.keys(raw as object).slice(0, 8) : typeof raw;
+        warnRestockParse({ what: 'shape', shape: Array.isArray(shape) ? shape.join(',') : String(shape) });
         if (force) throw new Error(`[RestockData] Unexpected response shape: ${JSON.stringify(shape)}`);
-        log('[RestockData] Unexpected response shape', shape);
         return safeCacheFallback(cache);
       }
       normalized = items
         .map((item) => normalizeRestockItem(item as unknown as Record<string, unknown>));
     } catch (err) {
       if (force) throw err instanceof Error ? err : new Error(String(err));
-      log('[RestockData] JSON parse error (main)', err);
+      warnRestockParse({ what: 'parse' }, err);
       return safeCacheFallback(cache);
     }
 
@@ -622,6 +629,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
 
     const entry: CacheEntry = { data: normalized, fetchedAt: Date.now() };
     storage.set(CACHE_KEY, entry);
+    publishRestockOk(normalized.length, entry.fetchedAt);
     emitRestockDataUpdated({
       fetchedAt: entry.fetchedAt,
       count: normalized.length,
@@ -634,7 +642,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
   try {
     return await fetchingPromise;
   } catch (err) {
-    console.error('[QPM][RestockData] fetchRestockData failed', err);
+    errorRestockFetch({ where: 'outer', force }, err);
     throw err;
   } finally {
     fetchingPromise = null;
@@ -655,6 +663,25 @@ export function getRestockDataSync(): RestockItem[] | null {
 /** Get when data was last fetched (ms timestamp), or null. */
 export function getRestockFetchedAt(): number | null {
   return readCache()?.fetchedAt ?? null;
+}
+
+/**
+ * Bring the restockData bus entry online. Idempotent — call from main.ts
+ * after initDiagnostics(). If a usable cache is present at start, the row
+ * publishes 'ok' immediately; otherwise it stays 'starting' until the first
+ * successful fetchRestockData() call.
+ */
+export function startRestockDataDiagnostics(): void {
+  registerRestockBus();
+  const cached = readCache();
+  if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+    publishRestockOk(cached.data.length, cached.fetchedAt);
+  }
+}
+
+/** No-op symmetry with other diagnostics start/stop pairs. */
+export function stopRestockDataDiagnostics(): void {
+  // Bus teardown is handled by healthBus.teardown(); no module-local cleanup needed.
 }
 
 /** Clear the restock cache (forces a fresh fetch on next call). */
