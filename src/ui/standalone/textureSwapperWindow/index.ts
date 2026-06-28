@@ -163,7 +163,7 @@ function renderWindow(root: HTMLElement): void {
     storageKey: GRID_OPEN_STORAGE_KEY,
   });
   slideout.setAssetBody(buildSlideoutBrowser(state, browserCallbacks));
-  slideout.setPickATileBody(renderPickATilePanel({
+  const pickATile = renderPickATilePanel({
     onPickTile: (tileKey, species, objectType, liveSlotCount) => {
       state.editorScope = { kind: 'tile', tileKey, species };
       state.tileObjectType = objectType;
@@ -193,7 +193,9 @@ function renderWindow(root: HTMLElement): void {
       state.tileLiveSlotCount = null;
       toolHandle.refresh();
     },
-  }));
+  });
+  slideout.setPickATileBody(pickATile.element);
+  cleanups.push(pickATile.cleanup);
   cleanups.push(() => slideout.destroy());
 
   const presetsBar = renderGardenPainterPresetsBar(windowEl);

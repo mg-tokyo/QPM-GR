@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.3",
+    date: "2026-06-28",
+    notes: [
+      "Fixed Garden Painter tile picker grid not updating live when garden tiles, pets, or rules change",
+    ],
+  },
+  {
     version: "3.3.2",
     date: "2026-06-28",
     notes: [
