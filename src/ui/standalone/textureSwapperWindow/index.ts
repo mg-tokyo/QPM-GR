@@ -22,6 +22,7 @@ import { renderPickATilePanel } from './pickATilePanel';
 import { createButton } from '../../components/button';
 import { createToggle } from '../../components/toggle';
 import { showConfirmDialog } from '../../components/confirmDialog';
+import { renderGardenPainterPresetsBar } from './presetsBar';
 
 const GRID_OPEN_STORAGE_KEY = 'qpm.gardenPainter.gridOpen.v1';
 
@@ -194,6 +195,9 @@ function renderWindow(root: HTMLElement): void {
     },
   }));
   cleanups.push(() => slideout.destroy());
+
+  const presetsBar = renderGardenPainterPresetsBar(windowEl);
+  cleanups.push(() => presetsBar.destroy());
 
   // ── Handlers ────────────────────────────────────────────────────────────
 

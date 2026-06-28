@@ -212,6 +212,9 @@ const QPM_STORAGE_KEYS = [
   // Texture Debug
   'qpm.textureSwaps.debugLogs',
 
+  // Garden Painter presets
+  'qpm.gardenPainter.presets.v1',
+
   // Garden Painter (window state for the texture manipulator)
   'qpm.gardenPainter.gridOpen.v1',
   'qpm.gardenPainter.disableGating.v1',

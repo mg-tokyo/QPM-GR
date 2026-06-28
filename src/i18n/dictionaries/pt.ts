@@ -327,6 +327,13 @@ const pt: Dictionary = {
   'feature.gardenPainter.pickATile.petsSubTab': 'Pets',
   'feature.gardenPainter.pickATile.slotEmpty': '— empty —',
   'feature.gardenPainter.pickATile.slotN': 'Slot {n}',
+  'feature.gardenPainter.presets.title': 'PRESETS',
+  'feature.gardenPainter.presets.save': 'Salvar regras atuais',
+  'feature.gardenPainter.presets.delete': 'Excluir preset',
+  'feature.gardenPainter.presets.deleteConfirm': 'Clique em X para confirmar',
+  'feature.gardenPainter.presets.limitReached': 'Limite de presets atingido ({cap})',
+  'feature.gardenPainter.presets.applied': 'Preset aplicado ({count} regras)',
+  'feature.gardenPainter.presets.noRules': 'Nenhuma regra para salvar',
 
   // ── Feature: Charged Abilities ───────────────────────────────────────────
   'feature.chargedAbilities.title': '[VERIFY] Activated Abilities',

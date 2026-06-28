@@ -6,4 +6,5 @@ export {
   hasFloatingCard,
   getOpenFloatingCards,
   getPersistedFloatingCards,
+  seedSessionPositions,
 } from './shell';

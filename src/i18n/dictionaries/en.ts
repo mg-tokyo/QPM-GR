@@ -1229,6 +1229,13 @@ const en: Dictionary = {
   'feature.gardenPainter.pickATile.petsSubTab': 'Pets',
   'feature.gardenPainter.pickATile.slotEmpty': '— empty —',
   'feature.gardenPainter.pickATile.slotN': 'Slot {n}',
+  'feature.gardenPainter.presets.title': 'PRESETS',
+  'feature.gardenPainter.presets.save': 'Save current rules',
+  'feature.gardenPainter.presets.delete': 'Delete preset',
+  'feature.gardenPainter.presets.deleteConfirm': 'Click X to confirm',
+  'feature.gardenPainter.presets.limitReached': 'Preset limit reached ({cap})',
+  'feature.gardenPainter.presets.applied': 'Preset applied ({count} rules)',
+  'feature.gardenPainter.presets.noRules': 'No rules to save',
 
   // ── Feature: Blobling Customiser ────────────────────────────────────────────
   'feature.bloblingCustomiser.title': 'Blobling Customiser',

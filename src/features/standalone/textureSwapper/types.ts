@@ -131,6 +131,13 @@ export type LayerBOriginalSnapshot = {
   tint: number;
   frameSig: string | null;
   keyHints: string[];
+  /**
+   * Original per-frame textures for PIXI AnimatedSprite. Saved so we can
+   * restore the animation after a rule is removed. Null for non-animated
+   * sprites.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  animFrameTextures: any[] | null;
 };
 
 export type SpriteVariantInfo = {

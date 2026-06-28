@@ -38,6 +38,7 @@ import {
   closeFloatingCard as closeShellCard,
   hasFloatingCard as hasShellCard,
   getPersistedFloatingCards,
+  seedSessionPositions,
   type FloatingCardEntry,
 } from '../../components/floatingCard';
 import { STYLES } from './styles';
@@ -538,6 +539,8 @@ function openSlotCardInternal(slotIndex: number): void {
 
 function restorePersistedCards(): void {
   const persisted = getPersistedFloatingCards(STORAGE_KEY);
+  // Pre-seed so sequential opens don't erase each other's positions.
+  seedSessionPositions(persisted);
   for (const card of persisted) {
     const slotIndex = slotIndexFromKey(card.key);
     if (slotIndex == null) continue;

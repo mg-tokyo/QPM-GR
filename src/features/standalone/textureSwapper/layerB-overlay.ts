@@ -20,6 +20,22 @@ export function restoreSpriteSnapshot(sprite: any, snapshot: LayerBOriginalSnaps
     const fallback = getFallbackTexture();
     if (fallback) sprite.texture = fallback;
   }
+  // Restore AnimatedSprite frame textures before scale/alpha so PIXI's
+  // texture-setter side-effects (auto-rescale) see the original texture.
+  if (snapshot?.animFrameTextures) {
+    const textures = sprite?.textures;
+    if (Array.isArray(textures)) {
+      const saved = snapshot.animFrameTextures;
+      for (let i = 0; i < saved.length && i < textures.length; i++) {
+        const s = saved[i];
+        if (s && typeof s === 'object' && 'texture' in s && textures[i] && typeof textures[i] === 'object' && 'texture' in textures[i]) {
+          textures[i].texture = s.texture;
+        } else {
+          textures[i] = s;
+        }
+      }
+    }
+  }
   if (snapshot) {
     try { sprite.scale?.set(snapshot.scaleX, snapshot.scaleY); } catch {}
     sprite.alpha = snapshot.alpha;

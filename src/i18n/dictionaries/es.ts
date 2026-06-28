@@ -1135,6 +1135,13 @@ const es: Dictionary = {
   'feature.gardenPainter.pickATile.petsSubTab': 'Pets',
   'feature.gardenPainter.pickATile.slotEmpty': '— empty —',
   'feature.gardenPainter.pickATile.slotN': 'Slot {n}',
+  'feature.gardenPainter.presets.title': 'PRESETS',
+  'feature.gardenPainter.presets.save': 'Guardar reglas actuales',
+  'feature.gardenPainter.presets.delete': 'Eliminar preset',
+  'feature.gardenPainter.presets.deleteConfirm': 'Haz clic en X para confirmar',
+  'feature.gardenPainter.presets.limitReached': 'Límite de presets alcanzado ({cap})',
+  'feature.gardenPainter.presets.applied': 'Preset aplicado ({count} reglas)',
+  'feature.gardenPainter.presets.noRules': 'No hay reglas para guardar',
 
   // ── Feature: Stats Hub Window ─────────────────────────────────────────────
   'feature.statsHub.title': 'Centro de estadísticas',

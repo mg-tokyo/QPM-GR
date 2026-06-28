@@ -2,6 +2,16 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.2",
+    date: "2026-06-28",
+    notes: [
+      "Added Garden Painter presets: save, load, and delete full rule sets including uploaded assets for quick switching between configurations",
+      "Fixed animated decor (MarbleArch, MarbleBlobling, StrawScarecrow, etc.) not visually reapplying texture rules on game refresh",
+      "Fixed floating pet cards losing their saved position after page refresh",
+      "Fixed floating pet cards snapping back during drag when pet data updates",
+    ],
+  },
+  {
     version: "3.3.1",
     date: "2026-06-28",
     notes: [

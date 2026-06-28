@@ -105,6 +105,7 @@ import { startInventoryCapacityOverlay, stopInventoryCapacityOverlay } from './u
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from './features/standalone/textureSwapper';
 import { initCustomSkins } from './features/bloblingCustomiser/customSkins';
 import { initBloblingPresets, stopBloblingPresets } from './features/bloblingCustomiser/presets/store';
+import { initGardenPainterPresets, stopGardenPainterPresets } from './features/standalone/textureSwapper/presets/store';
 import { initRiveEngine, initRivFetchInterceptor, initCanvasRuntimeTrap } from './rive-engine';
 import { openTextureSwapperWindow } from './ui/standalone/textureSwapperWindow';
 import { startShopRestockAlerts } from './ui/shop/restockAlerts';
@@ -1391,6 +1392,7 @@ window.addEventListener('beforeunload', () => {
   try { stopCustomSkins?.(); } catch { /* best effort */ }
   stopCustomSkins = null;
   try { stopBloblingPresets(); } catch { /* best effort */ }
+  try { stopGardenPainterPresets(); } catch { /* best effort */ }
   try { stopRivFetchInterceptor?.(); } catch { /* best effort */ }
   stopRivFetchInterceptor = null;
   try { stopCanvasRuntimeTrap?.(); } catch { /* best effort */ }
@@ -1503,6 +1505,9 @@ async function initialize(): Promise<void> {
 
   void initBloblingPresets().catch((error) => {
     log('[Main] bloblingPresets init failed (non-fatal)', error);
+  });
+  void initGardenPainterPresets().catch((error) => {
+    log('[Main] gardenPainterPresets init failed (non-fatal)', error);
   });
   // Auto reconnect disabled — no longer permitted by the game.
   // Force-disable for existing users who had it enabled.

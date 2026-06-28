@@ -244,6 +244,7 @@ export function openFloatingCard(config: FloatingCardConfig): FloatingCardEntry 
   document.addEventListener('mouseup', onMouseUp);
 
   const refresh = (): void => {
+    if (isDragging) return;
     applyPctPosition(card, position.xPct, position.yPct, baseWidth);
   };
 
@@ -314,4 +315,17 @@ export function getOpenFloatingCards(): readonly FloatingCardEntry[] {
  */
 export function getPersistedFloatingCards(persistKey: string): readonly PersistedFloatingCard[] {
   return loadAllForKey(persistKey).cards;
+}
+
+/**
+ * Pre-seed session positions for cards that will be opened sequentially.
+ * Prevents `persistForKey` (called on each card open) from erasing the
+ * persisted positions of cards that haven't been opened yet — because
+ * `resolveInitialPosition` checks `sessionPositions` before storage.
+ */
+export function seedSessionPositions(entries: readonly PersistedFloatingCard[]): void {
+  for (const entry of entries) {
+    if (sessionPositions.has(entry.key)) continue;
+    sessionPositions.set(entry.key, { xPct: entry.xPct, yPct: entry.yPct });
+  }
 }

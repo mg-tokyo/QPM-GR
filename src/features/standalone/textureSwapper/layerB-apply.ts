@@ -103,6 +103,63 @@ function isNineSliceOrTiledSprite(sprite: any): boolean {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// AnimatedSprite helpers
+//
+// PIXI AnimatedSprite stores per-frame textures internally and overwrites
+// sprite.texture on every animation tick. A one-shot sprite.texture = X is
+// clobbered within 16ms. To persist a texture swap we must replace every
+// entry in the frames array. Restore path reverses the replacement.
+// ---------------------------------------------------------------------------
+
+/**
+ * Save the original per-frame textures from a PIXI AnimatedSprite.
+ * Returns null for non-animated sprites (no `.textures` array).
+ */
+function snapshotAnimFrameTextures(sprite: any): any[] | null {
+  const textures = sprite?.textures;
+  if (!Array.isArray(textures) || textures.length <= 1) return null;
+  return textures.map((f: any) =>
+    f && typeof f === 'object' && 'texture' in f
+      ? { texture: f.texture, time: f.time }
+      : f,
+  );
+}
+
+/**
+ * Replace every frame in an AnimatedSprite's internal textures array
+ * with `tex` so the swap persists through animation cycles. Handles
+ * both FrameObject format (`{ texture, time }`) and plain Texture[].
+ */
+function replaceAnimFrameTextures(sprite: any, tex: any): void {
+  const textures = sprite?.textures;
+  if (!Array.isArray(textures) || textures.length <= 1) return;
+  for (let i = 0; i < textures.length; i++) {
+    if (textures[i] && typeof textures[i] === 'object' && 'texture' in textures[i]) {
+      textures[i].texture = tex;
+    } else {
+      textures[i] = tex;
+    }
+  }
+}
+
+/**
+ * Restore an AnimatedSprite's frame textures from a snapshot taken at
+ * Layer B snapshot time.
+ */
+function restoreAnimFrameTextures(sprite: any, saved: any[]): void {
+  const textures = sprite?.textures;
+  if (!Array.isArray(textures)) return;
+  for (let i = 0; i < saved.length && i < textures.length; i++) {
+    const s = saved[i];
+    if (s && typeof s === 'object' && 'texture' in s && textures[i] && typeof textures[i] === 'object' && 'texture' in textures[i]) {
+      textures[i].texture = s.texture;
+    } else {
+      textures[i] = s;
+    }
+  }
+}
+
 /**
  * Asset-family helper (2026-06-27 Phase C). Returns the ORIGINAL-CASE atlas
  * key for the first family variant whose lowercase form appears in the
@@ -548,10 +605,12 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
               tint: typeof sprite.tint === 'number' ? sprite.tint : 0xffffff,
               frameSig: makeFrameSignature(sprite.texture),
               keyHints: [...spriteKeys],
+              animFrameTextures: snapshotAnimFrameTextures(sprite),
             });
           }
           ctx.layerBModified.push(sprite);
           sprite.texture = nextTexture;
+          replaceAnimFrameTextures(sprite, nextTexture);
         }
       }
       return;
@@ -573,6 +632,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
         tint: typeof sprite.tint === 'number' ? sprite.tint : 0xffffff,
         frameSig: makeFrameSignature(sprite.texture),
         keyHints: [...spriteKeys],
+        animFrameTextures: snapshotAnimFrameTextures(sprite),
       });
     }
     if (!isRive) {
@@ -756,6 +816,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
           }
           if (nextTexture && isTextureRenderable(nextTexture)) {
             sprite.texture = nextTexture;
+            replaceAnimFrameTextures(sprite, nextTexture);
           }
         }
       } else if (params.tintColor) {
@@ -799,6 +860,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
                   ? (container as { tint: number }).tint : 0xffffff,
                 frameSig: null,
                 keyHints: [],
+                animFrameTextures: null,
               });
               ctx.layerBModified.push(container);
             }

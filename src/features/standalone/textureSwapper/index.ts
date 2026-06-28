@@ -301,6 +301,38 @@ export function clearAllRules(): void {
   dispatchCustomEventAll('qpm:texture-manipulator-updated', { revision: Date.now() });
 }
 
+export function replaceAllRules(snapshot: TextureManipulatorState): void {
+  for (const rule of ctx.state.rules) {
+    if (ctx.currentSvc) revertLayerA(rule, ctx.currentSvc);
+    disposeRuleOverlayFilter(rule.id);
+  }
+
+  const normalizedRules = snapshot.rules.map(r => normalizeRule(r));
+  ctx.state = {
+    version: 1,
+    rules: normalizedRules,
+    uploadedAssets: { ...snapshot.uploadedAssets },
+  };
+  saveState();
+  bumpRuleRevision();
+  clearAllRuleVariantTextures();
+  ruleIndex.rebuild(ctx.state.rules);
+  ctx.activeRules = ctx.state.rules.filter(r => r.enabled);
+
+  if (ctx.currentSvc) {
+    void (async () => {
+      try {
+        await applyAllLayerA(ctx.activeRules);
+      } finally {
+        refreshLayerBNow();
+      }
+    })();
+  } else {
+    refreshLayerBNow();
+  }
+  dispatchCustomEventAll('qpm:texture-manipulator-updated', { revision: Date.now() });
+}
+
 // ---------------------------------------------------------------------------
 // Public API — upload management
 // ---------------------------------------------------------------------------
