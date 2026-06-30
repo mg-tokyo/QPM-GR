@@ -50,8 +50,13 @@ interface AtomFinder<TValue> {
   path?: AtomPath;
   /** Transform raw value into typed output. */
   transform?: (value: unknown) => TValue;
-  /** Fallback when resolution fails entirely. */
-  fallback?: TValue;
+  /** Static default when resolution fails entirely. */
+  defaultValue?: TValue;
+  /** Resolve through a parent registry key when label + structure fail. */
+  fallbackSource?: {
+    key: AtomRegistryKey;
+    path: AtomPath;
+  };
 }
 
 // ── Value type map ───────────────────────────────────────────────────────
@@ -121,14 +126,15 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   shops: {
     label: /^shops(?:Data)?Atom$/i,
     transform: (v) => (isRec(v) ? (v as ShopsAtomSnapshot) : null),
+    fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] },
   },
-  seedShop: { label: /^shops(?:Data)?Atom$/i, path: 'seed' },
-  eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg' },
-  toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool' },
-  decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor' },
-  coinsBalance: { label: /^my(?:Coins|coins)(?:Count|Balance)?Atom$/i, fallback: 0 },
-  creditsBalance: { label: /^credits(?:Balance|Count)?Atom$/i, fallback: 0 },
-  magicDustBalance: { label: /^my(?:MagicDust|magicDust)(?:Count|Balance)?Atom$/i, fallback: 0 },
+  seedShop: { label: /^shops(?:Data)?Atom$/i, path: 'seed', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
+  eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
+  toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
+  decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
+  coinsBalance: { label: /^my(?:Coins|coins)(?:Count|Balance)?Atom$/i, defaultValue: 0 },
+  creditsBalance: { label: /^credits(?:Balance|Count)?Atom$/i, defaultValue: 0 },
+  magicDustBalance: { label: /^my(?:MagicDust|magicDust)(?:Count|Balance)?Atom$/i, defaultValue: 0 },
 
   // ── Player / State ────────────────────────────────────────────────────
   player: {
@@ -178,7 +184,7 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   },
   cropInventory: { label: /^myCrop(?:s)?Inventory(?:Data)?Atom$/i },
   toolInventory: { label: /^myTool(?:s)?Inventory(?:Data)?Atom$/i },
-  selectedItemId: { label: /^mySelectedItemIdAtom$/, fallback: null },
+  selectedItemId: { label: /^mySelectedItemIdAtom$/, defaultValue: null },
 
   // ── Garden ────────────────────────────────────────────────────────────
   myData: {
@@ -201,10 +207,10 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
     label: /^active(?:Modal|Dialog)(?:Name)?(?:Data)?Atom$/i,
     structure: (v) => typeof v === 'string' && KNOWN_MODALS.has(v),
   },
-  selectedSlotId: { label: /^mySelectedSlotIdAtom$/, fallback: null },
+  selectedSlotId: { label: /^mySelectedSlotIdAtom$/, defaultValue: null },
 
   // ── Mount ──────────────────────────────────────────────────────────────
-  riddenPetId: { label: /^myRiddenPetId(?:Atom)?$/i, fallback: null },
+  riddenPetId: { label: /^myRiddenPetId(?:Atom)?$/i, defaultValue: null },
 
   // ── Actions ───────────────────────────────────────────────────────────
   action: { label: /^(?:current|room)?[Aa]ction(?:Data)?Atom$/i },
@@ -214,8 +220,9 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
 
 interface CachedResolution {
   atom: unknown;
-  resolvedVia: 'label' | 'structure';
+  resolvedVia: 'label' | 'structure' | 'fallback';
   foundLabel: string;
+  pathPrefix?: ReadonlyArray<string | number>;
 }
 
 const resolutionCache = new Map<AtomRegistryKey, CachedResolution>();
@@ -234,7 +241,8 @@ function atomLabel(atom: unknown): string {
  * 1. Cache hit → return immediately
  * 2. Label regex → findAtomsByLabel (fast scan)
  * 3. Structure matcher → scan all atoms via store.get (slow, only when defined)
- * 4. All fail → return null, mark missing
+ * 4. Fallback source → resolve through a parent registry key with path prefix
+ * 5. All fail → return null, mark missing
  */
 function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
   const cached = resolutionCache.get(key);
@@ -286,6 +294,25 @@ function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
     }
   }
 
+  // Fallback source — resolve through a parent registry key
+  if (finder.fallbackSource) {
+    const parentResolution = resolveAtom(finder.fallbackSource.key);
+    if (parentResolution) {
+      const prefix = toPathArray(finder.fallbackSource.path);
+      const parentPrefix = parentResolution.pathPrefix ?? [];
+      const entry: CachedResolution = {
+        atom: parentResolution.atom,
+        resolvedVia: 'fallback',
+        foundLabel: `via ${finder.fallbackSource.key}`,
+        pathPrefix: [...parentPrefix, ...prefix],
+      };
+      resolutionCache.set(key, entry);
+      missingLog.delete(key);
+      log(`[AtomRegistry] Resolved '${key}' via fallback source '${finder.fallbackSource.key}'`);
+      return entry;
+    }
+  }
+
   // All fail
   if (!missingLog.has(key)) {
     diagLog.warn('QPM-ATOM-001', { key });
@@ -322,14 +349,21 @@ function getPathValue(root: unknown, path?: AtomPath): unknown {
   return cursor;
 }
 
-function applyTransform<T>(finder: AtomFinder<T>, raw: unknown, key: AtomRegistryKey): T | null {
+function applyTransform<T>(
+  finder: AtomFinder<T>,
+  raw: unknown,
+  key: AtomRegistryKey,
+  pathPrefix?: ReadonlyArray<string | number>,
+): T | null {
   try {
-    const base = getPathValue(raw, finder.path);
+    let base = raw;
+    if (pathPrefix) base = getPathValue(base, pathPrefix);
+    base = getPathValue(base, finder.path);
     if (finder.transform) return finder.transform(base);
-    return (base ?? finder.fallback ?? null) as T | null;
+    return (base ?? finder.defaultValue ?? null) as T | null;
   } catch (error) {
     diagLog.warn('QPM-ATOM-002', { key }, error);
-    return (finder.fallback ?? null) as T | null;
+    return (finder.defaultValue ?? null) as T | null;
   }
 }
 
@@ -341,12 +375,12 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
   const resolution = resolveAtom(key);
 
   if (!resolution) {
-    return (finder?.fallback ?? null) as RegistryValue<K>;
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 
   try {
     const raw = await readRawAtomValue(resolution.atom);
-    return applyTransform(finder, raw, key) as RegistryValue<K>;
+    return applyTransform(finder, raw, key, resolution.pathPrefix) as RegistryValue<K>;
   } catch {
     // Cached ref might be stale — clear and retry once
     invalidateKey(key);
@@ -354,10 +388,10 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
     if (retry) {
       try {
         const raw = await readRawAtomValue(retry.atom);
-        return applyTransform(finder, raw, key) as RegistryValue<K>;
+        return applyTransform(finder, raw, key, retry.pathPrefix) as RegistryValue<K>;
       } catch { /* fall through */ }
     }
-    return (finder?.fallback ?? null) as RegistryValue<K>;
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 }
 
@@ -375,7 +409,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
   }
 
   const unsubscribe = await subscribeRawAtom(resolution.atom, (raw: unknown) => {
-    const value = applyTransform(finder, raw, key);
+    const value = applyTransform(finder, raw, key, resolution.pathPrefix);
     cb((value ?? null) as RegistryValue<K>);
   });
 
@@ -392,27 +426,27 @@ export function readAtomValueSync<K extends AtomRegistryKey>(key: K): RegistryVa
   const resolution = resolveAtom(key);
 
   if (!resolution) {
-    return (finder?.fallback ?? null) as RegistryValue<K>;
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 
   const store = getCachedStore();
   if (!store) {
-    return (finder?.fallback ?? null) as RegistryValue<K>;
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 
   try {
     const raw = store.get(resolution.atom);
-    return applyTransform(finder, raw, key) as RegistryValue<K>;
+    return applyTransform(finder, raw, key, resolution.pathPrefix) as RegistryValue<K>;
   } catch {
     invalidateKey(key);
     const retry = resolveAtom(key);
     if (retry) {
       try {
         const raw = store.get(retry.atom);
-        return applyTransform(finder, raw, key) as RegistryValue<K>;
+        return applyTransform(finder, raw, key, retry.pathPrefix) as RegistryValue<K>;
       } catch { /* fall through */ }
     }
-    return (finder?.fallback ?? null) as RegistryValue<K>;
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 }
 
@@ -431,7 +465,7 @@ export async function writeRegistryAtom<K extends AtomRegistryKey>(
 // ── Health check + catalog ───────────────────────────────────────────────
 
 export interface AtomHealthCheckResult {
-  registered: Array<{ key: string; label: string; resolvedVia: 'label' | 'structure' }>;
+  registered: Array<{ key: string; label: string; resolvedVia: 'label' | 'structure' | 'fallback' }>;
   missing: string[];
   unregistered: Array<{ label: string; populated: boolean }>;
 }

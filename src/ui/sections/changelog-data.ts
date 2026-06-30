@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.4",
+    date: "2026-06-30",
+    notes: [
+      "Added fallback resolution tier to atom registry, ensuring shop data survives upstream atom label removals without code changes",
+      "Improved anti-AFK position detection by removing dependency on deprecated userSlots position data",
+      "Fixed shop stock force-refresh bypassing the atom registry and reading directly from the game store",
+    ],
+  },
+  {
     version: "3.3.3",
     date: "2026-06-28",
     notes: [

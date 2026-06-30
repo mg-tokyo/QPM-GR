@@ -1,5 +1,4 @@
 import { getPlayerPosition as getPlayerPosFromContext } from '../../core/playerContext';
-import { readAtomValue as readRegistryAtom } from '../../core/atomRegistry';
 import { pageWindow } from '../../core/pageContext';
 import { isRecord } from '../../utils/typeGuards';
 import { sendRoomAction } from '../../websocket/api';
@@ -99,36 +98,9 @@ function findPosition(root: unknown, paths: ReadonlyArray<ReadonlyArray<string>>
   return null;
 }
 
-function getPlayerId(player: unknown): string | null {
-  if (!isRecord(player)) return null;
-  const candidateIds = [player.id, player.playerId, player.userId];
-  for (const candidate of candidateIds) {
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate.trim();
-    }
-  }
-  return null;
-}
-
-function findUserSlotByPlayerId(userSlots: unknown, playerId: string): unknown {
-  if (Array.isArray(userSlots)) {
-    return userSlots.find((slot) => isRecord(slot) && String(slot.playerId ?? '').trim() === playerId) ?? null;
-  }
-  if (isRecord(userSlots)) {
-    for (const slot of Object.values(userSlots)) {
-      if (isRecord(slot) && String(slot.playerId ?? '').trim() === playerId) {
-        return slot;
-      }
-    }
-  }
-  return null;
-}
-
-async function resolvePositionFromPlayerAtom(): Promise<{ player: unknown; position: XY | null }> {
-  const player = await readRegistryAtom('player');
+async function resolvePositionFromPlayerAtom(): Promise<XY | null> {
   const pos = await getPlayerPosFromContext();
-  const position = pos ? asPosition(pos) : null;
-  return { player, position };
+  return pos ? asPosition(pos) : null;
 }
 
 function resolvePositionFromMyData(): XY | null {
@@ -148,44 +120,17 @@ function resolvePositionFromMyData(): XY | null {
   ]);
 }
 
-async function resolvePositionFromStateAtom(player: unknown): Promise<XY | null> {
-  const state = await readRegistryAtom('state');
-  if (!state) return null;
-
-  const playerId = getPlayerId(player);
-  if (!playerId) return null;
-
-  const userSlots = readPath(state, ['child', 'data', 'userSlots']);
-  const playerSlot = findUserSlotByPlayerId(userSlots, playerId);
-  if (!playerSlot) return null;
-
-  return findPosition(playerSlot, [
-    ['position'],
-    ['coords'],
-    ['data', 'position'],
-    ['data', 'coords'],
-    ['data', 'player', 'position'],
-    ['data', 'player', 'coords'],
-  ]);
-}
-
 async function resolveCurrentPosition(): Promise<XY | null> {
-  const fromPlayer = await resolvePositionFromPlayerAtom();
-  if (fromPlayer.position) {
-    lastKnownPosition = fromPlayer.position;
-    return fromPlayer.position;
+  const fromAtom = await resolvePositionFromPlayerAtom();
+  if (fromAtom) {
+    lastKnownPosition = fromAtom;
+    return fromAtom;
   }
 
   const fromMyData = resolvePositionFromMyData();
   if (fromMyData) {
     lastKnownPosition = fromMyData;
     return fromMyData;
-  }
-
-  const fromState = await resolvePositionFromStateAtom(fromPlayer.player);
-  if (fromState) {
-    lastKnownPosition = fromState;
-    return fromState;
   }
 
   return lastKnownPosition;

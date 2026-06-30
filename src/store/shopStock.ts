@@ -1,7 +1,7 @@
 // src/store/shopStock.ts
 // Normalized view of shop atom data and restock timers.
 
-import { readAtomValue as readRegistryAtomValue, subscribeAtomValue } from '../core/atomRegistry';
+import { readAtomValue as readRegistryAtomValue, readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
 import { getAtomByLabel, readAtomValue as readJotaiAtomValue, subscribeAtom, getCachedStore } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
@@ -285,15 +285,12 @@ export function forceRefreshShopStock(): void {
 
   let changed = false;
 
-  // Re-read shops atom
+  // Re-read shops via registry (handles both label and fallback resolution)
   try {
-    const shopsAtom = getAtomByLabel('shopsAtom');
-    if (shopsAtom) {
-      const fresh = store.get(shopsAtom) as ShopsAtomSnapshot | null;
-      if (fresh !== shopsSnapshot) {
-        shopsSnapshot = fresh;
-        changed = true;
-      }
+    const fresh = readAtomValueSync('shops');
+    if (fresh !== shopsSnapshot) {
+      shopsSnapshot = fresh;
+      changed = true;
     }
   } catch {}
 
