@@ -3,7 +3,7 @@
 // Pure DOM, design-token colours, no external UI dependencies beyond the
 // existing modal-window system.
 
-import { copyPayloadToClipboard, DEFAULT_COPY_OPTIONS, renderCopyPayload } from './copyPayload';
+import { copyPayloadToClipboard, DEFAULT_COPY_OPTIONS, renderCopyPayload, writeToClipboard } from './copyPayload';
 import type { CopyPayloadOptions } from './copyPayload';
 import { errorBuffer } from './errorBuffer';
 import { healthBus } from './healthBus';
@@ -18,6 +18,21 @@ interface RenderState {
   subsystemTable: HTMLElement;
   errorList: HTMLElement;
   cleanup: Array<() => void>;
+  // Fingerprints let refreshTables() skip DOM re-renders when nothing changed.
+  // Without this the 2s poll wipes hover state and any in-flight "Copied" badge.
+  lastErrorFingerprint: string;
+  lastSubsystemFingerprint: string;
+}
+
+function errorFingerprint(rows: readonly ErrorBufferEntry[]): string {
+  const last = rows[rows.length - 1];
+  return `${rows.length}|${last?.lastSeen ?? 0}|${last?.count ?? 0}`;
+}
+
+function subsystemFingerprint(rows: readonly SubsystemHealth[]): string {
+  let maxUpdate = 0;
+  for (const r of rows) if (r.lastUpdate > maxUpdate) maxUpdate = r.lastUpdate;
+  return `${rows.length}|${maxUpdate}`;
 }
 
 function pillColours(status: AggregateStatus | SubsystemHealth['status']): { bg: string; fg: string; border: string } {
@@ -88,8 +103,11 @@ function renderSubsystemRows(host: HTMLElement, rows: readonly SubsystemHealth[]
       'padding:8px 10px',
       'border-radius:8px',
       'border:1px solid rgba(255,255,255,0.06)',
-      'background:rgba(255,255,255,0.02)',
+      `background:${ROW_BG_IDLE}`,
+      'cursor:pointer',
+      'transition:background 120ms ease',
     ].join(';');
+    item.title = 'Click to copy details';
 
     const pill = makePill(row.status, row.status);
 
@@ -120,8 +138,61 @@ function renderSubsystemRows(host: HTMLElement, rows: readonly SubsystemHealth[]
       item.appendChild(errLine);
     }
 
+    item.addEventListener('mouseenter', () => { item.style.background = ROW_BG_HOVER; });
+    item.addEventListener('mouseleave', () => { item.style.background = ROW_BG_IDLE; });
+    item.addEventListener('click', async () => {
+      const ok = await writeToClipboard(formatSubsystemForClipboard(row));
+      const badge = document.createElement('span');
+      badge.textContent = ok ? 'Copied' : 'Copy failed';
+      const badgeBg = ok ? 'rgba(79,209,139,0.22)' : 'rgba(244,67,54,0.22)';
+      const badgeFg = ok ? '#4fd18b' : '#f44336';
+      badge.style.cssText = `padding:1px 6px;border-radius:9999px;background:${badgeBg};color:${badgeFg};font-size:10px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;`;
+      item.appendChild(badge);
+      setTimeout(() => { badge.remove(); }, 1200);
+    });
+
     host.appendChild(item);
   }
+}
+
+function formatSubsystemForClipboard(row: SubsystemHealth): string {
+  const lines: string[] = [];
+  lines.push(`Subsystem:   ${row.subsystem}`);
+  lines.push(`Category:    ${row.category}`);
+  lines.push(`Status:      ${row.status}`);
+  if (row.message) lines.push(`Message:     ${row.message}`);
+  lines.push(`Last update: ${new Date(row.lastUpdate).toISOString()}`);
+  if (row.metrics) {
+    lines.push('Metrics:');
+    for (const [k, v] of Object.entries(row.metrics)) {
+      lines.push(`  ${k}: ${v}`);
+    }
+  }
+  if (row.lastError) {
+    lines.push('Last error:');
+    lines.push(`  code:      ${row.lastError.code}`);
+    lines.push(`  severity:  ${row.lastError.severity}`);
+    lines.push(`  message:   ${row.lastError.message}`);
+    lines.push(`  timestamp: ${new Date(row.lastError.timestamp).toISOString()}`);
+    if (row.lastError.context) {
+      let ctx: string;
+      try { ctx = JSON.stringify(row.lastError.context, null, 2); }
+      catch { ctx = '<unserializable>'; }
+      lines.push('  context:');
+      lines.push(ctx.split('\n').map(l => `    ${l}`).join('\n'));
+    }
+    if (row.lastError.cause !== undefined) {
+      let cause: string;
+      if (row.lastError.cause instanceof Error) {
+        cause = `${row.lastError.cause.name}: ${row.lastError.cause.message}`;
+      } else {
+        try { cause = JSON.stringify(row.lastError.cause); }
+        catch { cause = String(row.lastError.cause); }
+      }
+      lines.push(`  cause:     ${cause}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 function safeJson(value: unknown): string {
@@ -132,6 +203,30 @@ function safeJson(value: unknown): string {
     return '<unserializable>';
   }
 }
+
+function formatEntryForClipboard(entry: ErrorBufferEntry): string {
+  const lines: string[] = [];
+  lines.push(`[${new Date(entry.lastSeen).toISOString()}] ${entry.severity.toUpperCase()} ${entry.code}`);
+  lines.push(`Subsystem: ${entry.subsystem}`);
+  lines.push(`Message:   ${entry.message}`);
+  if (entry.count > 1) {
+    lines.push(`Count:     ${entry.count} (first seen ${new Date(entry.firstSeen).toISOString()})`);
+  }
+  if (entry.context) {
+    let ctx: string;
+    try { ctx = JSON.stringify(entry.context, null, 2); } catch { ctx = '<unserializable>'; }
+    lines.push('Context:');
+    lines.push(ctx);
+  }
+  if (entry.causeText) {
+    lines.push('Cause:');
+    lines.push(entry.causeText);
+  }
+  return lines.join('\n');
+}
+
+const ROW_BG_IDLE = 'rgba(255,255,255,0.02)';
+const ROW_BG_HOVER = 'rgba(255,255,255,0.05)';
 
 function renderErrorRows(host: HTMLElement, rows: readonly ErrorBufferEntry[]): void {
   host.innerHTML = '';
@@ -150,11 +245,14 @@ function renderErrorRows(host: HTMLElement, rows: readonly ErrorBufferEntry[]): 
       'padding:8px 10px',
       'border-radius:8px',
       'border:1px solid rgba(255,255,255,0.06)',
-      'background:rgba(255,255,255,0.02)',
+      `background:${ROW_BG_IDLE}`,
       'display:flex',
       'flex-direction:column',
       'gap:4px',
+      'cursor:pointer',
+      'transition:background 120ms ease',
     ].join(';');
+    item.title = 'Click to copy details';
 
     const head = document.createElement('div');
     head.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;color:var(--qpm-text);';
@@ -184,6 +282,19 @@ function renderErrorRows(host: HTMLElement, rows: readonly ErrorBufferEntry[]): 
       item.appendChild(ctx);
     }
 
+    item.addEventListener('mouseenter', () => { item.style.background = ROW_BG_HOVER; });
+    item.addEventListener('mouseleave', () => { item.style.background = ROW_BG_IDLE; });
+    item.addEventListener('click', async () => {
+      const ok = await writeToClipboard(formatEntryForClipboard(entry));
+      const badge = document.createElement('span');
+      badge.textContent = ok ? 'Copied' : 'Copy failed';
+      const badgeBg = ok ? 'rgba(79,209,139,0.22)' : 'rgba(244,67,54,0.22)';
+      const badgeFg = ok ? '#4fd18b' : '#f44336';
+      badge.style.cssText = `padding:1px 6px;border-radius:9999px;background:${badgeBg};color:${badgeFg};font-size:10px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;`;
+      head.appendChild(badge);
+      setTimeout(() => { badge.remove(); }, 1200);
+    });
+
     host.appendChild(item);
   }
 }
@@ -201,9 +312,19 @@ function refreshAggregate(state: RenderState): void {
   state.aggregateLabel.textContent = aggregateLabelText(status, all.length, degradedCount, failedCount);
 }
 
-function refreshTables(state: RenderState): void {
-  renderSubsystemRows(state.subsystemTable, healthBus.readAll());
-  renderErrorRows(state.errorList, errorBuffer.readAll());
+function refreshTables(state: RenderState, force = false): void {
+  const subs = healthBus.readAll();
+  const subFp = subsystemFingerprint(subs);
+  if (force || subFp !== state.lastSubsystemFingerprint) {
+    state.lastSubsystemFingerprint = subFp;
+    renderSubsystemRows(state.subsystemTable, subs);
+  }
+  const errs = errorBuffer.readAll();
+  const errFp = errorFingerprint(errs);
+  if (force || errFp !== state.lastErrorFingerprint) {
+    state.lastErrorFingerprint = errFp;
+    renderErrorRows(state.errorList, errs);
+  }
 }
 
 function buildCopyDialog(onComplete: () => void): HTMLElement {
@@ -247,9 +368,9 @@ function buildCopyDialog(onComplete: () => void): HTMLElement {
     { key: 'gameVersion', label: 'Game build version' },
     { key: 'browser', label: 'Browser + version' },
     { key: 'os', label: 'Operating system' },
-    { key: 'aggregate', label: 'Aggregate status' },
-    { key: 'subsystems', label: 'Subsystem table' },
-    { key: 'recentErrors', label: 'Recent errors (~last 50)' },
+    { key: 'aggregate', label: 'Overall status + counts' },
+    { key: 'subsystems', label: 'Issues (non-OK subsystems)' },
+    { key: 'recentErrors', label: 'Recent errors (up to 50)' },
     { key: 'timestamp', label: 'Timestamp' },
   ];
 
@@ -420,6 +541,8 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
     subsystemTable,
     errorList,
     cleanup: [],
+    lastErrorFingerprint: '',
+    lastSubsystemFingerprint: '',
   };
 
   const refresh = (): void => {
@@ -427,7 +550,12 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
     refreshTables(state);
   };
 
-  refresh();
+  const forceRefresh = (): void => {
+    refreshAggregate(state);
+    refreshTables(state, true);
+  };
+
+  forceRefresh();
 
   const unsub = healthBus.subscribe(() => {
     // Defer to keep subscribers O(1) per §6.4.
@@ -435,16 +563,15 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
   });
   state.cleanup.push(unsub);
 
-  // Poll the error buffer cheaply — buffer has no subscribe API and we only
-  // need to pick up recent additions while the window is open.
-  const intervalId = window.setInterval(() => {
-    renderErrorRows(state.errorList, errorBuffer.readAll());
-  }, 2000);
+  // Poll the error buffer cheaply — buffer has no subscribe API. refresh() is
+  // fingerprint-aware and no-ops when nothing changed, so hover state and any
+  // in-flight "Copied" badge survive quiet periods.
+  const intervalId = window.setInterval(refresh, 2000);
   state.cleanup.push(() => clearInterval(intervalId));
 
   refreshBtn.addEventListener('click', () => {
     errorBuffer.flush();
-    refresh();
+    forceRefresh();
   });
 
   copyBtn.addEventListener('click', () => {

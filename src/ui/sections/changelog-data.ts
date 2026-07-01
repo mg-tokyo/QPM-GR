@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.5",
+    date: "2026-07-01",
+    notes: [
+      "Fixed Locker rules silently no-opping for harvest, shop purchase, and pot planting after the game moved those actions to a separate send path",
+      "Fixed tile info injections (journal letters, sell price) breaking after the game migrated the tile info card to PIXI, now tracked as an overlay above the native card",
+      "Improved diagnostics Copy payload for Discord: compact header, only lists subsystems with issues, budget-aware error trimming, and per-error click-to-copy in the diagnostics window",
+      "Added German, English, Spanish, and French translations for the new Locker General, Overrides, and Restrictions tabs",
+      "Added click-to-copy on subsystem rows in the diagnostics window so a subsystem's status, metrics, and last error can be grabbed the same way as individual error rows",
+      "Fixed diagnostics window rows losing hover state during the idle refresh cycle by only re-rendering when the underlying data actually changes",
+    ],
+  },
+  {
     version: "3.3.4",
     date: "2026-06-30",
     notes: [

@@ -1,10 +1,15 @@
 // src/diagnostics/copyPayload.ts — Discord-friendly Copy renderer (§8.3)
+//
+// Layout (chosen 2026-07-01): compact single-line header, Issues section
+// listing only non-OK subsystems, and one-line error entries. Errors get
+// prioritised into whatever budget remains — Discord's 2000-char message
+// limit is the hard cap.
 
 import { getCurrentVersion } from '../utils/versionChecker';
 import { errorBuffer } from './errorBuffer';
 import { getCapturedGameVersion } from './gameVersionCapture';
 import { healthBus } from './healthBus';
-import type { ErrorBufferEntry, SubsystemHealth } from './types';
+import type { ErrorBufferEntry, Severity, SubsystemHealth } from './types';
 
 export interface CopyPayloadOptions {
   qpmVersion: boolean;
@@ -57,83 +62,55 @@ function detectBrowserAndOs(): UAInfo {
   return { browser, os };
 }
 
-function pad(label: string, value: string, width = 16): string {
-  const left = `${label}:`.padEnd(width, ' ');
-  return `${left}${value}`;
+function shortenOs(os: string): string {
+  return os.replace(/^Windows /, 'Win ');
 }
 
 function formatTimestamp(ts: number): string {
-  // ISO 8601 keeps it short and unambiguous.
   return new Date(ts).toISOString();
 }
 
-function summarizeMetrics(metrics?: Readonly<Record<string, number | string>>): string {
-  if (!metrics) return '';
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(metrics)) {
-    parts.push(`${k}=${v}`);
-    if (parts.join(' ').length > 80) {
-      parts.push('…');
-      break;
-    }
+// Padded to 5 chars so codes/messages align in a column.
+function severityTag(sev: Severity): string {
+  switch (sev) {
+    case 'warn':  return 'WARN ';
+    case 'error': return 'ERR  ';
+    case 'fatal': return 'FATAL';
+    case 'info':  return 'INFO ';
   }
-  return parts.length ? ` (${parts.join(' ')})` : '';
 }
 
-function renderSubsystemTable(rows: readonly SubsystemHealth[]): string {
-  if (rows.length === 0) return '(no subsystems registered)';
+function compactContext(context: Record<string, unknown> | undefined): string {
+  if (!context) return '';
+  let s: string;
+  try { s = JSON.stringify(context); } catch { return ''; }
+  if (s.length <= 60) return ` ${s}`;
+  return ` ${s.substring(0, 57)}...`;
+}
+
+function renderErrorEntryCompact(entry: ErrorBufferEntry): string {
+  const time = new Date(entry.lastSeen).toISOString().substring(11, 19);
+  const sev = severityTag(entry.severity);
+  const ctx = compactContext(entry.context);
+  const count = entry.count > 1 ? `  ×${entry.count}` : '';
+  return `${time}  ${sev}  ${entry.code}  ${entry.message}${ctx}${count}`;
+}
+
+function renderIssuesLines(issues: readonly SubsystemHealth[]): string {
+  if (issues.length === 0) return '(none)';
   const nameWidth = Math.min(
     24,
-    Math.max(8, rows.reduce((m, h) => Math.max(m, h.subsystem.length), 0)),
+    Math.max(8, issues.reduce((m, h) => Math.max(m, h.subsystem.length), 0)),
   );
   const statusWidth = 10;
   const lines: string[] = [];
-  for (const row of rows) {
+  for (const row of issues) {
     const name = row.subsystem.padEnd(nameWidth, ' ');
     const status = row.status.padEnd(statusWidth, ' ');
     const message = row.message ?? '';
-    const metrics = summarizeMetrics(row.metrics);
-    lines.push(`${name} ${status} ${message}${metrics}`.trimEnd());
+    lines.push(`${name} ${status} ${message}`.trimEnd());
   }
   return lines.join('\n');
-}
-
-function renderErrorEntry(entry: ErrorBufferEntry): string {
-  const time = new Date(entry.lastSeen).toISOString().substring(11, 19);
-  const countSuffix = entry.count > 1 ? ` (×${entry.count})` : '';
-  const head = `[${time}] ${entry.code} ${entry.message}${countSuffix}`;
-  const details: string[] = [];
-  if (entry.subsystem) details.push(`  subsystem: ${entry.subsystem}`);
-  if (entry.context) {
-    let ctx: string;
-    try {
-      ctx = JSON.stringify(entry.context);
-    } catch {
-      ctx = '<unserializable>';
-    }
-    if (ctx.length > 200) ctx = `${ctx.substring(0, 197)}...`;
-    details.push(`  context: ${ctx}`);
-  }
-  if (entry.causeText) {
-    const cause = entry.causeText.length > 200
-      ? `${entry.causeText.substring(0, 197)}...`
-      : entry.causeText;
-    details.push(`  cause: ${cause}`);
-  }
-  return [head, ...details].join('\n');
-}
-
-function renderRecentErrors(): string {
-  const all = errorBuffer.readAll();
-  const total = all.length;
-  if (total === 0) return '(no errors in buffer)';
-  const window = all.slice(Math.max(0, total - MAX_RECENT_ERRORS));
-  const header = total > MAX_RECENT_ERRORS
-    ? `(last ${window.length} of ${total})`
-    : `(${window.length})`;
-  // Newest first for skimming.
-  const lines = window.slice().reverse().map(renderErrorEntry);
-  return `${header}\n${lines.join('\n\n')}`;
 }
 
 function truncateToBudget(body: string, budget: number): string {
@@ -147,34 +124,81 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
   const subsystems = healthBus.readAll();
   const aggregate = healthBus.aggregate();
 
+  // Fold `starting` into ok, `recovering` into degraded for reporting counts.
+  let okCount = 0;
+  let degradedCount = 0;
+  let failedCount = 0;
+  const issues: SubsystemHealth[] = [];
+  for (const s of subsystems) {
+    if (s.status === 'failed') { failedCount++; issues.push(s); }
+    else if (s.status === 'degraded' || s.status === 'recovering') { degradedCount++; issues.push(s); }
+    else { okCount++; }
+  }
+
+  // ── Header ──
   const headerLines: string[] = [];
-  const ts = formatTimestamp(Date.now());
-  headerLines.push(`QPM Diagnostics${opts.timestamp ? `  (${ts})` : ''}`);
+  headerLines.push(`QPM Diagnostics${opts.timestamp ? `  (${formatTimestamp(Date.now())})` : ''}`);
 
-  if (opts.qpmVersion) headerLines.push(pad('QPM version', getCurrentVersion()));
-  if (opts.gameVersion) headerLines.push(pad('Game version', getCapturedGameVersion() ?? '(not captured)'));
-  if (opts.browser) headerLines.push(pad('Browser', ua.browser));
-  if (opts.os) headerLines.push(pad('OS', ua.os));
-  if (opts.aggregate) headerLines.push(pad('Overall', aggregate));
+  const idParts: string[] = [];
+  if (opts.qpmVersion)  idParts.push(`QPM ${getCurrentVersion()}`);
+  if (opts.gameVersion) idParts.push(`Game ${getCapturedGameVersion() ?? '?'}`);
+  if (opts.browser)     idParts.push(ua.browser);
+  if (opts.os)          idParts.push(shortenOs(ua.os));
+  if (idParts.length > 0) headerLines.push(idParts.join('  '));
 
-  const sections: string[] = [];
-  sections.push(headerLines.join('\n'));
-
-  if (opts.subsystems) {
-    sections.push(`\n== Subsystems ==\n${renderSubsystemTable(subsystems)}`);
+  if (opts.aggregate) {
+    headerLines.push(`Overall: ${aggregate}  (${okCount} ok / ${degradedCount} degraded / ${failedCount} failed)`);
   }
 
-  if (opts.recentErrors) {
-    sections.push(`\n== Recent errors ==\n${renderRecentErrors()}`);
+  let fixed = headerLines.join('\n');
+
+  // ── Issues section (only when there ARE issues) ──
+  if (opts.subsystems && issues.length > 0) {
+    fixed += `\n\n== Issues ==\n${renderIssuesLines(issues)}`;
   }
 
-  const body = sections.join('\n');
+  if (!opts.recentErrors) {
+    return '```\n' + truncateToBudget(fixed, MAX_TOTAL_CHARS) + '\n```';
+  }
+
+  // ── Errors section — fit as many as remaining budget allows ──
+  const all = errorBuffer.readAll();
+  if (all.length === 0) {
+    const emptyBlock = `\n\n== Errors ==\n(no errors recorded)`;
+    return '```\n' + truncateToBudget(fixed + emptyBlock, MAX_TOTAL_CHARS) + '\n```';
+  }
+
+  const cap = Math.min(all.length, MAX_RECENT_ERRORS);
+  const window = all.slice(all.length - cap).slice().reverse();
+  const compactLines = window.map(renderErrorEntryCompact);
+
+  const truncMarker = (n: number): string => `\n… ${n} more truncated`;
+  const sectionHeader = (shown: number): string =>
+    `\n\n== Errors (last ${shown}${all.length > shown ? ` of ${all.length}` : ''}) ==\n`;
+
+  // Reserve worst-case header + marker lengths so trimming can't overshoot.
+  const reserved = sectionHeader(compactLines.length).length + truncMarker(compactLines.length).length;
+  const available = MAX_TOTAL_CHARS - fixed.length - reserved;
+
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of compactLines) {
+    const cost = kept.length === 0 ? line.length : line.length + 1;
+    if (used + cost > available) break;
+    kept.push(line);
+    used += cost;
+  }
+
+  const dropped = compactLines.length - kept.length;
+  const errorsBlock =
+    sectionHeader(kept.length) + kept.join('\n') + (dropped > 0 ? truncMarker(dropped) : '');
+
+  const body = fixed + errorsBlock;
   const trimmed = truncateToBudget(body, MAX_TOTAL_CHARS);
   return '```\n' + trimmed + '\n```';
 }
 
-export async function copyPayloadToClipboard(opts: CopyPayloadOptions = DEFAULT_COPY_OPTIONS): Promise<boolean> {
-  const text = renderCopyPayload(opts);
+export async function writeToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
@@ -196,4 +220,8 @@ export async function copyPayloadToClipboard(opts: CopyPayloadOptions = DEFAULT_
   } catch {
     return false;
   }
+}
+
+export async function copyPayloadToClipboard(opts: CopyPayloadOptions = DEFAULT_COPY_OPTIONS): Promise<boolean> {
+  return writeToClipboard(renderCopyPayload(opts));
 }

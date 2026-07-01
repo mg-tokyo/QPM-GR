@@ -239,7 +239,6 @@ function removeJournalBadgeRow(container: HTMLElement): void {
 
 export async function injectJournalBadges(
   container: HTMLElement,
-  _cropNameEl: HTMLElement,
 ): Promise<void> {
   if (!config.enabled || !config.showJournalIndicators) {
     removeJournalBadgeRow(container);

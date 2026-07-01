@@ -186,7 +186,6 @@ export function stopFriendBonusWatch(): void {
 
 export function injectTileValue(
   container: HTMLElement,
-  _cropNameEl: HTMLElement,
 ): void {
   if (!config.enabled) {
     removeValueRow(container);

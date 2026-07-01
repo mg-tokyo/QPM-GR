@@ -19,6 +19,9 @@ import { criticalInterval } from '../../utils/scheduling/timerManager';
 
 interface RoomConnectionLike {
   sendMessage: (payload: unknown) => unknown;
+  // Parallel RPC transport: sendQuinoaRpc → trySendMessageNow, bypassing
+  // sendMessage entirely. Used by HarvestCrop, PurchaseShopItem, potPlant.
+  trySendMessageNow?: (payload: unknown) => boolean;
 }
 
 interface PageWindowWithRoomConnection extends Window {
@@ -316,6 +319,33 @@ function evaluatePetSell(itemId: string): GuardResult {
 
 // ── Core evaluate helper ───────────────────────────────────────────────────
 
+/**
+ * Unwrap the game's QuinoaCommand RPC envelope so rules see the actual action.
+ *
+ *   { type: 'QuinoaCommand', requestId, command: { type: 'HarvestCrop', ... } }
+ *     →
+ *   actionType: 'HarvestCrop', payload: { type: 'HarvestCrop', ... }
+ *
+ * The game funnels HarvestCrop, PurchaseShopItem, and potPlant through
+ * sendQuinoaRpc → trySendMessageNow, wrapping the payload this way. Without
+ * unwrap the switch in rules.ts hits `default: return PASS` and every
+ * harvest/purchase rule silently no-ops.
+ *
+ * No-op for QPM's own sendRoomAction preflight path (actionType is already the
+ * inner RoomActionType there).
+ */
+function unwrapQuinoaCommand(
+  actionType: string,
+  payload: Record<string, unknown>,
+): { actionType: string; payload: Record<string, unknown> } {
+  if (actionType !== 'QuinoaCommand') return { actionType, payload };
+  const cmd = payload.command;
+  if (!isRecord(cmd)) return { actionType, payload };
+  const innerType = cmd.type;
+  if (typeof innerType !== 'string' || innerType.length === 0) return { actionType, payload };
+  return { actionType: innerType, payload: cmd };
+}
+
 function evaluate(
   actionType: string,
   payload: Record<string, unknown>,
@@ -323,13 +353,23 @@ function evaluate(
   const config = getLockerConfig();
   if (!config.enabled) return PASS;
 
-  const tile = resolveTileContext(payload.slot, payload.slotsIndex);
-  const result = evaluateAction(actionType, payload, config, getInventorySnapshot(actionType, payload), tile);
+  const unwrapped = unwrapQuinoaCommand(actionType, payload);
+  const effectiveType = unwrapped.actionType;
+  const effectivePayload = unwrapped.payload;
+
+  const tile = resolveTileContext(effectivePayload.slot, effectivePayload.slotsIndex);
+  const result = evaluateAction(
+    effectiveType,
+    effectivePayload,
+    config,
+    getInventorySnapshot(effectiveType, effectivePayload),
+    tile,
+  );
   if (result.blocked) return result;
 
   // Pet sell protection: evaluated at the guard layer because it needs store access
-  if (actionType === 'SellPet' && typeof payload.itemId === 'string') {
-    return evaluatePetSell(payload.itemId);
+  if (effectiveType === 'SellPet' && typeof effectivePayload.itemId === 'string') {
+    return evaluatePetSell(effectivePayload.itemId);
   }
 
   return result;
@@ -355,15 +395,20 @@ export function lockerPreflight(
 const RECONNECT_POLL_MS = 2000;
 let patchedConnection: RoomConnectionLike | null = null;
 let originalSendMessage: ((payload: unknown) => unknown) | null = null;
+let originalTrySendMessageNow: ((payload: unknown) => boolean) | null = null;
 let stopReconnectTimer: (() => void) | null = null;
 
 function restoreNativePatch(): void {
-  if (!patchedConnection || !originalSendMessage) return;
-  try {
-    patchedConnection.sendMessage = originalSendMessage;
-  } catch { /* noop */ }
+  if (!patchedConnection) return;
+  if (originalSendMessage) {
+    try { patchedConnection.sendMessage = originalSendMessage; } catch { /* noop */ }
+  }
+  if (originalTrySendMessageNow) {
+    try { patchedConnection.trySendMessageNow = originalTrySendMessageNow; } catch { /* noop */ }
+  }
   patchedConnection = null;
   originalSendMessage = null;
+  originalTrySendMessageNow = null;
 }
 
 function ensureNativeHookPatched(): void {
@@ -373,8 +418,10 @@ function ensureNativeHookPatched(): void {
 
   restoreNativePatch();
 
-  const original = room.sendMessage.bind(room);
-  const wrapped = (payload: unknown): unknown => {
+  // ── sendMessage: catches the classic path (HatchEgg, SellPet, SellAllCrops,
+  //    PickupDecor, RemoveGardenObject, PickupObject, ...).
+  const originalSend = room.sendMessage.bind(room);
+  const wrappedSend = (payload: unknown): unknown => {
     if (payload && typeof payload === 'object') {
       const rec = payload as Record<string, unknown>;
       const actionType = typeof rec.type === 'string' ? rec.type : null;
@@ -388,16 +435,47 @@ function ensureNativeHookPatched(): void {
         }
       }
     }
-    return original(payload);
+    return originalSend(payload);
   };
 
+  // ── trySendMessageNow: catches the RPC path (HarvestCrop, PurchaseShopItem,
+  //    potPlant). Returns false on block to match its boolean signature; that
+  //    mirrors "connection closed" semantics, which sendQuinoaRpc handles by
+  //    rejecting the pending command — the callers use `void sendQuinoaRpc(...)`
+  //    so the rejection is swallowed. The user still sees the Locker toast.
+  const rawTry = room.trySendMessageNow;
+  const originalTry = typeof rawTry === 'function' ? rawTry.bind(room) : null;
+  const wrappedTry = originalTry
+    ? (payload: unknown): boolean => {
+        if (payload && typeof payload === 'object') {
+          const rec = payload as Record<string, unknown>;
+          const actionType = typeof rec.type === 'string' ? rec.type : null;
+          if (actionType) {
+            const result = evaluate(actionType, rec);
+            if (result.blocked) {
+              if (result.rule && result.reason) {
+                throttledNotify(result.rule, result.reason);
+              }
+              return false;
+            }
+          }
+        }
+        return originalTry(payload);
+      }
+    : null;
+
   try {
-    room.sendMessage = wrapped;
+    room.sendMessage = wrappedSend;
+    if (wrappedTry) {
+      room.trySendMessageNow = wrappedTry;
+    }
     patchedConnection = room;
-    originalSendMessage = original;
+    originalSendMessage = originalSend;
+    originalTrySendMessageNow = originalTry;
   } catch {
     patchedConnection = null;
     originalSendMessage = null;
+    originalTrySendMessageNow = null;
   }
 }
 

@@ -1,10 +1,25 @@
-// src/features/tooltipInjection/observer.ts
-// Single shared tooltip observer replacing two independent MutationObservers.
-// Fixes bug #2 (nameplate injection) and bug #3 (cascading re-injection).
+// src/features/standalone/tooltipInjection/observer.ts
+// Overlay lifecycle for the tile info system.
+//
+// MG's tile info moved from a DOM tooltip to a PIXI `GardenInfoCardSystem`.
+// This file no longer observes DOM mutations — it drives a persistent QPM
+// DOM overlay that tracks the PIXI card's bounds each frame (via
+// pixiAnchor.getCardBounds) and hosts QPM injector output (journal letters
+// + sell price) as extra rows flush against the card's bottom edge.
+//
+// The exported API (`registerInjector`, `unregisterInjector`, `reinjectAll`,
+// `startObserver`, `stopObserver`) preserves the old surface so index.ts
+// and the config wrappers don't need signature changes.
 
-import { onAdded, onRemoved, watch } from '../../../utils/dom/dom';
 import { log } from '../../../utils/logger';
-import { TOOLTIP_SELECTOR, TOOLTIP_STYLE_ID, TOOLTIP_ROW_ATTR, JOURNAL_BADGE_ATTR } from './types';
+import { getCardBounds, resetAnchor } from './pixiAnchor';
+import type { CardBounds } from './pixiAnchor';
+import {
+  OVERLAY_ID,
+  TOOLTIP_STYLE_ID,
+  TOOLTIP_ROW_ATTR,
+  JOURNAL_BADGE_ATTR,
+} from './types';
 import type { InjectorFn } from './types';
 
 // ---------------------------------------------------------------------------
@@ -15,66 +30,24 @@ const injectors = new Map<string, InjectorFn>();
 
 export function registerInjector(id: string, fn: InjectorFn): void {
   injectors.set(id, fn);
+  // Fresh injector — force a repaint next tick so content appears immediately.
+  dirtyContent = true;
 }
 
 export function unregisterInjector(id: string): void {
   injectors.delete(id);
+  // Remove that injector's rows from the overlay so stale content doesn't
+  // linger — matches the previous behavior when a feature was toggled off.
+  const el = overlayEl;
+  if (el) el.replaceChildren();
+  dirtyContent = true;
 }
 
 // ---------------------------------------------------------------------------
-// Container resolution (bug #2 fix)
-// ---------------------------------------------------------------------------
-
-/**
- * Returns true if the element was injected by QPM (has any data-qpm-* attribute).
- */
-function isQpmElement(el: Element): boolean {
-  for (const attr of el.attributes) {
-    if (attr.name.startsWith('data-qpm-')) return true;
-  }
-  return false;
-}
-
-/**
- * Find the detail card's name `<p>` — not the nameplate `<p>`.
- *
- * The detail card section has multiple native (non-QPM) children:
- * the name <p>, mutation display, weight text, etc.
- * The nameplate has just a single <p>.
- *
- * This distinguishes celestial plants (Dawnbinder/Moonbinder) where
- * `querySelector('p.chakra-text')` would match the nameplate first.
- */
-function findDetailCardName(tooltipEl: Element): HTMLElement | null {
-  const paragraphs = tooltipEl.querySelectorAll('p');
-  for (const p of paragraphs) {
-    const parent = p.parentElement;
-    if (!parent) continue;
-    const nativeChildren = [...parent.children].filter(c => !isQpmElement(c));
-    if (nativeChildren.length >= 2) return p as HTMLElement;
-  }
-  return null;
-}
-
-/**
- * Resolve the injection container from a tooltip element.
- * Returns [container, cropNameElement] or null if resolution fails.
- */
-function resolveContainer(tooltip: Element): [HTMLElement, HTMLElement] | null {
-  const cropNameEl = findDetailCardName(tooltip);
-  if (!cropNameEl) return null;
-
-  const container = (
-    (cropNameEl.closest('.chakra-stack') as HTMLElement | null) ??
-    (cropNameEl.parentElement as HTMLElement | null) ??
-    tooltip
-  ) as HTMLElement;
-
-  return [container, cropNameEl];
-}
-
-// ---------------------------------------------------------------------------
-// Styles (shared across all injectors)
+// Styles — QPM overlay matches MG's PixiTooltip look (bg #141414@0.9,
+// border #717171, radius 4px, Greycliff CF 14/700). Values are lifted from
+// PixiTooltip/config.ts in the beta source so the overlay reads as a
+// continuation of the native card.
 // ---------------------------------------------------------------------------
 
 function ensureStyles(): void {
@@ -83,6 +56,34 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = TOOLTIP_STYLE_ID;
   style.textContent = `
+    #${OVERLAY_ID} {
+      position: fixed;
+      z-index: 99997;
+      pointer-events: none;
+      user-select: none;
+      background: rgba(20, 20, 20, 0.9);
+      border: 1px solid rgba(113, 113, 113, 1);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: "Greycliff CF", var(--qpm-font, "Inter", "Segoe UI", Arial, sans-serif);
+      font-size: 14px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.87);
+      line-height: 18px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      opacity: 0;
+      transform: translate(-50%, -100%);
+      transition: opacity 100ms ease-out;
+      white-space: nowrap;
+    }
+    #${OVERLAY_ID}.qpm-visible {
+      display: flex;
+      opacity: 1;
+    }
+
     [${TOOLTIP_ROW_ATTR}] {
       display: flex;
       align-items: center;
@@ -130,113 +131,145 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-export function removeStyles(): void {
+function removeStyles(): void {
   document.getElementById(TOOLTIP_STYLE_ID)?.remove();
 }
 
 export { ensureStyles };
 
 // ---------------------------------------------------------------------------
-// Tooltip watching
+// Overlay DOM lifecycle
 // ---------------------------------------------------------------------------
 
-const tooltipWatchers = new Map<Element, { disconnect: () => void }>();
-let domObserverHandle: { disconnect: () => void } | null = null;
+let overlayEl: HTMLDivElement | null = null;
 
-function runInjectors(tooltip: Element): void {
+function ensureOverlay(): HTMLDivElement {
+  if (overlayEl && document.body.contains(overlayEl)) return overlayEl;
+  overlayEl = document.createElement('div');
+  overlayEl.id = OVERLAY_ID;
+  document.body.appendChild(overlayEl);
+  return overlayEl;
+}
+
+function hideOverlay(): void {
+  if (!overlayEl) return;
+  overlayEl.classList.remove('qpm-visible');
+  // Clear children so a stale journal/value row doesn't flash on next show.
+  overlayEl.replaceChildren();
+}
+
+function positionOverlay(el: HTMLDivElement, bounds: CardBounds): void {
+  // Anchor overlay bottom-center to the card's top-center, 4px gap. Overlay
+  // sits directly above MG's info card; CSS transform (translate -50%, -100%)
+  // pulls it up by its own height so `top` marks the overlay's bottom edge.
+  const centerX = Math.round(bounds.left + bounds.width / 2);
+  const bottom = Math.round(bounds.top - 4);
+  el.style.left = `${centerX}px`;
+  el.style.top = `${bottom}px`;
+}
+
+function runInjectors(container: HTMLElement): void {
   if (injectors.size === 0) return;
-  if (tooltip.classList.contains('qpm-window') || tooltip.closest('.qpm-window')) return;
-
-  const resolved = resolveContainer(tooltip);
-  if (!resolved) return;
-  const [container, cropNameEl] = resolved;
-
   for (const fn of injectors.values()) {
     try {
-      const result = fn(container, cropNameEl);
-      // Handle async injectors (e.g., journal badges)
-      if (result instanceof Promise) {
-        result.catch(() => {});
-      }
+      const result = fn(container);
+      if (result instanceof Promise) result.catch(() => {});
     } catch {
-      // Don't let one injector break others
+      // Isolate injector failures — never let one break the rest.
     }
   }
 }
 
-function attachTooltipWatcher(tooltip: Element): void {
-  if (tooltipWatchers.has(tooltip)) return;
+// ---------------------------------------------------------------------------
+// rAF loop — cheap position tracking + on-demand content refresh
+// ---------------------------------------------------------------------------
 
-  let rafId: number | null = null;
+let rafHandle: number | null = null;
+let cardWasVisible = false;
+let dirtyContent = true;
 
-  const runAll = () => {
-    rafId = null;
-    runInjectors(tooltip);
-  };
+function tick(): void {
+  rafHandle = null;
+  const bounds = getCardBounds();
 
-  const scheduleRun = () => {
-    if (rafId !== null) return;
-    rafId = window.requestAnimationFrame(runAll);
-  };
-
-  // Initial run
-  runAll();
-
-  const observerHandle = watch(tooltip, scheduleRun);
-
-  tooltipWatchers.set(tooltip, {
-    disconnect: () => {
-      observerHandle.disconnect();
-      if (rafId !== null) {
-        window.cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-    },
-  });
-}
-
-function detachTooltipWatcher(tooltip: Element): void {
-  const handle = tooltipWatchers.get(tooltip);
-  if (handle) {
-    handle.disconnect();
-    tooltipWatchers.delete(tooltip);
+  if (!bounds) {
+    if (cardWasVisible) {
+      hideOverlay();
+      cardWasVisible = false;
+    }
+    rafHandle = window.requestAnimationFrame(tick);
+    return;
   }
+
+  const el = ensureOverlay();
+
+  // Refresh content only on transitions or when atoms have marked us dirty.
+  // Position sync happens every frame regardless (cheap style writes).
+  if (!cardWasVisible || dirtyContent) {
+    runInjectors(el);
+    dirtyContent = false;
+    cardWasVisible = true;
+  }
+
+  if (el.children.length === 0) {
+    // Nothing to show for this tile (e.g. non-plant object, all variants
+    // logged, tile value disabled). Keep overlay hidden but stay tracking.
+    if (el.classList.contains('qpm-visible')) el.classList.remove('qpm-visible');
+  } else {
+    positionOverlay(el, bounds);
+    if (!el.classList.contains('qpm-visible')) el.classList.add('qpm-visible');
+  }
+
+  rafHandle = window.requestAnimationFrame(tick);
 }
 
-/** Re-inject all currently tracked tooltips (called on atom change). */
+// ---------------------------------------------------------------------------
+// Public lifecycle — names preserved for compatibility with index.ts
+// ---------------------------------------------------------------------------
+
+let resizeObserver: ResizeObserver | null = null;
+
+/**
+ * Force injectors to re-run on the next tick. Called from atom-change
+ * subscriptions (garden object, selected slot, friend bonus).
+ */
 export function reinjectAll(): void {
-  for (const tooltip of tooltipWatchers.keys()) {
-    runInjectors(tooltip);
-  }
+  dirtyContent = true;
 }
-
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 
 export function startObserver(): void {
-  if (domObserverHandle) return;
-
+  if (rafHandle !== null) return;
   ensureStyles();
-  log('[TooltipObserver] Watching for crop tooltips');
+  ensureOverlay();
+  cardWasVisible = false;
+  dirtyContent = true;
+  log('[TooltipOverlay] Tracking PIXI GardenInfoCardSystem');
+  rafHandle = window.requestAnimationFrame(tick);
 
-  const addedHandle = onAdded(TOOLTIP_SELECTOR, attachTooltipWatcher);
-  const removedHandle = onRemoved(TOOLTIP_SELECTOR, detachTooltipWatcher);
-
-  domObserverHandle = {
-    disconnect: () => {
-      addedHandle.disconnect();
-      removedHandle.disconnect();
-      tooltipWatchers.forEach(handle => handle.disconnect());
-      tooltipWatchers.clear();
-    },
-  };
+  // Invalidate the PIXI anchor on canvas resize — layout may have shifted.
+  const canvas = document.querySelector('.QuinoaCanvas canvas');
+  if (canvas instanceof HTMLCanvasElement) {
+    resizeObserver = new ResizeObserver(() => {
+      resetAnchor();
+      dirtyContent = true;
+    });
+    resizeObserver.observe(canvas);
+  }
 }
 
 export function stopObserver(): void {
-  if (domObserverHandle) {
-    domObserverHandle.disconnect();
-    domObserverHandle = null;
+  if (rafHandle !== null) {
+    window.cancelAnimationFrame(rafHandle);
+    rafHandle = null;
   }
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  if (overlayEl) {
+    overlayEl.remove();
+    overlayEl = null;
+  }
+  resetAnchor();
   removeStyles();
+  cardWasVisible = false;
+  dirtyContent = true;
 }
