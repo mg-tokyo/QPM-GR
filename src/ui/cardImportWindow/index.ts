@@ -11,6 +11,7 @@ import { createSectionHeader } from '../components/sectionHeader';
 import { createSelect } from '../components/select';
 import { notify } from '../../core/notifications';
 import { storage } from '../../utils/storage';
+import { watchDetach } from '../../utils/dom/dom';
 import {
   openNativeCard,
   type OpenNativeCardOptions,
@@ -316,16 +317,12 @@ function renderWindow(root: HTMLElement): void {
   }
 
   // ── Cleanup on detach ──
-  const obs = new MutationObserver(() => {
-    if (!root.isConnected) {
-      obs.disconnect();
-      for (const fn of cleanups) {
-        try { fn(); } catch { /* best effort */ }
-      }
-      cleanups.length = 0;
+  watchDetach(root, () => {
+    for (const fn of cleanups) {
+      try { fn(); } catch { /* best effort */ }
     }
+    cleanups.length = 0;
   });
-  obs.observe(document.body, { childList: true, subtree: true });
 }
 
 function synthesizeImportResult(preset: CustomCardPreset): PortraitImportResult | null {

@@ -1,5 +1,7 @@
 // src/main.ts
-import { ready, sleep, getGameHudRoot } from './utils/dom/dom';
+import { ready, sleep, getGameHudRoot, getSharedDomObserverStats, initDomObserverDebugBridge } from './utils/dom/dom';
+import { healthBus } from './diagnostics/healthBus';
+import { waitForAriesDetection, getAriesDetectionInfo } from './integrations/ariesDetection';
 import { log, importantLog, isVerboseLogsEnabled, setVerboseLogsEnabled } from './utils/logger';
 import { yieldToBrowser } from './utils/scheduling/scheduling';
 import { startMutationReminder } from './features/mutations/reminder';
@@ -88,6 +90,7 @@ import { exposeAriesBridge } from './integrations/ariesBridge';
 import { startNativeCardViewDiagnostics } from './integrations/nativeCardView';
 import { getAtomByLabel, readAtomValue, startJotaiBridgeDiagnostics, stopJotaiBridgeDiagnostics } from './core/jotaiBridge';
 import { runAtomHealthCheck, startAtomRegistryDiagnostics } from './core/atomRegistry';
+import { initStateTree, startStateTreeDiagnostics } from './core/stateTree';
 import { openInspectorDirect, setupGardenInspector } from './ui/standalone/publicRoomsWindow';
 import { resetFriendsCache } from './services/ariesPlayers';
 import { exposeValidationCommands } from './utils/validationCommands';
@@ -1467,6 +1470,7 @@ async function initialize(): Promise<void> {
   initNotifications();
   startWebsocketDiagnostics();
   startAtomRegistryDiagnostics();
+  startStateTreeDiagnostics();
   startCatalogsDiagnostics();
   startJotaiBridgeDiagnostics();
   startSpriteV2Diagnostics();
@@ -1546,8 +1550,55 @@ async function initialize(): Promise<void> {
   // Wait for game to be ready (parallel with sprite init)
   await waitForGame();
 
+  // Kick off Aries co-existence detection — resolves in the background via the
+  // shared DOM observer. Timeout well before startShopEnhancer() runs in Phase 8,
+  // so isAriesInstalled() is authoritative by then. See ariesDetection.ts and
+  // features/shop/enhancer for the gate that consumes this.
+  void waitForAriesDetection(3000).then((detected) => {
+    const info = getAriesDetectionInfo();
+    log(`[Main] Aries detection resolved: detected=${detected} via=${info.detectedVia ?? 'n/a'}`);
+  });
+
+  // Install the __QPM_DOM_OBSERVER__ debug bridge for console-driven inspection
+  // of the shared-observer stats (predicates, mutationsRate, coalesceRatio).
+  initDomObserverDebugBridge();
+
+  // Register the domObserver subsystem + sample every 2s. Thresholds match
+  // design doc §4: mutationsRate>300/s or lastFlushMs>5ms → degraded.
+  healthBus.register('domObserver', {
+    category: 'core',
+    status: 'starting',
+    message: 'Awaiting first sample',
+  });
+  visibleInterval('qpm-dom-observer-sample', () => {
+    const stats = getSharedDomObserverStats();
+    const degraded = stats.mutationsRate > 300 || stats.lastFlushMs > 5;
+    healthBus.publish({
+      subsystem: 'domObserver',
+      category: 'core',
+      status: degraded ? 'degraded' : 'ok',
+      message: degraded
+        ? `Elevated: ${stats.mutationsRate}/s, flush=${stats.lastFlushMs}ms`
+        : `${stats.mutationsRate}/s`,
+      metrics: {
+        predicates: stats.predicates,
+        mutationsRate: stats.mutationsRate,
+        flushRate: stats.flushRate,
+        coalesceRatio: stats.coalesceRatio,
+        lastFlushMs: stats.lastFlushMs,
+      },
+    });
+  }, 2000);
+
   // Atom registry health check — diagnostic only, non-blocking
   try { runAtomHealthCheck(); } catch (e) { log('Atom health check failed', e); }
+
+  // State-tree init: subscribe once to stateAtom so shop/weather/userSlots
+  // reads and hutch subscribe through a memoizing fan-out. Non-fatal — if this
+  // fails, atomRegistry reads fall through to the legacy label/atom paths.
+  await initStateTree().catch((error) => {
+    log('State tree init failed (non-fatal)', error);
+  });
 
   await initializeAntiAfk().catch((error) => {
     log('Anti-AFK initialization failed', error);

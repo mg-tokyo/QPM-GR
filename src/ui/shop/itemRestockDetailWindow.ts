@@ -13,6 +13,7 @@ import {
 } from '../../utils/restock/dataService';
 import { getPetSpriteCanvas, getCropSpriteCanvas, getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
+import { watchDetach } from '../../utils/dom/dom';
 import { storage } from '../../utils/storage';
 import { getWeatherDef } from '../../catalogs/gameCatalogs';
 import {
@@ -1163,7 +1164,6 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
     };
 
     let resizeObserver: ResizeObserver | null = null;
-    let detachObserver: MutationObserver | null = null;
     if (hostWindow && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
         updateLinkedScaleFromWindow();
@@ -1172,14 +1172,10 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       resizeObserver.observe(contentViewport);
       updateLinkedScaleFromWindow();
 
-      detachObserver = new MutationObserver(() => {
-        if (root.isConnected) return;
+      watchDetach(root, () => {
         resizeObserver?.disconnect();
-        detachObserver?.disconnect();
         resizeObserver = null;
-        detachObserver = null;
       });
-      detachObserver.observe(document.body, { childList: true, subtree: true });
     } else {
       renderScale();
     }

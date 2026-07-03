@@ -27,6 +27,7 @@ import type { ControllerProfile } from '../../features/input/controller/controll
 import { detectProfile } from '../../features/input/controller/controller-profile';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
+import { watchDetach } from '../../utils/dom/dom';
 import {
   getRunningPoller,
   getRunningCursor,
@@ -142,14 +143,10 @@ export function createControllerSection(
     window.addEventListener('gamepadconnected', updateBadge);
     window.addEventListener('gamepaddisconnected', updateBadge);
     // Cleanup when root is removed
-    const obs = new MutationObserver(() => {
-      if (!document.body.contains(root)) {
-        window.removeEventListener('gamepadconnected', updateBadge);
-        window.removeEventListener('gamepaddisconnected', updateBadge);
-        obs.disconnect();
-      }
+    watchDetach(root, () => {
+      window.removeEventListener('gamepadconnected', updateBadge);
+      window.removeEventListener('gamepaddisconnected', updateBadge);
     });
-    obs.observe(document.body, { childList: true, subtree: true });
 
     // Spacer
     const spacer = document.createElement('div');

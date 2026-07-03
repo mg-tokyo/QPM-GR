@@ -440,15 +440,19 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       await delay(FAST_PATH_PHASE_GAP_MS);
     }
 
+    let fastStoresSent = 0;
     for (const displacedId of displacedPets) {
       if (modeledHutchCount >= hutch.hutchMax && modeledHutchIndex == null) {
+        log(`[PetTeams:Fast] Store skipped (hutch modelled full): ${displacedId} (count=${modeledHutchCount}/${hutch.hutchMax})`);
         continue;
       }
       const storeResult = sendPutItemInStorage(displacedId, modeledHutchIndex, true);
       if (!storeResult.ok) {
+        log(`[PetTeams:Fast] Store failed: ${displacedId} reason=${storeResult.reason ?? 'unknown'} (payload storageId=PetHutch toStorageIndex=${modeledHutchIndex})`);
         continue;
       }
       fastOpsSent++;
+      fastStoresSent++;
       modeledHutchCount = Math.min(hutch.hutchMax, modeledHutchCount + 1);
       if (typeof modeledHutchIndex === 'number') {
         const next = modeledHutchIndex + 1;
@@ -458,7 +462,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
     }
 
-    log(`[PetTeams:Fast] sent=${fastOpsSent} (retrieves=${retrieveTargets.length}, swaps=${fastApplied}, stores=${displacedPets.length})`);
+    log(`[PetTeams:Fast] sent=${fastOpsSent} (retrieves=${retrieveTargets.length}, swaps=${fastApplied}, storesAttempted=${displacedPets.length} storesSent=${fastStoresSent})`);
     if (fastOpsSent === 0) {
       log('[PetTeams:Fast] Nothing sent — falling through to repair');
       return false;

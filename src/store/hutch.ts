@@ -1,20 +1,20 @@
 // src/store/hutch.ts
-// Reactive hutch state: pet count, capacity, and pet IDs via Jotai subscriptions.
+// Reactive hutch state: pet count, capacity, and pet IDs derived from the
+// state tree. Migrated to Tier 3 state-tree subscriptions — no direct atom
+// label dependencies remain.
 
-import { getAtomByLabel, subscribeAtom, readAtomValue } from '../core/jotaiBridge';
+import { subscribe as stateTreeSubscribe } from '../core/stateTree';
+import { getPlayerIdSync } from '../core/playerContext';
+import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
 import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeHutch', 'hutch');
-let firstAtomValueSeen = false;
+let firstStateSeen = false;
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const HUTCH_ATOM_LABEL = 'myPetHutchPetItemsAtom';
-const CAPACITY_ATOM_LABEL = 'myPetHutchCapacityLevelAtom';
-const INVENTORY_ATOM_LABEL = 'myInventoryAtom';
 
 export const DEFAULT_HUTCH_CAPACITY = 25;
 export const INVENTORY_MAX = 100;
@@ -32,6 +32,17 @@ export function hutchCapacityForLevel(level: number): number {
   return HUTCH_CAPACITY_BY_LEVEL[clamped] ?? DEFAULT_HUTCH_CAPACITY;
 }
 
+/**
+ * Reverse-derive the upgrade level (0-10) from an actual capacity slot count.
+ * The game's `myPetHutchCapacitySlotsAtom` (pr-2994 rename) exposes the raw
+ * count, not the level — level survives as a QPM public API by lookup.
+ * Falls back to 0 when the capacity doesn't match a known tier.
+ */
+function hutchLevelForCapacity(capacity: number): number {
+  const idx = HUTCH_CAPACITY_BY_LEVEL.indexOf(capacity);
+  return idx >= 0 ? idx : 0;
+}
+
 // ---------------------------------------------------------------------------
 // Reactive state
 // ---------------------------------------------------------------------------
@@ -39,9 +50,9 @@ export function hutchCapacityForLevel(level: number): number {
 export interface HutchState {
   /** Number of pets currently in the hutch. */
   count: number;
-  /** Maximum hutch capacity (based on upgrade level). */
+  /** Maximum hutch capacity (actual slot count from state tree). */
   capacity: number;
-  /** Upgrade level (0-10). */
+  /** Upgrade level (0-10) reverse-derived from capacity. */
   capacityLevel: number;
   /** Set of item IDs in the hutch. */
   petIds: Set<string>;
@@ -57,9 +68,7 @@ let state: HutchState = {
   updatedAt: 0,
 };
 
-let hutchUnsub: (() => void) | null = null;
-let capacityUnsub: (() => void) | null = null;
-let capacityFromStorages = false;
+let storageUnsub: (() => void) | null = null;
 const listeners = new Set<(state: HutchState) => void>();
 
 function notify(): void {
@@ -83,27 +92,96 @@ function publishHutchHealth(): void {
   );
 }
 
-function updateHutchItems(raw: unknown): void {
-  const items = Array.isArray(raw) ? raw : [];
-  const petIds = new Set<string>();
-  let count = 0;
+// ---------------------------------------------------------------------------
+// State-tree selector
+// ---------------------------------------------------------------------------
 
-  for (const item of items) {
+interface HutchSlice {
+  items: QuinoaInventoryItem[];
+  capacity: number;
+}
+
+const NULL_HUTCH_SLICE: HutchSlice = { items: [], capacity: DEFAULT_HUTCH_CAPACITY };
+
+/**
+ * Selector: state → { items, capacity } for the local player's PetHutch.
+ *
+ * Fully atom-independent as of 2026-07-03: derives our user-slot index from
+ * `state.child.data.userSlots.findIndex(s => s.playerId === myId)` where myId
+ * comes from `getPlayerIdSync()` (tries `playerAtom` first, falls back to the
+ * WS URL `?playerId=` param). Survives deprecation of `playerAtom`,
+ * `myUserSlotIdxAtom`, and any other atom that used to feed this store.
+ *
+ * Returns NULL_HUTCH_SLICE when playerId isn't yet resolvable, no matching
+ * slot exists yet, or the PetHutch storage entry hasn't been placed.
+ */
+function selectHutchSlice(snapshot: QuinoaStateSnapshot): HutchSlice {
+  const playerId = getPlayerIdSync();
+  if (!playerId) return NULL_HUTCH_SLICE;
+
+  const userSlots = snapshot.child?.data?.userSlots;
+  if (!Array.isArray(userSlots)) return NULL_HUTCH_SLICE;
+  const myIdx = userSlots.findIndex((s) => !!s && s.playerId === playerId);
+  if (myIdx < 0) return NULL_HUTCH_SLICE;
+  const mySlot = userSlots[myIdx];
+  if (!mySlot || typeof mySlot !== 'object') return NULL_HUTCH_SLICE;
+
+  // Storages are nested under inventory — matches the beta atom chain
+  // myItemStoragesAtom → myInventoryAtom (= myDataAtom.inventory) → .storages
+  // (inventoryAtoms.ts:145-148 in gg-preview-pr-2994-app).
+  const storages = mySlot.data?.inventory?.storages;
+  if (!Array.isArray(storages)) return NULL_HUTCH_SLICE;
+
+  const hutch = storages.find((s: QuinoaStorageEntry) =>
+    s?.decorId === 'PetHutch' || s?.storageId === 'PetHutch' || s?.id === 'PetHutch'
+  );
+  if (!hutch) return NULL_HUTCH_SLICE;
+
+  const rawCapacity = hutch.capacitySlots ?? hutch.capacityLevel;
+  const capacity = typeof rawCapacity === 'number' && Number.isFinite(rawCapacity) && rawCapacity > 0
+    ? rawCapacity
+    : DEFAULT_HUTCH_CAPACITY;
+
+  const rawItems = hutch.items;
+  const items = Array.isArray(rawItems)
+    ? rawItems.filter((i): i is QuinoaInventoryItem =>
+        !!i && typeof i === 'object' && (i as QuinoaInventoryItem).itemType === 'Pet'
+      )
+    : [];
+
+  return { items, capacity };
+}
+
+// ---------------------------------------------------------------------------
+// State updates
+// ---------------------------------------------------------------------------
+
+function updateFromSlice(slice: HutchSlice | null): void {
+  const s = slice ?? NULL_HUTCH_SLICE;
+
+  const petIds = new Set<string>();
+  for (const item of s.items) {
     if (!item) continue;
-    count++;
-    if (typeof item === 'object') {
-      const record = item as Record<string, unknown>;
-      const id = typeof record.id === 'string' ? record.id
-        : typeof record.itemId === 'string' ? record.itemId
-        : null;
-      if (id) petIds.add(id);
-    }
+    const id = typeof item.id === 'string' ? item.id : null;
+    if (id) petIds.add(id);
   }
 
-  state = { ...state, count, petIds, updatedAt: Date.now() };
+  const count = s.items.length;
+  const capacity = s.capacity;
+  const capacityLevel = hutchLevelForCapacity(capacity);
+
+  const changed = state.count !== count
+    || state.capacity !== capacity
+    || state.capacityLevel !== capacityLevel
+    || !setsEqual(state.petIds, petIds);
+
+  if (!changed) return;
+
+  state = { count, capacity, capacityLevel, petIds, updatedAt: Date.now() };
   notify();
-  if (!firstAtomValueSeen) {
-    firstAtomValueSeen = true;
+
+  if (!firstStateSeen) {
+    firstStateSeen = true;
     diag.publishOk(
       `count=${state.count}/${state.capacity} (level ${state.capacityLevel})`,
       {
@@ -118,16 +196,10 @@ function updateHutchItems(raw: unknown): void {
   }
 }
 
-function updateCapacityLevel(level: number): void {
-  const clamped = Math.max(0, Math.min(Math.floor(level), HUTCH_CAPACITY_BY_LEVEL.length - 1));
-  const capacity = HUTCH_CAPACITY_BY_LEVEL[clamped] ?? DEFAULT_HUTCH_CAPACITY;
-  if (state.capacityLevel === clamped && state.capacity === capacity) return;
-  state = { ...state, capacityLevel: clamped, capacity, updatedAt: Date.now() };
-  notify();
-  if (firstAtomValueSeen) {
-    // §7.2 — capacity upgrade is a meaningful state transition.
-    publishHutchHealth();
-  }
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,70 +207,26 @@ function updateCapacityLevel(level: number): void {
 // ---------------------------------------------------------------------------
 
 export async function startHutchStore(): Promise<void> {
-  if (hutchUnsub) return;
-  diag.register('Waiting for myPetHutchPetItemsAtom');
+  if (storageUnsub) return;
+  diag.register('Subscribing to state-tree hutch slice');
 
   try {
-    // Subscribe to hutch items atom
-    const hutchAtom = getAtomByLabel(HUTCH_ATOM_LABEL);
-    if (hutchAtom) {
-      hutchUnsub = await subscribeAtom(hutchAtom, (value: unknown) => {
-        updateHutchItems(value);
-      });
-    } else {
-      diag.warn('QPM-STORE-002', { atom: HUTCH_ATOM_LABEL });
-    }
-
-    // Subscribe to capacity level — try dedicated atom first
-    const capAtom = getAtomByLabel(CAPACITY_ATOM_LABEL);
-    if (capAtom) {
-      capacityUnsub = await subscribeAtom(capAtom, (value: unknown) => {
-        if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-          updateCapacityLevel(value);
-        }
-      });
-      log('[Hutch] Store initialized (reactive capacity via atom)');
-    } else {
-      // Fallback: read capacityLevel from myInventoryAtom.storages[] once
-      await resolveCapacityFromStorages();
-      log('[Hutch] Store initialized (capacity from storages fallback)');
-    }
+    storageUnsub = stateTreeSubscribe(
+      selectHutchSlice,
+      (slice) => updateFromSlice(slice),
+      'store:hutch',
+    );
+    log('[Hutch] Store initialized (state-tree subscription)');
   } catch (err) {
     diag.warn('QPM-STORE-001', { phase: 'startHutchStore' }, err);
     throw err;
   }
 }
 
-async function resolveCapacityFromStorages(): Promise<void> {
-  try {
-    const invAtom = getAtomByLabel(INVENTORY_ATOM_LABEL);
-    if (!invAtom) return;
-    const raw = await readAtomValue(invAtom);
-    if (!raw || typeof raw !== 'object') return;
-    const record = raw as Record<string, unknown>;
-    const storages = Array.isArray(record.storages) ? record.storages : [];
-    for (const st of storages) {
-      if (!st || typeof st !== 'object') continue;
-      const entry = st as Record<string, unknown>;
-      if (entry.decorId === 'PetHutch' || entry.id === 'PetHutch' || entry.storageId === 'PetHutch') {
-        const level = Number(entry.capacityLevel ?? entry.level);
-        if (Number.isFinite(level) && level >= 0) {
-          capacityFromStorages = true;
-          updateCapacityLevel(level);
-          return;
-        }
-      }
-    }
-  } catch { /* fallback failed — stays at default */ }
-}
-
 export function stopHutchStore(): void {
-  hutchUnsub?.();
-  hutchUnsub = null;
-  capacityUnsub?.();
-  capacityUnsub = null;
-  capacityFromStorages = false;
-  firstAtomValueSeen = false;
+  storageUnsub?.();
+  storageUnsub = null;
+  firstStateSeen = false;
   listeners.clear();
   state = {
     count: 0,
@@ -239,7 +267,7 @@ export function isHutchFull(): boolean {
 
 /** True if the hutch store is actively subscribed. */
 export function isHutchStoreActive(): boolean {
-  return hutchUnsub !== null;
+  return storageUnsub !== null;
 }
 
 // ---------------------------------------------------------------------------

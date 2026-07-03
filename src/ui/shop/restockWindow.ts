@@ -17,6 +17,7 @@ import {
   type RestockItem,
 } from '../../utils/restock/dataService';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
+import { watchDetach } from '../../utils/dom/dom';
 import { onSpritesReady } from '../../sprite-v2/compat';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
@@ -701,29 +702,25 @@ function renderShopRestockWindow(root: HTMLElement): void {
   });
 
   // -- Cleanup when window is removed --
-  const obs = new MutationObserver(() => {
-    if (!root.isConnected) {
-      obs.disconnect();
-      if (searchDebounceTimer !== null) window.clearTimeout(searchDebounceTimer);
-      if (saveUiTimer !== null) {
-        window.clearTimeout(saveUiTimer);
-        saveUiTimer = null;
-      }
-      if (historyChunkRaf !== null) {
-        cancelAnimationFrame(historyChunkRaf);
-        historyChunkRaf = null;
-      }
-      saveUiState();
-      hideSoundPopover();
-      flushPredCleanups();
-      flushHistCleanups();
-      stopWeatherDataUpdates();
-      stopTicker();
-      stopSpritesReady();
-      stopRestockDataUpdates();
+  watchDetach(root, () => {
+    if (searchDebounceTimer !== null) window.clearTimeout(searchDebounceTimer);
+    if (saveUiTimer !== null) {
+      window.clearTimeout(saveUiTimer);
+      saveUiTimer = null;
     }
+    if (historyChunkRaf !== null) {
+      cancelAnimationFrame(historyChunkRaf);
+      historyChunkRaf = null;
+    }
+    saveUiState();
+    hideSoundPopover();
+    flushPredCleanups();
+    flushHistCleanups();
+    stopWeatherDataUpdates();
+    stopTicker();
+    stopSpritesReady();
+    stopRestockDataUpdates();
   });
-  obs.observe(document.body, { childList: true, subtree: true });
 
   // -- Load data --
   const load = async (force = false): Promise<void> => {

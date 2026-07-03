@@ -2,6 +2,7 @@
 
 import { toggleWindow } from '../../core/modalWindow';
 import { storage } from '../../../utils/storage';
+import { watchDetach } from '../../../utils/dom/dom';
 import {
   getSellAllPetsSettings,
   setSellAllPetsKeybind,
@@ -508,14 +509,10 @@ function renderPetsWindow(root: HTMLElement): void {
     }
   });
 
-  // Cleanup on window root removal (MutationObserver)
-  const observer = new MutationObserver(() => {
-    if (!root.isConnected) {
-      observer.disconnect();
-      allCleanups.forEach(fn => fn());
-    }
+  // Cleanup on window root removal
+  watchDetach(root, () => {
+    allCleanups.forEach(fn => fn());
   });
-  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 // ---------------------------------------------------------------------------

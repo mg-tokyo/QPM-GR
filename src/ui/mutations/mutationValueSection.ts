@@ -3,6 +3,7 @@ import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '
 import { createCard, btn } from '../core/panelHelpers';
 import { log } from '../../utils/logger';
 import { t } from '../../i18n';
+import { watchDetach } from '../../utils/dom/dom';
 import type { UIState } from '../core/panelState';
 
 export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLElement {
@@ -192,19 +193,9 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
   const unsubscribe = subscribeToMutationValueTracking(render);
   const weatherUnsubscribe = subscribeToWeatherMutationTracking(render);
 
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      mutation.removedNodes.forEach((node) => {
-        if (node === root || (node as HTMLElement).contains?.(root)) {
-          unsubscribe();
-          weatherUnsubscribe();
-          observer.disconnect();
-        }
-      });
-    });
-  });
-  queueMicrotask(() => {
-    observer.observe(root.parentElement ?? document.body, { childList: true, subtree: true });
+  watchDetach(root, () => {
+    unsubscribe();
+    weatherUnsubscribe();
   });
 
   return root;

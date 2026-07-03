@@ -5,6 +5,7 @@ import { createToggle } from "../components";
 import { log } from "../../utils/logger";
 import { storage } from "../../utils/storage";
 import { t } from "../../i18n";
+import { watchDetach } from "../../utils/dom/dom";
 import { calculateMaxStrength } from "../../store/xpTracker";
 import { onActivePetInfos, type ActivePetInfo } from "../../store/pets";
 import {
@@ -237,14 +238,10 @@ export function buildModulesSection(uiState: UIState): HTMLElement {
     }
   };
 
-  const obs = new MutationObserver(() => {
-    if (!section.isConnected) {
-      obs.disconnect();
-      moduleCleanups.forEach((fn) => fn());
-      moduleCleanups = [];
-    }
+  watchDetach(section, () => {
+    moduleCleanups.forEach((fn) => fn());
+    moduleCleanups = [];
   });
-  obs.observe(document.body, { childList: true, subtree: true });
 
   customizeBtn.addEventListener("click", () => {
     const showing = togglePanel.style.display !== "none";

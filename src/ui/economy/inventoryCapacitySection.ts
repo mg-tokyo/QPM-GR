@@ -18,6 +18,7 @@ import {
 } from '../shop/restockAlerts/soundConfig';
 import { previewSound } from '../shop/restockAlerts/soundEngine';
 import { t } from '../../i18n';
+import { watchDetach } from '../../utils/dom/dom';
 
 const MIN_THRESHOLD = 1;
 const MAX_THRESHOLD = 100;
@@ -623,13 +624,9 @@ export function createInventoryCapacitySection(): HTMLElement {
 
   // -- Cleanup on detach --
   const unsubscribe = subscribeToInventoryCapacityConfig(syncUi);
-  const detachObserver = new MutationObserver(() => {
-    if (!document.documentElement.contains(root)) {
-      unsubscribe();
-      detachObserver.disconnect();
-    }
+  watchDetach(root, () => {
+    unsubscribe();
   });
-  detachObserver.observe(document.documentElement, { childList: true, subtree: true });
 
   return root;
 }

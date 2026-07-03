@@ -13,6 +13,8 @@ import {
 import { openInspector } from './inspectorShell';
 import { createEmptyState } from '../../components/emptyState';
 import { t } from '../../../i18n';
+import { isDiscordSurface } from '../../../utils/environment';
+import { closeDiscordActivity } from '../../../core/discordSdk';
 
 export function setRoomStatPills(totalRooms: number, visibleRooms: number, lastUpdatedAt?: string | null): void {
   const totalEl = document.getElementById('pr-total-rooms-pill');
@@ -357,10 +359,44 @@ export function renderRooms(rooms: RoomsMap): void {
     joinBtn.className = `qpm-button ${isFull ? 'qpm-button--negative' : 'qpm-button--positive'} pr-join-btn`;
     joinBtn.style.cssText = `flex: 1; padding: 10px; font-size: 14px; font-weight: 700; ${isFull ? 'background: linear-gradient(135deg, rgba(229,57,53,0.85), rgba(183,28,28,0.9)); border: 2px solid rgba(229,57,53,0.9); color: #fff;' : ''}`;
     joinBtn.textContent = isFull ? t('feature.publicRooms.fullBtn') : t('feature.publicRooms.joinBtn');
-    joinBtn.addEventListener('click', () => {
-      if (/^[a-zA-Z0-9_-]{1,64}$/.test(roomCode)) {
-        window.location.href = `/r/${roomCode}`;
+    joinBtn.addEventListener('click', async () => {
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(roomCode)) return;
+
+      const targetUrl = `https://magicgarden.gg/r/${roomCode}`;
+
+      if (!isDiscordSurface) {
+        window.location.href = `/r/${roomCode}${window.location.search}`;
+        return;
       }
+
+      // Discord Activity: the game bundle strips frame_id from the URL after
+      // boot (history.replaceState → '/'), so any full-page nav here would
+      // reload without frame_id and crash the SDK ctor. Open the target room
+      // in a new browser tab (bypassing the Discord iframe entirely), then
+      // close the activity to leave the Discord-instance room cleanly.
+      let opened = false;
+      const gmOpen = (globalThis as any).GM_openInTab || (globalThis as any).GM?.openInTab;
+      if (typeof gmOpen === 'function') {
+        try {
+          gmOpen(targetUrl, { active: true, insert: true, setParent: true });
+          opened = true;
+        } catch (err) {
+          console.warn('[QPM] GM_openInTab failed', err);
+        }
+      }
+      if (!opened) {
+        try {
+          const popup = window.open(targetUrl, '_blank', 'noopener');
+          opened = !!popup;
+        } catch { /* popup blocked */ }
+      }
+      if (!opened) {
+        try { await navigator.clipboard.writeText(targetUrl); } catch { /* denied */ }
+        showToast(t('feature.publicRooms.copiedLink'), 'info');
+        return;
+      }
+
+      await closeDiscordActivity('QPM: switching rooms');
     });
 
     const viewBtn = document.createElement('button');

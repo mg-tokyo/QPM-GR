@@ -1,6 +1,7 @@
 import { t } from '../../i18n';
 import { createCard } from '../core/panelHelpers';
 import { createToggle } from '../components/toggle';
+import { watchDetach } from '../../utils/dom/dom';
 import {
   getAutoReconnectConfig,
   updateAutoReconnectConfig,
@@ -154,13 +155,9 @@ export function createAutoReconnectSection(): HTMLElement {
   delayInput.addEventListener('blur', commitDelayInput);
 
   const unsubscribe = subscribeToAutoReconnectConfig(syncUi);
-  const detachObserver = new MutationObserver(() => {
-    if (!document.documentElement.contains(root)) {
-      unsubscribe();
-      detachObserver.disconnect();
-    }
+  watchDetach(root, () => {
+    unsubscribe();
   });
-  detachObserver.observe(document.documentElement, { childList: true, subtree: true });
 
   return root;
 }

@@ -324,6 +324,28 @@ export function getConfigGroup(): HubGroupDef {
     renderExpanded: renderShopKeybindsExpanded,
   };
 
+  const shopEnhancerCard: ExpandableCardConfig = {
+    key: 'shop-enhancer',
+    label: t('feature.shopEnhancer.settingTitle'),
+    description: t('feature.shopEnhancer.settingCaption'),
+    icon: { kind: 'emoji', value: '🏪' },
+    tier: 'expandable',
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      import('../../../integrations/ariesDetection').then(({ getAriesDetectionInfo }) => {
+        const info = getAriesDetectionInfo();
+        el.textContent = info.detected
+          ? t('feature.shopEnhancer.statusDetected', { via: info.detectedVia ?? '' })
+          : t('feature.shopEnhancer.statusNotDetected');
+      }).catch(() => { /* silent */ });
+    },
+    renderExpanded: (container) => {
+      import('../../sections/shopEnhancerSection').then(({ createShopEnhancerSection }) => {
+        container.appendChild(createShopEnhancerSection());
+      }).catch((e) => log('⚠️ Failed to load Shop Enhancer section', e));
+    },
+  };
+
   const panelShortcutCard: ExpandableCardConfig = {
     key: 'panel-shortcut',
     label: t('hub.config.panelShortcut.label'),
@@ -447,6 +469,6 @@ export function getConfigGroup(): HubGroupDef {
     id: 'config',
     label: t('hub.config.label'),
     icon: { kind: 'emoji', value: '⚙️' },
-    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, getDiagnosticsCard(), resetToursCard],
+    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, getDiagnosticsCard(), resetToursCard],
   };
 }

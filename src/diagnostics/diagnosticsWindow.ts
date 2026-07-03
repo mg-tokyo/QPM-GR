@@ -8,6 +8,7 @@ import type { CopyPayloadOptions } from './copyPayload';
 import { errorBuffer } from './errorBuffer';
 import { healthBus } from './healthBus';
 import type { AggregateStatus, ErrorBufferEntry, SubsystemHealth } from './types';
+import { watchDetach } from '../utils/dom/dom';
 
 export const DIAGNOSTICS_WINDOW_ID = 'qpm-diagnostics';
 export const DIAGNOSTICS_WINDOW_TITLE = '🩺 QPM Diagnostics';
@@ -580,18 +581,14 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
   });
 
   // Best-effort cleanup when the root is removed from DOM.
-  const observer = new MutationObserver(() => {
-    if (!root.isConnected) {
+  try {
+    const detachHandle = watchDetach(root, () => {
       for (const fn of state.cleanup) {
         try { fn(); } catch { /* ignore */ }
       }
-      observer.disconnect();
-    }
-  });
-  try {
-    observer.observe(document.body, { childList: true, subtree: true });
-    state.cleanup.push(() => observer.disconnect());
+    });
+    state.cleanup.push(() => detachHandle.disconnect());
   } catch {
-    // Document may not be ready in odd hosts — skip the observer.
+    // Document may not be ready in odd hosts — skip the detach watcher.
   }
 }

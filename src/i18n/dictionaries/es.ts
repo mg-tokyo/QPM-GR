@@ -183,6 +183,16 @@ const es: Dictionary = {
   'feature.shopKeybinds.toolShop': 'Herramientas',
   'feature.shopKeybinds.decorShop': 'Decoración',
 
+  // ── Feature: Shop Enhancer (Aries co-existence) ────────────────────────
+  'feature.shopEnhancer.disabledForAries': "[VERIFY] Shop enhancer paused — Aries Mod is providing the shop reorder & Buy All. You can override in QPM settings.",
+  'feature.shopEnhancer.settingTitle': '[VERIFY] Shop enhancer',
+  'feature.shopEnhancer.settingCaption': '[VERIFY] Auto: turns off when Aries Mod is detected. Force On/Off overrides detection. Change takes effect on next reload.',
+  'feature.shopEnhancer.modeAuto': '[VERIFY] Auto',
+  'feature.shopEnhancer.modeForceOn': '[VERIFY] Force On',
+  'feature.shopEnhancer.modeForceOff': '[VERIFY] Force Off',
+  'feature.shopEnhancer.statusDetected': '[VERIFY] Aries: detected ({via})',
+  'feature.shopEnhancer.statusNotDetected': '[VERIFY] Aries: not detected',
+
   // ── Feature: Bulk Favorite ─────────────────────────────────────────────
   'feature.bulkFav.title': 'Favoritos masivos',
   'feature.bulkFav.description': 'Bloquea o desbloquea todos los objetos de una especie de una vez.',
@@ -1488,6 +1498,7 @@ const es: Dictionary = {
   'feature.publicRooms.tapAvatarHint': 'Toca un avatar para abrir el Inspector',
   'feature.publicRooms.joinBtn': 'Unirse',
   'feature.publicRooms.fullBtn': 'Llena',
+  'feature.publicRooms.copiedLink': 'Enlace de la sala copiado al portapapeles',
   'feature.publicRooms.noPlayersInRoom': 'No hay jugadores visibles en esta sala',
   'feature.publicRooms.retry': 'Reintentar',
   'feature.publicRooms.playersInRoom': 'Jugadores en {roomId}',

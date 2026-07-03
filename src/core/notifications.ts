@@ -99,3 +99,21 @@ export function clearNotifications(feature?: string): void {
   }
   emit();
 }
+
+// ── Once-per-session dedupe ────────────────────────────────────────────────
+const _oncePerSessionSeen: Set<string> = new Set();
+
+/**
+ * Fires `notify()` only if this `key` has not fired in the current page
+ * session. Cleared on page reload. Use for compat notices that would spam
+ * on every window mount.
+ */
+export function notifyOncePerSession(
+  args: Omit<NotificationEvent, 'id' | 'timestamp'> & { key: string },
+): NotificationEvent | null {
+  if (_oncePerSessionSeen.has(args.key)) return null;
+  _oncePerSessionSeen.add(args.key);
+  const { key: _key, ...rest } = args;
+  void _key;
+  return notify(rest);
+}

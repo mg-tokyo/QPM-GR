@@ -8,6 +8,7 @@ import {
 } from '../../../features/standalone/textureSwapper';
 import { notify } from '../../../core/notifications';
 import { t } from '../../../i18n';
+import { watchDetach } from '../../../utils/dom/dom';
 import { WINDOW_ID, defaultState } from './types';
 import type { WindowState } from './types';
 import { clearThumbnailCache } from './thumbnailCache';
@@ -386,13 +387,9 @@ function renderWindow(root: HTMLElement): void {
   // window without a slide-out the next time the user reopens, because
   // renderWindow() only runs on the FIRST open. The slide-out's own
   // reposition() detects `display:none` on the modal and hides itself.
-  const obs = new MutationObserver(() => {
-    if (!root.isConnected) {
-      obs.disconnect();
-      clearThumbnailCache();
-      for (const fn of cleanups) fn();
-      cleanups.length = 0;
-    }
+  watchDetach(root, () => {
+    clearThumbnailCache();
+    for (const fn of cleanups) fn();
+    cleanups.length = 0;
   });
-  obs.observe(document.body, { childList: true, subtree: true });
 }

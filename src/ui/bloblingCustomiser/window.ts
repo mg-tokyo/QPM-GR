@@ -1,6 +1,7 @@
 import { toggleWindow } from '../core/modalWindow';
 import { t } from '../../i18n';
 import { log } from '../../utils/logger';
+import { watchDetach } from '../../utils/dom/dom';
 import {
   initSession, destroySession, onSessionChange,
   selectColor, cycleSlot, selectSlotByFilename, getSession,
@@ -115,14 +116,10 @@ export function openBloblingCustomiserWindow(): void {
         destroySession();
       });
 
-      const observer = new MutationObserver(() => {
-        if (!root.isConnected) {
-          observer.disconnect();
-          for (const fn of cleanups) { try { fn(); } catch { /* */ } }
-        }
+      const detachHandle = watchDetach(root, () => {
+        for (const fn of cleanups) { try { fn(); } catch { /* */ } }
       });
-      observer.observe(root.parentElement ?? document.body, { childList: true, subtree: true });
-      cleanups.push(() => observer.disconnect());
+      cleanups.push(() => detachHandle.disconnect());
     },
     '560px',
     'min(680px, calc(100vh - 32px))',

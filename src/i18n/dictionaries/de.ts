@@ -185,6 +185,16 @@ const de: Dictionary = {
   'feature.shopKeybinds.toolShop': 'Werkzeuge',
   'feature.shopKeybinds.decorShop': 'Dekoration',
 
+  // ── Feature: Shop Enhancer (Aries co-existence) ────────────────────────
+  'feature.shopEnhancer.disabledForAries': "[VERIFY] Shop enhancer paused — Aries Mod is providing the shop reorder & Buy All. You can override in QPM settings.",
+  'feature.shopEnhancer.settingTitle': '[VERIFY] Shop enhancer',
+  'feature.shopEnhancer.settingCaption': '[VERIFY] Auto: turns off when Aries Mod is detected. Force On/Off overrides detection. Change takes effect on next reload.',
+  'feature.shopEnhancer.modeAuto': '[VERIFY] Auto',
+  'feature.shopEnhancer.modeForceOn': '[VERIFY] Force On',
+  'feature.shopEnhancer.modeForceOff': '[VERIFY] Force Off',
+  'feature.shopEnhancer.statusDetected': '[VERIFY] Aries: detected ({via})',
+  'feature.shopEnhancer.statusNotDetected': '[VERIFY] Aries: not detected',
+
   // ── Feature: Bulk Favorite ─────────────────────────────────────────────
   'feature.bulkFav.title': 'Massenfavoriten',
   'feature.bulkFav.description': 'Alle Ernte-Erzeugnisse einer Art auf einmal sperren oder entsperren.',
@@ -1654,6 +1664,7 @@ const de: Dictionary = {
   'feature.publicRooms.tapAvatarHint': 'Tippe auf einen Avatar, um den Inspektor zu öffnen',
   'feature.publicRooms.joinBtn': 'Beitreten',
   'feature.publicRooms.fullBtn': 'Voll',
+  'feature.publicRooms.copiedLink': 'Raum-Link in die Zwischenablage kopiert',
   'feature.publicRooms.noPlayersInRoom': 'Keine Spieler in diesem Raum sichtbar',
   'feature.publicRooms.retry': 'Erneut versuchen',
   'feature.publicRooms.playersInRoom': 'Spieler in {roomId}',

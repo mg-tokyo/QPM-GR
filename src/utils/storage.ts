@@ -273,10 +273,19 @@ const QPM_STORAGE_KEYS = [
 
   // Diagnostics
   'qpm.diagnostics.errorBuffer.v1',
+  'qpm.diagnostics.errorBuffer.migration.v1',
+
+  // Shop Enhancer (Aries co-existence gate)
+  'qpm.shopEnhancer.mode',
 
   // Tour system (dynamic keys: qpm.tour.<windowId>)
   // Cleared by storage.clear() via the qpm.* prefix match
 ];
+
+/** Shop enhancer mode key. Values: 'auto' | 'force-on' | 'force-off'. */
+export const SHOP_ENHANCER_MODE_KEY = 'qpm.shopEnhancer.mode';
+export type ShopEnhancerMode = 'auto' | 'force-on' | 'force-off';
+export const SHOP_ENHANCER_MODES: readonly ShopEnhancerMode[] = ['auto', 'force-on', 'force-off'];
 
 /**
  * Dynamic key prefixes for window position/size/state keys that are generated at runtime.

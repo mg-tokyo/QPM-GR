@@ -12,6 +12,10 @@ import { applySorting, getScannedRows } from './sorting';
 import { extractCtorsFromRows, injectPanelBuyAll, removeBuyAllButtons, resetCtorCache } from './buyAllButton';
 import { removeInjected } from '../../../core/pixiScene';
 import type { ShopCategory } from '../../../types/shops';
+import { storage, SHOP_ENHANCER_MODE_KEY, type ShopEnhancerMode } from '../../../utils/storage';
+import { isAriesInstalled } from '../../../integrations/ariesDetection';
+import { notifyOncePerSession } from '../../../core/notifications';
+import { t } from '../../../i18n';
 
 const POLL_TIMER_ID = 'shop-enhancer-poll';
 const POLL_INTERVAL_MS = 300;
@@ -102,6 +106,33 @@ function handleShopClose(): void {
 
 export function startShopEnhancer(): void {
   if (started) return;
+
+  // Compat gate: when Aries Mod is running, its Buy-All + reorder features
+  // (upstream: src/utils/shopUtility.ts@main lines 720 & 867) duplicate ours
+  // and cause double DOM/PIXI mutation. Default 'auto' skips startup when
+  // Aries is detected; the user can override via Settings → Shop enhancer.
+  // Detection is kicked off in main.ts before this phase; here we read the
+  // cached sync result.
+  const mode = (storage.get(SHOP_ENHANCER_MODE_KEY) as ShopEnhancerMode | null) ?? 'auto';
+  const ariesDetected = isAriesInstalled();
+  const shouldRun =
+    mode === 'force-on'  ? true  :
+    mode === 'force-off' ? false :
+                           !ariesDetected;
+
+  if (!shouldRun) {
+    log(`[ShopEnhancer] Skipped — mode=${mode}, aries=${ariesDetected}`);
+    if (mode === 'auto' && ariesDetected) {
+      notifyOncePerSession({
+        key: 'shopEnhancer.disabledForAries',
+        feature: 'shopEnhancer',
+        level: 'info',
+        message: t('feature.shopEnhancer.disabledForAries'),
+      });
+    }
+    return;
+  }
+
   started = true;
   startDetection(handleShopOpen, handleShopClose);
   log('[ShopEnhancer] Started');

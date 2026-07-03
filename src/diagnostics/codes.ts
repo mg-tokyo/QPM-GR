@@ -108,6 +108,29 @@ register({
 });
 
 register({
+  code: 'QPM-STATETREE-001',
+  subsystem: 'stateTree',
+  category: 'core',
+  severity: 'warn',
+  title: 'State not ready',
+  description: 'stateTree.select() was called before the state tree finished initializing.',
+  devNotes: 'src/core/stateTree.ts — caller ran a selector before initStateTree() resolved. Selectors should be called after main.ts init phase completes, or subscribe() used instead (which queues until ready).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-STATETREE-002',
+  subsystem: 'stateTree',
+  category: 'core',
+  severity: 'warn',
+  title: 'Selector threw',
+  description: 'A state-tree selector function threw during evaluation.',
+  devNotes: 'src/core/stateTree.ts — a subscriber\'s selector encountered an unexpected state shape. Subscriber isolated; delivered null. Check the selector for missing optional-chaining or a stale type assumption.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+
+register({
   code: 'QPM-CATALOG-001',
   subsystem: 'catalogs',
   category: 'core',

@@ -195,6 +195,16 @@ const en: Dictionary = {
   'feature.shopKeybinds.toolShop': 'Tools',
   'feature.shopKeybinds.decorShop': 'Decor',
 
+  // ── Feature: Shop Enhancer (Aries co-existence) ────────────────────────
+  'feature.shopEnhancer.disabledForAries': "Shop enhancer paused — Aries Mod is providing the shop reorder & Buy All. You can override in QPM settings.",
+  'feature.shopEnhancer.settingTitle': 'Shop enhancer',
+  'feature.shopEnhancer.settingCaption': 'Auto: turns off when Aries Mod is detected. Force On/Off overrides detection. Change takes effect on next reload.',
+  'feature.shopEnhancer.modeAuto': 'Auto',
+  'feature.shopEnhancer.modeForceOn': 'Force On',
+  'feature.shopEnhancer.modeForceOff': 'Force Off',
+  'feature.shopEnhancer.statusDetected': 'Aries: detected ({via})',
+  'feature.shopEnhancer.statusNotDetected': 'Aries: not detected',
+
   // ── Feature: Bulk Favorite ─────────────────────────────────────────────
   'feature.bulkFav.title': 'Bulk Favorite',
   'feature.bulkFav.description': 'Quickly lock or unlock all produce of a species at once.',
@@ -1664,6 +1674,7 @@ const en: Dictionary = {
   'feature.publicRooms.tapAvatarHint': 'Tap an avatar to open the Inspector',
   'feature.publicRooms.joinBtn': 'Join',
   'feature.publicRooms.fullBtn': 'Full',
+  'feature.publicRooms.copiedLink': 'Room link copied to clipboard',
   'feature.publicRooms.noPlayersInRoom': 'No players visible in this room',
   'feature.publicRooms.retry': 'Retry',
   'feature.publicRooms.playersInRoom': 'Players in {roomId}',

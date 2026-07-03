@@ -11,6 +11,7 @@ import {
   type RestockItem,
 } from "../../utils/restock/dataService";
 import { visibleInterval } from "../../utils/scheduling/timerManager";
+import { watchDetach } from "../../utils/dom/dom";
 import { buildChangelogCard } from "../sections/changelog";
 
 // ---------------------------------------------------------------------------
@@ -300,14 +301,10 @@ function buildShopRestockSection(): HTMLElement {
   });
 
   // Cleanup on container detach
-  const obs = new MutationObserver(() => {
-    if (!section.isConnected) {
-      obs.disconnect();
-      stopTicker();
-      stopRestockSync();
-    }
+  watchDetach(section, () => {
+    stopTicker();
+    stopRestockSync();
   });
-  obs.observe(document.body, { childList: true, subtree: true });
 
   // Load data
   const cached = getRestockDataSync();

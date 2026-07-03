@@ -5,6 +5,7 @@ import { getActivePetInfos } from '../store/pets';
 import { createNamedLogger } from '../diagnostics/logger';
 import { healthBus } from '../diagnostics/healthBus';
 import { shareGlobal } from '../core/pageContext';
+import { getAriesDetectionInfo } from './ariesDetection';
 
 const ariesLog = createNamedLogger('integrationAries');
 let busRegistered = false;
@@ -176,12 +177,19 @@ export function exposeAriesBridge(): void {
     // Sample the team count once at expose time so Diagnostics has something
     // to show. The bridge function itself is read-on-demand by consumers.
     const teamCount = buildTeamsPayload().length;
-    ariesLog.info('exposed QPM_ARIES_BRIDGE', { teams: teamCount });
+    const detection = getAriesDetectionInfo();
+    ariesLog.info('exposed QPM_ARIES_BRIDGE', { teams: teamCount, detected: detection.detected });
     healthBus.publish({
       subsystem: 'integrationAries',
       status: 'ok',
-      message: 'Bridge exposed',
-      metrics: { teams: teamCount },
+      message: detection.detected
+        ? `Bridge exposed (Aries detected via ${detection.detectedVia})`
+        : 'Bridge exposed',
+      metrics: {
+        teams: teamCount,
+        detected: detection.detected ? 1 : 0,
+        detectedVia: detection.detectedVia ?? '',
+      },
     });
   } catch (error) {
     ariesLog.error('QPM-ARIES-001', { what: 'expose' }, error);

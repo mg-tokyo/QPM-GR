@@ -51,11 +51,29 @@ export interface WebSocketSendResult {
   reason?: WebSocketSendFailureReason;
 }
 
-interface RoomConnection {
+/**
+ * Room-state patch as delivered by `MagicCircle_RoomConnection.subscribeToPatches`.
+ * Shape is game-internal; we only care that fullState fires after each patch.
+ */
+export type RoomPatchListener = (patches: unknown, fullState: unknown) => void;
+
+export interface RoomConnection {
   sendMessage: (payload: unknown) => void;
   ws?: WebSocket | null;
   socket?: WebSocket | null;
   currentWebSocket?: WebSocket | null;
+  /**
+   * Fires `cb(patches, fullState)` on every room state update. Returns an
+   * unsubscribe function when available. Preferred atom-free source for the
+   * state tree — see src/core/stateTree.ts. Only present on newer bundles.
+   */
+  subscribeToPatches?: (cb: RoomPatchListener) => (() => void) | void;
+  /**
+   * Synchronous snapshot of the last-delivered room state. Alternative to
+   * subscribing when only a one-shot read is needed. Present when
+   * subscribeToPatches is present.
+   */
+  lastRoomStateJsonable?: unknown;
 }
 
 interface PageWithRoomConnection extends Window {
@@ -94,7 +112,7 @@ const DEFAULT_SCOPE_PATH = ['Room', 'Quinoa'] as const;
 const DEFAULT_THROTTLE_MS = 100;
 const lastSentAt = new Map<string, number>();
 
-function getRoomConnection(): RoomConnection | null {
+export function getRoomConnection(): RoomConnection | null {
   return (pageWindow as PageWithRoomConnection).MagicCircle_RoomConnection ?? null;
 }
 

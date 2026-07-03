@@ -34,6 +34,7 @@ import { normalizeSpeciesKey } from '../../utils/helpers';
 import { findVariantBadge } from '../../features/mutations/data/variantBadges';
 import { toggleWindow } from '../core/modalWindow';
 import { t } from '../../i18n';
+import { watchDetach } from '../../utils/dom/dom';
 
 // ---------------------------------------------------------------------------
 // Theme tokens
@@ -1575,13 +1576,9 @@ export function renderCalculator(root: HTMLElement): void {
       renderCalculator(root);
     });
 
-    const observer = new MutationObserver(() => {
-      if (!root.isConnected) {
-        observer.disconnect();
-        unsub();
-      }
+    watchDetach(root, () => {
+      unsub();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
     return;
   }
 
@@ -1622,13 +1619,9 @@ export function renderCalculator(root: HTMLElement): void {
     currentUpdateFn?.();
   });
 
-  const detachObserver = new MutationObserver(() => {
-    if (!root.isConnected) {
-      detachObserver.disconnect();
-      stopSpritesReady();
-    }
+  watchDetach(root, () => {
+    stopSpritesReady();
   });
-  detachObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 // ---------------------------------------------------------------------------

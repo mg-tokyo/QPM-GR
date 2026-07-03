@@ -5,6 +5,7 @@ import { getAbilityDefinition } from '../../features/pets/data/petAbilities';
 import { createCard, btn } from '../core/panelHelpers';
 import { log } from '../../utils/logger';
 import { t } from '../../i18n';
+import { watchDetach } from '../../utils/dom/dom';
 
 // Value-generating abilities only
 const VALUE_ABILITIES = new Set([
@@ -254,16 +255,10 @@ export function createStatsOverviewSection(): HTMLElement {
   const unsubscribe3 = subscribeToWeatherMutationTracking(() => updateStats());
 
   // Cleanup on element removal
-  const observer = new MutationObserver(() => {
-    if (!document.contains(root)) {
-      unsubscribe1();
-      unsubscribe2();
-      unsubscribe3();
-      observer.disconnect();
-    }
-  });
-  queueMicrotask(() => {
-    observer.observe(root.parentElement ?? document.body, { childList: true, subtree: true });
+  watchDetach(root, () => {
+    unsubscribe1();
+    unsubscribe2();
+    unsubscribe3();
   });
 
   return root;

@@ -17,6 +17,14 @@ import { log } from '../utils/logger';
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
 import type { Subsystem } from '../diagnostics/types';
+import {
+  select as stateTreeSelect,
+  selectSync as stateTreeSelectSync,
+  subscribe as stateTreeSubscribe,
+  stateTreeReady,
+} from './stateTree';
+import type { Selector as StateTreeSelector } from './stateTree';
+import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 
 const diagLog = createNamedLogger('atomRegistry');
 const ATOM_SUBSYSTEM: Subsystem = 'atomRegistry';
@@ -57,6 +65,12 @@ interface AtomFinder<TValue> {
     key: AtomRegistryKey;
     path: AtomPath;
   };
+  /**
+   * When true (and fallbackSource is set), try the fallbackSource route FIRST,
+   * before label / structure. Used for keys whose convenience atom is being
+   * deprecated upstream in favor of a state-tree path (e.g. shopsAtom).
+   */
+  preferState?: boolean;
 }
 
 // ── Value type map ───────────────────────────────────────────────────────
@@ -122,16 +136,24 @@ const KNOWN_MODALS = new Set([
 
 const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   // ── Existing 10 keys ──────────────────────────────────────────────────
-  weather: { label: /^weather(?:State)?Atom$/i },
+  // Upstream dev has confirmed convenience atoms (shopsAtom, weatherAtom, etc.)
+  // are being deprecated. Where a state-tree path is stable, preferState:true
+  // makes it the primary source; the label-atom stays as fallback until removed.
+  weather: {
+    label: /^weather(?:State)?Atom$/i,
+    fallbackSource: { key: 'state', path: ['child', 'data', 'weather'] },
+    preferState: true,
+  },
   shops: {
     label: /^shops(?:Data)?Atom$/i,
     transform: (v) => (isRec(v) ? (v as ShopsAtomSnapshot) : null),
     fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] },
+    preferState: true,
   },
-  seedShop: { label: /^shops(?:Data)?Atom$/i, path: 'seed', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
-  eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
-  toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
-  decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] } },
+  seedShop: { label: /^shops(?:Data)?Atom$/i, path: 'seed', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
+  eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
+  toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
+  decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
   coinsBalance: { label: /^my(?:Coins|coins)(?:Count|Balance)?Atom$/i, defaultValue: 0 },
   creditsBalance: { label: /^credits(?:Balance|Count)?Atom$/i, defaultValue: 0 },
   magicDustBalance: { label: /^my(?:MagicDust|magicDust)(?:Count|Balance)?Atom$/i, defaultValue: 0 },
@@ -156,6 +178,8 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   userSlots: {
     label: /^(?:room)?[Uu]ser[Ss]lots(?:Data)?Atom$/i,
     structure: (v) => Array.isArray(v) && v.length > 0 && isRec(v[0]) && 'playerId' in v[0],
+    fallbackSource: { key: 'state', path: ['child', 'data', 'userSlots'] },
+    preferState: true,
   },
   myUserSlotIdx: {
     label: /^my(?:User)?Slot(?:Idx|Index)(?:Data)?Atom$/i,
@@ -174,7 +198,14 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
     label: /^myPetHutch(?:Pet)?Items(?:Data)?Atom$/i,
     prefer: (label) => /PetItems/i.test(label),
   },
-  hutchCapacity: { label: /^myPetHutch(?:Capacity|Cap)(?:Level)?(?:Data)?Atom$/i },
+  // The game renamed myPetHutchCapacityLevelAtom → myPetHutchCapacitySlotsAtom in
+  // the pr-2994 bundle (2026-06/07). The value semantics also changed: level
+  // (0-10) → slots (actual 25/30/35…100 count). Widened regex matches both so
+  // the registry health check resolves either way. Feature-level consumers that
+  // depend on level→slots interpretation are handled at the caller (e.g.
+  // src/store/hutch.ts) — this finder just answers "is there a hutch-capacity
+  // atom present."
+  hutchCapacity: { label: /^myPetHutch(?:Capacity|Cap)(?:Level|Slots)?(?:Data)?Atom$/i },
   petHutch: { label: /^myPetHutch(?:Storages)?(?:Data)?Atom$/i },
 
   // ── Inventory ─────────────────────────────────────────────────────────
@@ -220,9 +251,19 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
 
 interface CachedResolution {
   atom: unknown;
-  resolvedVia: 'label' | 'structure' | 'fallback';
+  resolvedVia: 'label' | 'structure' | 'fallback' | 'stateTree';
   foundLabel: string;
   pathPrefix?: ReadonlyArray<string | number>;
+  /**
+   * When true, reads/subscribes for this key route through `stateTree.select`
+   * and `stateTree.subscribe` instead of jotaiBridge on the resolved atom.
+   * Set for keys with `preferState: true` + a `fallbackSource` (state-tree
+   * path). The `atom` field still holds the resolved parent (`stateAtom`) as a
+   * fallback for the boot-race window when stateTree isn't ready yet.
+   */
+  useStateTree?: boolean;
+  /** Cached selector for stateTree route — built lazily on first use. */
+  cachedSelector?: StateTreeSelector<unknown>;
 }
 
 const resolutionCache = new Map<AtomRegistryKey, CachedResolution>();
@@ -244,12 +285,56 @@ function atomLabel(atom: unknown): string {
  * 4. Fallback source → resolve through a parent registry key with path prefix
  * 5. All fail → return null, mark missing
  */
+function resolveViaFallbackSource(key: AtomRegistryKey, finder: AtomFinder<unknown>): CachedResolution | null {
+  if (!finder.fallbackSource) return null;
+  const parentResolution = resolveAtom(finder.fallbackSource.key);
+  if (!parentResolution) return null;
+  const prefix = toPathArray(finder.fallbackSource.path);
+  const parentPrefix = parentResolution.pathPrefix ?? [];
+  // When preferState is set, mark this resolution as stateTree-routed so the
+  // reader/subscriber APIs go through the memoizing state-tree layer instead
+  // of firing the atom's raw subscriber on every state event.
+  const useStateTree = finder.preferState === true;
+  const entry: CachedResolution = {
+    atom: parentResolution.atom,
+    resolvedVia: useStateTree ? 'stateTree' : 'fallback',
+    foundLabel: useStateTree ? `via stateTree` : `via ${finder.fallbackSource.key}`,
+    pathPrefix: [...parentPrefix, ...prefix],
+    useStateTree,
+  };
+  resolutionCache.set(key, entry);
+  missingLog.delete(key);
+  log(`[AtomRegistry] Resolved '${key}' via ${entry.resolvedVia}`);
+  return entry;
+}
+
+function ensureSelector<T>(resolution: CachedResolution, finder: AtomFinder<T>): StateTreeSelector<unknown> {
+  if (resolution.cachedSelector) return resolution.cachedSelector;
+  const pathPrefix = resolution.pathPrefix ?? [];
+  const finderPath = finder.path;
+  const selector: StateTreeSelector<unknown> = (state: QuinoaStateSnapshot) => {
+    let base: unknown = state;
+    if (pathPrefix.length > 0) base = getPathValue(base, pathPrefix);
+    if (finderPath !== undefined) base = getPathValue(base, finderPath);
+    return base;
+  };
+  resolution.cachedSelector = selector;
+  return selector;
+}
+
 function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
   const cached = resolutionCache.get(key);
   if (cached) return cached;
 
-  const finder = ATOM_FINDERS[key];
+  const finder = ATOM_FINDERS[key] as AtomFinder<unknown> | undefined;
   if (!finder) return null;
+
+  // preferState: try state-tree path FIRST. Set on keys whose convenience atom
+  // is being upstream-deprecated (e.g. shopsAtom → stateAtom.child.data.shops).
+  if (finder.preferState && finder.fallbackSource) {
+    const viaState = resolveViaFallbackSource(key, finder);
+    if (viaState) return viaState;
+  }
 
   // Label regex
   const byLabel = findAtomsByLabel(finder.label);
@@ -294,29 +379,30 @@ function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
     }
   }
 
-  // Fallback source — resolve through a parent registry key
-  if (finder.fallbackSource) {
-    const parentResolution = resolveAtom(finder.fallbackSource.key);
-    if (parentResolution) {
-      const prefix = toPathArray(finder.fallbackSource.path);
-      const parentPrefix = parentResolution.pathPrefix ?? [];
-      const entry: CachedResolution = {
-        atom: parentResolution.atom,
-        resolvedVia: 'fallback',
-        foundLabel: `via ${finder.fallbackSource.key}`,
-        pathPrefix: [...parentPrefix, ...prefix],
-      };
-      resolutionCache.set(key, entry);
-      missingLog.delete(key);
-      log(`[AtomRegistry] Resolved '${key}' via fallback source '${finder.fallbackSource.key}'`);
-      return entry;
-    }
+  // Fallback source — resolve through a parent registry key (when preferState
+  // was false or its parent wasn't yet resolvable).
+  if (finder.fallbackSource && !finder.preferState) {
+    const viaState = resolveViaFallbackSource(key, finder);
+    if (viaState) return viaState;
   }
 
-  // All fail
+  // Boot-race guard: suppress warning during the early phase where the game's
+  // core atoms haven't finished loading. For non-'state' keys, gate on 'state'
+  // being resolvable — that's a much better "boot has advanced" signal than
+  // "any atoms present at all," because modules like store/store.ts (playerAtom)
+  // and atoms/inventoryAtoms.ts load after the initial batch. For 'state' key
+  // itself, keep the empty-cache fallback.
+  const bootStillWarming = key === 'state'
+    ? getAllAtomEntries().length === 0
+    : !resolutionCache.has('state');
+  if (bootStillWarming) return null;
+
   if (!missingLog.has(key)) {
-    diagLog.warn('QPM-ATOM-001', { key });
+    // Add to missingLog BEFORE warning, so any reentrant call from the logging
+    // path (or a synchronous concurrent async chain that hasn't yielded yet)
+    // sees the dedup flag and doesn't double-warn.
     missingLog.add(key);
+    diagLog.warn('QPM-ATOM-001', { key });
   }
   return null;
 }
@@ -378,6 +464,20 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
     return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 
+  // stateTree route: use the memoized selector against the current snapshot.
+  // If stateTree isn't ready yet (boot race), fall through to the legacy atom
+  // read below on the same resolved parent atom.
+  if (resolution.useStateTree && stateTreeReady()) {
+    const selector = ensureSelector(resolution, finder);
+    const selected = stateTreeSelect(selector);
+    if (selected !== null || finder.defaultValue !== undefined) {
+      // pathPrefix has already been applied inside the selector — pass undefined
+      // to applyTransform so it doesn't double-walk.
+      return applyTransform(finder, selected, key, undefined) as RegistryValue<K>;
+    }
+    // selected === null with no default → fall through to legacy read below.
+  }
+
   try {
     const raw = await readRawAtomValue(resolution.atom);
     return applyTransform(finder, raw, key, resolution.pathPrefix) as RegistryValue<K>;
@@ -408,6 +508,21 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
     return null;
   }
 
+  // stateTree route: subscribe via the memoized fan-out. Callback fires only
+  // when the derived sub-value changes, not on every unrelated state event.
+  if (resolution.useStateTree) {
+    const selector = ensureSelector(resolution, finder);
+    const stop = stateTreeSubscribe(
+      selector,
+      (selected) => {
+        const value = applyTransform(finder, selected, key, undefined);
+        cb((value ?? null) as RegistryValue<K>);
+      },
+      `atomRegistry:${key}`,
+    );
+    return stop;
+  }
+
   const unsubscribe = await subscribeRawAtom(resolution.atom, (raw: unknown) => {
     const value = applyTransform(finder, raw, key, resolution.pathPrefix);
     cb((value ?? null) as RegistryValue<K>);
@@ -427,6 +542,18 @@ export function readAtomValueSync<K extends AtomRegistryKey>(key: K): RegistryVa
 
   if (!resolution) {
     return (finder?.defaultValue ?? null) as RegistryValue<K>;
+  }
+
+  // stateTree route: try selectSync (uses cached snapshot with store fallback)
+  // If it returns null and we have a default, use that; otherwise fall through
+  // to the legacy path so keydown-time reads still work during the boot-race
+  // window before stateTree is ready.
+  if (resolution.useStateTree) {
+    const selector = ensureSelector(resolution, finder);
+    const selected = stateTreeSelectSync(selector);
+    if (selected !== null || finder.defaultValue !== undefined) {
+      return applyTransform(finder, selected, key, undefined) as RegistryValue<K>;
+    }
   }
 
   const store = getCachedStore();
@@ -465,7 +592,7 @@ export async function writeRegistryAtom<K extends AtomRegistryKey>(
 // ── Health check + catalog ───────────────────────────────────────────────
 
 export interface AtomHealthCheckResult {
-  registered: Array<{ key: string; label: string; resolvedVia: 'label' | 'structure' | 'fallback' }>;
+  registered: Array<{ key: string; label: string; resolvedVia: 'label' | 'structure' | 'fallback' | 'stateTree' }>;
   missing: string[];
   unregistered: Array<{ label: string; populated: boolean }>;
 }

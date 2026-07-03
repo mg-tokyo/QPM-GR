@@ -2,6 +2,28 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.7",
+    date: "2026-07-03",
+    notes: [
+      "Improved DOM observer pressure: consolidated ~16 document-root MutationObservers used for window detach detection into one shared microtask-coalesced observer. Reduces watcher load, especially when a second userscript (Aries Mod) is installed alongside QPM.",
+      "Added Aries Mod co-existence gate: QPM's shop enhancer now auto-disables when Aries Mod is detected (Aries provides Buy All + shop reorder). Override via Hub → Config → Shop enhancer (Auto / Force On / Force Off).",
+      "Added domObserver diagnostics subsystem with mutations/sec, flush rate, and coalesce ratio metrics — visible in the diagnostics window and via window.__QPM_DOM_OBSERVER__.stats() for live inspection.",
+      "Improved co-existence with Aries Mod, installing both mods together no longer causes the heavy lag previously reported, with the default automatic behavior requiring no configuration.",
+      "Added a Shop enhancer card to Hub, Config that shows whether Aries Mod is detected and lets you choose Auto, Force On, or Force Off for the QPM shop enhancer.",
+    ],
+  },
+  {
+    version: "3.3.6",
+    date: "2026-07-03",
+    notes: [
+      "Fixed Public Rooms Join button crashing with an Authentication Failed error when playing through the Discord web activity, Join on Discord now opens the target room in a new browser tab and cleanly closes the current activity so the previous room is left behind",
+      "Fixed Pet Hutch capacity display showing the default 25 instead of the real slot count after the game renamed the underlying capacity atom in the current bundle",
+      "Fixed Pet Teams apply silently skipping the put-back to hutch step when the incorrect capacity default made the client think the hutch was already full, displaced actives now land in the hutch instead of the inventory",
+      "Improved diagnostics window: overall status returns to OK, four stale atom warnings (avatarData, selectedItem, growSlotIndex, shopPurchases) purged from the persistent error buffer, and boot-race noise for player and hutchCapacity keys suppressed",
+      "Added state tree subsystem that reads game state through the room connection patch stream when available, so shop, weather, user slot, and hutch data continue working as the game progressively deprecates convenience atoms",
+    ],
+  },
+  {
     version: "3.3.5",
     date: "2026-07-01",
     notes: [
