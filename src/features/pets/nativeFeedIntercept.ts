@@ -1,11 +1,6 @@
-// src/features/nativeFeedIntercept.ts
-// Intercepts the game's native "Instant Feed" buttons to use QPM's inventory-aware food selection.
-//
-// The game renders buttons with data-instant-feed-btn="1" (and aria-label="Instant Feed: <Species>")
-// inside the pet panel that appears when clicking a pet on the canvas.
-//
-// Strategy: a single document-level capture listener — no MutationObserver, no debounce,
-// no WeakSet. This fires synchronously before React's delegated bubble-phase handler.
+// Intercepts the game's native "Instant Feed" buttons (data-instant-feed-btn="1" / aria-label="Instant Feed: <Species>")
+// to use QPM's inventory-aware food selection. Single document-level capture listener fires
+// synchronously before React's delegated bubble-phase handler — no MutationObserver, no debounce, no WeakSet.
 
 import { log } from '../../utils/logger';
 import { getActivePetInfos } from '../../store/pets';
@@ -16,10 +11,7 @@ const SELECTOR_ARIA = '[aria-label^="Instant Feed:"]';
 
 let captureListener: ((e: Event) => void) | null = null;
 
-// ---------------------------------------------------------------------------
 // petId resolution — triple fallback
-// ---------------------------------------------------------------------------
-
 function resolvePetSlotIndex(btn: HTMLElement): number {
   const pets = getActivePetInfos();
   if (pets.length === 0) return -1;
@@ -52,10 +44,6 @@ function resolvePetSlotIndex(btn: HTMLElement): number {
 
   return -1;
 }
-
-// ---------------------------------------------------------------------------
-// Click handler
-// ---------------------------------------------------------------------------
 
 async function handleFeed(btn: HTMLElement): Promise<void> {
   const slotIndex = resolvePetSlotIndex(btn);
@@ -92,10 +80,6 @@ function onDocumentClick(e: Event): void {
 
   void handleFeed(btn);
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export function startNativeFeedIntercept(): void {
   if (captureListener) return; // idempotent

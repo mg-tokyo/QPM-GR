@@ -1,6 +1,3 @@
-// src/utils/petDataTester.ts
-// Test utility to verify we can access all detailed pet statistics for comparison hub
-
 import { getActivePetInfos } from '../store/pets';
 import { getAbilityDefinition, getAllAbilityDefinitions } from '../features/pets/data/petAbilities';
 import { getHungerCapForSpecies } from '../features/pets/data/petHungerCaps';
@@ -67,9 +64,6 @@ export interface DetailedPetStats {
   raw: unknown;
 }
 
-/**
- * Detailed ability statistics
- */
 export interface AbilityStats {
   // === BASIC INFO ===
   id: string;                          // e.g., "SeedFinderIV"
@@ -106,9 +100,6 @@ export interface AbilityStats {
   notes: string | null;                // Additional info
 }
 
-/**
- * Calculate detailed ability statistics
- */
 const DYNAMIC_ABILITY_IDS = new Set([
   'ProduceScaleBoost',
   'ProduceScaleBoostII',
@@ -250,9 +241,6 @@ function calculateAbilityStats(
   };
 }
 
-/**
- * Get detailed statistics for a pet
- */
 export function getDetailedPetStats(
   petInfo: ReturnType<typeof getActivePetInfos>[0],
 ): DetailedPetStats {
@@ -366,9 +354,6 @@ export function getDetailedPetStats(
   };
 }
 
-/**
- * Format coin value for display
- */
 function formatCoinValue(value: number): string {
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}B coins`;
@@ -609,7 +594,6 @@ export function testComparePets(slotIndexA: number, slotIndexB: number): void {
           const formattedA = formatCoinValue(abilityA.gardenValuePerProc);
           const formattedB = formatCoinValue(abilityB.gardenValuePerProc);
           
-          // Show comparison with formatted values
           const strA = formattedA;
           const strB = formattedB;
           let winner = '';

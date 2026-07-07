@@ -491,7 +491,7 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
     const out = document.createElement('canvas');
     out.width = w;
     out.height = h;
-    const octx = out.getContext('2d', { willReadFrequently: true })!;
+    const octx = out.getContext('2d')!;
     octx.imageSmoothingEnabled = false;
 
     // Draw base sprite
@@ -502,7 +502,7 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
       const layerCanvas = document.createElement('canvas');
       layerCanvas.width = w;
       layerCanvas.height = h;
-      const lctx = layerCanvas.getContext('2d', { willReadFrequently: true })!;
+      const lctx = layerCanvas.getContext('2d')!;
       lctx.imageSmoothingEnabled = false;
       lctx.save();
       lctx.translate(w * aX, h * aY);
@@ -527,7 +527,7 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
         const maskedCanvas = document.createElement('canvas');
         maskedCanvas.width = ow;
         maskedCanvas.height = oCan.height;
-        const mctx = maskedCanvas.getContext('2d', { willReadFrequently: true })!;
+        const mctx = maskedCanvas.getContext('2d')!;
         mctx.imageSmoothingEnabled = false;
         mctx.drawImage(oCan, 0, 0);
         mctx.globalCompositeOperation = 'destination-in';

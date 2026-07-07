@@ -1,7 +1,4 @@
-// src/utils/ariesTeamImport.ts
-// One-time import of pet teams from Aries Mod's localStorage storage.
-// Reads the Aries teams (keyed under qws:pets:teams:v1 and fallbacks),
-// normalizes them, and merges into QPM's pet teams config.
+// One-time import of pet teams from Aries Mod's localStorage (keyed under qws:pets:teams:v1 and fallbacks) into QPM's pet teams config.
 
 import { readTeamsFromLocalStorage } from '../integrations/ariesBridge';
 import { getTeamsConfig, createTeam, setTeamSlot } from '../store/petTeams';
@@ -17,15 +14,10 @@ function slotsFingerprint(slots: (string | null)[]): string {
   return slots.slice(0, 3).map(s => s ?? '').join('|');
 }
 
-/**
- * Import pet teams from Aries Mod localStorage into QPM's pet teams config.
- * Deduplicates by name + slot fingerprint.
- * Returns how many teams were imported vs skipped.
- */
+/** Imports Aries Mod pet teams into QPM's config, deduplicating by name + slot fingerprint. */
 export function importAriesTeams(): AriesImportResult {
   const ariesTeams = readTeamsFromLocalStorage();
 
-  // Exclude the synthetic "Active Pets" team
   const realTeams = ariesTeams.filter(t => t.source !== 'activePets');
 
   if (realTeams.length === 0) {
@@ -34,7 +26,6 @@ export function importAriesTeams(): AriesImportResult {
 
   const config = getTeamsConfig();
 
-  // Build fingerprints of existing teams to detect duplicates
   const existingFingerprints = new Set<string>(
     config.teams.map(t => `${t.name}::${slotsFingerprint(t.slots)}`),
   );
@@ -55,7 +46,6 @@ export function importAriesTeams(): AriesImportResult {
       continue;
     }
 
-    // Use createTeam + setTeamSlot so the store handles persistence correctly
     const newTeam = createTeam(raw.name);
     for (let i = 0; i < 3; i++) {
       if (slots[i]) {

@@ -1,10 +1,16 @@
 // src/features/standalone/tooltipInjection/types.ts
 // Shared types and constants for tooltip injection subsystem.
 //
-// MG migrated the plant tile info from a DOM tooltip to a persistent PIXI
-// card labelled `GardenInfoCardSystem`. Our overlay tracks that PIXI node's
-// screen-space bounds and renders QPM rows (journal letters + sell price)
-// in a DOM element positioned directly beneath it.
+// MG migrated the plant tile info to a PIXI system. The parent container is
+// `GardenInfoCardSystem`, which stacks (top-to-bottom):
+//   1. GardenInfoActionToggles
+//   2. GardenInfoPlantAbilities  ← ability hover tooltip lives above this
+//   3. GardenInfoOrientControls
+//   4. GardenInfoCardRow → GardenInfoObjectCard  ← the actual tile card
+//
+// We anchor to `GardenInfoObjectCard` (the innermost bottom card, not the
+// whole system) so our overlay sits directly above the tile card without
+// colliding with the ability panel or its hover tooltip.
 
 import type { VariantBadge } from '../../mutations/data/variantBadges';
 
@@ -52,8 +58,22 @@ export const CROP_SIZE_STORAGE_KEY = 'qpm.cropSize.v1';
 export const CROP_SIZE_LEGACY_KEY = 'cropSizeIndicator:config';
 export const TILE_VALUE_STORAGE_KEY = 'qpm.tileValue.v1';
 
-/** PIXI label of the persistent tile info card MG renders at the bottom of the canvas. */
+/**
+ * Whole tile info panel — includes the object card AND the ability chip
+ * section above it, so anchoring above these bounds naturally puts the
+ * overlay above the ability chip too. Confirmed findable in the PIXI tree
+ * (debug probe 2026-07-07).
+ */
 export const GARDEN_INFO_CARD_LABEL = 'GardenInfoCardSystem';
+
+/**
+ * Inner popup child of `PixiTooltip`. Critical: MG creates ~27 PixiTooltip
+ * containers (one per registered hover target) that all stay `visible=true`
+ * forever. Only the inner `TooltipPopup` toggles visibility on hover
+ * (PixiTooltip.ts:148-149 — starts `visible=false`). Scanning by this label
+ * with a visibility filter gives us only *actively-showing* tooltips.
+ */
+export const PIXI_TOOLTIP_LABEL = 'TooltipPopup';
 
 /** Root DOM id for the QPM overlay that piggybacks on GardenInfoCardSystem. */
 export const OVERLAY_ID = 'qpm-tile-info-overlay';

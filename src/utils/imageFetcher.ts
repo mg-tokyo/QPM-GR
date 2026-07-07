@@ -1,6 +1,3 @@
-// src/utils/imageFetcher.ts
-// Fetch external images via GM_xmlhttpRequest to bypass CSP img-src restrictions.
-
 /**
  * Fetch an image URL via GM_xmlhttpRequest (bypasses CSP img-src),
  * returning a blob object URL. Falls back to the original URL if

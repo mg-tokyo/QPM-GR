@@ -1,7 +1,7 @@
 // src/store/seedSilo.ts
 // Reactive seed silo state: slot count, capacity, and upgrade level via Jotai subscription.
 
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
@@ -11,8 +11,6 @@ let firstAtomValueSeen = false;
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const INVENTORY_ATOM_LABEL = 'myInventoryAtom';
 
 export const DEFAULT_SEED_SILO_CAPACITY = 25;
 
@@ -143,20 +141,19 @@ function updateFromInventory(raw: unknown): void {
 
 export async function startSeedSiloStore(): Promise<void> {
   if (inventoryUnsub) return;
-  diag.register('Waiting for myInventoryAtom (silo slice)');
+  diag.register('Waiting for inventory (silo slice)');
 
   try {
-    const invAtom = getAtomByLabel(INVENTORY_ATOM_LABEL);
-    if (!invAtom) {
-      diag.warn('QPM-STORE-002', { atom: INVENTORY_ATOM_LABEL });
-      return;
-    }
-
-    inventoryUnsub = await subscribeAtom(invAtom, (value: unknown) => {
+    const unsub = await subscribeAtomValue('inventory', (value) => {
       updateFromInventory(value);
     });
 
-    log(`[SeedSilo] Store initialized (capacity=${state.capacity}, count=${state.count}, level=${state.capacityLevel})`);
+    if (unsub) {
+      inventoryUnsub = unsub;
+      log(`[SeedSilo] Store initialized (capacity=${state.capacity}, count=${state.count}, level=${state.capacityLevel})`);
+    } else {
+      diag.warn('QPM-STORE-002', { atom: 'inventory (registry)' });
+    }
   } catch (err) {
     diag.warn('QPM-STORE-001', { phase: 'startSeedSiloStore' }, err);
     throw err;

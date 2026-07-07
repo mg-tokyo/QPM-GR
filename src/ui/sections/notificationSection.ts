@@ -432,7 +432,6 @@ function buildNotificationListItem(event: NotificationEvent): HTMLButtonElement 
     color: var(--qpm-text);
     cursor: pointer;
     transition: all 0.2s ease;
-    backdrop-filter: blur(8px);
   `;
   button.addEventListener('click', () => handleNotificationSelection(event));
 

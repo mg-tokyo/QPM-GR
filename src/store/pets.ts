@@ -1,7 +1,7 @@
 // src/store/pets.ts
 // Bridge for active pet information via myPrimitivePetSlotsAtom.
 
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../features/pets/data/petHungerCaps';
 import { getAbilityDefinition } from '../features/pets/data/petAbilities';
 import { log } from '../utils/logger';
@@ -832,18 +832,18 @@ function normalizePetInfos(raw: unknown): ActivePetInfo[] {
 export async function startPetInfoStore(): Promise<void> {
   if (unsubscribe || initializing) return;
   initializing = true;
-  diag.register('Waiting for myPrimitivePetSlotsAtom');
+  diag.register('Waiting for activePetSlots (registry)');
   try {
-    petInfosAtomRef = getAtomByLabel(PET_INFOS_LABEL);
-    if (!petInfosAtomRef) {
-      diag.warn('QPM-STORE-002', { atom: PET_INFOS_LABEL });
-      throw new Error('myPrimitivePetSlotsAtom not found in jotai cache');
-    }
-    unsubscribe = await subscribeAtom(petInfosAtomRef, (value) => {
+    const unsub = await subscribeAtomValue('activePetSlots', (value) => {
       lastRawValue = value;
       cachedInfos = normalizePetInfos(value);
       notify();
     });
+    if (!unsub) {
+      diag.warn('QPM-STORE-002', { atom: 'activePetSlots (registry)' });
+      throw new Error('activePetSlots atom not resolved');
+    }
+    unsubscribe = unsub;
 
     // Re-normalize once catalogs load so strength/level calculations
     // (which depend on petCatalog maxScale/hoursToMature) get correct values.

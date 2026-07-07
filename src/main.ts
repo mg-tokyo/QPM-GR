@@ -1600,6 +1600,27 @@ async function initialize(): Promise<void> {
     log('State tree init failed (non-fatal)', error);
   });
 
+  // Reactive subscription manager: attaches to stateTree.subscribeToPatches
+  // (and later to DOM input events). Kill switches (`qpm.perf.reactive.*Enabled`)
+  // stay off until explicit rollout — the manager stays idle until a
+  // subscriber routes through it via a hint. See design at
+  // .claude/plans/2026-07-07-reactive-systems-design.md.
+  try {
+    const {
+      initReactiveManager,
+      reactiveManager,
+      isReactiveTierEnabled,
+    } = await import('./core/reactive/manager');
+    const { installReactiveHook } = await import('./core/jotaiBridge');
+    initReactiveManager();
+    installReactiveHook({
+      isTierEnabled: isReactiveTierEnabled,
+      subscribe: reactiveManager.subscribe.bind(reactiveManager),
+    });
+  } catch (error) {
+    log('Reactive manager init failed (non-fatal)', error);
+  }
+
   await initializeAntiAfk().catch((error) => {
     log('Anti-AFK initialization failed', error);
   });
@@ -1819,6 +1840,29 @@ async function initialize(): Promise<void> {
 
   // Also expose to __QPM_INTERNAL__ for legacy/diagnostic access
   const { getGardenFiltersConfig, updateGardenFiltersConfig, applyGardenFiltersNow } = await import('./features/garden/filters');
+  const { getJotaiSubscriptionStats, debugReactiveRouting } = await import('./core/jotaiBridge');
+  const { getReactiveStats } = await import('./core/reactive/manager');
+  const { storage: reactiveKillStorage } = await import('./utils/storage');
+  const KILL_SWITCH_KEYS = {
+    state:     'qpm.perf.reactive.stateEnabled',
+    client:    'qpm.perf.reactive.clientEnabled',
+    composite: 'qpm.perf.reactive.compositeEnabled',
+    dynamic:   'qpm.perf.reactive.dynamicEnabled',
+  } as const;
+  type ReactiveTierName = keyof typeof KILL_SWITCH_KEYS;
+  const setReactiveKillSwitch = (tier: ReactiveTierName, enabled: boolean): { tier: string; key: string; enabled: boolean } => {
+    const key = KILL_SWITCH_KEYS[tier];
+    if (!key) throw new Error(`Unknown tier "${tier}". Use one of: ${Object.keys(KILL_SWITCH_KEYS).join(', ')}. Reload after flipping.`);
+    reactiveKillStorage.set(key, enabled);
+    return { tier, key, enabled };
+  };
+  const getReactiveKillSwitches = (): Record<ReactiveTierName, boolean> => {
+    const out = {} as Record<ReactiveTierName, boolean>;
+    for (const [tier, key] of Object.entries(KILL_SWITCH_KEYS) as Array<[ReactiveTierName, string]>) {
+      out[tier] = reactiveKillStorage.get<boolean>(key, true);
+    }
+    return out;
+  };
   const globalTarget = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
   (globalTarget as any).__QPM_INTERNAL__ = {
     ...(globalTarget as any).__QPM_INTERNAL__,
@@ -1828,6 +1872,11 @@ async function initialize(): Promise<void> {
     getGardenFiltersConfig,
     updateGardenFiltersConfig,
     applyGardenFiltersNow,
+    getJotaiSubscriptionStats,
+    getReactiveStats,
+    setReactiveKillSwitch,
+    getReactiveKillSwitches,
+    debugReactiveRouting,
   };
 
 

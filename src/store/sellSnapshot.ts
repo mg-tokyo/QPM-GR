@@ -57,11 +57,14 @@ export async function startSellSnapshotWatcher(): Promise<void> {
       return;
     }
 
+    // 'composite' tier: actionAtom composes state (weather, garden tile) +
+    // client-local input (activeActionIndex). Reactive manager subscribes to
+    // both trigger sources; refs-check dedups redundant fires.
     unsubscribe = await subscribeAtom<string>(actionAtom, (value) => {
       if (value === SELL_ALL_ACTION) {
         void captureProduceSnapshot();
       }
-    });
+    }, 'composite');
 
     log('✅ Sell snapshot watcher initialized');
   } catch (error) {

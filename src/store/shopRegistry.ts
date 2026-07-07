@@ -2,7 +2,8 @@
 // Tracks the set of shop ids the game state exposes. Persists discovered
 // ids so consumers don't need to re-discover on every page load.
 
-import { getAtomByLabel, getCachedStore, subscribeAtom } from '../core/jotaiBridge';
+import { getAtomByLabel, getCachedStore } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { log } from '../utils/logger';
 import {
   STANDARD_SHOP_IDS,
@@ -65,14 +66,13 @@ export async function startShopRegistry(): Promise<void> {
   discoveredIds = loadPersistedDiscovered();
   exposeDebugNamespace();
   startPromise = (async () => {
-    const quinoaDataAtomRef = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
-    if (!quinoaDataAtomRef) return;
     try {
-      quinoaDataUnsubscribe = await subscribeAtom<unknown>(quinoaDataAtomRef, (value) => {
+      const unsub = await subscribeAtomValue('quinoaData', (value) => {
         ingestShopsSnapshot(value);
       });
+      if (unsub) quinoaDataUnsubscribe = unsub;
     } catch (err) {
-      log('⚠️ shopRegistry: failed to subscribe to quinoaDataAtom', err);
+      log('⚠️ shopRegistry: failed to subscribe to quinoaData', err);
     }
   })();
   return startPromise;

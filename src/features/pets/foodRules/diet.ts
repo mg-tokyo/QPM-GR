@@ -1,6 +1,3 @@
-// src/features/petFoodRules/diet.ts
-// Diet resolution, inventory parsing, food selection
-
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import { getPetDiet, getCropBaseSellPrice } from '../../../catalogs/gameCatalogs';
 import { pageWindow } from '../../../core/pageContext';
@@ -472,7 +469,6 @@ function buildEligibleFoods(
     });
   }
 
-  // Selected food first, then alphabetical
   entries.sort((a, b) => {
     if (a.key === selectedKey) return -1;
     if (b.key === selectedKey) return 1;
@@ -606,12 +602,10 @@ export function evaluateFoodAvailabilityForPet(
     selected = selectWithFavoritedPolicy((skipFavorited) => findMatchingFood(snapshot, skipFavorited, (normalized) => matchAllowed(normalized)));
   }
 
-  // Check if hunger potion is available and allowed
   const potionCount = getHungerPotionCount();
   const potionAllowed = !context.forbiddenNormalized.has(HUNGER_POTION_KEY);
   const potionIsPreferred = context.preferredNormalized === HUNGER_POTION_KEY;
 
-  // If potion is preferred and available, select it over crops
   if (potionIsPreferred && potionCount > 0 && potionAllowed) {
     const potionSelection: FoodSelection = {
       item: {
@@ -627,7 +621,6 @@ export function evaluateFoodAvailabilityForPet(
       isHungerPotion: true,
     };
 
-    // Count: crop count + potion count
     const countPredicate = context.preferredNormalized
       ? ((normalized: string) => matchPreferred(normalized) || matchAllowed(normalized))
       : matchAllowed;
@@ -639,7 +632,6 @@ export function evaluateFoodAvailabilityForPet(
     };
   }
 
-  // If no crop was selected but potion is allowed and available, fall back to potion
   if (!selected && potionCount > 0 && potionAllowed) {
     return {
       selected: {
@@ -670,7 +662,6 @@ export function evaluateFoodAvailabilityForPet(
   const skipFavoritedForCount = context.avoidFavorited;
   const countItems = listMatchingFood(snapshot, skipFavoritedForCount, (normalized) => countPredicate(normalized));
 
-  // Include potion count in total available if potion is allowed
   const extraPotionCount = (potionCount > 0 && potionAllowed) ? potionCount : 0;
   const selectedKey = normalizeInventoryFood(selected.item);
 

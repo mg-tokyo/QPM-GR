@@ -1,4 +1,3 @@
-// src/features/petFoodRules/index.ts
 // Public entry point — re-exports everything that was originally exported
 
 // Types

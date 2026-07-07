@@ -37,6 +37,7 @@ let currentSnapshot: QuinoaStateSnapshot | null = null;
 let ready = false;
 let diagnosticsStarted = false;
 let sourceUnsubscribe: (() => void) | null = null;
+let welcomeUnsubscribe: (() => void) | null = null;
 let activeSource: 'roomPatches' | 'stateAtom' | 'none' = 'none';
 
 interface Subscriber {
@@ -50,6 +51,27 @@ interface Subscriber {
 
 let nextSubscriberId = 1;
 const subscribers = new Map<number, Subscriber>();
+
+/**
+ * A single RFC 6902 JSON Patch operation. Emitted by the game engine's
+ * PartialState handling (verified at Thundershop RoomConnection.ts:681-683,
+ * uses `Operation[]` from `fast-json-patch`). Paths are JSON Pointer strings
+ * rooted at stateAtom's value.
+ */
+export interface PatchOp {
+  readonly op: string;
+  readonly path: string;
+  readonly value?: unknown;
+}
+
+/**
+ * Direct patch subscriber, receiving the raw ops plus the fresh snapshot.
+ * Used by the reactive manager (src/core/reactive/manager.ts) to route
+ * subscribers by patch path. Separate from the selector-memoized
+ * `subscribe()` API above.
+ */
+type PatchListener = (patches: readonly PatchOp[], newState: QuinoaStateSnapshot) => void;
+const patchListeners = new Set<PatchListener>();
 
 // Subscribers registered before init resolves; drained on ready.
 interface PendingSubscription {
@@ -96,7 +118,7 @@ function publishHealth(status: 'ok' | 'degraded' | 'failed', message: string): v
 
 // ─── Core: subscribe once to stateAtom, fan out to subscribers ────────────
 
-function onStateEvent(next: unknown): void {
+function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
   currentSnapshot = (next as QuinoaStateSnapshot | null) ?? null;
   lastFireTs = Date.now();
   if (!currentSnapshot) return;
@@ -118,7 +140,18 @@ function onStateEvent(next: unknown): void {
     sub.hasFired = true;
     try { sub.callback(derived); } catch { /* subscriber threw — swallow */ }
   }
+
+  // Fan out to patch listeners (reactive manager). Empty patch array from
+  // the stateAtom fallback path is a signal "full snapshot, no patch data".
+  if (patchListeners.size > 0) {
+    const p = patches ?? EMPTY_PATCHES;
+    for (const listener of patchListeners) {
+      try { listener(p, currentSnapshot); } catch { /* swallow */ }
+    }
+  }
 }
+
+const EMPTY_PATCHES: readonly PatchOp[] = Object.freeze([]);
 
 /**
  * Try to attach via the game engine's direct patch stream. This is the
@@ -133,15 +166,43 @@ function tryAttachRoomPatchSubscription(): boolean {
     const rc = getRoomConnection();
     if (!rc || typeof rc.subscribeToPatches !== 'function') return false;
 
-    const seedState = rc.lastRoomStateJsonable;
-    if (seedState) onStateEvent(seedState);
-
-    const maybeUnsub = rc.subscribeToPatches((_patches, fullState) => {
-      onStateEvent(fullState);
+    const result: unknown = rc.subscribeToPatches((patches, fullState) => {
+      // Patches are the RFC 6902 Operation[] from fast-json-patch (verified
+      // at Thundershop RoomConnection.ts:82-86 + :681-683).
+      onStateEvent(fullState, patches as readonly PatchOp[]);
     });
-    if (typeof maybeUnsub === 'function') {
-      sourceUnsubscribe = maybeUnsub;
+
+    // Thundershop bundle returns `{ currentState, unsubscribe }`
+    // (RoomConnection.ts:143-156). Older bundles may return a bare unsubscribe
+    // function. Support both without `any`.
+    if (result && typeof result === 'object' && 'unsubscribe' in result) {
+      const unsub = (result as { unsubscribe?: unknown }).unsubscribe;
+      if (typeof unsub === 'function') sourceUnsubscribe = unsub as () => void;
+      const seed = (result as { currentState?: unknown }).currentState;
+      if (seed && typeof seed === 'object') onStateEvent(seed);
+    } else if (typeof result === 'function') {
+      sourceUnsubscribe = result as () => void;
     }
+
+    // subscribeToWelcome (RoomConnection.ts:172-184) fires on connect and
+    // every reconnect, and immediately with the current state if already
+    // connected. Public API (unlike the private lastRoomStateJsonable field).
+    // Belt-and-braces seed for the case where subscribeToPatches's currentState
+    // was empty or absent (older bundles).
+    if (typeof rc.subscribeToWelcome === 'function') {
+      try {
+        const welcomeResult: unknown = rc.subscribeToWelcome((welcomeState: unknown) => {
+          if (welcomeState && typeof welcomeState === 'object') onStateEvent(welcomeState);
+        });
+        if (welcomeResult && typeof welcomeResult === 'object' && 'unsubscribe' in welcomeResult) {
+          const welcomeUnsub = (welcomeResult as { unsubscribe?: unknown }).unsubscribe;
+          if (typeof welcomeUnsub === 'function') welcomeUnsubscribe = welcomeUnsub as () => void;
+        } else if (typeof welcomeResult === 'function') {
+          welcomeUnsubscribe = welcomeResult as () => void;
+        }
+      } catch { /* subscribeToWelcome unavailable on this bundle — non-fatal */ }
+    }
+
     activeSource = 'roomPatches';
     diagLog.info('stateTree source: MagicCircle_RoomConnection.subscribeToPatches');
     return true;
@@ -155,7 +216,9 @@ async function attachStateAtomSubscription(): Promise<void> {
   if (!stateAtom) {
     throw new Error('stateTree: stateAtom not found in jotaiAtomCache');
   }
-  sourceUnsubscribe = await subscribeAtom(stateAtom, onStateEvent);
+  // No patches available on the fallback path — patch listeners get an
+  // empty patch array as "full-state, treat as reload."
+  sourceUnsubscribe = await subscribeAtom(stateAtom, (v: unknown) => onStateEvent(v, EMPTY_PATCHES));
   // subscribeAtom fires an initial value synchronously via `invoke()` — but
   // read once more via readAtomValue to guarantee currentSnapshot is warm even
   // if the initial invoke was lost to a subscribe-race.
@@ -226,7 +289,9 @@ export async function initStateTree(): Promise<void> {
 /** Tear down. Idempotent. Used for test hot-reloads. */
 export function stopStateTree(): void {
   try { sourceUnsubscribe?.(); } catch { /* ignore */ }
+  try { welcomeUnsubscribe?.(); } catch { /* ignore */ }
   sourceUnsubscribe = null;
+  welcomeUnsubscribe = null;
   subscribers.clear();
   pending.length = 0;
   currentSnapshot = null;
@@ -304,6 +369,26 @@ function readSnapshotFromStore(): QuinoaStateSnapshot | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Subscribe to raw JSON Patch operations flowing from the game engine.
+ * Callback fires once per state event with the patches plus the fresh
+ * snapshot. Empty patch array signals "no patch data available for this
+ * event" (fallback stateAtom source, welcome message, or dev-tools reload).
+ *
+ * Selector-memoized `subscribe()` remains the right API for feature code;
+ * patch subscribers are for infrastructure (reactive manager) that routes by
+ * path prefix.
+ *
+ * Returns an unsubscribe function. Safe before init — patches simply don't
+ * flow until the source attaches.
+ */
+export function subscribeToPatches(
+  cb: (patches: readonly PatchOp[], newState: QuinoaStateSnapshot) => void,
+): () => void {
+  patchListeners.add(cb);
+  return () => { patchListeners.delete(cb); };
 }
 
 /**

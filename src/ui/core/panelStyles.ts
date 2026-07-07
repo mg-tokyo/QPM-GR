@@ -108,7 +108,7 @@ export function ensurePanelStyles(): void {
     max-width: calc(100vw - 32px);
     max-height: calc(100vh - 32px);
     overflow: hidden;
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(6px);
     border: 1px solid var(--qpm-border);
     contain: layout style;
   }
@@ -963,6 +963,30 @@ export function ensurePanelStyles(): void {
   .qpm-about__heart-btn--pop {
     animation: qpm-heart-pop 250ms ease-out;
   }
+  .qpm-about__kofi-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--qpm-surface-2);
+    border: 1px solid rgba(143, 130, 255, 0.22);
+    border-radius: var(--qpm-radius-sm);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+  }
+  .qpm-about__kofi-btn:hover {
+    background: var(--qpm-surface-3);
+  }
+  .qpm-about__kofi-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: #ff5e5b;
+  }
+  .qpm-about__kofi-btn--pop {
+    animation: qpm-heart-pop 250ms ease-out;
+  }
   .qpm-about__tokyo-card {
     display: flex;
     align-items: center;
@@ -1003,6 +1027,7 @@ export function ensurePanelStyles(): void {
     }
     .qpm-tile-placeholder,
     .qpm-about__heart-btn--pop,
+    .qpm-about__kofi-btn--pop,
     .qpm-about__tokyo-card {
       animation: none;
       transition: none;

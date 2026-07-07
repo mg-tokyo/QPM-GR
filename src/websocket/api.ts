@@ -63,11 +63,23 @@ export interface RoomConnection {
   socket?: WebSocket | null;
   currentWebSocket?: WebSocket | null;
   /**
-   * Fires `cb(patches, fullState)` on every room state update. Returns an
-   * unsubscribe function when available. Preferred atom-free source for the
-   * state tree — see src/core/stateTree.ts. Only present on newer bundles.
+   * Fires `cb(patches, fullState)` on every room state update. Returns
+   * either a bare unsubscribe function (older bundles) or
+   * `{ currentState, unsubscribe }` (newest Thundershop bundle, verified
+   * at scraped-data/BetaGameSourceFiles/Thundershop/preview.magicgarden.gg/
+   * src/connection/RoomConnection.ts:143-156). Callers must handle both.
+   * Preferred atom-free source for the state tree — see src/core/stateTree.ts.
+   * Only present on newer bundles.
    */
-  subscribeToPatches?: (cb: RoomPatchListener) => (() => void) | void;
+  subscribeToPatches?: (cb: RoomPatchListener) => unknown;
+  /**
+   * Subscribe to Welcome messages: fires on initial connection and after
+   * reconnections; if already connected when subscribing, fires immediately
+   * with the current state. Returns a bare unsubscribe function. Verified
+   * at RoomConnection.ts:172-184 (Thundershop bundle). Only present on
+   * newer bundles.
+   */
+  subscribeToWelcome?: (cb: (state: unknown) => void) => unknown;
   /**
    * Synchronous snapshot of the last-delivered room state. Alternative to
    * subscribing when only a one-shot read is needed. Present when

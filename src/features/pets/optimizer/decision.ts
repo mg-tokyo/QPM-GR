@@ -193,9 +193,8 @@ export function analyzePet(
     });
   }
 
-  // Cross-mode safety: in slot_efficiency mode a pet's slot-efficiency rank can fall below top-3
-  // even when it's the outright specialist leader for a family (due to support-synergy scoring).
-  // Protect such pets from auto-sell — they are the best dedicated provider of that ability.
+  // Cross-mode safety: specialist leaders can fall below top-3 slot-efficiency rank due to
+  // support-synergy scoring; protect them from auto-sell.
   if (activeMode === 'slot_efficiency') {
     const specialistTopFamilies = specialistFamilyResults
       .filter((result) => result.rank < 3)

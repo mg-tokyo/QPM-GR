@@ -1,6 +1,4 @@
-// src/features/petTeamActions.ts
-// WebSocket message helpers for pet team operations.
-// SwapPet is handled by existing swapPetIntoActiveSlot() in petSwap.ts.
+// WebSocket helpers for pet team operations. SwapPet lives in petSwap.ts.
 
 import { log } from '../../utils/logger';
 import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
@@ -17,18 +15,13 @@ function sendAction(type: 'StorePet' | 'PlacePet' | 'ToggleFavoriteItem' | 'Togg
   return sent;
 }
 
-/**
- * Send an active pet to the hutch.
- * itemId = ActivePetInfo.slotId (the pet item UUID).
- */
+/** Send an active pet to the hutch. itemId = ActivePetInfo.slotId. */
 export function sendStorePet(itemId: string): WebSocketSendResult {
   return sendAction('StorePet', { itemId });
 }
 
 /**
- * Place a pet from inventory into an EMPTY active slot.
- * Only needed when the player has fewer active pets than the team requires.
- *
+ * Place a pet from inventory into an empty active slot.
  * position/tileType/localTileIndex are unverified defaults from Aries source.
  */
 export function sendPlacePet(
@@ -40,18 +33,12 @@ export function sendPlacePet(
   return sendAction('PlacePet', { itemId, position, tileType, localTileIndex });
 }
 
-/**
- * Toggle the favorited state of an item.
- * itemId = inventory item UUID.
- */
+/** Toggle favorited state. itemId = inventory item UUID. */
 export function sendToggleFavoriteItem(itemId: string): boolean {
   return sendAction('ToggleFavoriteItem', { itemId }).ok;
 }
 
-/**
- * Unlock a locked item (ToggleLockItem).
- * itemId = inventory item UUID.
- */
+/** Unlock a locked item. itemId = inventory item UUID. */
 export function sendToggleLockItem(itemId: string): boolean {
   return sendAction('ToggleLockItem', { itemId }).ok;
 }

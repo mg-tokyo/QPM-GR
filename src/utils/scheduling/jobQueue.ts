@@ -1,6 +1,4 @@
-// src/utils/jobQueue.ts
 // Frame-budgeted job queue for processing work without blocking the main thread
-// Based on Aries mod's JobQueue pattern
 
 export interface Job {
   key: string;

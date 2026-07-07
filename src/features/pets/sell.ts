@@ -1,7 +1,3 @@
-// src/features/petSell.ts
-// Location-aware sell pipeline for pets (active, hutch, or inventory).
-// Follows the same sell pattern as sellAllPets.ts (sendRoomAction → SellPet).
-
 import { readInventoryDirect } from '../../store/inventory';
 import { getActivePetInfos } from '../../store/pets';
 import { sendStorePet, sendToggleLockItem } from './teamActions';

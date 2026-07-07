@@ -1,6 +1,3 @@
-// src/data/petAbilities.ts
-// Ability metadata used for tracker projections.
-
 import {
   getAbilityDef,
   getAllAbilities,
@@ -22,11 +19,9 @@ export interface AbilityDefinition {
   effectValuePerProc?: number;
   effectUnit?: 'minutes' | 'xp' | 'coins';
   notes?: string;
-  // Wiki effect formula display
-  effectLabel?: string; // e.g., "Scale increase", "Growth time reduction", "Coin range"
-  effectBaseValue?: number; // e.g., 10 for "10% × STR"
-  effectSuffix?: string; // e.g., "%", "m", "" for ranges
-  // Weather requirement (for abilities like SnowyPetXpBoost)
+  effectLabel?: string;      // e.g., "Scale increase", "Growth time reduction", "Coin range"
+  effectBaseValue?: number;  // e.g., 10 for "10% × STR"
+  effectSuffix?: string;     // e.g., "%", "m", "" for ranges
   requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm';
 }
 
@@ -862,14 +857,13 @@ export function getAllAbilityDefinitions(): AbilityDefinition[] {
     return catalogDefinition ? mergeDefinitionWithCatalog(definition, catalogDefinition, definition.id) : definition;
   });
 
-  // Add catalog abilities that aren't in hardcoded list (FUTUREPROOF!)
+  // Append catalog-only abilities not in the hardcoded list.
   if (areCatalogsReady()) {
     const catalogAbilityIds = getAllAbilities();
     const existingIds = new Set(ABILITY_DEFINITIONS.map(d => normalizeKey(d.id)));
 
     for (const abilityId of catalogAbilityIds) {
       if (!existingIds.has(normalizeKey(abilityId))) {
-        // New ability from catalog - create basic definition
         const definition = buildDefinitionFromCatalog(abilityId, abilityId);
         if (definition) definitions.push(definition);
       }
@@ -881,7 +875,7 @@ export function getAllAbilityDefinitions(): AbilityDefinition[] {
 
 const STRENGTH_BASELINE = 100;
 const MIN_MULTIPLIER = 0.25;
-const MAX_CHANCE_PER_SECOND = 0.95 / 60; // Max 95% per minute = ~1.58% per second
+const MAX_CHANCE_PER_SECOND = 0.95 / 60; // cap: 95% per minute
 const DEFAULT_ROLL_MINUTES = 1;
 
 export interface AbilityStats {
@@ -889,30 +883,25 @@ export interface AbilityStats {
   chancePerRoll: number;
   rollPeriodMinutes: number;
   procsPerHour: number;
-  chancePerSecond: number; // Chance per second (game checks every second)
-  chancePerMinute: number; // Chance per minute (for display)
+  chancePerSecond: number;   // game rolls every second
+  chancePerMinute: number;   // for display
 }
 
 export function computeAbilityStats(definition: AbilityDefinition, strength: number | null | undefined): AbilityStats {
-  // Wiki formula: "X% × STR" means STR acts as a percentage multiplier
-  // STR=100 → 100% = 1.0x, STR=62 → 62% = 0.62x, STR=50 → 50% = 0.5x
+  // STR is a percentage multiplier: STR=100 → 1.0x, STR=62 → 0.62x, STR=50 → 0.5x. Game rolls every second.
   const rawStrength = Number.isFinite(strength) ? (strength as number) : STRENGTH_BASELINE;
   const multiplier = Math.max(MIN_MULTIPLIER, rawStrength / 100);
 
-  // Game checks abilities every SECOND, not every minute
-  // So we divide the per-minute chance by 60 to get per-second chance
   const baseChancePerMinute = Math.max(0, definition.baseProbability ?? 0);
   const baseChancePerSecond = baseChancePerMinute / 60;
 
   const chancePerSecondDecimal = Math.max(0, baseChancePerSecond / 100);
   const chancePerRoll = Math.min(MAX_CHANCE_PER_SECOND, chancePerSecondDecimal * multiplier);
 
-  // Abilities roll every SECOND, so 3600 rolls per hour (60 seconds × 60 minutes)
   const rollsPerHour = 3600;
   const procsPerHour = rollsPerHour * chancePerRoll;
 
-  // For display
-  const chancePerSecond = chancePerRoll * 100; // Convert to percentage
+  const chancePerSecond = chancePerRoll * 100;
   const chancePerMinute = chancePerSecond * 60;
 
   const rollPeriodMinutes = definition.rollPeriodMinutes ?? DEFAULT_ROLL_MINUTES;

@@ -1,4 +1,3 @@
-// src/data/petCompareRules.ts
 // Shared compare rule labels/types used by compare UI surfaces.
 
 import {

@@ -11,10 +11,51 @@ import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
 export type JotaiStore = {
   get(atom: unknown): any;
   set(atom: unknown, value: unknown): void | Promise<void>;
-  sub(atom: unknown, cb: () => void): () => void | Promise<() => void>;
+  /**
+   * Subscribe. The optional third `hint` marks which reactive tier this
+   * subscription belongs to (see src/core/reactive/types.ts). Real jotai
+   * stores (Aries) ignore it; the QPM polyfill uses it to route through
+   * the ReactiveSubscriptionManager instead of the polling fallback.
+   */
+  sub(atom: unknown, cb: () => void, hint?: import('./reactive/types').SubscriberTier): () => void | Promise<() => void>;
   __polyfill?: boolean;
   __source?: string;
 };
+
+// ── Reactive hook installed by main.ts after initReactiveManager() ───────
+
+interface ReactiveHook {
+  readonly isTierEnabled: (t: import('./reactive/types').SubscriberTier) => boolean;
+  readonly subscribe: (atom: unknown, opts: import('./reactive/types').ReactiveSubscribeOptions) => () => void;
+}
+
+let _reactiveHook: ReactiveHook | null = null;
+
+/**
+ * Called once during boot (see main.ts) to install the reactive manager's
+ * subscribe route. Idempotent — subsequent calls replace the hook.
+ */
+export function installReactiveHook(hook: ReactiveHook | null): void {
+  _reactiveHook = hook;
+}
+
+/**
+ * Diagnostic — exposed via __QPM_INTERNAL__. Returns the current reactive
+ * hook state so we can debug why kill switches aren't routing.
+ */
+export function debugReactiveRouting(): {
+  hookInstalled: boolean;
+  storeSource: string | undefined;
+  storeIsPolyfill: boolean | undefined;
+  batchedSubscribers: number;
+} {
+  return {
+    hookInstalled: _reactiveHook !== null,
+    storeSource: storeRef?.__source,
+    storeIsPolyfill: storeRef?.__polyfill,
+    batchedSubscribers: batchedSubscriptionManager.getStats().count,
+  };
+}
 
 // ── Diagnostics bus wiring (Phase 2 item 2.4) ──────────────────────────────
 const JOTAI_SUBSYSTEM: Subsystem = 'jotaiBridge';
@@ -376,7 +417,11 @@ async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore | null>
     return null;
   }
 
-  // Use batched polling for subscriptions (shared with cache-read store)
+  // Use batched polling for subscriptions (shared with cache-read store).
+  // Also honors reactive-manager routing when a caller passes a tier hint AND
+  // the tier's kill switch is on — see createCacheReadStore below for the same
+  // routing check; both polyfill stores must handle hints for the state kill
+  // switch to actually migrate subscribers.
   return {
     get(atom: unknown) {
       return capturedGet!(atom);
@@ -384,10 +429,14 @@ async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore | null>
     async set(atom: unknown, value: unknown) {
       await capturedSet!(atom, value);
     },
-    sub(atom: unknown, cb: () => void) {
-      return batchedSubscriptionManager.subscribe(atom, cb, () => {
+    sub(atom: unknown, cb: () => void, hint?: import('./reactive/types').SubscriberTier) {
+      const getValue = () => {
         try { return capturedGet!(atom); } catch { return undefined; }
-      });
+      };
+      if (hint && _reactiveHook && _reactiveHook.isTierEnabled(hint)) {
+        return _reactiveHook.subscribe(atom, { cb, getValue, tier: hint });
+      }
+      return batchedSubscriptionManager.subscribe(atom, cb, getValue);
     },
     __source: 'write',
   };
@@ -493,6 +542,10 @@ class BatchedSubscriptionManager {
 
 const batchedSubscriptionManager = new BatchedSubscriptionManager();
 
+export function getJotaiSubscriptionStats(): { count: number; atoms: string[] } {
+  return batchedSubscriptionManager.getStats();
+}
+
 /**
  * Create a cache-read-only store that reads directly from Jotai's atom cache
  */
@@ -512,13 +565,20 @@ function createCacheReadStore(): JotaiStore {
     set() {
       throw new Error('QPM cache-read store cannot write. Use Aries Mod for writes.');
     },
-    sub(atom: unknown, cb: () => void) {
-      return batchedSubscriptionManager.subscribe(atom, cb, () => {
+    sub(atom: unknown, cb: () => void, hint?: import('./reactive/types').SubscriberTier) {
+      const getValue = () => {
         const cache = getAtomCache();
         if (!cache) return undefined;
         const state = cache.get(atom) as { v?: unknown } | undefined;
         return state && Object.prototype.hasOwnProperty.call(state, 'v') ? state.v : undefined;
-      });
+      };
+      // Route through the reactive manager when the caller supplied a tier
+      // hint AND that tier's kill switch is on. Otherwise fall back to the
+      // polling manager — that's still the safe path during rollout.
+      if (hint && _reactiveHook && _reactiveHook.isTierEnabled(hint)) {
+        return _reactiveHook.subscribe(atom, { cb, getValue, tier: hint });
+      }
+      return batchedSubscriptionManager.subscribe(atom, cb, getValue);
     },
     __polyfill: true,
     __source: 'cache-read',
@@ -787,9 +847,13 @@ export async function writeAtomValue(atom: any, value: unknown): Promise<void> {
   await store.set(atom, value);
 }
 
-export async function subscribeAtom<T = unknown>(atom: any, cb: (value: T) => void): Promise<() => void> {
+export async function subscribeAtom<T = unknown>(
+  atom: any,
+  cb: (value: T) => void,
+  hint?: import('./reactive/types').SubscriberTier,
+): Promise<() => void> {
   const store = await ensureJotaiStore();
-  
+
   let disposed = false;
   const invoke = () => {
     if (disposed) return;
@@ -799,7 +863,7 @@ export async function subscribeAtom<T = unknown>(atom: any, cb: (value: T) => vo
     } catch {}
   };
 
-  const maybeUnsub = store.sub(atom, invoke);
+  const maybeUnsub = store.sub(atom, invoke, hint);
   const unsubscribe = typeof maybeUnsub === 'function' ? maybeUnsub : await maybeUnsub;
 
   // Initial value

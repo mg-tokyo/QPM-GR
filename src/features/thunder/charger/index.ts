@@ -6,7 +6,7 @@
 // math otherwise. Mirrors the DawnCapture pattern in src/features/dawn/capture/.
 
 import { log } from '../../../utils/logger';
-import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { onActivePetInfos, getActivePetInfos } from '../../../store/pets';
 import {
@@ -202,22 +202,20 @@ export function startThunderchargerTracker(): void {
   sessionActivations = 0;
   sessionAffectedCrops = 0;
 
-  const myDataAtom = getAtomByLabel('myDataAtom');
-  if (myDataAtom) {
-    void subscribeAtom<unknown>(myDataAtom, (value) => {
-      processActivityLogs(value);
+  void subscribeAtomValue('myData', (value) => {
+    processActivityLogs(value);
+  })
+    .then((unsubscribe) => {
+      if (!unsubscribe) return;
+      if (!initialized) {
+        unsubscribe();
+        return;
+      }
+      myDataUnsubscribe = unsubscribe;
     })
-      .then((unsubscribe) => {
-        if (!initialized) {
-          unsubscribe();
-          return;
-        }
-        myDataUnsubscribe = unsubscribe;
-      })
-      .catch((error) => {
-        log('[Thundercharger] Failed to subscribe to myDataAtom', error);
-      });
-  }
+    .catch((error) => {
+      log('[Thundercharger] Failed to subscribe to myData', error);
+    });
 
   weatherUnsubscribe = onWeatherSnapshot(handleWeather, true);
   petsUnsubscribe = onActivePetInfos(() => {

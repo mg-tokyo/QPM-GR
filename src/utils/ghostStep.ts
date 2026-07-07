@@ -1,5 +1,3 @@
-// src/utils/ghostStep.ts — Shared ghost-step utilities for walking to a pet's tile via WS.
-
 import { readAtomValue } from '../core/atomRegistry';
 import { getPlayerPosition as getPlayerPos } from '../core/playerContext';
 import { sendRoomAction } from '../websocket/api';
@@ -42,14 +40,7 @@ export function petTileFromMotion(motion: unknown): XY | null {
   return null;
 }
 
-/**
- * Read the player's current grid position from `positionAtom`.
- *
- * The game stores position in a standalone `positionAtom` (GridPosition | null),
- * NOT as a sub-property of `playerAtom` (which holds id/name/cosmetic only).
- * Falls back to `localPlayerPositionAtom` (slot-aware derived atom) if the
- * primary atom is missing or null.
- */
+/** Reads position from standalone `positionAtom`, NOT `playerAtom`. Falls back to `localPlayerPositionAtom`. */
 export async function getPlayerPosition(): Promise<XY | null> {
   const pos = await getPlayerPos();
   return pos ? { x: Math.round(pos.x), y: Math.round(pos.y) } : null;

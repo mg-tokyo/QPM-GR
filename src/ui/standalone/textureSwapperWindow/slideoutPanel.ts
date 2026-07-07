@@ -51,7 +51,7 @@ export function createSlideoutPanel(opts: {
   document.body.appendChild(tabBtn);
 
   const panel = document.createElement('div');
-  panel.style.cssText = `position:fixed;width:${PANEL_WIDTH}px;display:none;flex-direction:column;background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-emphasis);backdrop-filter:blur(12px);box-shadow:4px 0 20px rgba(0,0,0,0.4);font-family:inherit;font-size:var(--qpm-font-body);color:var(--qpm-text);transition:opacity 0.15s,transform 0.15s;z-index:10000;overflow:hidden;`;
+  panel.style.cssText = `position:fixed;width:${PANEL_WIDTH}px;display:none;flex-direction:column;background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-emphasis);box-shadow:4px 0 20px rgba(0,0,0,0.4);font-family:inherit;font-size:var(--qpm-font-body);color:var(--qpm-text);transition:opacity 0.15s,transform 0.15s;z-index:10000;overflow:hidden;`;
   document.body.appendChild(panel);
 
   const reposition = (): void => {

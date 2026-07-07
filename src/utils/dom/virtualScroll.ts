@@ -1,6 +1,3 @@
-// src/utils/virtualScroll.ts
-// Virtual scrolling implementation using IntersectionObserver for 100+ item lists
-
 import { log } from '../logger';
 
 interface VirtualScrollOptions {
@@ -46,7 +43,6 @@ export class VirtualScroll {
   }
 
   private init(): void {
-    // Setup scroll container with fixed height
     this.scrollContainer.style.cssText = `
       height: 100%;
       overflow-y: auto;
@@ -54,13 +50,11 @@ export class VirtualScroll {
       position: relative;
     `;
 
-    // Spacer maintains total scroll height
     this.spacer.style.cssText = `
       height: ${this.items.length * this.itemHeight}px;
       position: relative;
     `;
 
-    // Viewport contains visible items
     this.viewport.style.cssText = `
       position: absolute;
       top: 0;
@@ -72,7 +66,6 @@ export class VirtualScroll {
     this.scrollContainer.appendChild(this.spacer);
     this.container.appendChild(this.scrollContainer);
 
-    // Setup IntersectionObserver for visibility detection
     this.observer = new IntersectionObserver(
       (entries) => this.handleIntersection(entries),
       {
@@ -82,7 +75,6 @@ export class VirtualScroll {
       }
     );
 
-    // Initial render
     this.scrollContainer.addEventListener('scroll', () => this.handleScroll());
     this.handleScroll();
   }
@@ -91,7 +83,6 @@ export class VirtualScroll {
     const scrollTop = this.scrollContainer.scrollTop;
     const viewportHeight = this.scrollContainer.clientHeight;
 
-    // Calculate which items should be visible
     const startIndex = Math.max(0, Math.floor(scrollTop / this.itemHeight) - this.bufferSize);
     const endIndex = Math.min(
       this.items.length - 1,
@@ -101,7 +92,6 @@ export class VirtualScroll {
     this.firstVisibleIndex = startIndex;
     this.lastVisibleIndex = endIndex;
 
-    // Remove items outside the range
     this.renderedItems.forEach((element, index) => {
       if (index < startIndex || index > endIndex) {
         if (this.observer) {
@@ -112,7 +102,6 @@ export class VirtualScroll {
       }
     });
 
-    // Add items in the range
     for (let i = startIndex; i <= endIndex; i++) {
       if (!this.renderedItems.has(i)) {
         const element = this.renderItem(this.items[i]!, i);
@@ -133,20 +122,16 @@ export class VirtualScroll {
       }
     }
 
-    // Call scroll callback
     if (this.onScroll) {
       this.onScroll(this.firstVisibleIndex, this.lastVisibleIndex);
     }
   }
 
   private handleIntersection(entries: IntersectionObserverEntry[]): void {
-    // Could be used for lazy loading images or animations
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        // Element became visible
         entry.target.classList.add('visible');
       } else {
-        // Element left viewport
         entry.target.classList.remove('visible');
       }
     });
@@ -155,8 +140,7 @@ export class VirtualScroll {
   public updateItems(newItems: any[]): void {
     this.items = newItems;
     this.spacer.style.height = `${this.items.length * this.itemHeight}px`;
-    
-    // Clear all rendered items
+
     this.renderedItems.forEach((element) => {
       if (this.observer) {
         this.observer.unobserve(element);
@@ -165,7 +149,6 @@ export class VirtualScroll {
     });
     this.renderedItems.clear();
 
-    // Re-render visible items
     this.handleScroll();
   }
 
@@ -191,7 +174,6 @@ export class VirtualScroll {
   }
 }
 
-// Simple wrapper function for common use case
 export function createVirtualScrollList(
   container: HTMLElement,
   items: any[],

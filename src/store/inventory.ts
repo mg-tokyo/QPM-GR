@@ -1,7 +1,8 @@
 // src/store/inventory.ts
 // Bridge for inventory data via myInventoryAtom and myCropInventoryAtom
 
-import { getAtomByLabel, subscribeAtom, readAtomValue } from '../core/jotaiBridge';
+import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
@@ -157,29 +158,23 @@ export async function startInventoryStore(): Promise<void> {
   }
 
   initializing = true;
-  diag.register('Waiting for myInventoryAtom');
+  diag.register('Waiting for inventory');
   try {
-    // Try myInventoryAtom first (full inventory)
-    inventoryAtomRef = getAtomByLabel(INVENTORY_ATOM_LABEL);
-
-    // Fallback to myCropInventoryAtom if myInventoryAtom not found
-    if (!inventoryAtomRef) {
-      log('⚠️ myInventoryAtom not found, trying myCropInventoryAtom');
-      inventoryAtomRef = getAtomByLabel(CROP_INVENTORY_ATOM_LABEL);
-    }
-
-    if (!inventoryAtomRef) {
-      diag.warn('QPM-STORE-002', { atom: `${INVENTORY_ATOM_LABEL} | ${CROP_INVENTORY_ATOM_LABEL}` });
-      initializing = false;
-      return;
-    }
-
-    unsubscribe = await subscribeAtom(inventoryAtomRef, (value: any) => {
+    // Route through atomRegistry — its `inventory` selector projects
+    // stateAtom.child.data.userSlots[me].data.inventory via the stateTree
+    // fan-out. No more polling; also no more crop-atom fallback because the
+    // container the crop atom sliced from IS the value we now read.
+    const unsub = await subscribeAtomValue('inventory', (value) => {
       lastRawInventoryValue = value;
       updateCache(value);
     });
 
-    log('✅ Inventory store initialized');
+    if (unsub) {
+      unsubscribe = unsub;
+      log('✅ Inventory store initialized');
+    } else {
+      diag.warn('QPM-STORE-002', { atom: 'inventory (registry)' });
+    }
   } catch (error) {
     diag.warn('QPM-STORE-001', { phase: 'startInventoryStore' }, error);
   } finally {

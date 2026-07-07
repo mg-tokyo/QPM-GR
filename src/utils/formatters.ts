@@ -1,4 +1,3 @@
-// src/utils/formatters.ts
 // Shared formatting utilities to avoid duplication across UI modules
 
 /**

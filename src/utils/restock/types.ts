@@ -1,6 +1,4 @@
-// src/utils/restockTypes.ts
 // Shared type definitions for the restock data service.
-// Imported by both restockParser.ts and restockDataService.ts.
 
 export interface RestockItem {
   item_id: string;

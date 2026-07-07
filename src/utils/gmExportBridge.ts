@@ -1,14 +1,7 @@
-// src/utils/gmExportBridge.ts
-//
-// Responds to Starweaver Mod Manager GM-export requests so the manager can
-// migrate TM/VM private GM storage into its own persistence layer.
-//
-// Protocol (both sides use the __swmmType envelope key):
-//   Request  (content bridge → page):  { __swmmType: "gm-export-request",  nonce: string }
-//   Response (QPM → content bridge):   { __swmmType: "gm-export-response", nonce: string,
-//                                        values: Record<string, string> }
-//
-// Values are JSON strings, matching the format storage.set() writes to GM storage.
+// Responds to Starweaver Mod Manager GM-export requests so it can migrate
+// TM/VM private GM storage into its own persistence layer. Protocol uses the
+// __swmmType envelope key: request "gm-export-request" -> response
+// "gm-export-response" with { nonce, values: Record<string, string> }.
 
 import { exportAllValues } from './storage';
 

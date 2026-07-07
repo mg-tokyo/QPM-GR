@@ -1,13 +1,7 @@
-// src/utils/validationCommands.ts
-// Console commands for testing and validation
-
 import { spriteExtractor } from '../sprite-v2/compat';
 import { log } from './logger';
 import { getAllCropNames } from '../features/garden/data/cropBaseStats';
 
-/**
- * Test all pet and crop sprites to ensure they render without errors
- */
 export function QPM_TEST_ALL_SPRITES(): void {
   log('✅ Testing all sprites...');
 
@@ -22,7 +16,6 @@ export function QPM_TEST_ALL_SPRITES(): void {
   let failCount = 0;
   const failures: string[] = [];
 
-  // Test pets
   log('Testing pet sprites...');
   for (const species of petSpecies) {
     try {
@@ -39,7 +32,6 @@ export function QPM_TEST_ALL_SPRITES(): void {
     }
   }
 
-  // Test crops
   log('Testing crop sprites...');
   const cropNames = getAllCropNames();
   for (const cropName of cropNames) {
@@ -82,16 +74,12 @@ export function QPM_TEST_ALL_SPRITES(): void {
   log('ℹ️ Cache stats unavailable (canvas-first sprite path uses PIXI internal cache)');
 }
 
-/**
- * Run performance benchmark on sprite generation
- */
 export function QPM_BENCHMARK(): void {
   log('🚀 Running performance benchmark...');
 
   const iterations = 1000;
   const testSpecies = 'Butterfly';
 
-  // Benchmark sprite generation
   const start = performance.now();
   for (let i = 0; i < iterations; i++) {
     spriteExtractor.getPetSprite(testSpecies);
@@ -108,9 +96,6 @@ export function QPM_BENCHMARK(): void {
   log(`   Operations per second: ${opsPerSecond}`);
 }
 
-/**
- * Validate species name mappings and normalization
- */
 export function QPM_VALIDATE_SPECIES(): void {
   log('🔎 Validating species name mappings...');
 
@@ -147,7 +132,6 @@ export function QPM_VALIDATE_SPECIES(): void {
   log(`\n📋 Validation Complete: ${passedCount} passed, ${failedCount} failed`);
 }
 
-// Expose commands to window for easy access
 declare global {
   interface Window {
     QPM_TEST_ALL_SPRITES: typeof QPM_TEST_ALL_SPRITES;

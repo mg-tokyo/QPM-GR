@@ -3,7 +3,6 @@ import { canvasToDataUrl } from '../dom/canvasHelpers';
 
 export type MutationSpriteType = 'rainbow' | 'gold';
 
-// Small LRU cache to avoid repeated conversions for the same mutation
 const mutationSpriteCache = new Map<string, string>();
 const MAX_MUTATION_CACHE_SIZE = 200;
 

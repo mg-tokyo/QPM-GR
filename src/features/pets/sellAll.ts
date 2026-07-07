@@ -458,7 +458,6 @@ export async function runSellAllPets(): Promise<SellAllPetsRunResult> {
       }
     }
 
-    // Auto-log unlogged journal variants for the entire batch before selling
     await ensureJournalLogged(candidates);
 
     let soldCount = 0;

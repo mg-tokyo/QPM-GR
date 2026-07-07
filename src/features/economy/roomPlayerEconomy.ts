@@ -3,7 +3,8 @@
 // Reads stateAtom (userSlots + players) to extract coins, garden value,
 // inventory value, and pet count for every player in the room.
 
-import { getAtomByLabel, readAtomValue, subscribeAtom } from '../../core/jotaiBridge';
+import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../core/atomRegistry';
 import { getPlayerId } from '../../core/playerContext';
 import { computeGardenValueFromCatalog } from './valueCalculator';
 import { computeStorageItemsValue, computePetSellPrice, computePlacedDecorAndEggValue, computeGrowingCropsValue } from './storageValue';
@@ -246,9 +247,10 @@ export async function startRoomPlayerEconomy(): Promise<() => void> {
   }, 300);
 
   try {
-    stateAtomUnsub = await subscribeAtom<unknown>(stateAtom, () => {
+    const unsub = await subscribeAtomValue('state', () => {
       debouncedUpdate?.();
     });
+    if (unsub) stateAtomUnsub = unsub;
   } catch (err) {
     log('Failed to subscribe to stateAtom', err);
     started = false;

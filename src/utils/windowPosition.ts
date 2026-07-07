@@ -1,4 +1,3 @@
-// src/utils/windowPosition.ts
 // Shared ratio-based window positioning utilities.
 // Position is stored as viewport ratios (0–1) so windows survive any viewport resize.
 

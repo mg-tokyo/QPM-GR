@@ -4,7 +4,7 @@
 // cooldown timers. Provides a subscribable snapshot for UI overlays.
 
 import { log } from '../../../utils/logger';
-import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { DAWN_CAPTURE_ACTION } from '../capsule/constants';
 
@@ -172,22 +172,20 @@ export function startDawnCaptureTracker(): void {
   sessionCaptures = 0;
   sessionCapsulesProduced = 0;
 
-  const myDataAtom = getAtomByLabel('myDataAtom');
-  if (myDataAtom) {
-    void subscribeAtom<unknown>(myDataAtom, (value) => {
-      processActivityLogs(value);
+  void subscribeAtomValue('myData', (value) => {
+    processActivityLogs(value);
+  })
+    .then((unsubscribe) => {
+      if (!unsubscribe) return;
+      if (!initialized) {
+        unsubscribe();
+        return;
+      }
+      myDataUnsubscribe = unsubscribe;
     })
-      .then((unsubscribe) => {
-        if (!initialized) {
-          unsubscribe();
-          return;
-        }
-        myDataUnsubscribe = unsubscribe;
-      })
-      .catch((error) => {
-        log('[DawnCapture] Failed to subscribe to myDataAtom', error);
-      });
-  }
+    .catch((error) => {
+      log('[DawnCapture] Failed to subscribe to myData', error);
+    });
 
   weatherUnsubscribe = onWeatherSnapshot(handleWeather, true);
   log('[DawnCapture] Tracker started');

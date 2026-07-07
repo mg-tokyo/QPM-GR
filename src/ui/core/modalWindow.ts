@@ -531,7 +531,7 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
     border: 1px solid rgba(143, 130, 255, 0.5);
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(6px);
     font-family: ${QPM_UI_FONT_STACK};
     font-size: 13px;
     color: #e0e0e0;

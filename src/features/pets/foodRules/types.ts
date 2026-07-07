@@ -1,6 +1,3 @@
-// src/features/petFoodRules/types.ts
-// All interfaces and types for petFoodRules
-
 export interface SpeciesOverride {
   allowed?: string[];
   forbidden?: string[];

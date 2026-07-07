@@ -12,7 +12,7 @@
 // and the config wrappers don't need signature changes.
 
 import { log } from '../../../utils/logger';
-import { getCardBounds, resetAnchor } from './pixiAnchor';
+import { getCardBounds, resetAnchor, installAnchorDebugBridge, uninstallAnchorDebugBridge } from './pixiAnchor';
 import type { CardBounds } from './pixiAnchor';
 import {
   OVERLAY_ID,
@@ -241,9 +241,10 @@ export function startObserver(): void {
   if (rafHandle !== null) return;
   ensureStyles();
   ensureOverlay();
+  installAnchorDebugBridge();
   cardWasVisible = false;
   dirtyContent = true;
-  log('[TooltipOverlay] Tracking PIXI GardenInfoCardSystem');
+  log('[TooltipOverlay] Tracking PIXI GardenInfoCardSystem (debug: window.__QPM_TOOLTIP_ANCHOR_DEBUG__())');
   rafHandle = window.requestAnimationFrame(tick);
 
   // Invalidate the PIXI anchor on canvas resize — layout may have shifted.
@@ -269,6 +270,7 @@ export function stopObserver(): void {
     overlayEl = null;
   }
   resetAnchor();
+  uninstallAnchorDebugBridge();
   removeStyles();
   cardWasVisible = false;
   dirtyContent = true;

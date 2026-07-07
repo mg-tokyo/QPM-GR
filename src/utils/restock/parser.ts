@@ -1,4 +1,3 @@
-// src/utils/restockParser.ts
 // Parsing, normalization, and deduplication for restock API responses.
 // Pure functions — no side effects, no shared state.
 

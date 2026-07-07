@@ -1,6 +1,3 @@
-// src/features/petFoodRules/rules.ts
-// State CRUD, persistence, event dispatch, override management
-
 import { storage } from '../../../utils/storage';
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import { getAllPetDiets } from '../../../catalogs/gameCatalogs';
@@ -11,19 +8,12 @@ import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
 import type { PetFoodRulesState, SpeciesOverride, SpeciesCatalogEntry } from './types';
 import { formatFoodLabelForSpecies } from './diet';
 
-// ── Diagnostics ───────────────────────────────────────────────────────────
-
 export const PET_FOOD_RULES_SUBSYSTEM: Subsystem = 'feature:petFoodRules';
 const FEATURE_NAME = 'petFoodRules';
 export const petFoodRulesLog = createNamedLogger(PET_FOOD_RULES_SUBSYSTEM);
 let busRegistered = false;
 
-/**
- * Re-attribute a FEATURE-* code emission to this feature's bus row. The
- * registered placeholder subsystem on FEATURE-* is `'feature'`; without this
- * override the bus would degrade a generic `feature` entry instead of
- * `feature:petFoodRules`.
- */
+/** Re-attribute FEATURE-* emissions to this feature's bus row (default subsystem is generic `'feature'`). */
 export function warnPetFoodRulesFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
   const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
   petFoodRulesLog.warn({ ...built, subsystem: PET_FOOD_RULES_SUBSYSTEM, severity: 'warn' });

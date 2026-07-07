@@ -103,10 +103,7 @@ function buildSupportCandidatesByBroadRole(
     const entryIsHatchTrio = HATCH_TRIO_BROAD_ROLE_KEYS.has(entry.family.broadRoleFamilyKey);
     if (anchorIsHatchTrio !== entryIsHatchTrio) continue;
 
-    // Synergy gate: only recognized synergy relationships provide support value.
-    // Mutation ecosystem (all granters + producemutationboost) ← crop ecosystem + coinfinder
-    // Crop ecosystem (time-family + producescaleboost) ← crop ecosystem + mutation eco + coinfinder
-    // Standalone (petxpboost, producerefund, sellboost, seedfinder, produceeater) ← nothing
+    // Synergy gate: only recognized ecosystem pairings (mutation/crop/coinfinder) count as support.
     if (!anchorIsHatchTrio) {
       const anchorKey = anchor.family.broadRoleFamilyKey;
       const supportKey = entry.family.broadRoleFamilyKey;

@@ -1,4 +1,3 @@
-// src/utils/restockDataService.ts
 // Shared Supabase restock data fetcher + cache for shop window and dashboard.
 
 import { storage } from '../storage';
@@ -72,8 +71,7 @@ const RESTOCK_COLUMNS = [
   'weather_used',
   'weather_rejected_reason',
 ] as const;
-// Extended columns added by the 20260416000003 migration (prediction logging).
-// Requested as a secondary enrichment when the server supports them.
+// Extended columns added by the 20260416000003 migration; requested as a secondary enrichment when supported.
 const RESTOCK_EXTENDED_COLUMNS = [
   ...RESTOCK_COLUMNS,
   'recent_intervals_ms',
@@ -126,9 +124,7 @@ export const RESTOCK_REFRESH_MAX = RESTOCK_REFRESH_MAX_DEFAULT;
 export const RESTOCK_DATA_UPDATED_EVENT = 'qpm:restock-data-updated';
 export const RESTOCK_MODEL_ACCURACY_MIN_SCORED = 5;
 
-// ---------------------------------------------------------------------------
 // HTTP helpers
-// ---------------------------------------------------------------------------
 
 export function resolveGmXhr(): GmXhr | null {
   if (typeof GM_xmlhttpRequest === 'function') return GM_xmlhttpRequest as unknown as GmXhr;
@@ -264,9 +260,7 @@ async function webGet(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Module state
-// ---------------------------------------------------------------------------
 
 let fetchingPromise: Promise<RestockItem[]> | null = null;
 let fetchingIsForce = false;
@@ -279,18 +273,14 @@ const predictionAccuracyCache = new Map<string, {
   value: RestockPredictionAccuracyAggregate | null;
 }>();
 
-// ---------------------------------------------------------------------------
 // Event emission
-// ---------------------------------------------------------------------------
 
 function emitRestockDataUpdated(detail: RestockDataUpdatedDetail): void {
   if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
   window.dispatchEvent(new CustomEvent<RestockDataUpdatedDetail>(RESTOCK_DATA_UPDATED_EVENT, { detail }));
 }
 
-// ---------------------------------------------------------------------------
 // Cache management
-// ---------------------------------------------------------------------------
 
 function sanitizeItems(items: RestockItem[]): RestockItem[] {
   const filtered = items.filter((item) => !!item.item_id && ALLOWED_SHOP_TYPES.has(item.shop_type));
@@ -487,9 +477,7 @@ function withCacheBust(url: string, _force: boolean): string {
   return url;
 }
 
-// ---------------------------------------------------------------------------
 // Main fetch
-// ---------------------------------------------------------------------------
 
 /**
  * Fetch restock data from Supabase.
@@ -565,9 +553,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
       return { text: null, errors };
     };
 
-    // Try extended columns first if we know the server supports them,
-    // or if we haven't probed yet (null). Mark false on failure so we
-    // don't probe every request.
+    // Try extended columns first if supported or unprobed; mark false on failure so we don't reprobe every request.
     let mainText: string | null = null;
     const fetchErrors: string[] = [];
 
@@ -650,9 +636,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Sync reads
-// ---------------------------------------------------------------------------
 
 /** Get stale-or-miss cached data synchronously (for dashboard use). */
 export function getRestockDataSync(): RestockItem[] | null {
@@ -666,10 +650,8 @@ export function getRestockFetchedAt(): number | null {
 }
 
 /**
- * Bring the restockData bus entry online. Idempotent — call from main.ts
- * after initDiagnostics(). If a usable cache is present at start, the row
- * publishes 'ok' immediately; otherwise it stays 'starting' until the first
- * successful fetchRestockData() call.
+ * Bring the restockData bus entry online. Idempotent — call from main.ts after initDiagnostics().
+ * Publishes 'ok' immediately if a usable cache exists; otherwise stays 'starting' until first fetch.
  */
 export function startRestockDataDiagnostics(): void {
   registerRestockBus();
@@ -722,9 +704,7 @@ export function patchCachedItemLastSeen(shopType: string, itemId: string, lastSe
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // Weather Predictions
-// ---------------------------------------------------------------------------
 
 const WEATHER_PREDICTIONS_ENDPOINT =
   'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/weather_predictions';

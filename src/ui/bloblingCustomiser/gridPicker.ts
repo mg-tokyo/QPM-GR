@@ -56,7 +56,7 @@ export function createGridPicker(
 
   // ── Grid panel ────────────────────────────────────────────────────────
   const panel = document.createElement('div');
-  panel.style.cssText = `position:fixed;width:${PANEL_WIDTH}px;display:none;flex-direction:column;background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-emphasis);border-left:none;border-radius:0 var(--qpm-radius-lg) var(--qpm-radius-lg) 0;backdrop-filter:blur(12px);box-shadow:4px 0 20px rgba(0,0,0,0.4);font-family:inherit;font-size:var(--qpm-font-body);color:var(--qpm-text);transition:opacity 0.15s,transform 0.15s;`;
+  panel.style.cssText = `position:fixed;width:${PANEL_WIDTH}px;display:none;flex-direction:column;background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-emphasis);border-left:none;border-radius:0 var(--qpm-radius-lg) var(--qpm-radius-lg) 0;box-shadow:4px 0 20px rgba(0,0,0,0.4);font-family:inherit;font-size:var(--qpm-font-body);color:var(--qpm-text);transition:opacity 0.15s,transform 0.15s;`;
   document.body.appendChild(panel);
 
   // Header

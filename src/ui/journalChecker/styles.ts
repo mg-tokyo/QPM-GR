@@ -12,13 +12,13 @@ export function injectJournalStyles(root: HTMLElement): HTMLStyleElement {
     }
 
     @keyframes qpm-rainbow-border {
-      0%     { border-color: #ff0000; box-shadow: 0 0 20px #ff000044, inset 0 0 20px #ff000011; }
-      16.67% { border-color: #ff8800; box-shadow: 0 0 20px #ff880044, inset 0 0 20px #ff880011; }
-      33.33% { border-color: #ffff00; box-shadow: 0 0 20px #ffff0044, inset 0 0 20px #ffff0011; }
-      50%    { border-color: #00ff00; box-shadow: 0 0 20px #00ff0044, inset 0 0 20px #00ff0011; }
-      66.67% { border-color: #0088ff; box-shadow: 0 0 20px #0088ff44, inset 0 0 20px #0088ff11; }
-      83.33% { border-color: #8800ff; box-shadow: 0 0 20px #8800ff44, inset 0 0 20px #8800ff11; }
-      100%   { border-color: #ff0000; box-shadow: 0 0 20px #ff000044, inset 0 0 20px #ff000011; }
+      0%     { border-color: #ff0000; }
+      16.67% { border-color: #ff8800; }
+      33.33% { border-color: #ffff00; }
+      50%    { border-color: #00ff00; }
+      66.67% { border-color: #0088ff; }
+      83.33% { border-color: #8800ff; }
+      100%   { border-color: #ff0000; }
     }
 
     @keyframes qpm-rainbow-gradient {

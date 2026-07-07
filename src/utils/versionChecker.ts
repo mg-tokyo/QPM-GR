@@ -2,7 +2,7 @@ import { notify } from "../core/notifications";
 import { storage } from "./storage";
 import { visibleInterval } from "./scheduling/timerManager";
 
-const CURRENT_VERSION = "3.3.8"; // This should match package.json version
+const CURRENT_VERSION = "3.3.9"; // This should match package.json version
 export const GITHUB_URL = "https://github.com/mg-tokyo/QPM-GR";
 export const UPDATE_URL =
   "https://raw.githubusercontent.com/mg-tokyo/QPM-GR/master/dist/QPM.user.js";
@@ -146,9 +146,6 @@ export function getVersionInfo(): VersionInfo {
   return { ...cached };
 }
 
-/**
- * Register callback for version changes
- */
 export function onVersionChange(
   callback: (info: VersionInfo) => void,
 ): () => void {
@@ -176,16 +173,10 @@ export function stopVersionChecker(): void {
   started = false;
 }
 
-/**
- * Get current version string
- */
 export function getCurrentVersion(): string {
   return CURRENT_VERSION;
 }
 
-/**
- * Check for updates and update cached status
- */
 export async function checkForUpdates(_force = false): Promise<VersionInfo> {
   cached = { ...cached, status: "checking" };
   emit();

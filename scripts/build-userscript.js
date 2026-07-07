@@ -100,7 +100,7 @@ function validateVersionSync(packageVersion) {
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         QPM (ALPHA)
 // @namespace    Quinoa
-// @version      3.3.8
+// @version      3.3.9
 // @description  Quality-of-life enhancements for Magic Garden: crop type locking, mutation tracking, value calculator, harvest reminders, journal species checker, and persistent feed statistics.
 // @author       TOKYO.#6464
 // @match        https://1227719606223765687.discordsays.com/*
@@ -162,10 +162,24 @@ function buildUserscript() {
 
     const builtCode = fs.readFileSync(builtFile, "utf8");
 
-    // Remove any source map references
-    const cleanedCode = builtCode.replace(/\/\/# sourceMappingURL=.*$/gm, "");
+    // Preserve a trailing inline (data:) sourcemap comment, but strip any
+    // relative-path sourcemap references (they cannot resolve from the
+    // chrome-extension:// origin Tampermonkey serves the userscript from).
+    // The preserved data-URL comment is re-appended after the footer so it
+    // sits at the tail of dist/QPM.user.js where DevTools expects it.
+    const inlineTailMatch = builtCode.match(
+      /\n(\/\/# sourceMappingURL=data:[^\n]*)\s*$/,
+    );
+    let bodyCode = builtCode;
+    let inlineMapComment = "";
+    if (inlineTailMatch) {
+      inlineMapComment = "\n" + inlineTailMatch[1] + "\n";
+      bodyCode = builtCode.slice(0, inlineTailMatch.index);
+    }
+    const cleanedCode = bodyCode.replace(/\/\/# sourceMappingURL=.*$/gm, "");
 
-    const userscript = USERSCRIPT_HEADER + cleanedCode + USERSCRIPT_FOOTER;
+    const userscript =
+      USERSCRIPT_HEADER + cleanedCode + USERSCRIPT_FOOTER + inlineMapComment;
 
     const outputPath = path.join(__dirname, "..", "dist", "QPM.user.js");
     fs.writeFileSync(outputPath, userscript, "utf8");

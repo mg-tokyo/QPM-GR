@@ -35,6 +35,8 @@ import type {
   ShopCategorySnapshot,
   GridPosition,
   PlayerAtomValue,
+  QuinoaData,
+  QuinoaUserSlot,
 } from '../types/gameAtoms';
 
 // ── Internal helpers ─────────────────────────────────────────────────────
@@ -48,8 +50,12 @@ function isRec(v: unknown): v is Record<string, unknown> {
 type AtomPath = string | readonly (string | number)[];
 
 interface AtomFinder<TValue> {
-  /** Label regex — primary resolution. Broad enough to survive renames. */
-  label: RegExp;
+  /**
+   * Label regex — primary resolution. Broad enough to survive renames.
+   * Optional when a `stateTreeSelector` is provided (selector-only entries
+   * have no jotai atom to bind to).
+   */
+  label?: RegExp;
   /** Optional structural matcher — fallback when label regex fails. */
   structure?: (value: unknown) => boolean;
   /** Disambiguator when structure matches multiple atoms. */
@@ -71,6 +77,44 @@ interface AtomFinder<TValue> {
    * deprecated upstream in favor of a state-tree path (e.g. shopsAtom).
    */
   preferState?: boolean;
+  /**
+   * Direct stateTree selector — bypasses label / structure / fallbackSource
+   * resolution entirely. Called by `stateTree.select` / `stateTree.subscribe`
+   * with the current QuinoaStateSnapshot. Return null when data isn't ready
+   * (missing playerId, missing userSlots, unmatched slot, etc.).
+   *
+   * When set, this key's `useStateTree` is implied true and there is no
+   * jotai atom to fall back on unless `bootFallbackLabel` is provided.
+   *
+   * Use for keys whose value is a projection of stateAtom that requires
+   * runtime context (per-slot indexing) or non-trivial derivation.
+   */
+  stateTreeSelector?: (state: QuinoaStateSnapshot) => TValue | null;
+  /**
+   * Optional jotai atom label used only during the boot-race window where
+   * stateTree isn't ready yet (`stateTreeReady() === false`). If omitted,
+   * reads during that window return `defaultValue` (or null).
+   *
+   * Note: even when set, subscriptions go through stateTree the moment it's
+   * ready; the fallback path only fires on synchronous reads before first
+   * patch arrives.
+   */
+  bootFallbackLabel?: RegExp;
+  /**
+   * Reactive-tier hint for subscribeAtomValue (see src/core/reactive/types.ts).
+   * When set AND the kill switch for that tier is on, subscribeAtomValue
+   * routes through the ReactiveSubscriptionManager (patch-filtered path)
+   * instead of the stateTree.subscribe deep-equals fan-out or the polling
+   * fallback.
+   */
+  tier?: import('./reactive/types').SubscriberTier;
+  /**
+   * JSON Pointer prefix (RFC 6901) inside stateAtom.value where this atom's
+   * data lives. Used by the reactive manager to route patches to subscribers.
+   * `{myIdx}` is a runtime placeholder substituted at flush time with the
+   * local player's slot index.
+   */
+  statePath?: import('./reactive/types').PatchPath;
 }
 
 // ── Value type map ───────────────────────────────────────────────────────
@@ -93,6 +137,9 @@ interface AtomValueMap {
   localPosition: GridPosition | null;
   userSlots: unknown[] | null;
   myUserSlotIdx: number | null;
+  // Per-slot state-tree keys (new)
+  myUserSlot: QuinoaUserSlot | null;
+  quinoaData: QuinoaData | null;
   // Pets
   activePetSlots: unknown[] | null;
   petInventory: unknown[] | null;
@@ -143,29 +190,36 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
     label: /^weather(?:State)?Atom$/i,
     fallbackSource: { key: 'state', path: ['child', 'data', 'weather'] },
     preferState: true,
+    tier: 'state',
+    statePath: '/child/data/weather',
   },
   shops: {
     label: /^shops(?:Data)?Atom$/i,
     transform: (v) => (isRec(v) ? (v as ShopsAtomSnapshot) : null),
     fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] },
     preferState: true,
+    tier: 'state',
+    statePath: '/child/data/shops',
   },
-  seedShop: { label: /^shops(?:Data)?Atom$/i, path: 'seed', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
-  eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
-  toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
-  decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true },
-  coinsBalance: { label: /^my(?:Coins|coins)(?:Count|Balance)?Atom$/i, defaultValue: 0 },
-  creditsBalance: { label: /^credits(?:Balance|Count)?Atom$/i, defaultValue: 0 },
-  magicDustBalance: { label: /^my(?:MagicDust|magicDust)(?:Count|Balance)?Atom$/i, defaultValue: 0 },
+  seedShop: { label: /^shops(?:Data)?Atom$/i, path: 'seed', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true, tier: 'state', statePath: '/child/data/shops/seed' },
+  eggShop: { label: /^shops(?:Data)?Atom$/i, path: 'egg', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true, tier: 'state', statePath: '/child/data/shops/egg' },
+  toolShop: { label: /^shops(?:Data)?Atom$/i, path: 'tool', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true, tier: 'state', statePath: '/child/data/shops/tool' },
+  decorShop: { label: /^shops(?:Data)?Atom$/i, path: 'decor', fallbackSource: { key: 'state', path: ['child', 'data', 'shops'] }, preferState: true, tier: 'state', statePath: '/child/data/shops/decor' },
+  coinsBalance: { label: /^my(?:Coins|coins)(?:Count|Balance)?Atom$/i, defaultValue: 0, tier: 'state', statePath: '/child/data/userSlots/{myIdx}/data/coinsCount' },
+  creditsBalance: { label: /^credits(?:Balance|Count)?Atom$/i, defaultValue: 0, tier: 'dynamic' },
+  magicDustBalance: { label: /^my(?:MagicDust|magicDust)(?:Count|Balance)?Atom$/i, defaultValue: 0, tier: 'state', statePath: '/child/data/userSlots/{myIdx}/data/magicDustCount' },
 
   // ── Player / State ────────────────────────────────────────────────────
   player: {
     label: /^player(?:Data)?Atom$/i,
     structure: (v) => isRec(v) && typeof v.id === 'string' && 'name' in v,
+    tier: 'client',
   },
   state: {
     label: /^(?:room|game)?[Ss]tate(?:Data)?Atom$/i,
     structure: (v) => isRec(v) && 'child' in v && isRec(v.child),
+    tier: 'state',
+    statePath: '',
   },
   position: {
     label: /^(?:player)?(?:grid)?[Pp]osition(?:Data)?Atom$/i,
@@ -173,30 +227,50 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
     prefer: (l) =>
       !l.includes('camera') && !l.includes('last') &&
       !l.includes('freelook') && !l.includes('local'),
+    tier: 'client',
   },
-  localPosition: { label: /^local(?:Player)?(?:Position|Pos)(?:Data)?Atom$/i },
+  localPosition: { label: /^local(?:Player)?(?:Position|Pos)(?:Data)?Atom$/i, tier: 'client' },
   userSlots: {
     label: /^(?:room)?[Uu]ser[Ss]lots(?:Data)?Atom$/i,
     structure: (v) => Array.isArray(v) && v.length > 0 && isRec(v[0]) && 'playerId' in v[0],
     fallbackSource: { key: 'state', path: ['child', 'data', 'userSlots'] },
     preferState: true,
+    tier: 'state',
+    statePath: '/child/data/userSlots',
   },
   myUserSlotIdx: {
     label: /^my(?:User)?Slot(?:Idx|Index)(?:Data)?Atom$/i,
     structure: (v) => typeof v === 'number' && v >= 0 && v < 20,
+    tier: 'client',
   },
 
   // ── Pets ──────────────────────────────────────────────────────────────
+  // NOTE: label regex is broad (matches myPetSlotsAtom, myPetSlotInfosAtom,
+  // myPrimitivePetSlotsAtom, etc.) but we specifically want the atom whose
+  // value is `myData.petSlots` — a full-object array of PetSlot records.
+  // `myPetSlotInfosAtom` returns `myUserSlot.petSlotInfos` (a Record of
+  // per-pet runtime info that shows up in-cache as position-shaped entries
+  // on some bundles) and MUST NOT win. `prefer` picks the Primitive variant.
+  // Beta source: myAtoms.ts:967 `myPrimitivePetSlotsAtom`.
   activePetSlots: {
     label: /^my(?:Primitive)?Pet(?:Slots|SlotInfos)(?:Data)?Atom$/i,
+    prefer: (l) => /^myPrimitivePetSlotsAtom$/i.test(l),
     structure: (v) =>
       Array.isArray(v) && v.length > 0 && isRec(v[0]) &&
       ('petId' in v[0] || 'slotId' in v[0]),
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/petSlots',
   },
-  petInventory: { label: /^myPet(?:Inventory|Items)(?:Data)?Atom$/i },
+  petInventory: {
+    label: /^myPet(?:Inventory|Items)(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/items',
+  },
   hutchPets: {
     label: /^myPetHutch(?:Pet)?Items(?:Data)?Atom$/i,
     prefer: (label) => /PetItems/i.test(label),
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
   },
   // The game renamed myPetHutchCapacityLevelAtom → myPetHutchCapacitySlotsAtom in
   // the pr-2994 bundle (2026-06/07). The value semantics also changed: level
@@ -205,23 +279,39 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   // depend on level→slots interpretation are handled at the caller (e.g.
   // src/store/hutch.ts) — this finder just answers "is there a hutch-capacity
   // atom present."
-  hutchCapacity: { label: /^myPetHutch(?:Capacity|Cap)(?:Level|Slots)?(?:Data)?Atom$/i },
+  hutchCapacity: {
+    label: /^myPetHutch(?:Capacity|Cap)(?:Level|Slots)?(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
   petHutch: { label: /^myPetHutch(?:Storages)?(?:Data)?Atom$/i },
 
   // ── Inventory ─────────────────────────────────────────────────────────
   inventory: {
     label: /^my(?:Main)?Inventory(?:Data)?Atom$/i,
     structure: (v) => isRec(v) && ('storages' in v || 'items' in v),
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory',
   },
-  cropInventory: { label: /^myCrop(?:s)?Inventory(?:Data)?Atom$/i },
-  toolInventory: { label: /^myTool(?:s)?Inventory(?:Data)?Atom$/i },
-  selectedItemId: { label: /^mySelectedItemIdAtom$/, defaultValue: null },
+  cropInventory: {
+    label: /^myCrop(?:s)?Inventory(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/items',
+  },
+  toolInventory: {
+    label: /^myTool(?:s)?Inventory(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/items',
+  },
+  selectedItemId: { label: /^mySelectedItemIdAtom$/, defaultValue: null, tier: 'client' },
 
   // ── Garden ────────────────────────────────────────────────────────────
   myData: {
     label: /^my(?:Player)?Data(?:Atom)?$/i,
     structure: (v) =>
       isRec(v) && 'garden' in v && isRec(v.garden) && 'tileObjects' in v.garden,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data',
   },
   map: {
     label: /^(?:room|garden)?[Mm]ap(?:Data)?Atom$/i,
@@ -237,14 +327,30 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   activeModal: {
     label: /^active(?:Modal|Dialog)(?:Name)?(?:Data)?Atom$/i,
     structure: (v) => typeof v === 'string' && KNOWN_MODALS.has(v),
+    tier: 'client',
   },
-  selectedSlotId: { label: /^mySelectedSlotIdAtom$/, defaultValue: null },
+  selectedSlotId: { label: /^mySelectedSlotIdAtom$/, defaultValue: null, tier: 'client' },
 
   // ── Mount ──────────────────────────────────────────────────────────────
-  riddenPetId: { label: /^myRiddenPetId(?:Atom)?$/i, defaultValue: null },
+  riddenPetId: { label: /^myRiddenPetId(?:Atom)?$/i, defaultValue: null, tier: 'client' },
 
   // ── Actions ───────────────────────────────────────────────────────────
-  action: { label: /^(?:current|room)?[Aa]ction(?:Data)?Atom$/i },
+  action: { label: /^(?:current|room)?[Aa]ction(?:Data)?Atom$/i, tier: 'composite' },
+
+  // ── Extra registry entries for callers migrated in phase B ────────────
+  // These exist so subscribeAtomValue('quinoaData' | 'myUserSlot') works.
+  // They resolve via the jotai label + BatchedSubscriptionManager polling
+  // until Task 6 opts them into the reactive manager via tier + statePath.
+  quinoaData: {
+    label: /^quinoaDataAtom$/,
+    tier: 'state',
+    statePath: '/child/data',
+  },
+  myUserSlot: {
+    label: /^myUserSlotAtom$/,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}',
+  },
 };
 
 // ── Resolution cache ─────────────────────────────────────────────────────
@@ -329,6 +435,22 @@ function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
   const finder = ATOM_FINDERS[key] as AtomFinder<unknown> | undefined;
   if (!finder) return null;
 
+  // Direct stateTree selector — no atom lookup needed. This is the primary
+  // route for keys projecting off stateAtom (per-slot data, etc.); the boot
+  // race is handled via `bootFallbackLabel` inside readAtomValue*.
+  if (finder.stateTreeSelector) {
+    const entry: CachedResolution = {
+      atom: null,
+      resolvedVia: 'stateTree',
+      foundLabel: `stateTreeSelector:${key}`,
+      useStateTree: true,
+      cachedSelector: finder.stateTreeSelector as StateTreeSelector<unknown>,
+    };
+    resolutionCache.set(key, entry);
+    missingLog.delete(key);
+    return entry;
+  }
+
   // preferState: try state-tree path FIRST. Set on keys whose convenience atom
   // is being upstream-deprecated (e.g. shopsAtom → stateAtom.child.data.shops).
   if (finder.preferState && finder.fallbackSource) {
@@ -337,7 +459,7 @@ function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
   }
 
   // Label regex
-  const byLabel = findAtomsByLabel(finder.label);
+  const byLabel = finder.label ? findAtomsByLabel(finder.label) : [];
   if (byLabel.length > 0) {
     let atom = byLabel[0];
     if (byLabel.length > 1 && finder.prefer) {
@@ -475,7 +597,22 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
       // to applyTransform so it doesn't double-walk.
       return applyTransform(finder, selected, key, undefined) as RegistryValue<K>;
     }
-    // selected === null with no default → fall through to legacy read below.
+    // selected === null with no default → fall through to boot fallback below.
+  }
+
+  // Boot-race fallback via jotai label — only for selector-only entries whose
+  // `resolution.atom` is null (nothing to read from raw).
+  if (resolution.atom === null) {
+    if (finder.bootFallbackLabel) {
+      const bootAtom = findAtomsByLabel(finder.bootFallbackLabel)[0];
+      if (bootAtom) {
+        try {
+          const raw = await readRawAtomValue(bootAtom);
+          return applyTransform(finder, raw, key, undefined) as RegistryValue<K>;
+        } catch { /* fall through */ }
+      }
+    }
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
   }
 
   try {
@@ -485,7 +622,7 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
     // Cached ref might be stale — clear and retry once
     invalidateKey(key);
     const retry = resolveAtom(key);
-    if (retry) {
+    if (retry && retry.atom !== null) {
       try {
         const raw = await readRawAtomValue(retry.atom);
         return applyTransform(finder, raw, key, retry.pathPrefix) as RegistryValue<K>;
@@ -495,10 +632,25 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
   }
 }
 
-/** Subscribe to reactive updates for a registry key. Returns null if atom not found. */
+/**
+ * Subscribe to reactive updates for a registry key. Returns null if atom not
+ * found.
+ *
+ * Routing (per plan Task 5-6):
+ * 1. If the resolved entry uses stateTree (`preferState` + `fallbackSource`):
+ *    subscribe via `stateTreeSubscribe` with a memoized selector. Unchanged
+ *    from the pre-reactive-migration behavior — these subscribers keep their
+ *    push-based path even before the reactive rollout completes.
+ * 2. Else: `subscribeRawAtom(atom, cb, effectiveHint)` where
+ *    `effectiveHint = hint ?? finder.tier`. The jotai polyfill's `sub()`
+ *    diverts to the reactive manager when that tier's kill switch is on;
+ *    otherwise it falls back to the polling manager. Behavior is
+ *    unchanged until the state kill switch flips.
+ */
 export async function subscribeAtomValue<K extends AtomRegistryKey>(
   key: K,
   cb: (value: RegistryValue<K>) => void,
+  hint?: import('./reactive/types').SubscriberTier,
 ): Promise<(() => void) | null> {
   const finder = ATOM_FINDERS[key];
   const resolution = resolveAtom(key);
@@ -523,10 +675,17 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
     return stop;
   }
 
+  if (resolution.atom === null) {
+    log(`[AtomRegistry] Cannot subscribe '${key}': no atom to bind`);
+    return null;
+  }
+
+  const effectiveHint = hint ?? finder.tier;
+
   const unsubscribe = await subscribeRawAtom(resolution.atom, (raw: unknown) => {
     const value = applyTransform(finder, raw, key, resolution.pathPrefix);
     cb((value ?? null) as RegistryValue<K>);
-  });
+  }, effectiveHint);
 
   return () => {
     try { unsubscribe(); } catch (error) {
@@ -556,6 +715,22 @@ export function readAtomValueSync<K extends AtomRegistryKey>(key: K): RegistryVa
     }
   }
 
+  // Boot-race fallback for selector-only entries: `store.get(null)` would throw.
+  // Try the optional jotai label if present, else return default.
+  if (resolution.atom === null) {
+    const store = getCachedStore();
+    if (store && finder.bootFallbackLabel) {
+      const bootAtom = findAtomsByLabel(finder.bootFallbackLabel)[0];
+      if (bootAtom) {
+        try {
+          const raw = store.get(bootAtom);
+          return applyTransform(finder, raw, key, undefined) as RegistryValue<K>;
+        } catch { /* fall through */ }
+      }
+    }
+    return (finder?.defaultValue ?? null) as RegistryValue<K>;
+  }
+
   const store = getCachedStore();
   if (!store) {
     return (finder?.defaultValue ?? null) as RegistryValue<K>;
@@ -567,7 +742,7 @@ export function readAtomValueSync<K extends AtomRegistryKey>(key: K): RegistryVa
   } catch {
     invalidateKey(key);
     const retry = resolveAtom(key);
-    if (retry) {
+    if (retry && retry.atom !== null) {
       try {
         const raw = store.get(retry.atom);
         return applyTransform(finder, raw, key, retry.pathPrefix) as RegistryValue<K>;

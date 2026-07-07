@@ -1,14 +1,8 @@
-// src/data/abilityGroups.ts
-// Defines ability groups for cross-ability comparison in Pet Hub
-
 import type { AbilityStats } from '../../../utils/petDataTester';
 import { getGardenSnapshot } from '../../garden/bridge';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect } from '../abilityValuation';
 
-/**
- * Ability Group Definition
- * Groups abilities that can be meaningfully compared despite having different effects
- */
+/** Groups abilities that can be meaningfully compared despite different effects. */
 export interface AbilityGroup {
   id: string;
   name: string;
@@ -16,20 +10,11 @@ export interface AbilityGroup {
   description: string;
   abilityIds: string[];
   comparisonMetric: 'value_per_hour' | 'garden_impact' | 'procs_per_hour';
-  /**
-   * Calculate comparable value for an ability within this group
-   * Returns value in coins per hour for comparison purposes
-   */
+  /** Comparable value (coins/hour) for an ability within this group. */
   calculateComparableValue: (ability: AbilityStats, currentStrength: number | null) => number | null;
 }
 
-/**
- * Crop Harvest Value Group
- * Abilities that increase coin income through crop harvesting/selling
- * - Double Harvest: Gives extra crop on harvest
- * - Crop Refund: Refunds items when selling (can proc multiple times per sale)
- * - Sell Boost: Percentage bonus on entire sale value
- */
+/** Abilities that increase coin income through harvesting/selling (DoubleHarvest, ProduceRefund, SellBoost I-IV). */
 const CROP_HARVEST_VALUE_GROUP: AbilityGroup = {
   id: 'crop_harvest_value',
   name: 'Crop Harvest Value',
@@ -45,53 +30,44 @@ const CROP_HARVEST_VALUE_GROUP: AbilityGroup = {
   ],
   comparisonMetric: 'garden_impact',
   calculateComparableValue: (ability: AbilityStats, currentStrength: number | null): number | null => {
-    // Use garden-aware valuation for value per proc
     const gardenSnapshot = getGardenSnapshot();
     const context = buildAbilityValuationContext(gardenSnapshot);
 
-    // Check if ability already has calculated garden value
     if (ability.gardenValuePerProc != null && ability.gardenValuePerProc > 0) {
       return ability.gardenValuePerProc;
     }
 
-    // Try to resolve dynamic ability effect (for garden-dependent abilities like Gold/Rainbow Granter)
+    // Dynamic effect handles garden-dependent abilities (Gold/Rainbow Granter).
     try {
       const dynamicEffect = resolveDynamicAbilityEffect(ability.id, context, currentStrength ?? 100);
       if (dynamicEffect && dynamicEffect.effectPerProc > 0) {
         return dynamicEffect.effectPerProc;
       }
     } catch (e) {
-      // Not a dynamically valued ability, continue
+      // Not dynamically valued; fall through.
     }
 
-    // For abilities without pre-calculated values, estimate based on garden
+    // Estimate from garden when no pre-calculated value is available.
     if (context.totalMatureValue > 0 && context.crops.length > 0) {
       const avgCropValue = context.totalMatureValue / context.crops.length;
 
-      // Ability-specific calculations
       if (ability.id === 'DoubleHarvest') {
-        // Double Harvest: value of getting one extra crop
         return avgCropValue;
       }
 
       if (ability.id === 'ProduceRefund') {
-        // Crop Refund: value of one crop refunded (simplified)
         return avgCropValue;
       }
 
       if (ability.id.startsWith('SellBoost')) {
-        // Sell Boost: percentage of total sale value
-        // Extract tier from ability name to determine boost %
         const tier = ability.tier ?? 1;
         const boostPercent = 10 + (tier - 1) * 2; // I:10%, II:12%, III:14%, IV:16%
         return (context.totalMatureValue * boostPercent) / 100;
       }
 
-      // Default: average crop value
       return avgCropValue;
     }
 
-    // Last resort: use effective value if available
     if (ability.effectiveValue != null && ability.effectiveValue > 0) {
       return ability.effectiveValue;
     }

@@ -1,4 +1,3 @@
-// src/utils/storage.ts
 type LegacyGmGetValue = (key: string) => string | undefined;
 type LegacyGmSetValue = (key: string, value: string) => void;
 type LegacyGmDeleteValue = (key: string) => void;
@@ -278,6 +277,13 @@ const QPM_STORAGE_KEYS = [
   // Shop Enhancer (Aries co-existence gate)
   'qpm.shopEnhancer.mode',
 
+  // Reactive rollout kill switches (design §5b). Default false; per-tier so
+  // regressions can be bisected without a rebuild.
+  'qpm.perf.reactive.stateEnabled',
+  'qpm.perf.reactive.clientEnabled',
+  'qpm.perf.reactive.compositeEnabled',
+  'qpm.perf.reactive.dynamicEnabled',
+
   // Tour system (dynamic keys: qpm.tour.<windowId>)
   // Cleared by storage.clear() via the qpm.* prefix match
 ];
@@ -297,11 +303,7 @@ const QPM_DYNAMIC_KEY_PREFIXES = [
   'qpm-window-state-',
 ] as const;
 
-/**
- * Keys excluded from settings export.
- * These are runtime logs, caches, legacy data, and ephemeral state
- * that have no value in a settings backup.
- */
+/** Keys excluded from settings export — runtime logs, caches, legacy data, ephemeral state. */
 const EXPORT_EXCLUDE_KEYS: readonly string[] = [
   // Activity log history (regenerated, ~4 MB)
   'qpm.activityLog.history.v1',
@@ -332,10 +334,7 @@ const EXPORT_EXCLUDE_KEYS: readonly string[] = [
   'petOptimizer:config.v3',
 ];
 
-/**
- * Key prefixes excluded from settings export.
- * Any key starting with one of these prefixes will be skipped.
- */
+/** Key prefixes excluded from settings export. */
 const EXPORT_EXCLUDE_PREFIXES: readonly string[] = [
   // Restock cache (all versions, regenerated from Supabase)
   'qpm.restockCache',
@@ -345,11 +344,7 @@ const EXPORT_EXCLUDE_PREFIXES: readonly string[] = [
   'qpm.discovered.',
 ];
 
-/**
- * Set of storage keys registered at runtime by features that use dynamic
- * (e.g. player-scoped) key names. Used by exportAllValues() as a fallback
- * discovery mechanism alongside the localStorage prefix scan.
- */
+/** Runtime-registered dynamic (e.g. player-scoped) keys — fallback discovery for exportAllValues(). */
 const dynamicKeys = new Set<string>();
 
 /**
@@ -643,11 +638,8 @@ export const storage: Storage = {
     refreshRuntime();
 
     if (runtime === 'legacy-gm' && legacyGm) {
-      // Prefer localStorage — it's written synchronously by our mirror
-      // and is always at least as fresh as the GM cache. Under script
-      // managers with async persistence (e.g. SMM), the GM cache may
-      // contain a stale snapshot from a previous session while
-      // localStorage has the latest mirrored write.
+      // Prefer localStorage: it's written synchronously by our mirror, so under
+      // async-persistence script managers (e.g. SMM) it's fresher than the GM cache.
       const localRaw = readLocalRaw(key);
       if (localRaw != null) return deserialize(localRaw, fallback);
       // No localStorage entry — try GM (covers Tampermonkey where
@@ -674,12 +666,8 @@ export const storage: Storage = {
       try {
         legacyGm.setValue(key, raw);
       } catch {}
-      // Always mirror to localStorage for durability.
-      // Under script managers with async persistence (e.g. SMM),
-      // GM_setValue writes to an in-memory cache and syncs to
-      // background storage asynchronously. If the page refreshes
-      // before the sync completes, the write is lost. The
-      // localStorage mirror ensures the data survives.
+      // Mirror to localStorage: under async-persistence script managers (e.g. SMM),
+      // GM_setValue syncs in the background, so a refresh before it completes loses the write.
       writeLocalRaw(key, raw);
       return;
     }
@@ -760,15 +748,9 @@ function isExportExcluded(key: string): boolean {
 }
 
 /**
- * Serialises all currently-stored QPM values to a plain object of JSON strings.
- *
- * Exports keys from QPM_STORAGE_KEYS, dynamically registered keys, and any localStorage
- * keys matching known QPM prefixes (qpm.*, quinoa*).
- * Excludes dynamic window layout keys (position/size/state) — those are ephemeral UI state.
- *
- * Values are returned as JSON strings (the same format that storage.set writes)
- * so they can be written verbatim to localStorage or forwarded to the Starweaver
- * Mod Manager's import pipeline without any further transformation.
+ * Serialises all currently-stored QPM values (from QPM_STORAGE_KEYS, dynamic keys, and
+ * matching localStorage keys) to a plain object of JSON strings, excluding dynamic window
+ * layout keys. Output format matches storage.set, ready for import or Starweaver Mod Manager.
  */
 export function exportAllValues(): Record<string, string> {
   const out: Record<string, string> = {};
@@ -821,9 +803,7 @@ export function importAllValues(data: Record<string, string>): number {
       const parsed = JSON.parse(jsonStr);
       storage.set(key, parsed);
       count++;
-    } catch {
-      // Skip malformed entries
-    }
+    } catch {}
   }
   return count;
 }

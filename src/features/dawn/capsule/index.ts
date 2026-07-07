@@ -4,7 +4,7 @@
 
 import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
-import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
 import {
   CAPSULE_OPEN_ACTION,
   CAPSULE_PULLS_STORAGE_KEY,
@@ -209,22 +209,20 @@ export function startCapsuleTracker(): void {
   sessionPulls = [];
   loadHistory();
 
-  const myDataAtom = getAtomByLabel('myDataAtom');
-  if (myDataAtom) {
-    void subscribeAtom<unknown>(myDataAtom, (value) => {
-      processActivityLogs(value);
+  void subscribeAtomValue('myData', (value) => {
+    processActivityLogs(value);
+  })
+    .then((unsubscribe) => {
+      if (!unsubscribe) return;
+      if (!initialized) {
+        unsubscribe();
+        return;
+      }
+      myDataUnsubscribe = unsubscribe;
     })
-      .then((unsubscribe) => {
-        if (!initialized) {
-          unsubscribe();
-          return;
-        }
-        myDataUnsubscribe = unsubscribe;
-      })
-      .catch((error) => {
-        log('[CapsuleTracker] Failed to subscribe to myDataAtom', error);
-      });
-  }
+    .catch((error) => {
+      log('[CapsuleTracker] Failed to subscribe to myData', error);
+    });
 
   log('[CapsuleTracker] Started');
 }

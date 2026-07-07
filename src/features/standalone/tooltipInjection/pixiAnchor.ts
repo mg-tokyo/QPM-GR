@@ -9,7 +9,7 @@
 // button) so we cache the node reference and re-walk only when it dies.
 
 import { pageWindow } from '../../../core/pageContext';
-import { GARDEN_INFO_CARD_LABEL } from './types';
+import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL } from './types';
 
 // ---------------------------------------------------------------------------
 // PIXI shapes (structural — avoids depending on pixi.js types)
@@ -97,6 +97,28 @@ function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
   return null;
 }
 
+/** Collect ALL visible nodes with the given label (unlike findNodeByLabel which returns the first). */
+function findAllNodesByLabel(root: PixiNode, label: string): PixiNode[] {
+  const stack: PixiNode[] = [root];
+  const seen = new WeakSet<object>();
+  const out: PixiNode[] = [];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (seen.has(node as object)) continue;
+    seen.add(node as object);
+    if (!isVisible(node)) continue;
+    if (typeof node.label === 'string' && node.label === label) out.push(node);
+    if (Array.isArray(node.children)) {
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        const c = node.children[i];
+        if (c) stack.push(c);
+      }
+    }
+  }
+  return out;
+}
+
 function resolveCanvas(renderer: PixiRenderer): HTMLCanvasElement | null {
   const cls = document.querySelector('.QuinoaCanvas canvas');
   if (cls instanceof HTMLCanvasElement) return cls;
@@ -153,9 +175,17 @@ function isCardStillValid(): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Current CSS-space bounds of `GardenInfoCardSystem` when visible, else null.
- * Cheap when the cached node is still valid — only re-walks the stage when
- * the previous card was destroyed or hidden.
+ * Current CSS-space bounds MG's tile info panel occupies, extended upward
+ * to include any visible `PixiTooltip` that horizontally overlaps the panel
+ * (the expanded ability tooltip). Overlay stacks above this combined region,
+ * so it never covers the ability chip in the default state and never covers
+ * the expanded tooltip when it opens. Returns null when the panel is hidden.
+ *
+ * Cheap when the cached card node is still valid — the stage walk for the
+ * card only runs when the previous card was destroyed or hidden. Tooltip
+ * lookup does a stage scan every frame because tooltip nodes come and go
+ * unpredictably (any PIXI hover can spawn one) and there is no reliable
+ * "current tooltip" cache we can invalidate cheaply.
  */
 export function getCardBounds(): CardBounds | null {
   if (!cachedRefs) {
@@ -182,11 +212,53 @@ export function getCardBounds(): CardBounds | null {
   const scaleX = cr.width / sw;
   const scaleY = cr.height / sh;
 
+  const cardLeft = cr.left + b.x * scaleX;
+  const cardTop = cr.top + b.y * scaleY;
+  const cardWidth = b.width * scaleX;
+  const cardHeight = b.height * scaleY;
+  const cardRight = cardLeft + cardWidth;
+
+  // Extend `top` upward if a visible TooltipPopup sits above the card and
+  // horizontally overlaps its column — that's MG's expanded ability tooltip.
+  // Sanity-guarded: skip tooltips with zero-area bounds, those that don't
+  // land inside the canvas, and cap distance so a rogue node can never push
+  // the overlay off-screen.
+  let effectiveTop = cardTop;
+  const canvasTop = cr.top;
+  const canvasBottom = cr.top + cr.height;
+  const canvasLeft = cr.left;
+  const canvasRight = cr.left + cr.width;
+  const tooltips = findAllNodesByLabel(cachedRefs.stage, PIXI_TOOLTIP_LABEL);
+  for (const tt of tooltips) {
+    const tb = nodeBounds(tt);
+    if (!tb || tb.width <= 0 || tb.height <= 0) continue;
+    const ttLeft = cr.left + tb.x * scaleX;
+    const ttTop = cr.top + tb.y * scaleY;
+    const ttWidth = tb.width * scaleX;
+    const ttHeight = tb.height * scaleY;
+    const ttRight = ttLeft + ttWidth;
+    const ttBottom = ttTop + ttHeight;
+    // Must be inside the canvas viewport (rules out phantom off-screen nodes).
+    if (ttRight < canvasLeft || ttLeft > canvasRight) continue;
+    if (ttBottom < canvasTop || ttTop > canvasBottom) continue;
+    // Tooltip's TOP must sit above the card's top. The expanded ability
+    // tooltip has a downward pointer tail that extends into the card's Y
+    // range, so we cannot require the bottom edge to clear the card — that
+    // was the old bug (tooltip found, but skipped as "not above the card").
+    if (ttTop >= cardTop) continue;
+    // Horizontal overlap with the card's column.
+    const overlapX = Math.min(cardRight, ttRight) - Math.max(cardLeft, ttLeft);
+    if (overlapX <= 0) continue;
+    if (ttTop < effectiveTop) effectiveTop = ttTop;
+  }
+  // Never push the anchor above the canvas top — guards against runaway math.
+  if (effectiveTop < canvasTop) effectiveTop = canvasTop;
+
   return {
-    left: cr.left + b.x * scaleX,
-    top: cr.top + b.y * scaleY,
-    width: b.width * scaleX,
-    height: b.height * scaleY,
+    left: cardLeft,
+    top: effectiveTop,
+    width: cardWidth,
+    height: cardHeight + (cardTop - effectiveTop),
   };
 }
 
@@ -194,4 +266,103 @@ export function getCardBounds(): CardBounds | null {
 export function resetAnchor(): void {
   cachedCard = null;
   cachedRefs = null;
+}
+
+// ---------------------------------------------------------------------------
+// Debug bridge — inspect what the anchor sees from the console.
+// Call as: window.__QPM_TOOLTIP_ANCHOR_DEBUG__()
+// ---------------------------------------------------------------------------
+
+interface AnchorDebugNode {
+  label: string;
+  visible: boolean;
+  worldVisible: unknown;
+  hasBounds: boolean;
+  bounds: PixiBounds | null;
+  destroyed: unknown;
+}
+
+interface AnchorDebugReport {
+  cardLabel: string;
+  tooltipLabel: string;
+  refsFound: boolean;
+  pixiCaptured: boolean;
+  cachedCardStillValid: boolean;
+  computedBounds: CardBounds | null;
+  gardenInfoAllMatches: AnchorDebugNode[];
+  pixiTooltipAllMatches: AnchorDebugNode[];
+  /** Any node whose label contains 'GardenInfo' — helps spot renames. */
+  gardenInfoLike: AnchorDebugNode[];
+}
+
+function collectAllLabeledNodes(root: PixiNode): PixiNode[] {
+  const stack: PixiNode[] = [root];
+  const seen = new WeakSet<object>();
+  const out: PixiNode[] = [];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (seen.has(node as object)) continue;
+    seen.add(node as object);
+    if (typeof node.label === 'string' && node.label.length > 0) out.push(node);
+    if (Array.isArray(node.children)) {
+      for (const c of node.children) if (c) stack.push(c);
+    }
+  }
+  return out;
+}
+
+function summarizeNode(n: PixiNode): AnchorDebugNode {
+  return {
+    label: typeof n.label === 'string' ? n.label : '',
+    visible: isVisible(n),
+    worldVisible: n.worldVisible,
+    hasBounds: typeof n.getBounds === 'function',
+    bounds: nodeBounds(n),
+    destroyed: n.destroyed,
+  };
+}
+
+function debugReport(): AnchorDebugReport {
+  const root = pageWindow as Window & typeof globalThis & { __QPM_PIXI_CAPTURED__?: PixiCapture };
+  const pixiCaptured = !!root.__QPM_PIXI_CAPTURED__;
+  const refs = getRefs();
+  const refsFound = !!refs;
+  const cachedValid = isCardStillValid();
+  const bounds = getCardBounds();
+
+  let gardenInfoAll: AnchorDebugNode[] = [];
+  let tooltipAll: AnchorDebugNode[] = [];
+  let gardenInfoLike: AnchorDebugNode[] = [];
+  if (refs) {
+    gardenInfoAll = findAllNodesByLabel(refs.stage, GARDEN_INFO_CARD_LABEL).map(summarizeNode);
+    tooltipAll = findAllNodesByLabel(refs.stage, PIXI_TOOLTIP_LABEL).map(summarizeNode);
+    const all = collectAllLabeledNodes(refs.stage);
+    gardenInfoLike = all
+      .filter((n) => typeof n.label === 'string' && /GardenInfo/.test(n.label))
+      .map(summarizeNode);
+  }
+
+  return {
+    cardLabel: GARDEN_INFO_CARD_LABEL,
+    tooltipLabel: PIXI_TOOLTIP_LABEL,
+    refsFound,
+    pixiCaptured,
+    cachedCardStillValid: cachedValid,
+    computedBounds: bounds,
+    gardenInfoAllMatches: gardenInfoAll,
+    pixiTooltipAllMatches: tooltipAll,
+    gardenInfoLike,
+  };
+}
+
+/** Attach the debug bridge to pageWindow so it's callable from the console. */
+export function installAnchorDebugBridge(): void {
+  const w = pageWindow as Window & { __QPM_TOOLTIP_ANCHOR_DEBUG__?: () => AnchorDebugReport };
+  w.__QPM_TOOLTIP_ANCHOR_DEBUG__ = debugReport;
+}
+
+export function uninstallAnchorDebugBridge(): void {
+  const w = pageWindow as Window & { __QPM_TOOLTIP_ANCHOR_DEBUG__?: unknown };
+  delete w.__QPM_TOOLTIP_ANCHOR_DEBUG__;
 }

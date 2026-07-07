@@ -1,17 +1,7 @@
-// src/utils/deepEqual.ts
-//
-// Minimal recursive deep-equals for MagicGarden state-tree data. Handles the
-// shape that shows up in stateAtom.value: primitives, arrays, plain objects,
-// null/undefined. Does NOT handle Maps, Sets, Dates, functions, class instances,
-// or prototype chains — game state is Immutable<IState<RoomData>> (see beta
-// store/store.ts) which serializes cleanly as plain JSON. If a future state
-// change introduces non-plain values, this function will treat them as
-// reference-equals only.
-//
-// Purpose: memoization comparator for stateTree.subscribe selectors. Called on
-// every state event for every subscriber, so keep it fast — reference equality
-// first, then a shallow type check, then recurse only when both are plain
-// containers.
+// Recursive deep-equals for stateAtom.value shapes (primitives, arrays, plain
+// objects, null/undefined). Maps/Sets/Dates/class instances fall back to
+// reference-equals only. Used as the memoization comparator for
+// stateTree.subscribe — called on every state event, so keep it fast.
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;

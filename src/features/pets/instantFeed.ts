@@ -1,6 +1,3 @@
-// src/features/instantFeed.ts
-// WebSocket-based instant pet feeding using discovered FeedPet message format.
-
 import { log } from '../../utils/logger';
 import { getActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { readInventoryDirect } from '../../store/inventory';
@@ -23,10 +20,6 @@ export interface InstantFeedResult {
   foodSpecies: string | null;
   error?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Feed queue types
-// ---------------------------------------------------------------------------
 
 export interface FeedQueueEvent {
   type: 'fed' | 'error' | 'drained';
@@ -92,9 +85,6 @@ function resolvePetForFeedBySlotId(
   return pets.find((pet) => pet.slotId === normalizedSlotId) ?? null;
 }
 
-/**
- * Send a FeedPet WebSocket message.
- */
 function sendFeedPetMessage(petItemId: string, cropItemId: string): boolean {
   const sent = sendRoomAction('FeedPet', { petItemId, cropItemId }, { throttleMs: 120 });
   if (!sent.ok && sent.reason !== 'throttled') {
@@ -105,9 +95,7 @@ function sendFeedPetMessage(petItemId: string, cropItemId: string): boolean {
   // Dispatch event so petTeamsLogs can record feed events without direct coupling.
   try {
     window.dispatchEvent(new CustomEvent('qpm:feedPet', { detail: { petItemId, cropItemId } }));
-  } catch {
-    // no-op
-  }
+  } catch {}
 
   return sent.ok;
 }
@@ -335,10 +323,8 @@ export async function getInstantFeedPlanBySlotId(
 }
 
 /**
- * Feed a pet instantly using WebSocket (bypasses DOM clicks).
- *
- * @param petSlotOrIndex - Active slot index (preferred), with array-index fallback for legacy callers
- * @returns Result of the feed operation
+ * Feed a pet instantly via WebSocket (bypasses DOM clicks).
+ * @param petSlotOrIndex Active slot index (preferred); falls back to array index for legacy callers.
  */
 export async function feedPetInstantly(
   petSlotOrIndex: number,
@@ -394,9 +380,6 @@ export async function feedPetInstantlyBySlotId(
   }
 }
 
-/**
- * Feed a specific pet by petId.
- */
 export async function feedPetByIds(
   petId: string,
   cropId: string,
@@ -435,9 +418,6 @@ export async function feedPetByIds(
   }
 }
 
-/**
- * Feed all active pets that are below hunger threshold.
- */
 export async function feedAllPetsInstantly(
   hungerThreshold: number = 40,
 ): Promise<InstantFeedResult[]> {
@@ -467,9 +447,7 @@ export async function feedAllPetsInstantly(
   return results;
 }
 
-// ---------------------------------------------------------------------------
-// Feed queue — allows rapid enqueue without awaiting each feed
-// ---------------------------------------------------------------------------
+// Feed queue: rapid enqueue without awaiting each feed.
 
 const QUEUE_DRAIN_SPACING_MS = 100;
 
@@ -673,9 +651,6 @@ export function onFeedQueueEvent(cb: (event: FeedQueueEvent) => void): () => voi
   return () => { queueListeners.delete(cb); };
 }
 
-/**
- * Check if instant feed is available (RoomConnection exists).
- */
 export function isInstantFeedAvailable(): boolean {
   return hasRoomConnection();
 }

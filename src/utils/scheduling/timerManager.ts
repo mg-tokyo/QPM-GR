@@ -1,4 +1,3 @@
-// src/utils/timerManager.ts
 // Unified timer management using requestAnimationFrame
 // Replaces scattered setInterval calls with a single efficient loop
 
@@ -18,7 +17,6 @@ interface Timer {
 // Hoisted so the tick loop doesn't allocate a new array every frame
 const TICK_PRIORITIES: readonly TimerPriority[] = ['critical', 'normal', 'low'];
 
-// Singleton timer manager
 class TimerManager {
   private timers = new Map<string, Timer>();
   private rafId: number | null = null;
@@ -28,7 +26,6 @@ class TimerManager {
   private hiddenTimerCount = 0;
 
   constructor() {
-    // Listen for visibility changes
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
     }
@@ -38,18 +35,10 @@ class TimerManager {
     this.isPageVisible = !document.hidden;
     
     if (this.isPageVisible && this.timers.size > 0) {
-      // Resume the loop if we have timers
       this.start();
     }
   };
 
-  /**
-   * Register a timer callback
-   * @param id Unique identifier for the timer
-   * @param callback Function to call
-   * @param intervalMs How often to call (in milliseconds)
-   * @param options Additional options
-   */
   register(
     id: string,
     callback: TimerCallback,
@@ -82,18 +71,13 @@ class TimerManager {
     this.timers.set(id, timer);
     if (runWhenHidden) this.hiddenTimerCount++;
 
-    // Start the loop if not running
     if (!this.isRunning) {
       this.start();
     }
 
-    // Return unregister function
     return () => this.unregister(id);
   }
 
-  /**
-   * Unregister a timer
-   */
   unregister(id: string): void {
     const timer = this.timers.get(id);
     if (timer && timer.runWhenHidden && !timer.paused) {
@@ -101,15 +85,11 @@ class TimerManager {
     }
     this.timers.delete(id);
 
-    // Stop loop if no timers left
     if (this.timers.size === 0) {
       this.stop();
     }
   }
 
-  /**
-   * Pause a specific timer
-   */
   pause(id: string): void {
     const timer = this.timers.get(id);
     if (timer && !timer.paused) {
@@ -118,9 +98,6 @@ class TimerManager {
     }
   }
 
-  /**
-   * Resume a specific timer
-   */
   resume(id: string): void {
     const timer = this.timers.get(id);
     if (timer && timer.paused) {
@@ -130,16 +107,10 @@ class TimerManager {
     }
   }
 
-  /**
-   * Check if a timer exists
-   */
   has(id: string): boolean {
     return this.timers.has(id);
   }
 
-  /**
-   * Get count of active timers
-   */
   get count(): number {
     return this.timers.size;
   }
@@ -166,11 +137,9 @@ class TimerManager {
     const deltaTime = now - this.lastFrameTime;
     this.lastFrameTime = now;
 
-    // Skip if page is hidden and we don't have hidden-capable timers
     const hasVisibleTimers = this.isPageVisible || this.hiddenTimerCount > 0;
-    
+
     if (!hasVisibleTimers) {
-      // Schedule next frame but don't process timers
       this.rafId = requestAnimationFrame(this.tick);
       return;
     }
@@ -194,13 +163,9 @@ class TimerManager {
       }
     }
 
-    // Schedule next frame
     this.rafId = requestAnimationFrame(this.tick);
   };
 
-  /**
-   * Clean up all timers
-   */
   destroy(): void {
     this.stop();
     this.timers.clear();
@@ -210,9 +175,6 @@ class TimerManager {
     }
   }
 
-  /**
-   * Get debug info about active timers
-   */
   getDebugInfo(): { id: string; intervalMs: number; priority: TimerPriority; paused: boolean }[] {
     return Array.from(this.timers.values()).map(t => ({
       id: t.id,
@@ -223,7 +185,6 @@ class TimerManager {
   }
 }
 
-// Export singleton instance
 export const timerManager = new TimerManager();
 
 // Legacy compatibility - drop-in replacement for setInterval

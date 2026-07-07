@@ -369,7 +369,6 @@ function buildOverlay(): HTMLDivElement {
     'padding:4px 10px',
     'border-radius:6px',
     'background:rgba(0,0,0,0.72)',
-    'backdrop-filter:blur(4px)',
     'pointer-events:none',
     'user-select:none',
     'white-space:nowrap',

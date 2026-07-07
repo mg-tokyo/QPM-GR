@@ -1,6 +1,3 @@
-// src/data/abilityStrategies.ts
-// Ability strategy categorization for Pet Optimizer
-
 export type StrategyCategory =
   | 'growth'
   | 'coins'
@@ -62,7 +59,6 @@ export const STRATEGY_DEFINITIONS: StrategyDefinition[] = [
   },
 ];
 
-// Map of ability IDs to their strategy categories
 const ABILITY_STRATEGY_MAP: Record<string, StrategyCategory> = {
   // Growth abilities
   PlantGrowthBoost: 'growth',
@@ -116,9 +112,6 @@ const ABILITY_STRATEGY_MAP: Record<string, StrategyCategory> = {
   DoubleHatch: 'specialty',
 };
 
-/**
- * Get strategy category for an ability
- */
 export function getAbilityStrategy(abilityId: string): StrategyCategory {
   return ABILITY_STRATEGY_MAP[abilityId] || 'general';
 }

@@ -1,5 +1,3 @@
-// src/utils/toolInventory.ts — Generic tool inventory count helpers.
-
 import { getInventoryItems, onInventoryChange } from '../store/inventory';
 
 /**

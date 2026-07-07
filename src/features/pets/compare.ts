@@ -1,7 +1,4 @@
-﻿// src/features/petCompareEngine.ts
-// Shared compare and progression engine for pet picker, manager compare, and optimizer decisions.
-
-import {
+﻿import {
   computeAbilityStats,
   computeEffectPerHour,
   getAbilityDefinition,
@@ -137,12 +134,7 @@ const CONTINUOUS_MODIFIER_PARAM_KEYS = new Set([
 ]);
 const OPTIMIZER_HIDDEN_FAMILY_KEYS = new Set(['dawnsustain', 'dawnbinderboost']);
 
-/**
- * Abilities whose tiers represent functionally distinct roles (different seed pools)
- * rather than the same effect at different strengths.
- * When an ability is in this set, its exactFamilyKey preserves the tier suffix
- * so each tier competes independently in the optimizer.
- */
+/** Tiers here are distinct roles (different seed pools), not strength variants — preserve tier suffix in exactFamilyKey so each competes independently. */
 const TIER_INDEPENDENT_FAMILY_IDS = new Set([
   'SeedFinderI', 'SeedFinderII', 'SeedFinderIII', 'SeedFinderIV',
 ]);

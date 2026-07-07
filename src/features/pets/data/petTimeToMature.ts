@@ -1,6 +1,4 @@
-// src/data/petTimeToMature.ts
-// Time-to-mature helpers — reads from the live petCatalog.
-// All values come from the game's runtime data; no hardcoded species lists.
+// Reads from the live petCatalog; no hardcoded species lists.
 
 import { getPetHoursToMature, areCatalogsReady } from '../../../catalogs/gameCatalogs';
 

@@ -1,4 +1,3 @@
-// src/utils/restock/diagnostics.ts
 // Health-bus wiring + named logger for the restockData subsystem.
 // Lives in a sister file so the (already-over-hard-limit) dataService.ts diff
 // stays minimal — see tracker item 5.4 / design §4.4 RESTOCK row.

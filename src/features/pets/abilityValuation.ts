@@ -1,4 +1,3 @@
-// src/features/abilityValuation.ts
 // Derives per-proc coin impacts for abilities that depend on live garden state.
 
 import { getGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
@@ -35,15 +34,8 @@ const GRANTER_TO_MUTATION: Readonly<Record<string, string>> = {
   RainGranter: 'Wet',
 };
 
-/**
- * Returns the mutation name granted by a *Granter ability.
- * Resolution order:
- *   1. Runtime catalog — baseParameters.grantedMutations[0] (handles new game additions)
- *   2. Hardcoded lookup table — known mismatches or renamed abilities
- *   3. Strip "Granter" suffix from the ability ID as a last resort
- */
+/** Resolves granted mutation: catalog baseParameters.grantedMutations[0] → hardcoded table → strip "Granter" suffix. */
 export function resolveGrantedMutationName(abilityId: string): string {
-  // 1. Check the ability catalog — the authoritative source
   const catalogEntry = getAbilityDef(abilityId);
   if (catalogEntry?.baseParameters) {
     const granted = catalogEntry.baseParameters['grantedMutations'];
@@ -52,11 +44,10 @@ export function resolveGrantedMutationName(abilityId: string): string {
     }
   }
 
-  // 2. Hardcoded table (covers renamed / aliased abilities not in catalog yet)
+  // Fallback table for renamed/aliased abilities missing from catalog.
   const fromTable = GRANTER_TO_MUTATION[abilityId];
   if (fromTable) return fromTable;
 
-  // 3. Strip suffix
   return abilityId.replace(/Granter$/, '');
 }
 
@@ -75,7 +66,7 @@ interface MatureCrop {
 export interface AbilityValuationContext {
   crops: MatureCrop[];
   uncoloredCrops: MatureCrop[];
-  uncoloredFruitSlots: number; // NEW: count per-fruit slots for Rainbow/Gold
+  uncoloredFruitSlots: number; // per-fruit slot count for Rainbow/Gold
   totalMatureValue: number;
   friendBonus: number;
 }
@@ -341,15 +332,14 @@ export function buildAbilityValuationContext(snapshot: GardenSnapshot | null = g
   const crops = extractMatureCrops(snapshot);
   const totalMatureValue = crops.reduce((sum, crop) => (crop.isMature ? sum + crop.currentValue * Math.max(1, crop.fruitCount) : sum), 0);
 
-  // NEW: Only exclude Gold and Rainbow for color mutations, not other weather mutations
-  // Count uncolored as: no Gold, no Rainbow (Wet/Frozen/Dawn/Amber are still eligible)
+  // Uncolored = no Gold, no Rainbow. Other weather mutations remain eligible.
   const uncoloredCrops = crops.filter((crop) => {
     const hasGold = crop.mutations.includes('Gold');
     const hasRainbow = crop.mutations.includes('Rainbow');
     return !hasGold && !hasRainbow;
   });
 
-  // NEW: Count per-fruit slots for Rainbow/Gold (multi-harvest plants count as multiple targets)
+  // Multi-harvest plants count as multiple targets for Rainbow/Gold.
   const uncoloredFruitSlots = uncoloredCrops.reduce((sum, crop) => sum + Math.max(1, crop.fruitCount), 0);
 
   return {

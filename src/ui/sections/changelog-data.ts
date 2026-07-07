@@ -2,6 +2,22 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.9",
+    date: "2026-07-07",
+    notes: [
+      "Added push-based reactive subscription layer that replaces the 500ms polling loop for most game state, inventory count, pet hunger, coin balance, shop stock, and other atom-driven displays now update the instant the game state changes instead of up to half a second later",
+      "Fixed pet team keybind switching, floating pet cards, and window.QPM.debugPets rendering empty pet fields on newer game bundles, caused by the pets store resolving to the wrong atom when multiple atom names matched a broad label regex",
+      "Improved steady-state CPU: memoized deep-equal cost in the state fan-out dropped by roughly 42 percent in captured 4x throttled traces, with the new reactive flush layer measuring under a millisecond per second of gameplay",
+      "Added per-tier kill switches (qpm.perf.reactive.state, client, composite, dynamic) that can revert any tier back to the polling fallback without a rebuild, defaults are on for fresh installs",
+      "Added debug helpers on window.__QPM_INTERNAL__ for reactive routing: getReactiveStats, setReactiveKillSwitch, getReactiveKillSwitches, and debugReactiveRouting for console inspection of subscribe routing and per-tier subscriber counts",
+      "Improved userscript build sourcemap handling, setting SOURCEMAP=inline preserves the trailing inline data URI map through wrapper injection so DevTools flame charts show readable QPM function names",
+      "Fixed the tile info overlay (crop sell price and journal letter indicators) that stopped displaying after the game moved its tile info card from HTML to a PIXI canvas system, prices and unlogged variant letters are back on plant tiles",
+      "Improved overlay placement so it sits directly above the tile info card in the default state, and automatically slides above the expanded ability tooltip when you hover the plant ability chip, no more overlapping the ability description text",
+      "Improved overlay styling to match the game's native tooltip look (dark background, subtle border, correct font) so it reads as part of the tile info panel instead of a separate widget",
+      "Added a Ko-fi tip button next to the existing GitHub Sponsors heart in the About window, tooltip is localized in all supported languages",
+    ],
+  },
+  {
     version: "3.3.8",
     date: "2026-07-07",
     notes: [

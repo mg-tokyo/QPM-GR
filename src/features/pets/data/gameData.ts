@@ -1,99 +1,83 @@
-// Game data extracted from wiki and community sources
-// Source: https://magicgarden.wiki/
-// Last Updated: 2025-11-25
+// Source: https://magicgarden.wiki/ (last updated 2025-11-25)
 
 import { t } from '../../../i18n';
 
-/**
- * Pet Ability Count Probabilities
- * Determines how many abilities a pet will have based on max ability slots
- */
+/** Pet ability count probabilities keyed by max ability slots. */
 export const PET_ABILITY_PROBABILITIES = {
-  /** Pets with 1 ability slot always have 1 ability */
   oneAbilitySlot: {
-    1: 1.0, // 100% chance
+    1: 1.0,
   },
 
-  /** Pets with 2 ability slots */
   twoAbilitySlots: {
-    1: 0.90, // 90% chance
-    2: 0.10, // 10% chance
+    1: 0.90,
+    2: 0.10,
   },
 
-  /** Pets with 3 ability slots */
   threeAbilitySlots: {
-    1: 0.70, // 70% chance
-    2: 0.29, // 29% chance
-    3: 0.01, // 1% chance
+    1: 0.70,
+    2: 0.29,
+    3: 0.01,
   },
 
-  /** Pets with 4 ability slots */
   fourAbilitySlots: {
-    2: 0.99, // 99% chance
-    3: 0.01, // 1% chance
+    2: 0.99,
+    3: 0.01,
   },
 } as const;
 
-/**
- * Special Pet Hatch Rates (overlays)
- */
+/** Special pet hatch overlay rates. */
 export const SPECIAL_PET_RATES = {
-  rainbow: 0.001, // 0.1% = 1 in 1000
-  golden: 0.01,   // 1.0% = 1 in 100
+  rainbow: 0.001,
+  golden: 0.01,
 } as const;
 
-/**
- * Pet Species Rates by Egg Type
- */
+/** Pet species rates by egg type. */
 export const EGG_PET_RATES = {
   Common: {
-    Worm: 0.60,      // 60%
-    Snail: 0.35,     // 35%
-    Bee: 0.05,       // 5%
+    Worm: 0.60,
+    Snail: 0.35,
+    Bee: 0.05,
   },
 
   Uncommon: {
-    Chicken: 0.65,   // 65%
-    Bunny: 0.25,     // 25%
-    Dragonfly: 0.10, // 10%
+    Chicken: 0.65,
+    Bunny: 0.25,
+    Dragonfly: 0.10,
   },
 
   Rare: {
-    Pig: 0.80,       // 80%
-    Cow: 0.15,       // 15%
-    Turkey: 0.05,    // 5%
+    Pig: 0.80,
+    Cow: 0.15,
+    Turkey: 0.05,
   },
 
   Legendary: {
-    Turtle: 0.30,    // 30%
-    Goat: 0.10,      // 10%
-    Squirrel: 0.60,  // 60%
+    Turtle: 0.30,
+    Goat: 0.10,
+    Squirrel: 0.60,
   },
 
   Mythical: {
-    Capybara: 0.05,  // 5%
-    Butterfly: 0.75, // 75%
-    Peacock: 0.20,   // 20%
+    Capybara: 0.05,
+    Butterfly: 0.75,
+    Peacock: 0.20,
   },
 
   // Dawn content (PR-2644) — rates confirmed from beta eggsDex
   Dawn: {
-    Sheep: 0.60,     // 60%
-    Horse: 0.35,     // 35%
-    Hedgehog: 0.05,  // 5%
+    Sheep: 0.60,
+    Horse: 0.35,
+    Hedgehog: 0.05,
   },
 
   Horse: {
-    Pony: 0.60,      // 60%
-    Horse: 0.35,     // 35%
-    FireHorse: 0.05, // 5%
+    Pony: 0.60,
+    Horse: 0.35,
+    FireHorse: 0.05,
   },
 } as const;
 
-/**
- * Pet Species Ability Pools
- * Maps pet species to their possible abilities
- */
+/** Maps pet species to their possible abilities. */
 export const PET_ABILITY_POOLS = {
   // Common Eggs
   Worm: ['Seed Finder I', 'Produce Eater'],

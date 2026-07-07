@@ -8,9 +8,11 @@ import { TOKYO_CARD_PREVIEW_URL, TOKYO_CARD_VIDEO_URL } from '../../data/tokyoCa
 import { BUILT_IN_PRESETS } from '../../data/customCardPresets';
 
 const SPONSORS_URL = 'https://github.com/sponsors/mg-tokyo';
+const KOFI_URL = 'https://ko-fi.com/mgtokyo';
 const FLAG_AU_URL = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f1e6-1f1fa.svg';
 
 const HEART_SVG = `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 14s-5.5-3.5-5.5-7.5C2.5 4 4.5 2.5 6 2.5c1 0 1.8.6 2 1.5.2-.9 1-1.5 2-1.5 1.5 0 3.5 1.5 3.5 4S8 14 8 14Z"/></svg>`;
+const KOFI_SVG = `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M2 5.5h8v5A2.5 2.5 0 0 1 7.5 13h-3A2.5 2.5 0 0 1 2 10.5v-5Zm8 1h1.5a2 2 0 1 1 0 4H10v-1.5h1.25a.75.75 0 0 0 0-1.5H10v-1Z"/></svg>`;
 
 export function renderAboutContent(root: HTMLElement): void {
   root.className = 'qpm-about';
@@ -75,7 +77,20 @@ export function renderAboutContent(root: HTMLElement): void {
     heartBtn.classList.remove('qpm-about__heart-btn--pop');
   });
 
-  sponsorRow.append(sponsorText, heartBtn);
+  const kofiBtn = document.createElement('button');
+  kofiBtn.type = 'button';
+  kofiBtn.className = 'qpm-about__kofi-btn';
+  kofiBtn.title = t('about.kofiTooltip');
+  kofiBtn.innerHTML = KOFI_SVG;
+  kofiBtn.addEventListener('click', () => {
+    kofiBtn.classList.add('qpm-about__kofi-btn--pop');
+    openExternalUrl(KOFI_URL);
+  });
+  kofiBtn.addEventListener('animationend', () => {
+    kofiBtn.classList.remove('qpm-about__kofi-btn--pop');
+  });
+
+  sponsorRow.append(sponsorText, heartBtn, kofiBtn);
 
   // Clickable TOKYO card thumbnail — opens the native in-game card view.
   const tokyoCard = document.createElement('button');

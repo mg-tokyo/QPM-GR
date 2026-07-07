@@ -1,6 +1,4 @@
-// src/utils/itemEventService.ts
-// Fetches per-item restock events from restock_events table for the detail window.
-// Reuses the GM XHR + anon key helpers from restockDataService.
+// Fetches per-item restock events for the detail window; reuses GM XHR + anon key helpers from restockDataService.
 
 import {
   RESTOCK_ANON_KEY,
@@ -181,11 +179,7 @@ function mergeAndDeduplicateVariantEvents(
   }));
 }
 
-/**
- * Preferred server-side path:
- * one RPC call that returns canonicalized, deduplicated item events.
- * Returns null when RPC is unavailable so caller can fallback to legacy path.
- */
+/** Preferred path: one RPC call returning canonicalized, deduplicated events. Returns null if unavailable so caller can fall back. */
 async function fetchEventsViaRpc(
   gm: GmXhr,
   shopType: string,
@@ -229,7 +223,6 @@ async function fetchEventsViaRpc(
     .slice(0, limit);
 }
 
-/** Fetch events for a single item ID. */
 async function fetchEventsForId(
   gm: GmXhr,
   shopType: string,
@@ -302,10 +295,7 @@ async function fetchWeatherEventsFromTable(
     .filter((e): e is ItemEvent => e !== null);
 }
 
-/**
- * Fetch up to `limit` restock events for a specific item, newest first.
- * Merges known item-ID aliases and deduplicates near-identical captures.
- */
+/** Fetch up to `limit` restock events for an item, newest first; merges known item-ID aliases and dedupes near-identical captures. */
 export async function fetchItemEvents(
   shopType: string,
   itemId: string,
@@ -372,8 +362,6 @@ export async function fetchItemEvents(
   }
 }
 
-// ── Algorithm version history ───────────────────────────────────────────────
-
 export interface AlgorithmVersionEntry {
   algorithm_version: string;
   updated_at_ms: number;
@@ -383,11 +371,7 @@ export interface AlgorithmVersionEntry {
 let algoHistoryCache: { fetchedAt: number; entries: AlgorithmVersionEntry[] } | null = null;
 const ALGO_HISTORY_CACHE_TTL_MS = 10 * 60 * 1000; // 10 min
 
-/**
- * Fetch algorithm version history from the server.
- * Returns entries sorted oldest → newest, or an empty array if the RPC
- * doesn't exist yet (pre-migration).
- */
+/** Fetch algorithm version history, sorted oldest → newest; empty array if the RPC doesn't exist yet (pre-migration). */
 export async function fetchAlgorithmHistory(): Promise<AlgorithmVersionEntry[]> {
   const now = Date.now();
   if (algoHistoryCache && now - algoHistoryCache.fetchedAt < ALGO_HISTORY_CACHE_TTL_MS) {

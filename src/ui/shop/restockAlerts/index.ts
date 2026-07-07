@@ -7,13 +7,11 @@ import { onSpritesReady } from '../../../sprite-v2/compat';
 import { getShopStockState, onShopStock, startShopStockStore } from '../../../store/shopStock';
 import { startShopRegistry } from '../../../store/shopRegistry';
 import { onInventoryChange, startInventoryStore } from '../../../store/inventory';
-import { getAtomByLabel, subscribeAtom } from '../../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { pageWindow } from '../../../core/pageContext';
 import {
   DISMISSED_CYCLES_KEY,
   ALERT_STYLE_ID,
-  MY_DATA_ATOM_LABEL,
-  MY_TOOL_INVENTORY_ATOM_LABEL,
   TRACKED_UPDATED_EVENT,
   SOCKET_BIND_POLL_MS,
 } from './types';
@@ -147,35 +145,31 @@ export function startShopRestockAlerts(): void {
       log('[ShopRestockAlerts] Failed to start inventory store', error);
     });
 
-    const myDataAtom = getAtomByLabel(MY_DATA_ATOM_LABEL);
-    if (myDataAtom) {
-      void subscribeAtom<unknown>(myDataAtom, (value) => {
-        handleMyDataSnapshot(value);
-      }).then((unsubscribe) => {
-        if (!alertState.started) {
-          unsubscribe();
-          return;
-        }
-        alertState.stopMyDataListener = unsubscribe;
-      }).catch((error) => {
-        log('[ShopRestockAlerts] Failed to subscribe to myDataAtom', error);
-      });
-    }
+    void subscribeAtomValue('myData', (value) => {
+      handleMyDataSnapshot(value);
+    }).then((unsubscribe) => {
+      if (!unsubscribe) return;
+      if (!alertState.started) {
+        unsubscribe();
+        return;
+      }
+      alertState.stopMyDataListener = unsubscribe;
+    }).catch((error) => {
+      log('[ShopRestockAlerts] Failed to subscribe to myData', error);
+    });
 
-    const toolInventoryAtom = getAtomByLabel(MY_TOOL_INVENTORY_ATOM_LABEL);
-    if (toolInventoryAtom) {
-      void subscribeAtom<unknown>(toolInventoryAtom, (value) => {
-        handleToolInventorySnapshot(value);
-      }).then((unsubscribe) => {
-        if (!alertState.started) {
-          unsubscribe();
-          return;
-        }
-        alertState.stopToolInventoryListener = unsubscribe;
-      }).catch((error) => {
-        log('[ShopRestockAlerts] Failed to subscribe to myToolInventoryAtom', error);
-      });
-    }
+    void subscribeAtomValue('toolInventory', (value) => {
+      handleToolInventorySnapshot(value);
+    }).then((unsubscribe) => {
+      if (!unsubscribe) return;
+      if (!alertState.started) {
+        unsubscribe();
+        return;
+      }
+      alertState.stopToolInventoryListener = unsubscribe;
+    }).catch((error) => {
+      log('[ShopRestockAlerts] Failed to subscribe to toolInventory', error);
+    });
 
     alertState.stopSpritesReadyListener = onSpritesReady(() => {
       alertSpriteUrlCache.clear();

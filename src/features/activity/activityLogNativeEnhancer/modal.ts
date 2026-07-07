@@ -1,5 +1,6 @@
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
-import { getAtomByLabel, readAtomValue, writeAtomValue, subscribeAtom } from '../../../core/jotaiBridge';
+import { getAtomByLabel, readAtomValue, writeAtomValue } from '../../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { log } from '../../../utils/logger';
 import type {
   ActivityLogEntry,
@@ -765,9 +766,10 @@ export async function startMyDataActivitySubscription(): Promise<void> {
   }
 
   try {
-    S.myDataUnsubscribe = await subscribeAtom<unknown>(atom, (next) => {
+    const unsub = await subscribeAtomValue('myData', (next) => {
       ingestActivityLogs(next);
     });
+    S.myDataUnsubscribe = unsub;
   } catch (error) {
     S.myDataUnsubscribe = null;
     log('[ActivityLogNative] Failed myData subscription', error);

@@ -1,5 +1,3 @@
-// src/utils/restockAccuracy.ts
-// Accuracy computation for restock predictions.
 // Extracted from itemRestockDetailWindow.ts — pure functions, no side effects.
 
 // ── Types ────────────────────────────────────────────────────────────────────

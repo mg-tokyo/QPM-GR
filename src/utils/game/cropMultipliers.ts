@@ -1,9 +1,5 @@
-// src/utils/cropMultipliers.ts
-// Shared helpers for resolving mutation multipliers and keeping alias handling consistent.
-//
-// Game formula (from sell.ts / mutationsDex.ts):
-//   mutationMultiplier = growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
-// where "growth" = Gold/Rainbow and "environment" = everything else.
+// Game formula (sell.ts / mutationsDex.ts): mutationMultiplier = growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
+// "growth" = Gold/Rainbow, "environment" = everything else.
 
 import { getMutationCatalog, getMutation as getCatalogMutation } from '../../catalogs/gameCatalogs';
 
@@ -37,10 +33,7 @@ export interface WeatherTimeCombination {
   readonly multiplier: number;
 }
 
-// ---------------------------------------------------------------------------
 // Mutation definitions — values from game's mutationsDex.ts
-// ---------------------------------------------------------------------------
-
 const COLOR_MUTATIONS: readonly MutationDefinition[] = [
   { name: 'Gold', category: 'color', multiplier: 25, aliases: ['Golden'] },
   { name: 'Rainbow', category: 'color', multiplier: 50 },
@@ -115,25 +108,18 @@ export function resolveMutation(input: string | null | undefined): MutationDefin
     return known;
   }
 
-  // Fallback: check mutation catalog for mutations added by game updates
   return resolveMutationFromCatalog(input.trim());
 }
 
-/**
- * Attempts to resolve an unknown mutation from the runtime catalog.
- * Used for mutations added to the game after this mod was built.
- * Heuristic for category: coinMultiplier >= 25 → 'color' (growth), else 'weather' (environment).
- * This matches the game's GROWTH_MUTATIONS list (Gold=25, Rainbow=50) vs env mutations (max 10).
- */
+/** Resolves an unknown mutation from the runtime catalog (added post-build). Category heuristic: coinMultiplier >= 25 → 'color' (matches Gold=25/Rainbow=50 vs env mutations max 10). */
 function resolveMutationFromCatalog(mutationId: string): MutationDefinition | null {
   const catalog = getMutationCatalog();
   if (!catalog) return null;
 
-  // Try exact key match (e.g., 'Frozen', 'Dawncharged')
-  let entry = catalog[mutationId];
+  let entry = catalog[mutationId]; // exact key match (e.g., 'Frozen', 'Dawncharged')
 
-  // If not found, try matching by the entry's display name (e.g., 'Dawnbound' → key 'Dawncharged')
   if (!entry) {
+    // try matching by display name (e.g., 'Dawnbound' → key 'Dawncharged')
     const inputLower = mutationId.toLowerCase();
     for (const candidateEntry of Object.values(catalog)) {
       if (typeof candidateEntry.name === 'string' && candidateEntry.name.toLowerCase() === inputLower) {
@@ -190,13 +176,7 @@ export function classifyMutations(inputs: readonly string[] | null | undefined):
   return { colors, weathers, times, unknown };
 }
 
-/**
- * Compute the mutation multiplier using the game's actual formula:
- *   growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
- *
- * "Growth" = Gold or Rainbow (only one can exist; pick highest if multiple).
- * "Environment" = all other mutations (weather + time); they stack additively.
- */
+/** growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations)). Growth = Gold/Rainbow (highest if multiple); environment = weather+time, stacks additively. */
 export function computeMutationMultiplier(inputs: readonly string[] | null | undefined): MutationMultiplierBreakdown {
   if (!inputs || inputs.length === 0) {
     return {
@@ -217,7 +197,6 @@ export function computeMutationMultiplier(inputs: readonly string[] | null | und
   const weather = pickHighest(weathers);
   const time = pickHighest(times);
 
-  // Game formula: growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
   const growthMult = color?.definition.multiplier ?? 1;
 
   // All non-growth mutations are "environment" mutations — they stack additively

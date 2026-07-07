@@ -2,7 +2,7 @@
 // Normalized view of shop atom data and restock timers.
 
 import { readAtomValue as readRegistryAtomValue, readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
-import { getAtomByLabel, readAtomValue as readJotaiAtomValue, subscribeAtom, getCachedStore } from '../core/jotaiBridge';
+import { getAtomByLabel, readAtomValue as readJotaiAtomValue, getCachedStore } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
@@ -190,27 +190,27 @@ export async function startShopStockStore(): Promise<void> {
       log('⚠️ Failed to subscribe to shops atom', error);
     }
 
-    if (myDataAtomRef) {
-      try {
-        myDataPurchasesUnsubscribe = await subscribeAtom<unknown>(myDataAtomRef, (value) => {
-          myDataPurchasesSnapshot = extractMyDataShopPurchases(value);
-          rebuildState();
-        });
-      } catch (error) {
-        log('⚠️ Failed to subscribe to myDataAtom shop purchases', error);
-      }
+    try {
+      const unsub = await subscribeAtomValue('myData', (value) => {
+        myDataPurchasesSnapshot = extractMyDataShopPurchases(value);
+        rebuildState();
+      });
+      if (unsub) myDataPurchasesUnsubscribe = unsub;
+    } catch (error) {
+      log('⚠️ Failed to subscribe to myData for shop purchases', error);
     }
 
+    // Keep myUserSlotAtomRef resolved for forceRefreshShopStock's synchronous
+    // store.get fallback path.
     myUserSlotAtomRef = getAtomByLabel(MY_USER_SLOT_ATOM_LABEL);
-    if (myUserSlotAtomRef) {
-      try {
-        customInventoriesUnsubscribe = await subscribeAtom<unknown>(myUserSlotAtomRef, (value) => {
-          customInventories = extractCustomInventories(value);
-          rebuildState();
-        });
-      } catch (error) {
-        log('⚠️ Failed to subscribe to myUserSlotAtom', error);
-      }
+    try {
+      const unsub = await subscribeAtomValue('myUserSlot', (value) => {
+        customInventories = extractCustomInventories(value);
+        rebuildState();
+      });
+      if (unsub) customInventoriesUnsubscribe = unsub;
+    } catch (error) {
+      log('⚠️ Failed to subscribe to myUserSlot', error);
     }
 
     // Newly-discovered shop ids get their bucket created on the next rebuild.
@@ -218,21 +218,19 @@ export async function startShopStockStore(): Promise<void> {
       rebuildState();
     });
 
-    // Fallback: subscribe to quinoaDataAtom.shops for categories not covered
+    // Fallback: subscribe to quinoaData.shops for categories not covered
     // by customRestockInventories (e.g. dawn shop, which has no custom restock).
+    // Keep quinoaDataAtomRef resolved for forceRefreshShopStock's synchronous
+    // store.get fallback path.
     quinoaDataAtomRef = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
-    if (quinoaDataAtomRef) {
-      try {
-        quinoaDataShopsUnsubscribe = await subscribeAtom<unknown>(quinoaDataAtomRef, (value) => {
-          const shops = (value && typeof value === 'object' && 'shops' in value)
-            ? (value as Record<string, unknown>).shops as ShopsAtomSnapshot | null
-            : null;
-          quinoaDataShopsSnapshot = shops;
-          rebuildState();
-        });
-      } catch (error) {
-        log('⚠️ Failed to subscribe to quinoaDataAtom shops', error);
-      }
+    try {
+      const unsub = await subscribeAtomValue('quinoaData', (value) => {
+        quinoaDataShopsSnapshot = value?.shops ?? null;
+        rebuildState();
+      });
+      if (unsub) quinoaDataShopsUnsubscribe = unsub;
+    } catch (error) {
+      log('⚠️ Failed to subscribe to quinoaData shops', error);
     }
   })().catch((error) => {
     diag.warn('QPM-STORE-001', { phase: 'startShopStockStore' }, error);

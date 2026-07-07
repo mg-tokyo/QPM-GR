@@ -62,6 +62,7 @@ const de: Dictionary = {
   'about.author': 'by tokyo.#6464',
   'about.sponsorText': 'Support QPM on GitHub Sponsors (if u want)',
   'about.sponsorTooltip': 'Open GitHub Sponsors',
+  'about.kofiTooltip': 'Tip on Ko-fi',
 
   // ── Panel nav / original panel ────────────────────────────────────────────
   'panel.nav.home': 'Startseite',

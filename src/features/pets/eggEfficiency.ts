@@ -1,6 +1,3 @@
-// src/features/eggEfficiency.ts
-// Pure catalog-based egg efficiency analysis. No side effects, no UI.
-
 import {
   getEggCatalog,
   getEggType,
@@ -21,10 +18,6 @@ import {
   LEGENDARY_SPECIES,
   MYTHICAL_SPECIES,
 } from './optimizer/constants';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface SpeciesBreakdown {
   species: string;
@@ -49,10 +42,6 @@ export interface EggAnalysis {
   speciesBreakdown: SpeciesBreakdown[];
 }
 
-// ---------------------------------------------------------------------------
-// Rarity scoring — assigns a base value score per species rarity
-// ---------------------------------------------------------------------------
-
 const RARITY_SCORES: Record<string, number> = {
   common: 10,
   uncommon: 25,
@@ -64,11 +53,9 @@ const RARITY_SCORES: Record<string, number> = {
 };
 
 function getSpeciesRarity(species: string): string | null {
-  // 1. Try scraped metadata
   const meta = getPetMetadata(species);
   if (meta?.rarity) return meta.rarity.toLowerCase();
 
-  // 2. Fall back to hardcoded optimizer sets
   if (COMMON_SPECIES.has(species)) return 'common';
   if (UNCOMMON_SPECIES.has(species)) return 'uncommon';
   if (RARE_SPECIES.has(species)) return 'rare';
@@ -83,15 +70,7 @@ function scoreSpecies(species: string): number {
   return RARITY_SCORES[rarity ?? ''] ?? 30; // unknown → modest default
 }
 
-// ---------------------------------------------------------------------------
-// Feed cost calculation
-// ---------------------------------------------------------------------------
-
-/**
- * Calculate the total coin cost of feeding a species from hatch to maturity.
- * formula: feedsNeeded = ceil(maturityMinutes / depletionMinutes)
- *          feedCost   = feedsNeeded × hungerCap
- */
+/** Total coin cost to feed a species from hatch to maturity: ceil(maturityMin/depletionMin) × hungerCap. */
 function calculateFeedCostToMaturity(species: string): number | null {
   const maturityHours = getPetHoursToMature(species);
   if (maturityHours == null) return null;

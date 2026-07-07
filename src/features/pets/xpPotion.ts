@@ -1,5 +1,3 @@
-// src/features/xpPotion.ts — XP Potion feature (inventory check, eligibility, WS send, ghost-step)
-
 import { calculateMaxStrength } from '../../store/xpTracker';
 import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
 import { ghostStepToPet } from '../../utils/ghostStep';
@@ -52,14 +50,7 @@ export interface XpPotionProjection {
   pctOfLevel: number;
 }
 
-/**
- * Project the result of using an XP potion on a pet.
- *
- * Works with deltas from the current state rather than absolute XP→strength
- * conversion, because the game's strength formula includes a species-specific
- * starting offset that QPM doesn't replicate. Each `xpPerLevel` of XP equals
- * one strength point.
- */
+/** Projects potion result using XP/strength deltas, not absolute conversion — the game's strength formula has a species-specific starting offset QPM doesn't replicate. */
 export function projectXpPotion(
   currentXp: number,
   currentStrength: number,
@@ -86,15 +77,7 @@ export function projectXpPotion(
   };
 }
 
-/**
- * Send the XPPotion room action for a given pet slot ID.
- *
- * The server requires the player to be on the same tile as the pet.
- * This function automatically ghost-steps (sends a temporary PlayerPosition
- * to the pet's tile, fires XPPotion, then moves back) so the user doesn't
- * have to walk there manually. If positions can't be resolved, it sends
- * the action directly (the server will reject if not on the same tile).
- */
+/** Ghost-steps to the pet's tile (server requires same-tile), fires XPPotion, then steps back; sends directly if position can't be resolved. */
 export async function sendUseXpPotion(petSlotId: string): Promise<WebSocketSendResult> {
   const step = await ghostStepToPet(petSlotId);
 

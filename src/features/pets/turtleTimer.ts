@@ -1,6 +1,3 @@
-// src/features/turtleTimer.ts
-// Estimate garden growth completion time with active turtle abilities.
-
 import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
 import { GardenSnapshot, GardenState, getGardenSnapshot, onGardenSnapshot } from '../garden/bridge';
@@ -14,7 +11,6 @@ declare global {
   }
 }
 
-// Manual override system for pet ability values
 export interface PetManualOverride {
   xp?: number | null;
   targetScale?: number | null;
@@ -48,7 +44,6 @@ function saveManualOverrides(): void {
 }
 
 function getPetKey(pet: ActivePetInfo): string {
-  // Use petId if available, fallback to species + slot index
   if (pet.petId) return `pet:${pet.petId}`;
   if (pet.species) return `${pet.species}:${pet.slotIndex}`;
   return `slot:${pet.slotIndex}`;
@@ -66,7 +61,6 @@ export function setManualOverride(pet: ActivePetInfo, override: PetManualOverrid
   }
   Object.assign(manualOverrides[key]!, override);
   saveManualOverrides();
-  // Trigger recalculation
   recalculateTimerState();
 }
 
@@ -76,7 +70,6 @@ export function clearManualOverride(pet: ActivePetInfo, field?: 'xp' | 'targetSc
 
   if (field) {
     delete manualOverrides[key]![field];
-    // If no fields left, remove the whole entry
     if (Object.keys(manualOverrides[key]!).length === 0) {
       delete manualOverrides[key];
     }
@@ -85,7 +78,6 @@ export function clearManualOverride(pet: ActivePetInfo, field?: 'xp' | 'targetSc
   }
 
   saveManualOverrides();
-  // Trigger recalculation
   recalculateTimerState();
 }
 
@@ -359,7 +351,6 @@ export interface TurtleTimerState {
   support: TurtleTimerSupportSummary;
 }
 
-// Completion log tracking system
 export interface CompletionLogEntry {
   id: string;
   type: 'plant' | 'egg';
@@ -616,8 +607,7 @@ function parseTimestamp(value: unknown): number | null {
   return null;
 }
 
-// Cheap fingerprint: slot count + sum of endTimes from raw snapshot data.
-// Detects plant additions/removals and endTime changes without running full collectSlots+recompute.
+// Cheap fingerprint (slot count + endTime sum) to skip recompute when nothing changed.
 function getTurtleGardenFingerprint(snapshot: GardenSnapshot): string {
   if (!snapshot?.tileObjects) return '';
   let slotCount = 0;
@@ -836,10 +826,9 @@ interface TurtlePetStats {
 }
 
 function resolveTurtlePetStats(pet: ActivePetInfo): TurtlePetStats {
-  // Get manual overrides if available
+  // Manual overrides fill in for missing atom data.
   const manualOverride = getManualOverride(pet);
 
-  // Use manual override as fallback if atom data is missing
   let xp = typeof pet.xp === 'number' && Number.isFinite(pet.xp) ? pet.xp : null;
   if (xp == null && manualOverride?.xp != null) {
     xp = manualOverride.xp;
@@ -851,7 +840,7 @@ function resolveTurtlePetStats(pet: ActivePetInfo): TurtlePetStats {
   }
   const targetScale = sanitizeTargetScale(targetScaleRaw);
 
-  // Use strength if available (most accurate)
+  // Prefer strength (most accurate); fall back to XP + targetScale derivation below.
   let strength = typeof pet.strength === 'number' && Number.isFinite(pet.strength) ? pet.strength : null;
   if (strength == null && manualOverride?.strength != null) {
     strength = manualOverride.strength;
@@ -860,8 +849,6 @@ function resolveTurtlePetStats(pet: ActivePetInfo): TurtlePetStats {
   const missingStats = pet.xp == null || pet.targetScale == null;
   const hasManualOverride = manualOverride && (manualOverride.xp != null || manualOverride.targetScale != null || manualOverride.strength != null);
 
-  // If strength is available, use it directly as baseScore
-  // Otherwise fall back to calculating from XP and targetScale
   let baseScore: number;
   if (strength != null) {
     baseScore = Math.max(0, strength);

@@ -1,4 +1,3 @@
-// src/utils/dom.ts
 export type Predicate = (el: Element) => boolean;
 export type SelectorOrPredicate = string | Predicate;
 
@@ -33,13 +32,10 @@ export function addStyle(css: string): HTMLStyleElement {
   return style;
 }
 
-// ── Shared coalesced DOM observer ──────────────────────────────────────────
-// One MutationObserver on document.body; every helper that watches for
-// added/removed descendants routes through it. Coalesces mutation records
-// into a single microtask flush. Session-lifetime singleton — never
-// disconnected. Reduces "N observers on the same root" pressure that
-// compounds badly when a second userscript (e.g. Aries Mod) also observes
-// document root with subtree:true.
+// Shared coalesced DOM observer: one MutationObserver on document.body that all
+// added/removed watchers route through, batched per microtask. Session-lifetime
+// singleton — reduces observer pressure when other userscripts (e.g. Aries Mod)
+// also observe document root with subtree:true.
 
 type SharedPredicate = (records: readonly MutationRecord[]) => void;
 
@@ -50,7 +46,6 @@ let _sharedObserver: MutationObserver | null = null;
 let _queued: MutationRecord[] = [];
 let _flushScheduled = false;
 
-// Stats for diagnostics
 let _mutationCount = 0;
 let _flushCount = 0;
 let _lastFlushMs = 0;
@@ -161,8 +156,6 @@ export function initDomObserverDebugBridge(): void {
   } catch { /* window not available */ }
 }
 
-// ── End shared coalesced DOM observer ──────────────────────────────────────
-
 export interface WaitForOpts {
   root?: ParentNode;
   timeout?: number;
@@ -239,7 +232,6 @@ export function onAdded(
         cb(element);
       }
 
-      // Check descendants
       if (typeof selOrFn === 'string') {
         const descendants = element.querySelectorAll(selOrFn);
         descendants.forEach(cb);

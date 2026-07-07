@@ -1,4 +1,3 @@
-// src/utils/petCardRenderer.ts - Generate Pet Hub-style pet cards with abilities + name + STR
 import { getPetSpriteCanvas } from '../../sprite-v2/compat';
 import { getMutationSpriteDataUrl } from './petMutationRenderer';
 import { canvasToDataUrl } from '../dom/canvasHelpers';
@@ -35,7 +34,6 @@ export function normalizeAbilityName(abilityId: string): string {
     .replace(/([a-z])(\d)/g, '$1 $2')
     .replace(/(\d)([A-Z])/g, '$1 $2');
 
-  // Special replacements for common patterns
   return withSpaces
     .replace(/\bII\b/g, 'II')
     .replace(/\bIII\b/g, 'III')
@@ -89,9 +87,6 @@ function resolveAbilityId(input: string): string | null {
   return abilityLookupIndex.get(normalized) ?? null;
 }
 
-/**
- * Get ability color configuration
- */
 export function getAbilityColor(abilityName: string): { base: string; glow: string; text: string } {
   const resolvedAbilityId = resolveAbilityId(abilityName) ?? abilityName;
   const name = normalizeAbilityLookup(resolvedAbilityId || abilityName);
@@ -233,9 +228,6 @@ export function getAbilityColor(abilityName: string): { base: string; glow: stri
   return { base, glow, text: '#FFF' };
 }
 
-/**
- * Render ability squares HTML
- */
 function renderAbilitySquares(abilities: string[], size: number = 14): string {
   if (!abilities || abilities.length === 0) return '';
   const displayed = abilities.slice(0, 4);
@@ -245,9 +237,6 @@ function renderAbilitySquares(abilities: string[], size: number = 14): string {
   }).join('');
 }
 
-/**
- * Calculate pet strength from XP
- */
 function calculatePetStrength(species: string, xp: number, targetScale: number): number {
   const maxStrength = calculateMaxStrength(targetScale, species);
   const xpPerLevel = getSpeciesXpPerLevel(species);
@@ -260,10 +249,7 @@ function calculatePetStrength(species: string, xp: number, targetScale: number):
   return Math.min(maxStrength, Math.round(baseStrength + level * strengthPerLevel));
 }
 
-/**
- * Generate Pet Hub-style pet card HTML
- * Returns complete card with abilities + sprite + name + STR
- */
+/** Returns complete pet card HTML with abilities + sprite + name + STR. */
 export function renderPetCard(config: PetCardConfig): string {
   const {
     species: rawSpecies,
@@ -275,13 +261,11 @@ export function renderPetCard(config: PetCardConfig): string {
     size = 'medium',
   } = config;
 
-  // Ensure species is a valid string
   const species = String(rawSpecies || '').trim();
   if (!species) {
     return '<div style="font-size: 32px;">🐾</div>';
   }
 
-  // Size mappings
   const sizeMap = {
     small: { sprite: 48, ability: 10, padding: 8 },
     medium: { sprite: 64, ability: 14, padding: 12 },
@@ -292,9 +276,8 @@ export function renderPetCard(config: PetCardConfig): string {
   const spriteSize = dimensions.sprite;
   const abilitySize = dimensions.ability;
   
-  // Calculate STR
   const strength = xp > 0 ? calculatePetStrength(species, xp, targetScale) : 0;
-  
+
   // Get sprite (apply mutation hierarchy: Rainbow > Gold)
   let sprite: string | null | undefined;
   if (mutations.includes('rainbow') || mutations.includes('Rainbow')) {
@@ -303,15 +286,11 @@ export function renderPetCard(config: PetCardConfig): string {
     sprite = getMutationSpriteDataUrl(species, 'gold');
   }
 
-  // Fallback to base sprite
   if (!sprite) {
     sprite = canvasToDataUrl(getPetSpriteCanvas(species));
   }
-  
-  // Render ability squares
+
   const abilitySquares = renderAbilitySquares(abilities, abilitySize);
-  
-  // Pet display name
   const displayName = name || species;
   
   return `
@@ -326,10 +305,7 @@ export function renderPetCard(config: PetCardConfig): string {
   `;
 }
 
-/**
- * Generate pet species icon for filter cards (no STR label)
- * Just shows sprite + name
- */
+/** Pet species icon for filter cards — sprite + name, no STR label. */
 export function renderPetSpeciesIcon(species: string): string {
   const speciesStr = String(species || '').trim();
   if (!speciesStr) {
@@ -347,10 +323,7 @@ export function renderPetSpeciesIcon(species: string): string {
   `;
 }
 
-/**
- * Generate lightweight pet sprite only (for use in lists/trackers)
- * Still includes abilities + name + STR but in compact format
- */
+/** Compact pet sprite for lists/trackers — abilities + name + STR in a smaller layout. */
 export function renderCompactPetSprite(config: PetCardConfig): string {
   const {
     species: rawSpecies,
@@ -361,7 +334,6 @@ export function renderCompactPetSprite(config: PetCardConfig): string {
     mutations = [],
   } = config;
 
-  // Ensure species is a valid string
   const species = String(rawSpecies || '').trim();
   if (!species) {
     return '<div style="font-size: 16px;">🐾</div>';

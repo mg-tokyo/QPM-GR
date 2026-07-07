@@ -1,5 +1,6 @@
 // src/features/gardenBridge.ts
-import { ensureJotaiStore, getAtomByLabel, readAtomValue, subscribeAtom, getCachedStore } from '../../core/jotaiBridge';
+import { ensureJotaiStore, getAtomByLabel, readAtomValue, getCachedStore } from '../../core/jotaiBridge';
+import { subscribeAtomValue } from '../../core/atomRegistry';
 import { shareGlobal, readSharedGlobal } from '../../core/pageContext';
 import { log } from '../../utils/logger';
 
@@ -164,10 +165,11 @@ export async function startGardenBridge(): Promise<void> {
     return;
   }
 
-  unsubscribe = await subscribeAtom<Record<string, unknown> | null>(myDataAtomRef, (value) => {
+  const unsub = await subscribeAtomValue('myData', (value) => {
     lastRawMyData = value;
     updateCache(extractGarden(value ?? undefined));
   });
+  if (unsub) unsubscribe = unsub;
 
   log('✅ [GardenBridge] Garden bridge started successfully');
 }

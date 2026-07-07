@@ -1,20 +1,10 @@
-// src/utils/scheduling.ts
-// Cooperative scheduling utilities for async work
-
-/**
- * Yield control back to the browser event loop.
- * Allows UI updates and prevents long-running scripts from freezing the page.
- */
+/** Yield control back to the browser event loop to prevent long scripts from freezing the page. */
 export function yieldToBrowser(): Promise<void> {
   return new Promise((resolve) => {
-    // Use setTimeout with 0 delay to yield to macrotask queue
     setTimeout(resolve, 0);
   });
 }
 
-/**
- * Wait for a specified number of milliseconds.
- */
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -78,18 +68,12 @@ export class YieldController {
     }
   }
 
-  /**
-   * Force a yield regardless of timing.
-   */
   async forceYield(): Promise<void> {
     await yieldToBrowser();
     this.lastYield = performance.now();
     this.workCount = 0;
   }
 
-  /**
-   * Reset the controller state.
-   */
   reset(): void {
     this.lastYield = performance.now();
     this.workCount = 0;
@@ -179,10 +163,7 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 /**
- * Schedule work during browser idle time (Aries Mod pattern).
- * Uses requestIdleCallback when available, falling back to rAF then setTimeout.
- * This prevents blocking the main thread during heavy operations.
- * 
+ * Schedule work during browser idle time. Uses requestIdleCallback when available, falling back to rAF then setTimeout.
  * @param cb Callback to execute during idle time
  * @param timeoutMs Maximum time to wait before forcing execution (default 50ms)
  */
@@ -195,26 +176,19 @@ export function scheduleNonBlocking<T>(cb: () => T | Promise<T>, timeoutMs: numb
         .catch(reject);
     };
 
-    // Prefer requestIdleCallback for true idle-time scheduling
     if (typeof (window as any).requestIdleCallback === 'function') {
       (window as any).requestIdleCallback(runner, { timeout: timeoutMs });
     } else if (typeof requestAnimationFrame === 'function') {
       // Fallback to rAF - runs before next paint
       requestAnimationFrame(runner);
     } else {
-      // Last resort - use setTimeout
       setTimeout(runner, 0);
     }
   });
 }
 
 /**
- * Process items in staggered batches (Aries Mod pattern).
- * Processes BATCH_SIZE items, then waits DELAY_MS before next batch.
- * 
- * @param items Array of items to process
- * @param processor Async function to process each item
- * @param onProgress Optional progress callback
+ * Process items in staggered batches, waiting delayMs between each batch.
  * @param batchSize Number of items per batch (default 3)
  * @param delayMs Delay between batches in ms (default 8)
  */
@@ -230,8 +204,7 @@ export async function processStaggered<T>(
 
   const processBatch = async (startIndex: number): Promise<void> => {
     const batch = items.slice(startIndex, startIndex + batchSize);
-    
-    // Process batch items in parallel
+
     await Promise.all(
       batch.map(async (item, i) => {
         await processor(item, startIndex + i);
@@ -240,7 +213,6 @@ export async function processStaggered<T>(
       })
     );
 
-    // Schedule next batch if there are more items
     const nextStart = startIndex + batchSize;
     if (nextStart < items.length) {
       await delay(delayMs);

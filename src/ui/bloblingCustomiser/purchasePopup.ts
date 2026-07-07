@@ -15,7 +15,7 @@ export function showPurchasePopup(items: CartItem[], onComplete: () => void): vo
   const total = items.reduce((sum, item) => sum + item.entry.price, 0);
 
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(2px);';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
 
   const popup = document.createElement('div');
   popup.style.cssText = 'background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-focus);border-radius:var(--qpm-radius-lg);padding:var(--qpm-space-7);min-width:280px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:var(--qpm-font);';

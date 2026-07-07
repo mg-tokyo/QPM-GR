@@ -1,18 +1,10 @@
-/**
- * Crop Size Boost Tracker
- * Tracks how many Crop Size Boosts are needed to maximize garden crops
- * Based on active ProduceSizeBoost and ProduceSizeBoostII pets
- */
+/** Tracks how many Crop Size Boosts are needed to maximize garden crops based on active ProduceSizeBoost(II) pets. */
 
 import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
 import { getActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import { lookupMaxScale } from '../../utils/game/plantScales';
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface CropBoostConfig {
   enabled: boolean;
@@ -62,13 +54,11 @@ export interface TrackerAnalysis {
   boostPets: BoostPetInfo[];
   crops: CropSizeInfo[];
 
-  // Summary stats
   totalBoostPets: number;
   totalMatureCrops: number;
   totalCropsAtMax: number;
   totalCropsNeedingBoost: number;
 
-  // Aggregate calculations
   averageBoostPercent: number;
   weakestBoostPercent: number;
   strongestBoostPercent: number;
@@ -77,18 +67,12 @@ export interface TrackerAnalysis {
   slowestMinutesPerProc: number;
   fastestMinutesPerProc: number;
 
-  // Overall estimates
   overallEstimate: BoostEstimate;
 
-  // Per-crop estimates
   cropEstimates: Map<string, BoostEstimate>; // key: `${tileKey}-${slotIndex}`
 
   timestamp: number;
 }
-
-// ============================================================================
-// State
-// ============================================================================
 
 const DEFAULT_CONFIG: CropBoostConfig = {
   enabled: true,
@@ -105,7 +89,6 @@ const changeCallbacks = new Set<(analysis: TrackerAnalysis | null) => void>();
 let lastRecalcTime = 0;
 const RECALC_THROTTLE_MS = 5000; // Only recalculate every 5 seconds max
 
-// Per-crop boost tracking
 interface CropBoostHistory {
   initialSize: number;
   boostTimestamps: number[];
@@ -113,10 +96,6 @@ interface CropBoostHistory {
 }
 
 const cropBoostHistory = new Map<string, CropBoostHistory>();
-
-// ============================================================================
-// Configuration
-// ============================================================================
 
 export function getConfig(): CropBoostConfig {
   return { ...config };
@@ -148,22 +127,11 @@ function loadConfig(): void {
   config = { ...DEFAULT_CONFIG, ...saved };
 }
 
-// ============================================================================
-// Callbacks
-// ============================================================================
-
 export function onAnalysisChange(callback: (analysis: TrackerAnalysis | null) => void): () => void {
   changeCallbacks.add(callback);
   return () => { changeCallbacks.delete(callback); };
 }
 
-// ============================================================================
-// Core Logic
-// ============================================================================
-
-/**
- * Get all active pets with Crop Size Boost abilities
- */
 function getBoostPets(): BoostPetInfo[] {
   const pets = getActivePetInfos();
   const boostPets: BoostPetInfo[] = [];
@@ -179,7 +147,7 @@ function getBoostPets(): BoostPetInfo[] {
         const strength = pet.strength ?? 100;
         const effectiveBoost = (ability.base * strength) / 100;
         const effectiveChance = (ability.chance * strength) / 100;
-        const minutesPerProc = 100 / effectiveChance; // Expected minutes between procs
+        const minutesPerProc = 100 / effectiveChance;
 
         boostPets.push({
           slotIndex: pet.slotIndex,
@@ -201,9 +169,6 @@ function getBoostPets(): BoostPetInfo[] {
   return boostPets;
 }
 
-/**
- * Scan garden for mature crops and their size info
- */
 function scanGardenCrops(): CropSizeInfo[] {
   const snapshot = getGardenSnapshot();
   if (!snapshot) return [];
@@ -523,10 +488,6 @@ function stopTracking(): void {
 
   log('🌱 Crop Boost Tracker: Stopped');
 }
-
-// ============================================================================
-// Public API
-// ============================================================================
 
 export function getCurrentAnalysis(): TrackerAnalysis | null {
   return currentAnalysis;
