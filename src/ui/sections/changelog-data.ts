@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.8",
+    date: "2026-07-07",
+    notes: [
+      "Fixed ability colors falling back to grey after the game moved the color switch out of the main bundle in version 643, ability badges and mutation-heavy tooltips now show their proper colored backgrounds again",
+      "Fixed the catalogs subsystem in the diagnostics window sitting at degraded 5 of 9 with a QPM-CATALOG-003 error for abilityColors, catalog count now returns to healthy after refresh",
+      "Improved bundle scanning to cache multiple game chunks and route each enrichment (colors, weather) to the chunk that actually contains its data, keeps working as the game continues to split assets across new bundle files",
+    ],
+  },
+  {
     version: "3.3.7",
     date: "2026-07-03",
     notes: [

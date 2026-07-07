@@ -1,7 +1,7 @@
 // src/catalogs/logic/abilityColors.ts
 // Ability color extraction from game bundle (Gemini-style).
 
-import { fetchMainBundle, findAllIndices, extractBalancedBlock } from './bundleParser';
+import { fetchBundleContaining, findAllIndices, extractBalancedBlock } from './bundleParser';
 import { readSharedGlobal } from '../../core/pageContext';
 
 export interface RuntimeAbilityColor {
@@ -177,11 +177,17 @@ function parseAbilityColorsFromSimpleSwitch(switchBlock: string): Record<string,
   return Object.keys(colors).length ? colors : null;
 }
 
+// '#228B22' is the ProduceScaleBoost hex from getAbilityColor's switch. It is
+// unique to the color-switch chunk — main-*.js references ProduceScaleBoost in
+// the ability dex and description switches but has zero hex-color returns.
+// In v643+ the color switch moved to index-*.js; this marker routes there.
+const ABILITY_COLOR_BUNDLE_MARKER = '#228B22';
+
 /**
  * Load ability color map from live main bundle.
  */
 async function loadAbilityColorsFromBundle(): Promise<Record<string, RuntimeAbilityColor> | null> {
-  const bundleText = await fetchMainBundle();
+  const bundleText = await fetchBundleContaining(ABILITY_COLOR_BUNDLE_MARKER);
   if (!bundleText) return null;
 
   const switchBlock = findAbilityColorSwitchBlock(bundleText);

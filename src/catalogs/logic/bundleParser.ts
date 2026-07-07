@@ -3,17 +3,23 @@
 
 import { pageWindow, readSharedGlobal } from '../../core/pageContext';
 
-// Ordered by priority: try main bundle first (prod), then code-split game chunks (beta).
+// Ordered by priority: try main bundle first (prod), then split entry (v643+),
+// then legacy code-split game chunks (beta ≤ PR 2768).
 const BUNDLE_PATTERNS = [
   /main-[^/]+\.js(\?|$)/,
+  /index-[^/]+\.js(\?|$)/,
   /QuinoaView-[^/]+\.js(\?|$)/,
   /ScrollableView-[^/]+\.js(\?|$)/,
 ];
 
 const BUNDLE_CONTENT_ANCHOR = 'ProduceScaleBoost';
 
-let bundleCache: string | null = null;
-let bundleFetchInFlight: Promise<string | null> | null = null;
+// Per-URL cache. Multiple callers may need different chunks — main-*.js still
+// carries the ability dex and weather config in v643, but index-*.js holds the
+// getAbilityColor switch. Keeping both cached lets each caller match the chunk
+// that contains its own marker.
+const bundleTextCache = new Map<string, string>();
+const bundleFetchInFlightByUrl = new Map<string, Promise<void>>();
 
 function shouldDebug(): boolean {
   try {
@@ -168,52 +174,81 @@ export function extractBalancedObjectLiteral(text: string, anchorIndex: number):
 }
 
 /**
- * Fetch bundle text containing ability color data.
- * Tries candidate URLs in priority order; caches the first that contains the anchor.
+ * Fetch one candidate URL if not already cached. Idempotent + safe to call
+ * concurrently from multiple markers (dedupes per-URL in-flight promises).
  */
-export async function fetchMainBundle(): Promise<string | null> {
-  if (bundleCache) return bundleCache;
-  if (bundleFetchInFlight) return bundleFetchInFlight;
+async function fetchOneBundle(url: string): Promise<void> {
+  if (bundleTextCache.has(url)) return;
+  const existing = bundleFetchInFlightByUrl.get(url);
+  if (existing) return existing;
 
-  bundleFetchInFlight = (async () => {
-    const urls = findBundleCandidateUrls();
-    if (!urls.length) {
-      if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] no bundle candidate URLs found');
-      return null;
-    }
+  const fetchFn = typeof pageWindow.fetch === 'function'
+    ? pageWindow.fetch.bind(pageWindow)
+    : fetch;
 
-    const fetchFn = typeof pageWindow.fetch === 'function'
-      ? pageWindow.fetch.bind(pageWindow)
-      : fetch;
-
-    for (const url of urls) {
-      try {
-        const res = await fetchFn(url, { credentials: 'include' });
-        if (!res.ok) {
-          if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] bundle fetch failed', { status: res.status, url });
-          continue;
-        }
-        const text = await res.text();
-        if (!text || text.length < 1000) {
-          if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] bundle text suspiciously small', { length: text?.length ?? 0, url });
-          continue;
-        }
-        if (!text.includes(BUNDLE_CONTENT_ANCHOR)) {
-          if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] bundle lacks anchor', { url, length: text.length });
-          continue;
-        }
-        bundleCache = text;
-        if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] bundle fetched', { url, length: text.length });
-        return text;
-      } catch {
-        if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] bundle fetch threw', { url });
+  const promise = (async () => {
+    try {
+      const res = await fetchFn(url, { credentials: 'include' });
+      if (!res.ok) {
+        if (shouldDebug()) console.log('[QPM Catalog] [Bundle] fetch failed', { status: res.status, url });
+        return;
       }
+      const text = await res.text();
+      if (!text || text.length < 1000) {
+        if (shouldDebug()) console.log('[QPM Catalog] [Bundle] text suspiciously small', { length: text?.length ?? 0, url });
+        return;
+      }
+      bundleTextCache.set(url, text);
+      if (shouldDebug()) console.log('[QPM Catalog] [Bundle] cached', { url, length: text.length });
+    } catch {
+      if (shouldDebug()) console.log('[QPM Catalog] [Bundle] fetch threw', { url });
     }
-
-    return null;
   })().finally(() => {
-    bundleFetchInFlight = null;
+    bundleFetchInFlightByUrl.delete(url);
   });
 
-  return bundleFetchInFlight;
+  bundleFetchInFlightByUrl.set(url, promise);
+  return promise;
+}
+
+/**
+ * Fetch (or reuse cached) candidate bundles and return the first whose text
+ * contains the given marker. Each caller supplies a marker unique to the
+ * chunk that carries its data:
+ *   - ability colors → '#228B22' (ProduceScaleBoost color, only in the color switch chunk)
+ *   - weather        → default BUNDLE_CONTENT_ANCHOR (still in main-*.js)
+ *
+ * New candidate URLs are picked up on each call, so a chunk that loads lazily
+ * after the first attempt is still found.
+ */
+export async function fetchBundleContaining(marker: string): Promise<string | null> {
+  const urls = findBundleCandidateUrls();
+  if (!urls.length) {
+    if (shouldDebug()) console.log('[QPM Catalog] [Bundle] no bundle candidate URLs found');
+    return null;
+  }
+
+  for (const url of urls) {
+    if (bundleTextCache.has(url)) continue;
+    await fetchOneBundle(url);
+  }
+
+  for (const url of urls) {
+    const text = bundleTextCache.get(url);
+    if (text && text.includes(marker)) {
+      if (shouldDebug()) console.log('[QPM Catalog] [Bundle] matched marker', { marker, url });
+      return text;
+    }
+  }
+
+  if (shouldDebug()) console.log('[QPM Catalog] [Bundle] no cached bundle contains marker', { marker, tried: urls.length });
+  return null;
+}
+
+/**
+ * Backward-compat wrapper. Returns the first cached bundle containing the
+ * default ProduceScaleBoost anchor — used by weather enrichment.
+ */
+export async function fetchMainBundle(): Promise<string | null> {
+  return fetchBundleContaining(BUNDLE_CONTENT_ANCHOR);
 }
