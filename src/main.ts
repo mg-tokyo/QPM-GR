@@ -41,7 +41,7 @@ import {
   reportSpriteV2InitFailed,
 } from './sprite-v2/index';
 import type { SpriteService } from './sprite-v2/types';
-import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets, scheduleWarmup } from './sprite-v2/compat';
+import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets } from './sprite-v2/compat';
 import { isSpriteLogsEnabled, printSpriteLogDump, setSpriteLogsEnabled } from './sprite-v2/diagnostics';
 import { initTooltipInjection } from './features/standalone/tooltipInjection';
 import { startNativeFeedIntercept, stopNativeFeedIntercept } from './features/pets/nativeFeedIntercept';
@@ -1405,14 +1405,11 @@ window.addEventListener('beforeunload', () => {
 
 async function waitForGame(): Promise<void> {
   log('Waiting for game to load...');
-  
-  // Wait for body
+
   await ready;
-  await sleep(100);
-  
-  // Wait for QuinoaUI (SPA-ready indicator)
+
   const maxWait = 30000;
-  const interval = 500;
+  const interval = 150;
   const deadline = Date.now() + maxWait;
   
   while (Date.now() < deadline) {
@@ -1514,8 +1511,11 @@ async function initialize(): Promise<void> {
     log('[Main] gardenPainterPresets init failed (non-fatal)', error);
   });
   // Auto reconnect disabled — no longer permitted by the game.
-  // Force-disable for existing users who had it enabled.
-  storage.set('qpm.autoReconnect.enabled.v1', false);
+  // Force-disable only when a legacy user still has it flipped on; skip the
+  // write on every subsequent boot.
+  if (storage.get<boolean>('qpm.autoReconnect.enabled.v1', false) === true) {
+    storage.set('qpm.autoReconnect.enabled.v1', false);
+  }
 
   // Log when catalogs become ready (for timing analysis)
   onCatalogsReady(() => {
@@ -1590,8 +1590,12 @@ async function initialize(): Promise<void> {
     });
   }, 2000);
 
-  // Atom registry health check — diagnostic only, non-blocking
-  try { runAtomHealthCheck(); } catch (e) { log('Atom health check failed', e); }
+  const scheduleIdleHealthCheck = typeof requestIdleCallback === 'function'
+    ? (cb: () => void) => requestIdleCallback(cb, { timeout: 5000 })
+    : (cb: () => void) => setTimeout(cb, 2000);
+  scheduleIdleHealthCheck(() => {
+    try { runAtomHealthCheck(); } catch (e) { log('Atom health check failed', e); }
+  });
 
   // State-tree init: subscribe once to stateAtom so shop/weather/userSlots
   // reads and hutch subscribe through a memoizing fan-out. Non-fatal — if this
@@ -1633,12 +1637,14 @@ async function initialize(): Promise<void> {
   await startSeedSiloStore().catch((error) => {
     log('Seed silo store pre-init failed', error);
   });
+  await yieldToBrowser();
   await startPetInfoStore().catch((error) => {
     log('Pet info store pre-init failed', error);
   });
   await startAbilityTriggerStore().catch((error) => {
     log('Ability trigger store pre-init failed', error);
   });
+  await yieldToBrowser();
   if (isActivityLogEnhancerEnabled()) {
     await startActivityLogEnhancer().catch((error) => {
       log('Activity Log enhancer initialization failed', error);
@@ -1729,10 +1735,12 @@ async function initialize(): Promise<void> {
   startPetOptimizer();
   initTooltipInjection();
   startNativeFeedIntercept();
+  await yieldToBrowser();
   startController();
   startShopKeybinds();
   startShopEnhancer();
   startStorageValue();
+  await yieldToBrowser();
   startStorageValueOverlay();
   startInventoryCapacity();
   startInventoryCapacityOverlay();
@@ -1908,6 +1916,14 @@ async function initialize(): Promise<void> {
   // OPTIMIZATION: Wait for sprite system ONLY before creating UI
   // This allows other features to initialize while sprites load in background
   await spriteInit;
+  await yieldToBrowser();
+
+  // Tours must be registered BEFORE createOriginalUI: the panel synchronously
+  // calls checkTour('panel-shell') and checkTour('panel-home'). If tours aren't
+  // registered yet, the lookup silently returns undefined and those tours never
+  // fire — not even on later panel opens.
+  const { initTourSystem, checkTour } = await import('./ui/tour');
+  await initTourSystem();
 
   // Create UI (needs sprites to be ready)
   await createOriginalUI();
@@ -1921,6 +1937,8 @@ async function initialize(): Promise<void> {
   } catch (error) {
     console.error('[QPM][ShopRestockAlerts] failed to start (non-fatal):', error);
   }
+
+  await yieldToBrowser();
 
   // Phase 11 — Dawn features (weather-gated shop, capsule tracker, capture cooldowns)
   try {
@@ -1982,11 +2000,6 @@ async function initialize(): Promise<void> {
 
   registerPersistedItemRestockDetailOpeners();
 
-  // Initialize tour system BEFORE restoring windows so that tour definitions
-  // are registered when restored windows call checkTour.
-  const { initTourSystem, checkTour } = await import('./ui/tour');
-  await initTourSystem();
-
   restoreOpenWindows();
 
   // Start version checker (checks for updates periodically)
@@ -2001,10 +2014,6 @@ async function initialize(): Promise<void> {
   }, 1500);
 
   importantLog('Quinoa Pet Manager initialized successfully');
-
-  // Schedule sprite cache warmup during idle time (Aries Mod pattern)
-  // Delays 2 seconds, then pre-renders sprites in background batches
-  scheduleWarmup(2000);
 }
 
 async function bootstrap(): Promise<void> {

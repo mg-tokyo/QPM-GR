@@ -9,6 +9,7 @@ import { log } from '../utils/logger';
 import { storage } from '../utils/storage';
 
 const STORAGE_KEY = 'qpm.petHatchingTracker.knownPetIds.v1';
+const MAX_KNOWN_PET_IDS = 5000;
 let started = false;
 let unsubscribe: (() => void) | null = null;
 
@@ -112,6 +113,18 @@ function saveKnownPetIds(): void {
   }
 }
 
+// FIFO trim to bound the persisted set. Sets preserve insertion order,
+// so the oldest IDs (least recently observed as new) are evicted first.
+function pruneKnownPetIds(): void {
+  if (knownPetIds.size <= MAX_KNOWN_PET_IDS) return;
+  const excess = knownPetIds.size - MAX_KNOWN_PET_IDS;
+  const iter = knownPetIds.values();
+  for (let i = 0; i < excess; i++) {
+    const val = iter.next().value;
+    if (val !== undefined) knownPetIds.delete(val);
+  }
+}
+
 function determinePetRarity(pet: PetInfo): 'normal' | 'gold' | 'rainbow' {
   // Primary: check mutations array — canonical source per petOptimizer/collection.ts
   const mutations = extractMutations(pet);
@@ -159,16 +172,13 @@ function extractPetInfos(value: unknown): PetInfo[] {
 
 function detectNewPets(pets: PetInfo[]): void {
   const now = Date.now();
-  const currentPetIds = new Set<string>();
-  let newPetsDetected = false;
+  let addedCount = 0;
 
   for (const pet of pets) {
     const species = extractSpecies(pet);
     // Stable pet ID — prefer real ID; fallback avoids mutable fields like name
     const petId = pet.id || `${species || 'unknown'}-${pet.targetScale ?? 1}`;
-    currentPetIds.add(petId);
 
-    // Check if this is a new pet (not seen before)
     if (!knownPetIds.has(petId)) {
       const rarity = determinePetRarity(pet);
       recordPetHatch(rarity, now);
@@ -177,18 +187,17 @@ function detectNewPets(pets: PetInfo[]): void {
       recordDetailedHatch(species ?? 'Unknown', rarity, abilities, now);
 
       log(`🥚 Detected new ${rarity} pet hatched: ${species ?? 'Unknown'}`);
-      newPetsDetected = true;
+      knownPetIds.add(petId);
+      addedCount++;
     }
   }
 
-  // Grow-only union — never shrink knownPetIds so pets that leave the
-  // atom (sold, swapped, hutched) are not re-counted when they return.
-  for (const id of currentPetIds) {
-    knownPetIds.add(id);
+  // Persist only when the set actually grew — idle pushes hit this path
+  // multiple times per second and previously rewrote the full array every call.
+  if (addedCount > 0) {
+    pruneKnownPetIds();
+    saveKnownPetIds();
   }
-
-  // Persist after every update so the set survives reloads monotonically
-  saveKnownPetIds();
 }
 
 function processPetData(value: unknown): void {

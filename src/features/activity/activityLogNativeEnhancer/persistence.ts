@@ -22,6 +22,8 @@ import {
   ACTIVITY_LOG_ENABLED_STORAGE_KEY,
   LEGACY_STORAGE_KEYS,
   TYPE_OPTIONS,
+  SAVE_DEBOUNCE_MS,
+  BACKUP_ROTATION_MS,
 } from './constants';
 import { S } from './state';
 import {
@@ -48,9 +50,13 @@ export function invalidateVirtualCaches(): void {
   S.historyFilterMetaCache.clear();
 }
 
-export function persistHistoryEnvelope(envelope: HistoryEnvelope): void {
+let pendingHistoryEnvelope: HistoryEnvelope | null = null;
+let pendingHistoryTimer: number | null = null;
+let lastBackupSavedAt = 0;
+let unloadHandler: (() => void) | null = null;
+
+function writePrimaryAndMeta(envelope: HistoryEnvelope): void {
   storage.set(HISTORY_STORAGE_KEY, envelope);
-  storage.set(HISTORY_BACKUP_STORAGE_KEY, envelope);
   storage.set(HISTORY_META_STORAGE_KEY, {
     version: envelope.version,
     savedAt: envelope.savedAt,
@@ -61,12 +67,62 @@ export function persistHistoryEnvelope(envelope: HistoryEnvelope): void {
   });
 }
 
+function writeBackupEnvelope(envelope: HistoryEnvelope): void {
+  storage.set(HISTORY_BACKUP_STORAGE_KEY, envelope);
+  lastBackupSavedAt = envelope.savedAt;
+}
+
+export function persistHistoryEnvelope(envelope: HistoryEnvelope): void {
+  writePrimaryAndMeta(envelope);
+  writeBackupEnvelope(envelope);
+}
+
+export function flushPendingHistory(force = false): void {
+  if (!pendingHistoryEnvelope) return;
+  const envelope = pendingHistoryEnvelope;
+  pendingHistoryEnvelope = null;
+  if (pendingHistoryTimer != null) {
+    clearTimeout(pendingHistoryTimer);
+    pendingHistoryTimer = null;
+  }
+  writePrimaryAndMeta(envelope);
+  const backupDue = lastBackupSavedAt === 0
+    || (envelope.savedAt - lastBackupSavedAt) >= BACKUP_ROTATION_MS;
+  if (force || backupDue) {
+    writeBackupEnvelope(envelope);
+  }
+}
+
+function schedulePendingFlush(): void {
+  if (pendingHistoryTimer != null) return;
+  pendingHistoryTimer = window.setTimeout(() => {
+    pendingHistoryTimer = null;
+    flushPendingHistory(false);
+  }, SAVE_DEBOUNCE_MS);
+}
+
 export function writeHistoryWithBackup(entries: ActivityLogEntry[]): void {
   const envelope = buildHistoryEnvelope(entries);
   S.history = envelope.entries;
   S.historyRevision += 1;
   invalidateVirtualCaches();
-  persistHistoryEnvelope(envelope);
+  pendingHistoryEnvelope = envelope;
+  schedulePendingFlush();
+}
+
+export function installPersistenceUnloadHandler(): void {
+  if (unloadHandler) return;
+  const handler = (): void => flushPendingHistory(true);
+  window.addEventListener('pagehide', handler);
+  window.addEventListener('beforeunload', handler);
+  unloadHandler = handler;
+}
+
+export function uninstallPersistenceUnloadHandler(): void {
+  if (!unloadHandler) return;
+  window.removeEventListener('pagehide', unloadHandler);
+  window.removeEventListener('beforeunload', unloadHandler);
+  unloadHandler = null;
 }
 
 export function loadHistory(): ActivityLogEntry[] {

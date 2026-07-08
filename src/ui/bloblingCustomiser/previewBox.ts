@@ -11,6 +11,13 @@ const EMOTES = [
   { icon: '\u{2764}\u{FE0F}', type: 5, label: 'Love' },
 ] as const;
 
+function buildColorGlow(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `radial-gradient(ellipse at center, rgba(${r},${g},${b},0.35) 0%, rgba(${r},${g},${b},0.15) 45%, rgba(${r},${g},${b},0) 75%)`;
+}
+
 export interface PreviewBoxHandle {
   canvas: HTMLCanvasElement;
   previewArea: HTMLElement;
@@ -69,7 +76,7 @@ export function renderPreviewBox(
   previewArea.appendChild(canvas);
 
   const colorGlow = document.createElement('div');
-  colorGlow.style.cssText = `position:absolute;bottom:11.8%;left:50%;transform:translateX(-50%);width:50%;max-width:140px;aspect-ratio:140/70;border-radius:50%;filter:blur(24px);opacity:0.25;pointer-events:none;z-index:1;transition:background 0.3s;background:${COLOR_HEX[currentColor]};`;
+  colorGlow.style.cssText = `position:absolute;bottom:11.8%;left:50%;transform:translateX(-50%);width:70%;max-width:196px;aspect-ratio:196/98;pointer-events:none;z-index:1;transition:background-image 0.3s;background-image:${buildColorGlow(COLOR_HEX[currentColor])};`;
   previewArea.appendChild(colorGlow);
 
   const emoteRow = document.createElement('div');
@@ -125,7 +132,7 @@ export function renderPreviewBox(
         el.style.border = 'none';
       }
     }
-    colorGlow.style.background = COLOR_HEX[color];
+    colorGlow.style.backgroundImage = buildColorGlow(COLOR_HEX[color]);
   }
 
   return {

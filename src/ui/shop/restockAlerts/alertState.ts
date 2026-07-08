@@ -31,7 +31,8 @@ export const alertState = {
   stopToolInventoryListener:    null as (() => void) | null,
   stopSpritesReadyListener:     null as (() => void) | null,
   trackedChangedHandler:   null as ((event: Event) => void) | null,
-  socketPollTimer:              null as number | null,
+  socketPollStop:               null as (() => void) | null,
+  socketPollGeneration:         0,
 
   inventoryKeyCounts:          new Map<string, number>(),
   inventoryKeyItemQuantities:  new Map<string, Map<string, number>>(),

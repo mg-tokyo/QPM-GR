@@ -53,6 +53,34 @@ const configData: XpTrackerConfig = {
   speciesXpPerLevel: {},
 };
 
+interface XpStatsEntry { count: number; last: number }
+const xpStatsIndex: Map<string, XpStatsEntry> = new Map();
+const procIndexKey = (petId: string, abilityId: string): string => `${petId}::${abilityId}`;
+
+function indexIncrement(entry: XpProcEntry): void {
+  const key = procIndexKey(entry.petId, entry.abilityId);
+  const existing = xpStatsIndex.get(key);
+  if (existing) {
+    existing.count += 1;
+    if (entry.timestamp > existing.last) existing.last = entry.timestamp;
+  } else {
+    xpStatsIndex.set(key, { count: 1, last: entry.timestamp });
+  }
+}
+
+function indexDecrement(entry: XpProcEntry): void {
+  const key = procIndexKey(entry.petId, entry.abilityId);
+  const existing = xpStatsIndex.get(key);
+  if (!existing) return;
+  existing.count -= 1;
+  if (existing.count <= 0) xpStatsIndex.delete(key);
+}
+
+function rebuildProcIndex(): void {
+  xpStatsIndex.clear();
+  for (const entry of procHistory) indexIncrement(entry);
+}
+
 let updateCallbacks: Array<() => void> = [];
 
 const scheduleSaveProcs = debounce(() => {
@@ -94,10 +122,11 @@ export function recordXpProc(
   };
 
   procHistory.push(entry);
+  indexIncrement(entry);
 
-  // Keep only last 1000 procs to prevent unbounded growth
   if (procHistory.length > 1000) {
-    procHistory.shift();
+    const dropped = procHistory.shift();
+    if (dropped) indexDecrement(dropped);
   }
 
   scheduleSaveProcs();
@@ -156,11 +185,9 @@ export function calculateXpStats(
     ? expectedProcsPerHour * actualXpPerProc
     : 0;
 
-  // Find last proc for this pet's ability
-  const relevantProcs = procHistory.filter(
-    (p) => p.petId === petId && p.abilityId === abilityId
-  );
-  const lastProc = relevantProcs.length > 0 ? relevantProcs[relevantProcs.length - 1] : null;
+  const indexEntry = xpStatsIndex.get(procIndexKey(petId, abilityId));
+  const procCount = indexEntry?.count ?? 0;
+  const lastProcAt = indexEntry ? indexEntry.last : null;
 
   return {
     petId,
@@ -177,8 +204,8 @@ export function calculateXpStats(
     actualChancePerSecond,
     expectedProcsPerHour,
     expectedXpPerHour,
-    lastProcAt: lastProc?.timestamp ?? null,
-    procCount: relevantProcs.length,
+    lastProcAt,
+    procCount,
     level: pet.level ?? null,
     currentXp: pet.xp ?? null,
   };
@@ -349,6 +376,7 @@ export function initializeXpTracker(): void {
     if (savedProcs?.procs) {
       procHistory.splice(0, procHistory.length, ...savedProcs.procs);
     }
+    rebuildProcIndex();
 
     const savedConfig = storage.get<XpTrackerConfig | null>(STORAGE_KEY_CONFIG, null);
     if (savedConfig?.speciesXpPerLevel) {

@@ -2,7 +2,7 @@
 
 import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
-import { getActivePetInfos, type ActivePetInfo } from '../../store/pets';
+import { getActivePetInfos, onActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import { lookupMaxScale } from '../../utils/game/plantScales';
 
@@ -84,9 +84,11 @@ const DEFAULT_CONFIG: CropBoostConfig = {
 let config: CropBoostConfig = { ...DEFAULT_CONFIG };
 let currentAnalysis: TrackerAnalysis | null = null;
 let gardenUnsubscribe: (() => void) | null = null;
+let petsUnsubscribe: (() => void) | null = null;
 let refreshInterval: number | null = null;
 const changeCallbacks = new Set<(analysis: TrackerAnalysis | null) => void>();
 let lastRecalcTime = 0;
+let lastHadBoostPets = false;
 const RECALC_THROTTLE_MS = 5000; // Only recalculate every 5 seconds max
 
 interface CropBoostHistory {
@@ -337,7 +339,6 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
   const allCrops = scanGardenCrops();
 
   if (boostPets.length === 0) {
-    log('ℹ️ Crop Boost Tracker: No active boost pets');
     return null;
   }
 
@@ -455,37 +456,64 @@ function recalculate(): void {
   for (const cb of changeCallbacks) cb(currentAnalysis);
 }
 
-/**
- * Start tracking garden changes
- */
-function startTracking(): void {
-  if (gardenUnsubscribe) return; // Already tracking
+function hasBoostPets(): boolean {
+  const pets = getActivePetInfos();
+  for (const pet of pets) {
+    if (!pet.abilities) continue;
+    if (pet.abilities.includes('ProduceScaleBoost')) return true;
+    if (pet.abilities.includes('ProduceScaleBoostII')) return true;
+  }
+  return false;
+}
 
-  log('🌱 Crop Boost Tracker: Starting');
-
-  // Initial calculation
+function attachGardenSubscription(): void {
+  if (gardenUnsubscribe) return;
   recalculate();
-
-  // Subscribe to garden changes (throttled to prevent lag)
   gardenUnsubscribe = onGardenSnapshot(() => {
     recalculate();
   });
 }
 
-/**
- * Stop tracking
- */
-function stopTracking(): void {
-  if (gardenUnsubscribe) {
-    gardenUnsubscribe();
-    gardenUnsubscribe = null;
+function detachGardenSubscription(): void {
+  if (!gardenUnsubscribe) return;
+  gardenUnsubscribe();
+  gardenUnsubscribe = null;
+  if (currentAnalysis !== null) {
+    currentAnalysis = null;
+    for (const cb of changeCallbacks) cb(null);
   }
+}
 
+function startTracking(): void {
+  if (petsUnsubscribe) return;
+
+  log('🌱 Crop Boost Tracker: Starting');
+  lastHadBoostPets = hasBoostPets();
+  if (lastHadBoostPets) attachGardenSubscription();
+
+  petsUnsubscribe = onActivePetInfos(() => {
+    const hasNow = hasBoostPets();
+    if (hasNow === lastHadBoostPets) return;
+    lastHadBoostPets = hasNow;
+    if (hasNow) {
+      attachGardenSubscription();
+    } else {
+      detachGardenSubscription();
+    }
+  }, false);
+}
+
+function stopTracking(): void {
+  detachGardenSubscription();
+  if (petsUnsubscribe) {
+    petsUnsubscribe();
+    petsUnsubscribe = null;
+  }
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = null;
   }
-
+  lastHadBoostPets = false;
   log('🌱 Crop Boost Tracker: Stopped');
 }
 

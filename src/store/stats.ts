@@ -103,6 +103,7 @@ interface StatsState extends StatsSnapshot {
 const STORAGE_KEY = 'quinoa:stats:v1';
 const SAVE_DEBOUNCE_MS = 1200;
 const WEATHER_TICK_INTERVAL = 5000;
+const WEATHER_COMMIT_MIN_INTERVAL_MS = 60_000;
 const MAX_SHOP_ITEMS = 40;
 const MAX_HISTORY = 1000; // Store up to 1000 history entries
 
@@ -112,6 +113,7 @@ let saveTimer: number | null = null;
 let weatherUnsubscribe: (() => void) | null = null;
 let weatherTickTimerCleanup: (() => void) | null = null;
 let lastWeatherTickAt = Date.now();
+let lastWeatherCommit = 0;
 
 const listeners = new Set<(snapshot: StatsSnapshot) => void>();
 
@@ -407,8 +409,15 @@ function scheduleSave(): void {
 
 function commitState(): void {
   state.meta.updatedAt = Date.now();
+  lastWeatherCommit = state.meta.updatedAt;
   scheduleSave();
   emitSnapshot();
+}
+
+function commitWeatherIfDue(kindChanged: boolean): void {
+  if (kindChanged || Date.now() - lastWeatherCommit >= WEATHER_COMMIT_MIN_INTERVAL_MS) {
+    commitState();
+  }
 }
 
 function pruneShopItems(): void {
@@ -442,20 +451,19 @@ function attachWeatherTracking(): void {
   state.weather.activeKind = current.kind ?? 'unknown';
   state.weather.lastSnapshotAt = current.timestamp;
   lastWeatherTickAt = Date.now();
+  lastWeatherCommit = Date.now();
 
   weatherUnsubscribe = onWeatherSnapshot((snapshot: WeatherSnapshot) => {
     const durationChanged = recordWeatherDuration(snapshot.timestamp);
     const newKind = snapshot.kind ?? 'unknown';
     const kindChanged = newKind !== state.weather.activeKind;
     state.weather.activeKind = newKind;
-    if (durationChanged || kindChanged) commitState();
+    if (kindChanged || durationChanged) commitWeatherIfDue(kindChanged);
   }, true);
 
   weatherTickTimerCleanup = visibleInterval('stats-weather-tick', () => {
     const changed = recordWeatherDuration(Date.now());
-    if (changed) {
-      commitState();
-    }
+    if (changed) commitWeatherIfDue(false);
   }, WEATHER_TICK_INTERVAL);
 }
 

@@ -287,6 +287,26 @@ export function renderTileGrid(): TileGridResult {
     }
   }
 
+  function startLiveStatuses(): void {
+    stopLiveStatuses();
+    const version = liveStatusVersion;
+    startAllLiveStatuses(getStatusEl, addLiveCleanup, version);
+  }
+
+  let panelHidden = false;
+  const onPanelVisibility = (e: Event) => {
+    const detail = (e as CustomEvent<{ hidden: boolean }>).detail;
+    if (!detail || detail.hidden === panelHidden) return;
+    panelHidden = detail.hidden;
+    if (panelHidden) {
+      stopLiveStatuses();
+    } else {
+      startLiveStatuses();
+    }
+  };
+  document.addEventListener('qpm:panel-visibility', onPanelVisibility);
+  cleanups.push(() => document.removeEventListener('qpm:panel-visibility', onPanelVisibility));
+
   function refresh(): void {
     grid.innerHTML = '';
     const rows = getTileRows();
@@ -309,10 +329,11 @@ export function renderTileGrid(): TileGridResult {
     });
     grid.appendChild(addBtn);
 
-    // Kick off live status updates after render
-    stopLiveStatuses();
-    const version = liveStatusVersion;
-    startAllLiveStatuses(getStatusEl, addLiveCleanup, version);
+    if (panelHidden) {
+      stopLiveStatuses();
+    } else {
+      startLiveStatuses();
+    }
   }
 
   function getTileElements(): HTMLElement[] {

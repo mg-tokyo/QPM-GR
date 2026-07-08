@@ -43,25 +43,39 @@ export function makeSingleSlider(
 export function makeColorTile(
   label: string, dotColor: string, dotGradient: string | undefined,
   getActive: () => boolean, onToggle: () => void,
+  spriteUrl?: string,
 ): HTMLElement {
   const active = getActive();
   const tile = document.createElement('div');
   tile.style.cssText = `padding:8px 12px;border-radius:var(--qpm-radius-md,8px);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s,border-color .15s;border:1.5px solid ${active ? dotColor : UNLOCKED_BORDER};background:${active ? (dotGradient ?? dotColor) : UNLOCKED_BG}`;
 
-  const dot = document.createElement('div');
-  dot.style.cssText = `width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${active ? 'rgba(0,0,0,0.2)' : (dotGradient ?? dotColor)}`;
+  const iconWrap = document.createElement('div');
+  iconWrap.style.cssText = `width:${MUTATION_ICON_SIZE}px;height:${MUTATION_ICON_SIZE}px;flex-shrink:0;display:flex;align-items:center;justify-content:center`;
+
+  let dot: HTMLDivElement | null = null;
+  if (spriteUrl) {
+    const img = document.createElement('img');
+    img.src = spriteUrl;
+    img.alt = label;
+    img.style.cssText = `width:${MUTATION_ICON_SIZE}px;height:${MUTATION_ICON_SIZE}px;image-rendering:pixelated;object-fit:contain`;
+    iconWrap.appendChild(img);
+  } else {
+    dot = document.createElement('div');
+    dot.style.cssText = `width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${active ? 'rgba(0,0,0,0.2)' : (dotGradient ?? dotColor)}`;
+    iconWrap.appendChild(dot);
+  }
 
   const lbl = document.createElement('div');
   lbl.textContent = label;
   lbl.style.cssText = `font-size:12px;font-weight:600;white-space:nowrap;color:${active ? '#111' : TEXT_MUTED}`;
 
-  tile.append(dot, lbl);
+  tile.append(iconWrap, lbl);
 
   const apply = (): void => {
     const sel = getActive();
     tile.style.borderColor = sel ? dotColor : UNLOCKED_BORDER;
     tile.style.background = sel ? (dotGradient ?? dotColor) : UNLOCKED_BG;
-    dot.style.background = sel ? 'rgba(0,0,0,0.2)' : (dotGradient ?? dotColor);
+    if (dot) dot.style.background = sel ? 'rgba(0,0,0,0.2)' : (dotGradient ?? dotColor);
     lbl.style.color = sel ? '#111' : TEXT_MUTED as string;
   };
 
@@ -240,6 +254,7 @@ export function buildColorSection(
     goldBadge?.color ?? '#FFD700', goldBadge?.gradient,
     () => getLiveSettings().colorGold,
     () => onChange({ colorGold: !getLiveSettings().colorGold }),
+    getMutationSpriteDataUrl('Gold'),
   ));
   grid.appendChild(makeColorTile(
     t('feature.locker.filter.colorRainbow'),
@@ -247,6 +262,7 @@ export function buildColorSection(
     rainbowBadge?.gradient ?? 'linear-gradient(135deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff,#9b59b6)',
     () => getLiveSettings().colorRainbow,
     () => onChange({ colorRainbow: !getLiveSettings().colorRainbow }),
+    getMutationSpriteDataUrl('Rainbow'),
   ));
   grid.appendChild(makeColorTile(
     t('feature.locker.filter.colorNormal'),

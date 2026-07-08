@@ -13,6 +13,7 @@ import { createStoreDiagnostics } from './_storeDiagnostics';
 const diag = createStoreDiagnostics('storePets', 'pets');
 let firstAtomValueSeen = false;
 let lastPublishedCount = -1;
+let lastNotifySignature: string | null = null;
 
 export interface ActivePetInfo {
   slotIndex: number;
@@ -56,7 +57,24 @@ const listeners = new Set<(infos: ActivePetInfo[]) => void>();
 let retryTimer: number | null = null;
 let petInfosAtomRef: unknown = null;
 
+function buildNotifySignature(infos: ActivePetInfo[]): string {
+  // Per-slot signature covers every field a subscriber consumes:
+  // identity (slotIndex/petId/slotId/species/name), hunger (value+pct),
+  // xp/level/strength/targetScale, chargedAbilityId, mutations/abilities.
+  // hungerMax/hungerRaw/levelRaw/position/updatedAt/raw are either derived
+  // from species or unread by subscribers — omitted.
+  let sig = '';
+  for (const p of infos) {
+    sig += `${p.slotIndex}|${p.petId ?? ''}|${p.slotId ?? ''}|${p.species ?? ''}|${p.name ?? ''}|${p.hungerValue ?? ''}|${p.hungerPct ?? ''}|${p.xp ?? ''}|${p.level ?? ''}|${p.strength ?? ''}|${p.targetScale ?? ''}|${p.chargedAbilityId ?? ''}|${p.mutations.join(',')}|${p.abilities.join(',')}\n`;
+  }
+  return sig;
+}
+
 function notify(): void {
+  const signature = buildNotifySignature(cachedInfos);
+  if (signature === lastNotifySignature) return;
+  lastNotifySignature = signature;
+
   for (const listener of listeners) {
     try {
       listener(cachedInfos);
@@ -879,6 +897,7 @@ export function stopPetInfoStore(): void {
   catalogReadyHooked = false;
   firstAtomValueSeen = false;
   lastPublishedCount = -1;
+  lastNotifySignature = null;
   clearStartRetry();
 }
 

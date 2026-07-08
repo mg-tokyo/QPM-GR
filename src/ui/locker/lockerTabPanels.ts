@@ -88,7 +88,7 @@ function buildQuickPlantLocksCard(config: LockerConfig, eligible: EligibleData):
 
   body.appendChild(makeHint(t('feature.locker.filter.quickLocksHint')));
 
-  const showAllBtn = makeShowAllToggle((showAll) => rebuildPlantGrid(showAll));
+  const showAllBtn = makeShowAllToggle((showAll) => rebuildPlantGrid(showAll), true);
   body.appendChild(showAllBtn);
 
   const plantGridSlot = document.createElement('div');
@@ -108,7 +108,7 @@ function buildQuickPlantLocksCard(config: LockerConfig, eligible: EligibleData):
     }
   }
 
-  rebuildPlantGrid(false);
+  rebuildPlantGrid(true);
   body.appendChild(plantGridSlot);
 
   // Mutations sub-section
@@ -293,7 +293,7 @@ function buildSellProtectionCard(config: LockerConfig, eligible: EligibleData): 
   cropHeader.append(cropLabel, cropBlockAllCb);
   body.appendChild(cropHeader);
 
-  const cropShowAllBtn = makeShowAllToggle((showAll) => rebuildCropSellGrid(showAll));
+  const cropShowAllBtn = makeShowAllToggle((showAll) => rebuildCropSellGrid(showAll), true);
   body.appendChild(cropShowAllBtn);
   body.appendChild(makeHint(t('feature.locker.cropSellHint')));
 
@@ -314,7 +314,7 @@ function buildSellProtectionCard(config: LockerConfig, eligible: EligibleData): 
     }
   }
 
-  rebuildCropSellGrid(false);
+  rebuildCropSellGrid(true);
   body.appendChild(cropSellGridSlot);
 
   // Divider

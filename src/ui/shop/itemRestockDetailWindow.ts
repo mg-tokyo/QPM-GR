@@ -733,7 +733,6 @@ function buildOverviewCard(
           `height:${heightPct}%`,
           'border-radius:2px 2px 0 0',
           `background:${isMedian ? '#a78bfa' : 'rgba(143,130,255,0.25)'}`,
-          'transition:height 0.2s',
           'min-width:4px',
         ].join(';');
         const bucketStart = minVal + i * bucketSize;

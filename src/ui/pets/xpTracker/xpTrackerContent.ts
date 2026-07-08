@@ -546,13 +546,28 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   scrollContent.appendChild(contentWrap);
   container.appendChild(scrollContent);
 
+  let lastCardSig: string | null = null;
+
+  const buildCardSignature = (pets: ActivePetInfo[]): string => {
+    const parts: string[] = [String(pets.length), String(potionCount), String(Math.round(totalTeamXpPerHour))];
+    for (const pet of pets) {
+      const petKey = pet.petId ?? pet.slotId ?? `slot:${pet.slotIndex}`;
+      const strBucket = pet.strength != null ? Math.floor(pet.strength / 5) : 'x';
+      const xpBucket = pet.xp != null ? Math.floor(pet.xp / 50) : 'x';
+      parts.push(`${petKey}|${pet.species ?? ''}|${pet.name ?? ''}|${strBucket}|${xpBucket}|${pet.targetScale ?? ''}|${(pet.abilities ?? []).join(',')}|${(pet.mutations ?? []).join(',')}`);
+    }
+    return parts.join('\n');
+  };
+
   // -- Render functions --
   const renderPetCards = (): void => {
-    // Suppress rebuild while user hovers a potion button (prevents flicker)
     if (hoverGuard.hovering) {
       hoverGuard.pendingRender = true;
       return;
     }
+    const sig = buildCardSignature(latestPets);
+    if (sig === lastCardSig) return;
+    lastCardSig = sig;
     petCardsContainer.innerHTML = '';
     if (latestPets.length === 0) {
       petCardsContainer.appendChild(createEmptyState(t('feature.xpTracker.noActivePets')));
@@ -582,7 +597,8 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   const unsubPets = onActivePetInfos(throttledPetUpdate);
   cleanups.push(unsubPets);
 
-  const unsubXpTracker = onXpTrackerUpdate(() => { renderPetCards(); });
+  const throttledCardRender = throttle(() => { renderPetCards(); }, 500);
+  const unsubXpTracker = onXpTrackerUpdate(() => { throttledCardRender(); });
   cleanups.push(unsubXpTracker);
 
   // Deferred render listener — fires when potion hover ends and a render was pending
@@ -592,7 +608,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
 
   const unsubPotions = onXpPotionCountChange((count) => {
     potionCount = count;
-    renderPetCards();
+    throttledCardRender();
   });
   cleanups.push(unsubPotions);
 

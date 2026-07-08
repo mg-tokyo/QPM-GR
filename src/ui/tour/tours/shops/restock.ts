@@ -16,8 +16,8 @@ export const shopRestockTour: TourDefinition = {
     {
       id: 'items',
       selector: '[data-tour="restock-items"]',
-      title: 'Pin items you care about',
-      body: 'Click any row to pin it to the top. Pinned items stay visible so you never miss a restock.',
+      title: 'Pin items for restock alerts',
+      body: 'Click any row to pin it. Pinned items stay at the top and trigger a notification the moment they restock.',
       placement: 'top',
       advanceOn: 'click',
     },

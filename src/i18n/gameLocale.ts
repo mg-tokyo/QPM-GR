@@ -2,12 +2,13 @@
 
 import { storage } from '../utils/storage';
 import { readLocalRaw } from '../utils/storage';
+import { visibleInterval } from '../utils/scheduling/timerManager';
 import type { QpmLocale, LocaleMode } from './types';
 import { isSupportedQpmLocale, normalizeLocale } from './locales';
 
 const LOCALE_OVERRIDE_KEY = 'qpm.localeOverride.v1';
 const GAME_LOCALE_LS_KEY = 'locale';
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 30_000;
 
 type LocaleListener = (locale: QpmLocale) => void;
 
@@ -123,8 +124,8 @@ function startStorageEventListener(): void {
 }
 
 function startPolling(): void {
-  const id = setInterval(() => notifyIfChanged(), POLL_INTERVAL_MS);
-  cleanups.push(() => clearInterval(id));
+  const stop = visibleInterval('i18n-gamelocale-poll', () => notifyIfChanged(), POLL_INTERVAL_MS);
+  cleanups.push(stop);
 }
 
 // --- Public API ---

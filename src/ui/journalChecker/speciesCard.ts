@@ -133,13 +133,6 @@ export function buildSpeciesCard(params: SpeciesCardParams): HTMLElement {
   });
   pb.root.style.marginBottom = '12px';
 
-  if (isComplete) {
-    const fill = pb.root.firstElementChild as HTMLElement | null;
-    if (fill) {
-      fill.style.backgroundSize = '200% 100%';
-      fill.style.animation = 'qpm-rainbow-progress 3s linear infinite';
-    }
-  }
   card.appendChild(pb.root);
 
   // ── Variant chips ─────────────────────────────────────────────────────────

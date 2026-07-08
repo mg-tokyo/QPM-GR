@@ -631,7 +631,6 @@ export function ensurePanelStyles(): void {
     flex-direction: column;
     gap: 3px;
     text-align: left;
-    will-change: transform, box-shadow;
   }
   .qpm-add-tile {
     flex: 0 0 auto;
@@ -649,12 +648,14 @@ export function ensurePanelStyles(): void {
     transform: translateY(0) scale(0.985);
     outline: 1px solid rgba(143, 130, 255, 0.55);
     outline-offset: 2px;
+    will-change: transform, box-shadow;
   }
   .qpm-tile--dragging {
     cursor: grabbing;
     opacity: 0.92;
     transform: scale(1.03);
     box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(143, 130, 255, 0.34);
+    will-change: transform, box-shadow;
   }
   .qpm-tile--delete-target {
     opacity: 0.46;
@@ -669,8 +670,8 @@ export function ensurePanelStyles(): void {
     animation: qpm-tile-placeholder-pulse 1.2s ease-in-out infinite;
   }
   @keyframes qpm-tile-placeholder-pulse {
-    0%, 100% { border-color: rgba(143, 130, 255, 0.28); background: rgba(143, 130, 255, 0.035); }
-    50% { border-color: rgba(143, 130, 255, 0.58); background: rgba(143, 130, 255, 0.075); }
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
   }
   .qpm-tile-delete-zone {
     position: absolute;

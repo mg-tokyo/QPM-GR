@@ -39,6 +39,7 @@ let unsubscribe: (() => void) | null = null;
 let initializing = false;
 let inventoryAtomRef: unknown = null;
 let lastRawInventoryValue: unknown = null;
+let lastNotifySignature: string | null = null;
 const listeners = new Set<(data: InventoryData) => void>();
 
 function normalizeInventoryItem(raw: any): InventoryItem | null {
@@ -130,7 +131,25 @@ function getSnapshot(): InventoryData {
   };
 }
 
+function buildNotifySignature(items: InventoryItem[], favorites: Set<string>): string {
+  // Per-item: id | species | itemType | quantity | strength_bucket | abilities.length.
+  // Bucketing strength/5 keeps the sig stable across strength rolls (1 Hz game jitter);
+  // abilities.length is the cheap fingerprint — objects aren't stably JSON-serializable here.
+  let sig = `${items.length}|${favorites.size}`;
+  for (const it of items) {
+    const qty = it.quantity ?? it.count ?? it.amount ?? it.stackSize ?? '';
+    const str = it.strength != null ? Math.floor(it.strength / 5) : '';
+    const abl = it.abilities?.length ?? 0;
+    sig += `\n${it.id}|${it.species ?? ''}|${it.itemType ?? ''}|${qty}|${str}|${abl}`;
+  }
+  return sig;
+}
+
 function notifyListeners(): void {
+  const signature = buildNotifySignature(cachedInventory, cachedFavorites);
+  if (signature === lastNotifySignature) return;
+  lastNotifySignature = signature;
+
   const snapshot = getSnapshot();
   for (const listener of listeners) {
     try {
@@ -192,6 +211,7 @@ export function stopInventoryStore(): void {
   cachedInventory = [];
   cachedFavorites = new Set();
   firstAtomValueSeen = false;
+  lastNotifySignature = null;
 }
 
 /**

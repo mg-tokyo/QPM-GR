@@ -24,5 +24,5 @@ export function isLockerRunning(): boolean {
   return running;
 }
 
-export { getLockerConfig, updateLockerConfig, resetLockerConfig } from './state';
+export { getLockerConfig, updateLockerConfig, resetLockerConfig, subscribeLockerConfig } from './state';
 export type { LockerConfig, GuardResult } from './types';

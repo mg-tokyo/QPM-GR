@@ -25,6 +25,9 @@ import {
   importAriesHistory,
   triggerExportJson,
   invalidateVirtualCaches,
+  flushPendingHistory,
+  installPersistenceUnloadHandler,
+  uninstallPersistenceUnloadHandler,
 } from './persistence';
 import { resetVirtualMode, clearReplayHydrationTimer, getOrderedHistoryRefs } from './virtualList';
 import { getOrderedHistory } from './patchHooks';
@@ -209,6 +212,7 @@ export async function startActivityLogEnhancer(): Promise<void> {
   }
   if (S.started) return;
   S.started = true;
+  installPersistenceUnloadHandler();
 
   try {
     S.replayMode = 'unknown';
@@ -216,6 +220,9 @@ export async function startActivityLogEnhancer(): Promise<void> {
     S.readPatchStartIndex = 0;
     S.readPatchOrder = 'newest';
     S.readPatchMaxEntries = null;
+    S.lastIngestLength = -1;
+    S.lastIngestFirstTs = 0;
+    S.lastIngestLastTs = 0;
     resetVirtualMode();
     S.petLookupEntriesCache = null;
     S.plantLookupEntriesCache = null;
@@ -263,6 +270,9 @@ export function stopActivityLogEnhancer(): void {
   S.readPatchStartIndex = 0;
   S.readPatchOrder = S.filters.order;
   S.readPatchMaxEntries = null;
+  S.lastIngestLength = -1;
+  S.lastIngestFirstTs = 0;
+  S.lastIngestLastTs = 0;
   resetVirtualMode();
   S.petLookupEntriesCache = null;
   S.plantLookupEntriesCache = null;
@@ -275,6 +285,8 @@ export function stopActivityLogEnhancer(): void {
   uninstallMyDataReadPatch();
 
   saveHistory(S.history);
+  flushPendingHistory(true);
+  uninstallPersistenceUnloadHandler();
   persistFilters();
   saveSummaryDebugPreference();
   saveEnabledPreference();

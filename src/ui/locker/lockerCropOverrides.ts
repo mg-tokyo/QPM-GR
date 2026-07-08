@@ -3,7 +3,7 @@
 
 import { getLockerConfig, updateLockerConfig, type LockerConfig } from '../../features/locker/index';
 import type { HarvestFilterSettings, CropOverride } from '../../features/locker/types';
-import { areCatalogsReady, getAllPlantSpecies } from '../../catalogs/gameCatalogs';
+import { areCatalogsReady, getAllPlantSpecies, getPlantSpecies } from '../../catalogs/gameCatalogs';
 import { getCropSpriteDataUrl } from '../../sprite-v2/compat';
 import {
   ACCENT, TEXT_MUTED, UNLOCKED_BG, UNLOCKED_BORDER,
@@ -49,6 +49,8 @@ function buildSpeciesItem(
   isSelected: boolean,
   onSelect: () => void,
 ): HTMLElement {
+  const displayName = getPlantSpecies(species)?.crop?.name ?? species;
+
   const row = document.createElement('div');
   row.style.cssText =
     'display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:pointer;' +
@@ -72,13 +74,13 @@ function buildSpeciesItem(
   if (spriteUrl) {
     const img = document.createElement('img');
     img.src = spriteUrl;
-    img.alt = species;
+    img.alt = displayName;
     img.style.cssText = 'width:24px;height:24px;image-rendering:pixelated;object-fit:contain;flex-shrink:0';
     row.appendChild(img);
   }
 
   const name = document.createElement('div');
-  name.textContent = species;
+  name.textContent = displayName;
   name.style.cssText = `font-size:11px;color:${isSelected ? 'var(--qpm-accent,#8f82ff)' : 'var(--qpm-text,#eef0ff)'};font-weight:${isSelected ? '600' : '400'};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap`;
 
   row.append(dot, name);
@@ -93,6 +95,8 @@ function buildSpeciesItem(
 // ── Detail pane (right side) ──────────────────────────────────────────────
 
 function buildDetailPane(species: string, onConfigChange: () => void): HTMLElement {
+  const displayName = getPlantSpecies(species)?.crop?.name ?? species;
+
   const pane = document.createElement('div');
   pane.style.cssText = 'display:flex;flex-direction:column;gap:8px;flex:1;min-width:0;overflow-y:auto';
 
@@ -104,49 +108,39 @@ function buildDetailPane(species: string, onConfigChange: () => void): HTMLEleme
   if (spriteUrl) {
     const img = document.createElement('img');
     img.src = spriteUrl;
-    img.alt = species;
+    img.alt = displayName;
     img.style.cssText = 'width:32px;height:32px;image-rendering:pixelated;object-fit:contain;flex-shrink:0';
     header.appendChild(img);
   }
 
   const title = document.createElement('div');
-  title.textContent = species;
+  title.textContent = displayName;
   title.style.cssText = 'font-size:14px;color:var(--qpm-text,#eef0ff);font-weight:600;flex:1';
   header.appendChild(title);
   pane.appendChild(header);
 
   // Enable toggle
-  const overrides = getLockerConfig().cropOverrides;
-  const override = overrides[species];
-  const hasOverride = !!override;
-  const isEnabled = hasOverride && override.enabled;
+  const override = getLockerConfig().cropOverrides[species];
+  const isEnabled = !!override?.enabled;
 
   pane.appendChild(makeToggleRow(
     t('feature.locker.filter.enableOverride'),
     isEnabled,
     (enabled) => {
       const cur = getLockerConfig();
-      if (enabled && !cur.cropOverrides[species]) {
-        updateLockerConfig({
-          cropOverrides: {
-            ...cur.cropOverrides,
-            [species]: { enabled: true, settings: { ...DEFAULT_OVERRIDE_SETTINGS } },
-          },
-        });
-      } else if (cur.cropOverrides[species]) {
-        updateLockerConfig({
-          cropOverrides: {
-            ...cur.cropOverrides,
-            [species]: { ...cur.cropOverrides[species], enabled },
-          },
-        });
+      const nextOverrides = { ...cur.cropOverrides };
+      if (enabled) {
+        nextOverrides[species] = { enabled: true, settings: { ...DEFAULT_OVERRIDE_SETTINGS } };
+      } else {
+        delete nextOverrides[species];
       }
+      updateLockerConfig({ cropOverrides: nextOverrides });
       onConfigChange();
     },
   ));
 
-  // Filter editor (only when override exists)
-  if (hasOverride) {
+  // Filter editor — visible only while the override is active
+  if (override?.enabled) {
     const settings = override.settings;
     const doChange = (patch: Partial<HarvestFilterSettings>): void => updateOverride(species, patch);
     const getLive = (): HarvestFilterSettings => getOverrideSettings(species);
@@ -160,20 +154,6 @@ function buildDetailPane(species: string, onConfigChange: () => void): HTMLEleme
     editorWrap.appendChild(buildWeatherSection(settings, doChange, getLive));
 
     pane.appendChild(editorWrap);
-
-    // Remove override button
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.textContent = t('feature.locker.filter.removeOverride');
-    removeBtn.style.cssText = 'padding:4px 10px;border-radius:var(--qpm-radius-sm,4px);border:1px solid var(--qpm-danger,#ef4444);background:transparent;color:var(--qpm-danger,#ef4444);font-size:10px;font-weight:600;cursor:pointer;align-self:flex-start;margin-top:4px';
-    removeBtn.addEventListener('click', () => {
-      const cur = getLockerConfig();
-      const next = { ...cur.cropOverrides };
-      delete next[species];
-      updateLockerConfig({ cropOverrides: next });
-      onConfigChange();
-    });
-    pane.appendChild(removeBtn);
   }
 
   return pane;
@@ -187,8 +167,8 @@ export function buildOverridesTabContent(config: LockerConfig, eligible: Eligibl
 
   panel.appendChild(makeHint(t('feature.locker.filter.overridesHint')));
 
-  // Show All toggle
-  let showAll = false;
+  // Show All toggle — default to full catalog so the overrides picker feels catalog-driven
+  let showAll = true;
 
   const splitPane = document.createElement('div');
   splitPane.style.cssText = 'display:flex;gap:8px;min-height:300px';

@@ -16,8 +16,16 @@ export type JotaiStore = {
    * subscription belongs to (see src/core/reactive/types.ts). Real jotai
    * stores (Aries) ignore it; the QPM polyfill uses it to route through
    * the ReactiveSubscriptionManager instead of the polling fallback.
+   * `statePath` is the JSON Pointer prefix used by the reactive manager to
+   * gate patch-driven dirty marks. Only meaningful when `hint` is 'state' or
+   * 'composite' and reactive routing is engaged.
    */
-  sub(atom: unknown, cb: () => void, hint?: import('./reactive/types').SubscriberTier): () => void | Promise<() => void>;
+  sub(
+    atom: unknown,
+    cb: () => void,
+    hint?: import('./reactive/types').SubscriberTier,
+    statePath?: import('./reactive/types').PatchPath,
+  ): () => void | Promise<() => void>;
   __polyfill?: boolean;
   __source?: string;
 };
@@ -429,12 +437,21 @@ async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore | null>
     async set(atom: unknown, value: unknown) {
       await capturedSet!(atom, value);
     },
-    sub(atom: unknown, cb: () => void, hint?: import('./reactive/types').SubscriberTier) {
+    sub(
+      atom: unknown,
+      cb: () => void,
+      hint?: import('./reactive/types').SubscriberTier,
+      statePath?: import('./reactive/types').PatchPath,
+    ) {
       const getValue = () => {
         try { return capturedGet!(atom); } catch { return undefined; }
       };
       if (hint && _reactiveHook && _reactiveHook.isTierEnabled(hint)) {
-        return _reactiveHook.subscribe(atom, { cb, getValue, tier: hint });
+        const opts: import('./reactive/types').ReactiveSubscribeOptions =
+          statePath !== undefined
+            ? { cb, getValue, tier: hint, statePath }
+            : { cb, getValue, tier: hint };
+        return _reactiveHook.subscribe(atom, opts);
       }
       return batchedSubscriptionManager.subscribe(atom, cb, getValue);
     },
@@ -565,7 +582,12 @@ function createCacheReadStore(): JotaiStore {
     set() {
       throw new Error('QPM cache-read store cannot write. Use Aries Mod for writes.');
     },
-    sub(atom: unknown, cb: () => void, hint?: import('./reactive/types').SubscriberTier) {
+    sub(
+      atom: unknown,
+      cb: () => void,
+      hint?: import('./reactive/types').SubscriberTier,
+      statePath?: import('./reactive/types').PatchPath,
+    ) {
       const getValue = () => {
         const cache = getAtomCache();
         if (!cache) return undefined;
@@ -576,7 +598,11 @@ function createCacheReadStore(): JotaiStore {
       // hint AND that tier's kill switch is on. Otherwise fall back to the
       // polling manager — that's still the safe path during rollout.
       if (hint && _reactiveHook && _reactiveHook.isTierEnabled(hint)) {
-        return _reactiveHook.subscribe(atom, { cb, getValue, tier: hint });
+        const opts: import('./reactive/types').ReactiveSubscribeOptions =
+          statePath !== undefined
+            ? { cb, getValue, tier: hint, statePath }
+            : { cb, getValue, tier: hint };
+        return _reactiveHook.subscribe(atom, opts);
       }
       return batchedSubscriptionManager.subscribe(atom, cb, getValue);
     },
@@ -851,6 +877,7 @@ export async function subscribeAtom<T = unknown>(
   atom: any,
   cb: (value: T) => void,
   hint?: import('./reactive/types').SubscriberTier,
+  statePath?: import('./reactive/types').PatchPath,
 ): Promise<() => void> {
   const store = await ensureJotaiStore();
 
@@ -863,7 +890,7 @@ export async function subscribeAtom<T = unknown>(
     } catch {}
   };
 
-  const maybeUnsub = store.sub(atom, invoke, hint);
+  const maybeUnsub = store.sub(atom, invoke, hint, statePath);
   const unsubscribe = typeof maybeUnsub === 'function' ? maybeUnsub : await maybeUnsub;
 
   // Initial value

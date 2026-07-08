@@ -2,7 +2,14 @@
 // Lazy window rendering utilities
 // Defer heavy window content rendering until the window is actually opened
 
-import { toggleWindow, type PanelRender, getWindow, isWindowOpen } from './modalWindow';
+import {
+  toggleWindow,
+  type PanelRender,
+  getWindow,
+  isWindowOpen,
+  registerWindowCleanup,
+  runWindowContentCleanup,
+} from './modalWindow';
 import { yieldToBrowser } from '../../utils/scheduling/scheduling';
 import { t } from '../../i18n';
 
@@ -87,12 +94,15 @@ export async function toggleLazyWindow(
   try {
     // Get the actual render function
     const actualRender = await lazyRender();
-    
+
     // Get the window body and re-render with actual content
     const win = getWindow(id);
     if (win && win.body) {
       win.body.innerHTML = '';
-      actualRender(win.body);
+      const cleanup = actualRender(win.body);
+      if (typeof cleanup === 'function') {
+        registerWindowCleanup(id, cleanup);
+      }
       renderedWindows.add(id);
     }
   } catch (error) {
@@ -123,9 +133,12 @@ export async function toggleLazyWindow(
 /**
  * Clear the rendered state for a window.
  * The next time the window is opened, it will re-render.
+ * Any registered content cleanup is invoked so subscriptions from the prior
+ * render tear down before the next one installs its own.
  */
 export function invalidateWindow(id: string): void {
   renderedWindows.delete(id);
+  runWindowContentCleanup(id);
 }
 
 /**

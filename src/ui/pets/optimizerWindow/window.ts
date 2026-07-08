@@ -142,16 +142,6 @@ export function renderPetOptimizerWindow(body: HTMLElement): void {
     overflow-y: auto;
   `;
 
-  const styleEl = document.createElement('style');
-  styleEl.textContent = `
-    @keyframes shimmer {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-  `;
-  root.appendChild(styleEl);
-
   const header = document.createElement('div');
   header.style.cssText = 'margin-bottom: 10px;';
   header.innerHTML = `

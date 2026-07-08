@@ -53,6 +53,7 @@ let myDataPurchasesSnapshot: ShopPurchasesAtomSnapshot | null = null;
 let customInventories: CustomInventoryMap = null;
 let quinoaDataShopsSnapshot: ShopsAtomSnapshot | null = null;
 let cachedState: ShopStockState = createEmptyState();
+let lastNotifySignature: string | null = null;
 let startPromise: Promise<void> | null = null;
 let shopsUnsubscribe: (() => void) | null = null;
 let myDataPurchasesUnsubscribe: (() => void) | null = null;
@@ -82,7 +83,26 @@ function createEmptyState(): ShopStockState {
   return { updatedAt: now, categories };
 }
 
+function buildStateSignature(state: ShopStockState): string {
+  // Per-category composite of the already-computed per-item sig plus restock-timer
+  // fields subscribers key on. Skips `updatedAt` (bumps every rebuild by design).
+  let sig = '';
+  for (const category of getKnownShopIds()) {
+    const cat = state.categories[category];
+    if (!cat) {
+      sig += `${category}|_\n`;
+      continue;
+    }
+    sig += `${category}|${cat.signature}|${cat.availableCount}|${cat.secondsUntilRestock ?? ''}|${cat.nextRestockAt ?? ''}|${cat.restockIntervalMs ?? ''}\n`;
+  }
+  return sig;
+}
+
 function notifyState(): void {
+  const signature = buildStateSignature(cachedState);
+  if (signature === lastNotifySignature) return;
+  lastNotifySignature = signature;
+
   for (const listener of listeners) {
     try {
       listener(cachedState);
@@ -270,6 +290,7 @@ export function stopShopStockStore(): void {
   quinoaDataAtomRef = null;
   cachedState = createEmptyState();
   shopFirstPublished = false;
+  lastNotifySignature = null;
 }
 
 /**

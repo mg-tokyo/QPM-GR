@@ -45,14 +45,18 @@ let current: WeatherSnapshot = {
 let pollTimerCleanup: (() => void) | null = null;
 let override: { kind: DetailedWeather; expiresAt: number } | null = null;
 const POLL_INTERVAL_MS = 2000;
+const BRIDGE_RETRY_INTERVAL_MS = 30_000;
 let atomUnsubscribe: (() => void) | null = null;
 let atomBridgeReady = false;
 let atomValueSeen = false;
 let lastAtomValue: WeatherAtomValue = null;
 let atomInitPromise: Promise<void> | null = null;
+let lastBridgeAttemptAt = 0;
 let lastAtomEventId: string | null = null;
 let lastAtomEventStartedAt: number | null = null;
 let lastAtomEventExpectedEndAt: number | null = null;
+let lastCanvasStartedAt: number | null = null;
+let lastCanvasStartedAtKey: string | null = null;
 
 function emit(next: WeatherSnapshot): void {
   if (
@@ -111,6 +115,16 @@ function computeSnapshotFromCanvas(canvas: HTMLCanvasElement | null): WeatherSna
   const kind = detectDetailedWeather(canvas);
   const hash = getCanvasHash(canvas);
 
+  const startedAtKey = `${kind}|${hash}`;
+  let startedAt: number;
+  if (lastCanvasStartedAt != null && lastCanvasStartedAtKey === startedAtKey) {
+    startedAt = lastCanvasStartedAt;
+  } else {
+    startedAt = timestamp;
+    lastCanvasStartedAt = timestamp;
+    lastCanvasStartedAtKey = startedAtKey;
+  }
+
   return {
     kind,
     raw,
@@ -119,7 +133,7 @@ function computeSnapshotFromCanvas(canvas: HTMLCanvasElement | null): WeatherSna
     timestamp,
     source: 'canvas',
     label: kind === 'unknown' ? null : kind,
-    startedAt: timestamp,
+    startedAt,
     expectedEndAt: null,
   };
 }
@@ -130,6 +144,12 @@ function pollWeather(forceEmit = false): void {
       handleAtomWeatherValue(lastAtomValue);
     }
     return;
+  }
+
+  const nowForRetry = Date.now();
+  if (!atomBridgeReady && !atomInitPromise && nowForRetry - lastBridgeAttemptAt >= BRIDGE_RETRY_INTERVAL_MS) {
+    lastBridgeAttemptAt = nowForRetry;
+    void ensureAtomBridge();
   }
 
   const now = Date.now();
@@ -234,6 +254,7 @@ async function ensureAtomBridge(): Promise<void> {
 
 export function startWeatherHub(): void {
   if (pollTimerCleanup != null) return;
+  lastBridgeAttemptAt = Date.now();
   void ensureAtomBridge();
   pollWeather(true);
   pollTimerCleanup = visibleInterval('weather-hub-poll', () => pollWeather(false), POLL_INTERVAL_MS);
@@ -249,6 +270,9 @@ export function stopWeatherHub(): void {
   atomBridgeReady = false;
   atomValueSeen = false;
   atomInitPromise = null;
+  lastBridgeAttemptAt = 0;
+  lastCanvasStartedAt = null;
+  lastCanvasStartedAtKey = null;
 }
 
 export function refreshWeatherState(): void {

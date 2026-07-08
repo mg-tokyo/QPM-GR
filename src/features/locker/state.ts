@@ -152,8 +152,24 @@ function sanitizeConfig(raw: unknown): LockerConfig {
 
 let config: LockerConfig = sanitizeConfig(storage.get<unknown>(STORAGE_KEY, null));
 
+const listeners = new Set<() => void>();
+
+export function subscribeLockerConfig(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+function notifyListeners(): void {
+  for (const fn of listeners) {
+    try { fn(); } catch { /* isolate listener failures */ }
+  }
+}
+
 function persist(): void {
   storage.set(STORAGE_KEY, config);
+  notifyListeners();
 }
 
 function deepCopyHarvestFilter(f: HarvestFilterSettings): HarvestFilterSettings {

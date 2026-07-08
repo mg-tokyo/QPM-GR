@@ -74,6 +74,13 @@ const originalKeys = NativeObject.keys;
 const originalValues = NativeObject.values;
 const originalEntries = NativeObject.entries;
 
+// Hook lifecycle state — see initCatalogLoader for removal policy.
+const HOOKS_HARD_DEADLINE_MS = 120_000;
+const HOOKS_RECHECK_INTERVAL_MS = 5_000;
+let hooksRemoved = false;
+let hooksRecheckTimer: ReturnType<typeof setInterval> | null = null;
+let hooksHardDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+
 // Ability color enrichment poller state
 const ABILITY_COLOR_POLL_INTERVAL_MS = 1000;
 const MAX_ABILITY_COLOR_POLL_ATTEMPTS = 10;
@@ -734,10 +741,41 @@ function deepScan(obj: unknown, depth: number): void {
   }
 }
 
+function areHookCapturableCatalogsAllCaptured(): boolean {
+  return !!(
+    capturedCatalogs.petCatalog &&
+    capturedCatalogs.plantCatalog &&
+    capturedCatalogs.eggCatalog &&
+    capturedCatalogs.petAbilities &&
+    capturedCatalogs.itemCatalog &&
+    capturedCatalogs.decorCatalog &&
+    capturedCatalogs.mutationCatalog
+  );
+}
+
+function tryRemoveHooks(reason: string): void {
+  if (hooksRemoved) return;
+  hooksRemoved = true;
+  removeHooks();
+  catalogLog(`Hooks removed (${reason})`);
+  if (hooksRecheckTimer !== null) {
+    clearInterval(hooksRecheckTimer);
+    hooksRecheckTimer = null;
+  }
+  if (hooksHardDeadlineTimer !== null) {
+    clearTimeout(hooksHardDeadlineTimer);
+    hooksHardDeadlineTimer = null;
+  }
+}
+
 /**
  * Entry point for scanning an object
  */
 function maybeCapture(obj: unknown): void {
+  // Short-circuit once all hook-capturable catalogs are in — until the
+  // deferred removal actually clears the hook, the intercept still costs
+  // a function call per Object.keys/values/entries in the game.
+  if (areHookCapturableCatalogsAllCaptured()) return;
   try {
     deepScan(obj, 0);
   } catch {
@@ -1042,28 +1080,36 @@ export function initCatalogLoader(): void {
   startCosmeticCatalogPolling();
   void fetchCosmeticOwnership();
 
-  // Auto-remove hooks after catalogs are ready (optimization)
-  // Keep them for longer to catch late-loading catalog updates
-  onCatalogsReady(() => {
-    setTimeout(() => {
-      // Only remove if all important catalogs are captured
-      if (
-        capturedCatalogs.petCatalog &&
-        capturedCatalogs.plantCatalog &&
-        capturedCatalogs.eggCatalog
-      ) {
-        catalogLog('Removing hooks after successful capture');
-        removeHooks();
-      }
-    }, 30000); // Increased from 5s to 30s to catch late-loading species
-  });
+  // Hook removal policy: interval re-check clears hooks as soon as every
+  // hook-capturable catalog is in; hard deadline is an unconditional
+  // upper bound so a never-arriving catalog can't keep the intercept
+  // (and its per-Object.keys tax) installed for the whole session.
+  hooksRecheckTimer = setInterval(() => {
+    if (areHookCapturableCatalogsAllCaptured()) {
+      tryRemoveHooks('all captured');
+    }
+  }, HOOKS_RECHECK_INTERVAL_MS);
+
+  hooksHardDeadlineTimer = setTimeout(() => {
+    hooksHardDeadlineTimer = null;
+    tryRemoveHooks('hard deadline');
+  }, HOOKS_HARD_DEADLINE_MS);
 }
 
 /**
  * Force cleanup - call when script unloads
  */
 export function cleanupCatalogLoader(): void {
+  if (hooksRecheckTimer !== null) {
+    clearInterval(hooksRecheckTimer);
+    hooksRecheckTimer = null;
+  }
+  if (hooksHardDeadlineTimer !== null) {
+    clearTimeout(hooksHardDeadlineTimer);
+    hooksHardDeadlineTimer = null;
+  }
   removeHooks();
+  hooksRemoved = true;
   stopAbilityColorPolling();
   stopWeatherCatalogPolling();
   stopCosmeticCatalogPolling();

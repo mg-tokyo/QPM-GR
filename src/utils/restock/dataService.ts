@@ -287,10 +287,29 @@ function sanitizeItems(items: RestockItem[]): RestockItem[] {
   return deduplicateItems(filtered);
 }
 
+// Memoize the sanitize+dedup result. Every sync read (dashboard, tickers,
+// getRestockFetchedAt) previously re-ran filter + dedup on the full blob.
+// Invalidated by ref inequality of the raw entry and by explicit invalidation
+// at every write site (fetch / patch / clear).
+let memoRawEntry: CacheEntry | null = null;
+let memoSanitizedEntry: CacheEntry | null = null;
+
+function invalidateReadCacheMemo(): void {
+  memoRawEntry = null;
+  memoSanitizedEntry = null;
+}
+
 function readCache(): CacheEntry | null {
   const cached = storage.get<CacheEntry | null>(CACHE_KEY, null);
-  if (!cached || !Array.isArray(cached.data)) return null;
-  return { ...cached, data: sanitizeItems(cached.data) };
+  if (!cached || !Array.isArray(cached.data)) {
+    if (memoRawEntry !== null) invalidateReadCacheMemo();
+    return null;
+  }
+  if (cached === memoRawEntry && memoSanitizedEntry) return memoSanitizedEntry;
+  const sanitized: CacheEntry = { ...cached, data: sanitizeItems(cached.data) };
+  memoRawEntry = cached;
+  memoSanitizedEntry = sanitized;
+  return sanitized;
 }
 
 function readRefreshBudgetRaw(): RefreshBudgetEntry | null {
@@ -615,6 +634,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
 
     const entry: CacheEntry = { data: normalized, fetchedAt: Date.now() };
     storage.set(CACHE_KEY, entry);
+    invalidateReadCacheMemo();
     publishRestockOk(normalized.length, entry.fetchedAt);
     emitRestockDataUpdated({
       fetchedAt: entry.fetchedAt,
@@ -670,6 +690,7 @@ export function stopRestockDataDiagnostics(): void {
 export function clearRestockCache(): void {
   storage.remove('qpm.restockCache.v2');
   storage.remove(CACHE_KEY);
+  invalidateReadCacheMemo();
 }
 
 /**
@@ -696,6 +717,7 @@ export function patchCachedItemLastSeen(shopType: string, itemId: string, lastSe
   const merged = sanitizeItems(nextData);
   const entry: CacheEntry = { data: merged, fetchedAt: cached.fetchedAt };
   storage.set(CACHE_KEY, entry);
+  invalidateReadCacheMemo();
   emitRestockDataUpdated({
     fetchedAt: entry.fetchedAt,
     count: merged.length,

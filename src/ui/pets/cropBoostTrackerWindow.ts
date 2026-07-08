@@ -637,8 +637,6 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
 // ============================================================================
 
 let windowRoot: HTMLElement | null = null;
-let callbackRegistered = false;
-let renderTimeout: number | null = null;
 let showDetailedView = false; // Toggle for simple/detailed view
 
 /**
@@ -671,30 +669,17 @@ export function openCropBoostTrackerWindow(): void {
     (root: HTMLElement) => {
       windowRoot = root;
 
-      // Register callback once
-      if (!callbackRegistered) {
-        onAnalysisChange(() => {
-          // Debounce re-renders to prevent flashing
-          if (renderTimeout) {
-            clearTimeout(renderTimeout);
+      let renderTimeout: number | null = null;
+      const unsub = onAnalysisChange(() => {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = window.setTimeout(() => {
+          const activeElement = document.activeElement;
+          if (activeElement && activeElement.tagName === 'SELECT') return;
+          if (windowRoot && isWindowBodyVisible(windowRoot)) {
+            renderCropBoostSection(windowRoot, { preserveScroll: true });
           }
-
-          renderTimeout = window.setTimeout(() => {
-            // Don't re-render if user is interacting with dropdown
-            const activeElement = document.activeElement;
-            if (activeElement && activeElement.tagName === 'SELECT') {
-              // User is using dropdown, skip this render
-              return;
-            }
-
-            // Re-render if window is open
-            if (windowRoot && isWindowBodyVisible(windowRoot)) {
-              renderCropBoostSection(windowRoot, { preserveScroll: true });
-            }
-          }, 100); // 100ms debounce
-        });
-        callbackRegistered = true;
-      }
+        }, 100);
+      });
 
       renderCropBoostSection(root, { preserveScroll: false });
 
@@ -703,6 +688,12 @@ export function openCropBoostTrackerWindow(): void {
         checkTour('crop-boost-tracker', root);
         injectReplayButton('crop-boost-tracker');
       });
+
+      return () => {
+        unsub();
+        if (renderTimeout) { clearTimeout(renderTimeout); renderTimeout = null; }
+        if (windowRoot === root) windowRoot = null;
+      };
     },
     '650px',
     '75vh'

@@ -26,6 +26,12 @@ export const S = {
   modalHandles: null as ModalHandles | null,
   myDataUnsubscribe: null as (() => void) | null,
   lastSnapshot: [] as ActivityLogEntry[],
+  // Cheap ingest fingerprint (item 1.21): raw-array length + first/last raw
+  // timestamps. Set on every ingest whose fingerprint differs from the prior
+  // push. If a subsequent push shares all three, skip normalization and diff.
+  lastIngestLength: -1,
+  lastIngestFirstTs: 0,
+  lastIngestLastTs: 0,
 
   replayQueued: false,
   replayInFlight: false,

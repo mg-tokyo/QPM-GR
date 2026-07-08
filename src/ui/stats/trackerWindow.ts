@@ -568,10 +568,35 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   // -- Internal state --
   let latestPets: ActivePetInfo[] = [];
   let timerCells: HTMLElement[] = [];
+  let lastRenderSig: string | null = null;
+
+  const buildRenderSignature = (pets: ActivePetInfo[]): string => {
+    const parts: string[] = [String(pets.length)];
+    for (const pet of pets) {
+      const petKey = getCardPetKey(pet);
+      const abilities = (pet.abilities ?? []).join(',');
+      const strBucket = pet.strength != null ? Math.floor(pet.strength / 5) : 'x';
+      let procsSig = '';
+      for (const raw of pet.abilities ?? []) {
+        if (!raw) continue;
+        const h = findAbilityHistoryForIdentifiers(raw, {
+          petId: pet.petId,
+          slotId: pet.slotId,
+          slotIndex: pet.slotIndex,
+        });
+        procsSig += `${raw}:${h?.lastPerformedAt ?? 0};`;
+      }
+      parts.push(`${petKey}|${pet.species ?? ''}|${abilities}|${strBucket}|${pet.targetScale ?? ''}|${(pet.mutations ?? []).join(',')}|${procsSig}`);
+    }
+    return parts.join('\n');
+  };
 
   // -- Render function --
   const render = () => {
     const activePets = latestPets;
+    const sig = buildRenderSignature(activePets);
+    if (sig === lastRenderSig) return;
+    lastRenderSig = sig;
 
     let gardenCtx: AbilityValuationContext | undefined;
     try { gardenCtx = buildAbilityValuationContext(); } catch { /* not ready yet */ }
@@ -624,7 +649,8 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   const unsubPets = onActivePetInfos(throttledRender);
   cleanups.push(unsubPets);
 
-  const unsubHistory = onAbilityHistoryUpdate(() => { render(); });
+  const throttledHistoryRender = throttle(() => { render(); }, 400);
+  const unsubHistory = onAbilityHistoryUpdate(() => { throttledHistoryRender(); });
   cleanups.push(unsubHistory);
 
   const throttledGardenRender = throttle(() => { render(); }, 2000);

@@ -2,6 +2,25 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.10",
+    date: "2026-07-08",
+    notes: [
+      "Added the onboarding tour system, previously disabled pending QA, welcome tour and per-window tours for the panel, hub, pet manager, pet optimizer, shop restock, public rooms, stats hub, ability tracker, crop boost, XP tracker, and turtle timer are now live",
+      "Added a lock badge on the focused garden tile so protected plants, eggs, and decor show a visible lock icon while hovered, updates live as you cycle harvests with C or X or change Locker rules",
+      "Improved the Locker crop overrides picker, uses localized crop names instead of raw species keys, defaults to the full catalog view, and the enable toggle now cleanly removes the override when turned off",
+      "Improved the Locker quick locks and crop sell grids to default to the full catalog rather than only eligible items, and swapped the Gold and Rainbow color tiles to use the actual mutation sprites instead of plain dots",
+      "Improved the Activity Log window with windowed scrolling, the visible slice moves as you scroll instead of hydrating everything up to your position, opening the modal with a large history is much snappier",
+      "Improved Activity Log save behaviour, rapid bursts of new entries are now debounced into a single write with a rotating backup instead of hammering storage on every update",
+      "Improved the Pet Hutch window rendering, rebuilt with proper DOM elements and CSS so the hover states are smoother and the keybind hint no longer relies on injected HTML",
+      "Improved the panel dashboard active pets module to recycle rows on refresh instead of tearing down and rebuilding, no more flicker every tick",
+      "Improved Garden Painter tint performance, per-tile alpha work now only fires on visibility transitions rather than every frame, noticeably lighter on the CPU while filters are active",
+      "Improved the Crop Boost tracker so it only subscribes to garden updates when a boost pet is equipped, no wasted work when none are active, and silenced its idle console log",
+      "Improved the turtle timer's pet-change detection to ignore 1 Hz strength rolls, prevents needless recomputes while still catching real ability, mutation, level, or scale changes",
+      "Improved the inventory bulk favorite bar with a shared lock icon lookup and a lighter mutation filter, faster to open and less work on inventory changes",
+      "Improved discovery help dots to use the shared timer plus resize and scroll listeners instead of a continuous animation frame loop, cheaper while idle and pauses cleanly on hidden tabs",
+    ],
+  },
+  {
     version: "3.3.9",
     date: "2026-07-07",
     notes: [

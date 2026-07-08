@@ -1,6 +1,7 @@
 import { pageWindow } from '../../core/pageContext';
 import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
+import { criticalInterval, visibleInterval } from '../../utils/scheduling/timerManager';
 
 export interface AutoReconnectConfig {
   enabled: boolean;
@@ -49,10 +50,11 @@ let config: AutoReconnectConfig = loadConfig();
 const listeners = new Set<ConfigListener>();
 
 let activeSocket: WebSocket | null = null;
-let socketPollTimer: number | null = null;
+let socketPollStop: (() => void) | null = null;
+let socketPollGeneration = 0;
 
 let reconnectTimer: number | null = null;
-let countdownTimer: number | null = null;
+let countdownStop: (() => void) | null = null;
 let connectRetryTimer: number | null = null;
 let overlay: OverlayHandle | null = null;
 let versionReloadScheduled = false;
@@ -248,9 +250,9 @@ function destroyOverlayOnly(): void {
 }
 
 function clearCountdown(): void {
-  if (countdownTimer != null) {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
+  if (countdownStop != null) {
+    countdownStop();
+    countdownStop = null;
   }
   destroyOverlayOnly();
 }
@@ -403,7 +405,7 @@ function scheduleReconnect(delayMs: number): void {
   if (safeDelayMs > 0) {
     overlay = createOverlay(safeDelayMs, triggerManualReconnect);
     let remainingMs = safeDelayMs;
-    countdownTimer = window.setInterval(() => {
+    countdownStop = criticalInterval('auto-reconnect-countdown', () => {
       remainingMs = Math.max(0, remainingMs - COUNTDOWN_TICK_MS);
       overlay?.update(remainingMs);
       if (remainingMs <= 0) {
@@ -425,9 +427,33 @@ function detachSocketListener(): void {
   activeSocket = null;
 }
 
+function stopSocketPoll(): void {
+  if (socketPollStop != null) {
+    socketPollStop();
+    socketPollStop = null;
+  }
+}
+
+function ensureSocketPollRunning(): void {
+  if (!started) return;
+  if (activeSocket) return;
+  if (socketPollStop != null) return;
+  socketPollGeneration++;
+  socketPollStop = visibleInterval(
+    `auto-reconnect-socket-poll-v${socketPollGeneration}`,
+    () => {
+      bindSocketListenerIfNeeded();
+    },
+    SOCKET_BIND_POLL_MS
+  );
+}
+
 function bindSocketListenerIfNeeded(): void {
   const socket = getRoomConnectionSocket();
-  if (socket === activeSocket) return;
+  if (socket === activeSocket) {
+    if (activeSocket) stopSocketPoll();
+    return;
+  }
 
   detachSocketListener();
   if (!socket) return;
@@ -435,6 +461,7 @@ function bindSocketListenerIfNeeded(): void {
   try {
     socket.addEventListener('close', handleSocketClose);
     activeSocket = socket;
+    stopSocketPoll();
   } catch (error) {
     activeSocket = null;
     log('[AutoReconnect] failed to bind room socket close listener', error);
@@ -443,6 +470,9 @@ function bindSocketListenerIfNeeded(): void {
 
 function handleSocketClose(event: CloseEvent): void {
   if (!started) return;
+  const priorActive = activeSocket;
+  detachSocketListener();
+  ensureSocketPollRunning();
   if (isVersionExpiredClose(event)) {
     handleVersionExpiredClose();
     return;
@@ -457,7 +487,7 @@ function handleSocketClose(event: CloseEvent): void {
   if (!latestConfig.enabled) return;
 
   const roomSocket = getRoomConnectionSocket();
-  if (roomSocket && activeSocket && roomSocket !== activeSocket) {
+  if (roomSocket && priorActive && roomSocket !== priorActive) {
     return;
   }
 
@@ -471,9 +501,7 @@ export function initializeAutoReconnect(): void {
   config = loadConfig();
 
   bindSocketListenerIfNeeded();
-  socketPollTimer = window.setInterval(() => {
-    bindSocketListenerIfNeeded();
-  }, SOCKET_BIND_POLL_MS);
+  ensureSocketPollRunning();
 
   log('[AutoReconnect] initialized');
 }
@@ -483,11 +511,7 @@ export function stopAutoReconnect(): void {
   started = false;
   versionReloadScheduled = false;
 
-  if (socketPollTimer != null) {
-    clearInterval(socketPollTimer);
-    socketPollTimer = null;
-  }
-
+  stopSocketPoll();
   clearReconnectSchedule();
   detachSocketListener();
   log('[AutoReconnect] stopped');

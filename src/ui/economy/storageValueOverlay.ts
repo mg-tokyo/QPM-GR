@@ -160,19 +160,58 @@ function getModalRefs(): ModalRefs | null {
   return { captured, renderer, stage, canvas };
 }
 
+// ---------------------------------------------------------------------------
+// Cached content-node anchor — the modal's content grid PIXI node is stable
+// per open, so walk once, cache the reference, and invalidate on modal
+// switch / resize. Safety re-walk on demand if the cached node dies.
+// ---------------------------------------------------------------------------
+
+let cachedContentNode: PixiNode | null = null;
+let cachedContentModalId: string | null = null;
+let cachedContentRefs: ModalRefs | null = null;
+
+function invalidateContentAnchor(): void {
+  cachedContentNode = null;
+  cachedContentModalId = null;
+  cachedContentRefs = null;
+}
+
+function contentNodeStillValid(node: PixiNode): boolean {
+  if (!isVisible(node)) return false;
+  return true;
+}
+
 /** Returns the CSS rect of the content grid for the given modal, or null. */
 function resolveContentRect(modalId: string): CssRect | null {
-  const refs = getModalRefs();
-  if (!refs) return null;
-
   const label = CONTENT_LABEL[modalId];
   if (!label) return null;
+
+  let refs = cachedContentRefs;
+  if (
+    cachedContentNode
+    && cachedContentModalId === modalId
+    && refs
+    && contentNodeStillValid(cachedContentNode)
+  ) {
+    const bounds = nodeBounds(cachedContentNode);
+    if (bounds) {
+      return pixiToCss(bounds, refs.renderer, refs.canvas);
+    }
+    invalidateContentAnchor();
+  }
+
+  refs = getModalRefs();
+  if (!refs) return null;
 
   const node = findNodeByLabel(refs.stage, label);
   if (!node) return null;
 
   const bounds = nodeBounds(node);
   if (!bounds) return null;
+
+  cachedContentNode = node;
+  cachedContentModalId = modalId;
+  cachedContentRefs = refs;
 
   return pixiToCss(bounds, refs.renderer, refs.canvas);
 }
@@ -199,7 +238,7 @@ function buildOverlay(): HTMLDivElement {
   el.id = OVERLAY_ID;
   el.style.cssText = [
     'position:fixed',
-    'z-index:99999',
+    'z-index:9999',
     'display:flex',
     'align-items:center',
     'gap:5px',
@@ -286,6 +325,7 @@ function syncPosition(): void {
 }
 
 function startPosSync(modalId: string): void {
+  if (currentModalId !== modalId) invalidateContentAnchor();
   currentModalId = modalId;
   if (posSyncStop) return;
   syncPosition();
@@ -294,6 +334,7 @@ function startPosSync(modalId: string): void {
 
 function stopPosSync(): void {
   currentModalId = null;
+  invalidateContentAnchor();
   if (posSyncStop) {
     posSyncStop();
     posSyncStop = null;
@@ -330,7 +371,10 @@ let unsub: (() => void) | null = null;
 export function startStorageValueOverlay(): void {
   if (unsub) return;
 
-  resizeHandler = () => syncPosition();
+  resizeHandler = () => {
+    invalidateContentAnchor();
+    syncPosition();
+  };
   window.addEventListener('resize', resizeHandler);
 
   applyState(getStorageValueState());

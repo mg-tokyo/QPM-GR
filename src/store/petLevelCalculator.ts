@@ -26,6 +26,7 @@ const warnedSpecies = new Set<string>(); // Track which species we've warned abo
 const TOTAL_LEVELS = 30; // Pets start 30 levels below max strength
 const MIN_SAMPLES = 2; // Need at least 2 XP samples to calculate rate
 const MAX_HISTORY = 10; // Keep last 10 XP snapshots per pet
+const MAX_TRACKED_PETS = 200;
 
 /**
  * Record XP observation for a pet
@@ -39,6 +40,14 @@ export function recordPetXP(pet: ActivePetInfo): void {
   if (!history) {
     history = [];
     xpHistory.set(pet.petId, history);
+    while (xpHistory.size > MAX_TRACKED_PETS) {
+      const iter = xpHistory.keys();
+      const next = iter.next();
+      if (next.done) break;
+      const oldest = next.value;
+      if (oldest === pet.petId) break;
+      xpHistory.delete(oldest);
+    }
   }
 
   // Add new snapshot

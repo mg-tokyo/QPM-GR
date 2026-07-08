@@ -185,8 +185,12 @@ export async function createOriginalUI(): Promise<HTMLElement> {
 
   let isPanelHidden = false;
   const setPanelHidden = (hidden: boolean) => {
+    const changed = isPanelHidden !== hidden;
     isPanelHidden = hidden;
     panel.style.display = hidden ? 'none' : '';
+    if (changed) {
+      document.dispatchEvent(new CustomEvent('qpm:panel-visibility', { detail: { hidden } }));
+    }
     if (!hidden) {
       requestAnimationFrame(() => clampPanelPosition());
     }

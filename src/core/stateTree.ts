@@ -22,6 +22,9 @@ import { createNamedLogger } from '../diagnostics/logger';
 import type { Subsystem } from '../diagnostics/types';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 import { getRoomConnection } from '../websocket/api';
+import { getPlayerIdSync } from './playerContext';
+import { matchesPathPrefix } from './reactive/pathMatcher';
+import type { PatchPath } from './reactive/types';
 
 const diagLog = createNamedLogger('stateTree');
 const SUBSYSTEM: Subsystem = 'stateTree';
@@ -47,6 +50,7 @@ interface Subscriber {
   hasFired: boolean;
   readonly callback: (value: unknown) => void;
   readonly label: string | undefined;
+  readonly statePath: PatchPath | undefined;
 }
 
 let nextSubscriberId = 1;
@@ -79,6 +83,7 @@ interface PendingSubscription {
   readonly selector: Selector<unknown>;
   readonly callback: (value: unknown) => void;
   readonly label: string | undefined;
+  readonly statePath: PatchPath | undefined;
 }
 const pending: PendingSubscription[] = [];
 
@@ -123,7 +128,21 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
   lastFireTs = Date.now();
   if (!currentSnapshot) return;
 
+  // Patch-prefix gating for selector subscribers. Empty / absent patches
+  // (welcome message, stateAtom fallback path, dev-tools reload) fall back to
+  // running every subscriber — safe worst case, matches reactive/manager.ts.
+  const havePatchInfo = patches !== undefined && patches.length > 0;
+  let myIdx: number | null | undefined; // undefined = unresolved this event
+
   for (const sub of subscribers.values()) {
+    if (havePatchInfo && sub.statePath !== undefined) {
+      if (myIdx === undefined) myIdx = resolveMyIdx(currentSnapshot);
+      let anyMatch = false;
+      for (const patch of patches) {
+        if (matchesPathPrefix(patch.path, sub.statePath, myIdx)) { anyMatch = true; break; }
+      }
+      if (!anyMatch) continue;
+    }
     let derived: unknown;
     try {
       derived = sub.selector(currentSnapshot);
@@ -149,6 +168,22 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
       try { listener(p, currentSnapshot); } catch { /* swallow */ }
     }
   }
+}
+
+// Resolves the local player's slot index from the current snapshot. Mirrors
+// ReactiveSubscriptionManager.resolveMyIdx (manager.ts:186) so patch-prefix
+// gating in stateTree can substitute the `{myIdx}` placeholder without pulling
+// in the manager itself. Cheap: single WS URL parse + linear slot scan.
+function resolveMyIdx(state: QuinoaStateSnapshot): number | null {
+  const playerId = getPlayerIdSync();
+  if (!playerId) return null;
+  const slots = state.child?.data?.userSlots;
+  if (!Array.isArray(slots)) return null;
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    if (slot && typeof slot === 'object' && (slot as { playerId?: string }).playerId === playerId) return i;
+  }
+  return null;
 }
 
 const EMPTY_PATCHES: readonly PatchOp[] = Object.freeze([]);
@@ -262,6 +297,7 @@ export async function initStateTree(): Promise<void> {
         hasFired: false,
         callback: p.callback,
         label: p.label,
+        statePath: p.statePath,
       };
       subscribers.set(p.id, sub);
       // Fire immediately if we already have a snapshot.
@@ -403,11 +439,19 @@ export function subscribeToPatches(
  *
  * `label` is optional and used only for diagnostics — helps identify which
  * subscriber's selector threw when reading the error buffer.
+ *
+ * `statePath` (optional) is a JSON Pointer prefix into the stateAtom.value
+ * tree. When set, the selector + deep-equal only run on events whose patches
+ * touch that prefix (or on patch-less events — welcome / stateAtom fallback —
+ * which still fan out to everyone). `{myIdx}` is substituted at flush time
+ * with the local player's slot index. Omit for subscribers that need to see
+ * every state event.
  */
 export function subscribe<T>(
   selector: Selector<T>,
   callback: (value: T | null) => void,
   label?: string,
+  statePath?: PatchPath,
 ): () => void {
   const id = nextSubscriberId++;
 
@@ -420,6 +464,7 @@ export function subscribe<T>(
       selector: selector as Selector<unknown>,
       callback: callback as (value: unknown) => void,
       label,
+      statePath,
     });
     return () => {
       // If still pending, remove from queue; else remove from active map.
@@ -436,6 +481,7 @@ export function subscribe<T>(
     hasFired: false,
     callback: callback as (value: unknown) => void,
     label,
+    statePath,
   };
   subscribers.set(id, sub);
 

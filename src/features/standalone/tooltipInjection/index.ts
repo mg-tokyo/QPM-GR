@@ -3,7 +3,7 @@
 // Merges cropSizeIndicator + tileValueIndicator into one shared observer.
 
 import { log } from '../../../utils/logger';
-import { subscribeTooltipAtoms } from './atoms';
+import { onTileChanged, startTileTracking, stopTileTracking } from './atoms';
 import {
   startObserver,
   stopObserver,
@@ -26,6 +26,7 @@ import {
   startFriendBonusWatch,
   stopFriendBonusWatch,
 } from './valueIndicator';
+import { initLockBadge } from './lockBadge';
 
 // ---------------------------------------------------------------------------
 // State
@@ -33,6 +34,7 @@ import {
 
 let isActive = false;
 let atomUnsub: (() => void) | null = null;
+let lockBadgeUnsub: (() => void) | null = null;
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -48,12 +50,9 @@ export function initTooltipInjection(): void {
   const cropCfg = getCropSizeConfig();
   const tileCfg = getTileValueConfig();
 
-  // If neither is enabled, nothing to do
-  if (!cropCfg.enabled && !tileCfg.enabled) {
-    log('[TooltipInjection] Both features disabled, skipping init');
-    return;
-  }
-
+  // We start even when crop-size and tile-value are both disabled, because
+  // the lock badge is a third independent feature that shares the same PIXI
+  // anchor + rAF loop and should be available whenever Locker is running.
   isActive = true;
   log('[TooltipInjection] Starting');
 
@@ -65,12 +64,9 @@ export function initTooltipInjection(): void {
     registerInjector('tile-value', injectTileValue);
   }
 
-  // Subscribe to atoms (shared, with retry)
-  subscribeTooltipAtoms(() => reinjectAll())
-    .then((unsub) => {
-      atomUnsub = unsub;
-    })
-    .catch(() => {});
+  // Start atom subscriptions (idempotent — lockBadge may also register).
+  void startTileTracking();
+  atomUnsub = onTileChanged(() => reinjectAll());
 
   // Friend bonus re-renders
   if (tileCfg.enabled) {
@@ -79,6 +75,10 @@ export function initTooltipInjection(): void {
 
   // Start the single shared observer
   startObserver();
+
+  // lockBadge subscribes to onTileChanged internally for content updates;
+  // observer.rAF only drives position. Config changes still route through here.
+  lockBadgeUnsub = initLockBadge(() => reinjectAll());
 }
 
 export function stopTooltipInjection(): void {
@@ -88,8 +88,11 @@ export function stopTooltipInjection(): void {
   stopFriendBonusWatch();
   atomUnsub?.();
   atomUnsub = null;
+  lockBadgeUnsub?.();
+  lockBadgeUnsub = null;
   unregisterInjector('journal-badges');
   unregisterInjector('tile-value');
+  stopTileTracking();
 
   isActive = false;
   log('[TooltipInjection] Stopped');

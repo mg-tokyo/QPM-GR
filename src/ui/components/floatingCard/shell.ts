@@ -210,17 +210,6 @@ export function openFloatingCard(config: FloatingCardConfig): FloatingCardEntry 
   let isDragging = false;
   let destroyed = false;
 
-  const onMouseDown = (event: MouseEvent): void => {
-    if (matchesDragExclude(event.target, dragExclude)) return;
-    const rect = card.getBoundingClientRect();
-    isDragging = true;
-    dragStartX = event.clientX;
-    dragStartY = event.clientY;
-    cardStartLeft = rect.left;
-    cardStartTop = rect.top;
-    event.preventDefault();
-  };
-
   const onMouseMove = (event: MouseEvent): void => {
     if (!isDragging) return;
     const dx = event.clientX - dragStartX;
@@ -231,6 +220,8 @@ export function openFloatingCard(config: FloatingCardConfig): FloatingCardEntry 
   const onMouseUp = (): void => {
     if (!isDragging) return;
     isDragging = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
     const rect = card.getBoundingClientRect();
     const pct = _pixelsToPct(rect.left, rect.top, getCardWidth(card, baseWidth), getCardHeight(card));
     position.xPct = pct.xPct;
@@ -239,9 +230,20 @@ export function openFloatingCard(config: FloatingCardConfig): FloatingCardEntry 
     if (persistKey) persistForKey(persistKey);
   };
 
+  const onMouseDown = (event: MouseEvent): void => {
+    if (matchesDragExclude(event.target, dragExclude)) return;
+    const rect = card.getBoundingClientRect();
+    isDragging = true;
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+    cardStartLeft = rect.left;
+    cardStartTop = rect.top;
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    event.preventDefault();
+  };
+
   config.header.addEventListener('mousedown', onMouseDown);
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
 
   const refresh = (): void => {
     if (isDragging) return;

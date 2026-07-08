@@ -348,6 +348,7 @@ const fr: Dictionary = {
   'feature.locker.noCustomRulesYet': 'Aucune règle personnalisée.',
   'feature.locker.cropSellProtection': 'Protection vente de cultures',
   'feature.locker.cropSellHint': 'Verrouiller des cultures spécifiques pour bloquer Vendre Toutes les Cultures.',
+  'feature.locker.sellProtection': 'Protection de vente',
   'feature.locker.holdSellProtection': 'Protection vente par maintien',
   'feature.locker.holdSellHint': 'Bloquer la vente d\'animaux protégés pendant le maintien Espace. Utilise les règles de protection ci-dessous.',
   'feature.locker.inventoryReserve': 'Réserve d\'inventaire',
@@ -394,6 +395,8 @@ const fr: Dictionary = {
   'feature.locker.filter.addOverride': '+ Ajouter exception',
   'feature.locker.filter.noOverrides': 'Aucune exception.',
   'feature.locker.filter.editFilters': 'Modifier les filtres...',
+  'feature.locker.filter.enableOverride': 'Activer l\'exception',
+  'feature.locker.filter.selectCrop': 'Sélectionne une culture pour configurer son filtre.',
   'feature.locker.filter.quickLocks': 'Verrous rapides',
   'feature.locker.filter.quickLocksHint': 'Verrous simples par espèce et par mutation.',
 

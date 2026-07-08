@@ -21,32 +21,92 @@ export { openHelpPanel, closeHelpPanel } from './help/panel';
  * Registers all core tour definitions and injects replay buttons.
  */
 export async function initTourSystem(): Promise<void> {
-  // Tour system disabled pending final QA
-  return;
+  ensureTourStyles();
 
-  // eslint-disable-next-line no-unreachable
   const { registerDiscovery: regDisc, registerHelp: regHelp } = await import('./registry');
 
   const [
+    { welcomeTour },
+    { panelShellTour },
+    { panelHomeTour },
+    { hubTour },
+    { petManagerTour },
+    { petOptimizerTour },
+    { shopRestockTour },
+    { publicRoomsTour },
+    { statsHubTour },
+    { abilityTrackerTour },
     { cropBoostTour },
     { xpTrackerTour },
     { turtleTimerTour },
   ] = await Promise.all([
+    import('./tours/welcome'),
+    import('./tours/panel/shell'),
+    import('./tours/panel/home'),
+    import('./tours/panel/hub'),
+    import('./tours/pets/manager'),
+    import('./tours/pets/optimizer'),
+    import('./tours/shops/restock'),
+    import('./tours/tools/publicRooms'),
+    import('./tours/tools/statsHub'),
+    import('./tours/trackers/ability'),
     import('./tours/trackers/cropBoost'),
     import('./tours/trackers/xpTracker'),
     import('./tours/trackers/turtleTimer'),
   ]);
 
+  registerTour(welcomeTour);
+  registerTour(panelShellTour);
+  registerTour(panelHomeTour);
+  registerTour(hubTour);
+  registerTour(petManagerTour);
+  registerTour(petOptimizerTour);
+  registerTour(shopRestockTour);
+  registerTour(publicRoomsTour);
+  registerTour(statsHubTour);
+  registerTour(abilityTrackerTour);
   registerTour(cropBoostTour);
   registerTour(xpTrackerTour);
   registerTour(turtleTimerTour);
 
-  const { cropBoostDiscovery, xpTrackerDiscovery, turtleTimerDiscovery } = await import('./discovery/trackers');
+  migrateLegacyTutorial(welcomeTour.version);
+
+  const [
+    { hubDiscovery },
+    { petManagerDiscovery, petOptimizerDiscovery },
+    { statsHubDiscovery, publicRoomsDiscovery },
+    { cropBoostDiscovery, xpTrackerDiscovery, turtleTimerDiscovery },
+  ] = await Promise.all([
+    import('./discovery/hub'),
+    import('./discovery/pets'),
+    import('./discovery/tools'),
+    import('./discovery/trackers'),
+  ]);
+  regDisc(hubDiscovery);
+  regDisc(petManagerDiscovery);
+  regDisc(petOptimizerDiscovery);
+  regDisc(statsHubDiscovery);
+  regDisc(publicRoomsDiscovery);
   regDisc(cropBoostDiscovery);
   regDisc(xpTrackerDiscovery);
   regDisc(turtleTimerDiscovery);
 
-  const { cropBoostHelp, xpTrackerHelp, turtleTimerHelp } = await import('./help/trackers');
+  const [
+    { hubHelp },
+    { petManagerHelp, petOptimizerHelp },
+    { statsHubHelp, publicRoomsHelp },
+    { cropBoostHelp, xpTrackerHelp, turtleTimerHelp },
+  ] = await Promise.all([
+    import('./help/hub'),
+    import('./help/pets'),
+    import('./help/tools'),
+    import('./help/trackers'),
+  ]);
+  regHelp(hubHelp);
+  regHelp(petManagerHelp);
+  regHelp(petOptimizerHelp);
+  regHelp(statsHubHelp);
+  regHelp(publicRoomsHelp);
   regHelp(cropBoostHelp);
   regHelp(xpTrackerHelp);
   regHelp(turtleTimerHelp);

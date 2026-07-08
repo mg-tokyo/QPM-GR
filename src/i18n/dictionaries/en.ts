@@ -339,6 +339,7 @@ const en: Dictionary = {
   'feature.locker.noCustomRulesYet': 'No custom rules yet.',
   'feature.locker.cropSellProtection': 'Crop Sell Protection',
   'feature.locker.cropSellHint': 'Lock specific crops to block Sell All Crops.',
+  'feature.locker.sellProtection': 'Sell Protection',
   'feature.locker.holdSellProtection': 'Hold-Sell Protection',
   'feature.locker.holdSellHint': 'Block selling protected pets during hold-Space. Uses Sell All Pets protection rules below.',
   'feature.locker.inventoryReserve': 'Inventory Reserve',
@@ -385,6 +386,8 @@ const en: Dictionary = {
   'feature.locker.filter.addOverride': '+ Add Override',
   'feature.locker.filter.noOverrides': 'No crop overrides.',
   'feature.locker.filter.editFilters': 'Edit filters...',
+  'feature.locker.filter.enableOverride': 'Enable Override',
+  'feature.locker.filter.selectCrop': 'Select a crop to configure its filter.',
   'feature.locker.filter.quickLocks': 'Quick Locks',
   'feature.locker.filter.quickLocksHint': 'Simple per-species and per-mutation toggle locks.',
 

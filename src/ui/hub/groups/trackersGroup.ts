@@ -101,7 +101,7 @@ export function openDetachedTracker(windowId: string, title: string, key: string
   destroyWindow(windowId);
   openWindow(windowId, title, (root) => {
     root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;';
-    makeTrackerExpanded(key)(root);
+    return makeTrackerExpanded(key)(root);
   }, width, '90vh');
 }
 

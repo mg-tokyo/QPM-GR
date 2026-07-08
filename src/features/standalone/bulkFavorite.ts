@@ -3,7 +3,8 @@
 // Shows per-species buttons near inventory and toggles favorites in bulk.
 
 import { getInventoryItems, getFavoritedItemIds, onInventoryChange, type InventoryItem } from '../../store/inventory';
-import { getCropSpriteDataUrl, getAnySpriteDataUrl, onSpritesReady, Sprites } from '../../sprite-v2/compat';
+import { getCropSpriteDataUrl, onSpritesReady } from '../../sprite-v2/compat';
+import { findLockSpriteUrl } from '../../utils/lockSprite';
 import { addStyle } from '../../utils/dom/dom';
 import { getAllPlantSpecies, areCatalogsReady } from '../../catalogs/gameCatalogs';
 import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
@@ -109,7 +110,7 @@ let sidebar: HTMLElement | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let closeProbeTimer: ReturnType<typeof setTimeout> | null = null;
-let immediateMutationRaf: number | null = null;
+let immediateSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let inventoryUnsubscribe: (() => void) | null = null;
 let resizeListener: (() => void) | null = null;
 let spritesReadyUnsubscribe: (() => void) | null = null;
@@ -125,6 +126,7 @@ const CONFIG_KEY = 'qpm.bulkFavorite.v1';
 const DEBOUNCE_MS = 180;
 const RESIZE_DEBOUNCE_MS = 140;
 const CLOSE_PROBE_MS = 150;
+const IMMEDIATE_SYNC_THROTTLE_MS = 100;
 
 const VIEWPORT_MARGIN = 8;
 const SIDEBAR_GAP = 8;
@@ -566,69 +568,12 @@ function sendFavoriteToggle(itemId: string): WebSocketSendResult {
   return sendRoomAction('ToggleLockItem', { itemId }, { throttleMs: 50 });
 }
 
-function tryGetAnySpriteUrl(keys: string[]): string {
-  for (const key of keys) {
-    const url = getAnySpriteDataUrl(key);
-    if (url && url.startsWith('data:image')) {
-      return url;
-    }
-  }
-  return '';
-}
-
-function scoreSpriteKeyForLock(key: string, target: 'locked' | 'unlocked'): number {
-  const normalized = key.toLowerCase();
-  let score = 0;
-
-  if (normalized.includes('/ui/')) score += 3;
-  if (normalized.includes('sprite/ui/')) score += 3;
-
-  if (target === 'locked') {
-    if (normalized.includes('unlocked') || normalized.includes('unlock')) return -100;
-    if (normalized.includes('locked')) score += 8;
-    else if (normalized.includes('lock')) score += 5;
-  } else {
-    if (normalized.includes('unlocked')) score += 8;
-    else if (normalized.includes('unlock')) score += 6;
-    if (normalized.includes('locked') && !normalized.includes('unlocked')) score -= 5;
-  }
-
-  return score;
-}
-
-function findBestLockSprite(target: 'locked' | 'unlocked'): string {
-  const directCandidates =
-    target === 'locked'
-      ? ['sprite/ui/Locked', 'ui/Locked', 'sprite/ui/Lock', 'ui/Lock']
-      : ['sprite/ui/Unlocked', 'ui/Unlocked', 'sprite/ui/Unlock', 'ui/Unlock'];
-
-  const direct = tryGetAnySpriteUrl(directCandidates);
-  if (direct) return direct;
-
-  const allKeys = Sprites.lists().all;
-  if (!Array.isArray(allKeys) || allKeys.length === 0) return '';
-
-  const scored = allKeys
-    .map((key) => ({ key, score: scoreSpriteKeyForLock(String(key), target) }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  for (const candidate of scored) {
-    const url = getAnySpriteDataUrl(candidate.key);
-    if (url && url.startsWith('data:image')) {
-      return url;
-    }
-  }
-
-  return '';
-}
-
 function getLockUiSprites(): { locked: string; unlocked: string } {
   if (lockUiSpriteCache) return lockUiSpriteCache;
 
   lockUiSpriteCache = {
-    locked: findBestLockSprite('locked'),
-    unlocked: findBestLockSprite('unlocked'),
+    locked: findLockSpriteUrl('locked'),
+    unlocked: findLockSpriteUrl('unlocked'),
   };
 
   return lockUiSpriteCache;
@@ -827,9 +772,9 @@ function hideSidebar(): void {
     clearTimeout(closeProbeTimer);
     closeProbeTimer = null;
   }
-  if (immediateMutationRaf !== null) {
-    cancelAnimationFrame(immediateMutationRaf);
-    immediateMutationRaf = null;
+  if (immediateSyncTimer !== null) {
+    clearTimeout(immediateSyncTimer);
+    immediateSyncTimer = null;
   }
   lastLayoutSignature = '';
   lastRenderSignature = '';
@@ -957,19 +902,20 @@ function shouldIgnoreMutations(records: MutationRecord[]): boolean {
   if (!sidebar) return false;
   const sb = sidebar;
 
-  return records.every((record) => {
+  for (let i = 0; i < records.length; i += 1) {
+    const record = records[i]!;
     const target = record.target;
-    const targetInsideSidebar = target instanceof Node && sb.contains(target);
-    if (!targetInsideSidebar) return false;
+    if (!(target instanceof Node) || !sb.contains(target)) return false;
 
-    const addedInsideSidebar = Array.from(record.addedNodes).every((node) => sb.contains(node));
-    const removedInsideSidebar = Array.from(record.removedNodes).every((node) => {
-      // Removed nodes might no longer be connected, so fallback to previous-parent target check.
-      return sb.contains(node) || targetInsideSidebar;
-    });
-
-    return addedInsideSidebar && removedInsideSidebar;
-  });
+    const added = record.addedNodes;
+    for (let j = 0; j < added.length; j += 1) {
+      const node = added[j];
+      if (!node || !sb.contains(node)) return false;
+    }
+    // Removed nodes may no longer be connected; the target-inside-sidebar
+    // check above is the fallback that covers them (matches prior semantics).
+  }
+  return true;
 }
 
 function handleResize(): void {
@@ -1008,14 +954,15 @@ export function startBulkFavorite(): void {
   observer = new MutationObserver((records) => {
     if (shouldIgnoreMutations(records)) return;
 
-    // When the sidebar is already visible, prioritize close detection speed.
-    // This keeps hide behavior near-instant when inventory closes.
+    // When the sidebar is already visible, coalesce syncs at
+    // IMMEDIATE_SYNC_THROTTLE_MS (was per-rAF, up to 60 Hz on garden churn).
+    // Close-probe fallback at CLOSE_PROBE_MS still catches inventory-close.
     if (sidebar) {
-      if (immediateMutationRaf !== null) return;
-      immediateMutationRaf = requestAnimationFrame(() => {
-        immediateMutationRaf = null;
+      if (immediateSyncTimer !== null) return;
+      immediateSyncTimer = setTimeout(() => {
+        immediateSyncTimer = null;
         syncSidebar(false, true);
-      });
+      }, IMMEDIATE_SYNC_THROTTLE_MS);
       return;
     }
 
@@ -1073,9 +1020,9 @@ export function stopBulkFavorite(): void {
     closeProbeTimer = null;
   }
 
-  if (immediateMutationRaf !== null) {
-    cancelAnimationFrame(immediateMutationRaf);
-    immediateMutationRaf = null;
+  if (immediateSyncTimer !== null) {
+    clearTimeout(immediateSyncTimer);
+    immediateSyncTimer = null;
   }
 
   if (inventoryUnsubscribe) {

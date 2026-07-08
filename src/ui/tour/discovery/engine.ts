@@ -3,6 +3,7 @@
 import type { DiscoveryDefinition } from '../types';
 import { lookupDiscovery, lookupTour } from '../registry';
 import { readDiscoveredIds, markDiscovered, areToursEnabled, readTourProgress } from '../persistence';
+import { visibleInterval } from '../../../utils/scheduling/timerManager';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ interface ActiveDot {
   itemId: string;
   element: HTMLElement;
   targetSelector: string;
+  cachedTarget: HTMLElement | null;
 }
 
 interface DiscoverySession {
@@ -17,9 +19,12 @@ interface DiscoverySession {
   windowBody: HTMLElement;
   definition: DiscoveryDefinition;
   activeDots: ActiveDot[];
-  rafId: number | null;
+  stopTrack: (() => void) | null;
+  resizeHandler: (() => void) | null;
   clickHandler: ((e: Event) => void) | null;
 }
+
+const TRACK_INTERVAL_MS = 300;
 
 // ── State ─────────────────────────────────────────────────────
 
@@ -50,7 +55,8 @@ export function startDiscovery(windowId: string, windowBody: HTMLElement): void 
     windowBody,
     definition,
     activeDots: [],
-    rafId: null,
+    stopTrack: null,
+    resizeHandler: null,
     clickHandler: null,
   };
 
@@ -80,7 +86,13 @@ export function stopDiscovery(windowId: string): void {
   const session = sessions.get(windowId);
   if (!session) return;
 
-  if (session.rafId != null) cancelAnimationFrame(session.rafId);
+  session.stopTrack?.();
+  session.stopTrack = null;
+  if (session.resizeHandler) {
+    window.removeEventListener('resize', session.resizeHandler);
+    window.removeEventListener('scroll', session.resizeHandler, true);
+    session.resizeHandler = null;
+  }
   if (session.clickHandler) document.removeEventListener('click', session.clickHandler, true);
 
   for (const dot of session.activeDots) dot.element.remove();
@@ -121,7 +133,7 @@ function renderDots(session: DiscoverySession): void {
     document.body.appendChild(dot);
     positionDot(dot, targetEl);
 
-    session.activeDots.push({ itemId: item.id, element: dot, targetSelector: item.selector });
+    session.activeDots.push({ itemId: item.id, element: dot, targetSelector: item.selector, cachedTarget: targetEl });
   }
 }
 
@@ -137,34 +149,42 @@ function removeDot(session: DiscoverySession, dot: ActiveDot): void {
   session.activeDots = session.activeDots.filter((d) => d !== dot);
 }
 
+function tick(session: DiscoverySession): void {
+  if (!sessions.has(session.windowId)) return;
+
+  if (!document.body.contains(session.windowBody)) {
+    stopDiscovery(session.windowId);
+    return;
+  }
+
+  const toRemove: ActiveDot[] = [];
+  for (const dot of session.activeDots) {
+    let targetEl = dot.cachedTarget;
+    if (!targetEl || !session.windowBody.contains(targetEl)) {
+      targetEl = session.windowBody.querySelector<HTMLElement>(dot.targetSelector);
+      dot.cachedTarget = targetEl;
+    }
+    if (targetEl) {
+      positionDot(dot.element, targetEl);
+    } else {
+      dot.element.remove();
+      toRemove.push(dot);
+    }
+  }
+  if (toRemove.length > 0) {
+    session.activeDots = session.activeDots.filter((d) => !toRemove.includes(d));
+    renderDots(session);
+  }
+}
+
 function startTracking(session: DiscoverySession): void {
-  const track = () => {
-    if (!sessions.has(session.windowId)) return;
-
-    if (!document.body.contains(session.windowBody)) {
-      stopDiscovery(session.windowId);
-      return;
-    }
-
-    // Collect stale dots, apply removals after iteration
-    const toRemove: ActiveDot[] = [];
-    for (const dot of session.activeDots) {
-      const targetEl = session.windowBody.querySelector<HTMLElement>(dot.targetSelector);
-      if (targetEl) {
-        positionDot(dot.element, targetEl);
-      } else {
-        dot.element.remove();
-        toRemove.push(dot);
-      }
-    }
-    if (toRemove.length > 0) {
-      session.activeDots = session.activeDots.filter((d) => !toRemove.includes(d));
-      // Targets were removed (e.g., editor re-render) — backfill with new targets
-      renderDots(session);
-    }
-
-    session.rafId = requestAnimationFrame(track);
-  };
-
-  session.rafId = requestAnimationFrame(track);
+  session.stopTrack = visibleInterval(
+    `discovery-track-${session.windowId}`,
+    () => tick(session),
+    TRACK_INTERVAL_MS
+  );
+  const resizeHandler = (): void => tick(session);
+  session.resizeHandler = resizeHandler;
+  window.addEventListener('resize', resizeHandler);
+  window.addEventListener('scroll', resizeHandler, true);
 }

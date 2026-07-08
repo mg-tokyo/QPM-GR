@@ -205,11 +205,14 @@ export function makeGrid(): HTMLElement {
   return g;
 }
 
-export function makeShowAllToggle(onChange: (showAll: boolean) => void): HTMLElement {
-  let showAll = false;
+export function makeShowAllToggle(
+  onChange: (showAll: boolean) => void,
+  initialShowAll = false,
+): HTMLElement {
+  let showAll = initialShowAll;
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = t('feature.locker.showAll');
+  btn.textContent = showAll ? t('feature.locker.showEligible') : t('feature.locker.showAll');
   btn.style.cssText = `background:none;border:none;color:${TEXT_MUTED};font-size:10px;cursor:pointer;padding:0;text-decoration:underline;text-align:left;display:block`;
   btn.addEventListener('click', () => {
     showAll = !showAll;
@@ -544,7 +547,8 @@ export function buildRarityGrid(
     const tiles = list.sort().map(sp => {
       const locked = locks[sp] === true;
       const spriteUrl = getCropSpriteDataUrl(sp);
-      return makeLockTile(sp, spriteUrl, locked, (next) => {
+      const displayName = getPlantSpecies(sp)?.crop?.name ?? sp;
+      return makeLockTile(displayName, spriteUrl, locked, (next) => {
         const cur = getLockerConfig();
         const curLocks = { ...cur[lockKey], [sp]: next };
         if (!next) delete curLocks[sp];

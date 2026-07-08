@@ -25,7 +25,7 @@ import {
 } from '../../../features/pets/instantFeed';
 import { PET_FOOD_RULES_CHANGED_EVENT } from '../../../features/pets/foodRules';
 import { PET_FEED_POLICY_CHANGED_EVENT } from '../../../store/petTeams';
-import { getAnySpriteDataUrl } from '../../../sprite-v2/compat';
+import { getAnySpriteDataUrl, isSpritesReady } from '../../../sprite-v2/compat';
 import { sendRoomAction } from '../../../websocket/api';
 import { getRiddenPetId, onRiddenPetChange, ridePet, dismountPet } from '../../../store/mountState';
 import { getPlayerPosition } from '../../../utils/ghostStep';
@@ -53,6 +53,19 @@ const MAX_SLOTS = 3;
 const CARD_W = 172;
 const CARD_W_MAX = 220;
 const CARD_H_FALLBACK = 120;
+
+const REFRESH_COALESCE_MS = 400;
+
+function computeSpriteSignature(pet: ActivePetInfo | null): string {
+  const readyFlag = isSpritesReady() ? 'r' : 'w';
+  if (!pet) return `null|${readyFlag}`;
+  return `${pet.species ?? ''}|${pet.mutations.join(',')}|${readyFlag}`;
+}
+
+function computePetIdentitySignature(pet: ActivePetInfo | null): string {
+  if (!pet) return 'null';
+  return `${pet.slotId ?? ''}|${pet.petId ?? ''}|${pet.species ?? ''}|${pet.mutations.join(',')}|${pet.chargedAbilityId ?? ''}`;
+}
 
 const DRAG_EXCLUDE_SELECTORS: readonly string[] = [
   '.qpm-float-card__close',
@@ -198,6 +211,35 @@ function createSlotCard(slotIndex: number): SlotEntry {
   let selectedFood: FoodSelection | null = null;
   let mountBtn: HTMLButtonElement | null = null;
   let isMountable = false;
+  let refreshTimer: number | null = null;
+  let lastSpriteSignature: string | null = null;
+  let lastPetIdentitySignature: string | null = null;
+
+  const scheduleRefresh = (): void => {
+    if (destroyed) return;
+    if (refreshTimer !== null) return;
+    refreshTimer = window.setTimeout(() => {
+      refreshTimer = null;
+      if (destroyed) return;
+      void refreshAvailability();
+    }, REFRESH_COALESCE_MS);
+  };
+
+  const flushRefresh = (): void => {
+    if (refreshTimer !== null) {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
+    lastPetIdentitySignature = computePetIdentitySignature(currentPet);
+    void refreshAvailability();
+  };
+
+  cleanups.push(() => {
+    if (refreshTimer !== null) {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
+  });
 
   const shellEntry = openShellCard({
     key: slotKey(slotIndex),
@@ -301,7 +343,11 @@ function createSlotCard(slotIndex: number): SlotEntry {
 
   const renderPet = (pet: ActivePetInfo | null): void => {
     currentPet = pet;
-    setSpriteContent(spriteWrap, pet);
+    const spriteSig = computeSpriteSignature(pet);
+    if (spriteSig !== lastSpriteSignature) {
+      lastSpriteSignature = spriteSig;
+      setSpriteContent(spriteWrap, pet);
+    }
 
     if (!pet) {
       nameEl.textContent = 'Empty slot';
@@ -439,19 +485,23 @@ function createSlotCard(slotIndex: number): SlotEntry {
   const onPetChange = (pets: ActivePetInfo[]): void => {
     const pet = pets.find((entry) => entry.slotIndex === slotIndex) ?? null;
     renderPet(pet);
-    void refreshAvailability();
+    const identitySig = computePetIdentitySignature(pet);
+    if (identitySig !== lastPetIdentitySignature) {
+      lastPetIdentitySignature = identitySig;
+      scheduleRefresh();
+    }
   };
 
   cleanups.push(onActivePetInfos(onPetChange));
-  cleanups.push(onInventoryChange(() => { void refreshAvailability(); }));
+  cleanups.push(onInventoryChange(() => { scheduleRefresh(); }));
 
-  const onRulesChanged = (): void => { void refreshAvailability(); };
+  const onRulesChanged = (): void => { scheduleRefresh(); };
   window.addEventListener(PET_FOOD_RULES_CHANGED_EVENT, onRulesChanged as EventListener);
   cleanups.push(() => window.removeEventListener(PET_FOOD_RULES_CHANGED_EVENT, onRulesChanged as EventListener));
   window.addEventListener(PET_FEED_POLICY_CHANGED_EVENT, onRulesChanged as EventListener);
   cleanups.push(() => window.removeEventListener(PET_FEED_POLICY_CHANGED_EVENT, onRulesChanged as EventListener));
 
-  const onFeedEvent = (): void => { void refreshAvailability(); };
+  const onFeedEvent = (): void => { scheduleRefresh(); };
   window.addEventListener(FEED_EVENT, onFeedEvent as EventListener);
   cleanups.push(() => window.removeEventListener(FEED_EVENT, onFeedEvent as EventListener));
 
@@ -493,7 +543,7 @@ function createSlotCard(slotIndex: number): SlotEntry {
   cleanups.push(onFeedQueueEvent((event: FeedQueueEvent) => {
     if (destroyed) return;
     if (event.type === 'drained') {
-      void refreshAvailability();
+      scheduleRefresh();
       return;
     }
     if (event.slotIndex !== slotIndex) return;
@@ -502,7 +552,7 @@ function createSlotCard(slotIndex: number): SlotEntry {
       setFeedButtonState(`Feed (${pending})`, false);
     } else {
       setFeedButtonState('Feed', false);
-      void refreshAvailability();
+      scheduleRefresh();
     }
   }));
 
@@ -512,7 +562,7 @@ function createSlotCard(slotIndex: number): SlotEntry {
   return {
     slotIndex,
     shell: shellEntry,
-    refreshAvailability: () => { void refreshAvailability(); },
+    refreshAvailability: () => { flushRefresh(); },
   };
 }
 

@@ -7,6 +7,7 @@ import { areCatalogsReady, getAllPetSpecies, onCatalogsReady } from '../catalogs
 
 const STORAGE_KEY = 'qpm.hatchStats.v1';
 const MAX_EVENTS = 100;
+const MAX_SEEDED_PET_IDS = 5000;
 const CURRENT_VERSION = 1;
 
 export interface HatchEvent {
@@ -337,7 +338,11 @@ export function seedLifetimeFromPets(pets: PetSeedInput[]): { added: number } {
   }
 
   if (added > 0) {
-    state.seededPetIds = Array.from(seenIds);
+    let seededList = Array.from(seenIds);
+    if (seededList.length > MAX_SEEDED_PET_IDS) {
+      seededList = seededList.slice(seededList.length - MAX_SEEDED_PET_IDS);
+    }
+    state.seededPetIds = seededList;
     state.meta.updatedAt = Date.now();
     persist();
     notify();

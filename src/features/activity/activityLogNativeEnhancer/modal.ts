@@ -11,6 +11,8 @@ import type {
 import {
   FAST_REPLAY_DELAY_MS,
   VIRTUAL_WINDOW_SIZE,
+  VIRTUAL_SCROLL_THROTTLE_MS,
+  VIRTUAL_DEFAULT_ROW_HEIGHT,
   LARGE_LIST_REFRESH_THRESHOLD,
   LARGE_LIST_REFRESH_DELAY_MS,
   TOOLBAR_ATTR,
@@ -56,12 +58,14 @@ import {
   applyVirtualListLayout,
   restoreVirtualListLayout,
   removeVirtualSpacers,
+  updateVirtualSpacers,
   updateVirtualAverageRowHeight,
   resetVirtualScrollToStart,
   resolveReplayStartIndex,
   resolveReplayMaxEntries,
   clearReplayHydrationTimer,
   entryMatchesFilters,
+  computeScrollBasedWindowStart,
 } from './virtualList';
 import {
   installMyDataReadPatch,
@@ -193,10 +197,10 @@ export function refreshModalUI(handles: ModalHandles): void {
   if (S.virtualMode === 'virtual-expanded') {
     applyVirtualListLayout(handles.list);
     hideNativeLoadMoreButtons(handles.list);
-    removeVirtualSpacers(handles.list);
-    updateVirtualAverageRowHeight(handles.list);
-    ensureVirtualLoadMoreButton(handles);
+    updateVirtualSpacers(handles.list);
     const rows = getEntryElements(handles.list);
+    updateVirtualAverageRowHeight(handles.list, rows);
+    ensureVirtualLoadMoreButton(handles);
     updateSummary(handles, rows.length, S.virtualTotalFiltered);
     return;
   }
@@ -255,10 +259,11 @@ function getReplaySourceEntries(order: import('./types').OrderFilter): ActivityL
 async function applyVirtualWindow(
   reason: string,
   preserveScroll: boolean,
+  requestedStart?: number,
 ): Promise<void> {
   if (!S.modalHandles) return;
   if (S.replayInFlight) {
-    S.virtualPendingWindowStart = S.virtualHydratedCount;
+    S.virtualPendingWindowStart = requestedStart ?? S.virtualWindowStart;
     S.virtualPendingReason = reason;
     S.virtualPendingPreserveScroll = S.virtualPendingPreserveScroll || preserveScroll;
     return;
@@ -267,21 +272,23 @@ async function applyVirtualWindow(
   const filteredEntries = getFilteredHistoryEntries(S.filters.order);
   const total = filteredEntries.length;
   S.virtualTotalFiltered = total;
-  if (S.virtualHydratedCount <= 0) {
-    S.virtualHydratedCount = Math.min(total, VIRTUAL_WINDOW_SIZE);
-  } else {
-    S.virtualHydratedCount = Math.max(0, Math.min(total, S.virtualHydratedCount));
-  }
-  S.virtualWindowStart = 0;
-  S.virtualWindowEnd = S.virtualHydratedCount;
-  S.virtualTopSpacerPx = 0;
-  S.virtualBottomSpacerPx = 0;
+
+  const maxStart = Math.max(0, total - VIRTUAL_WINDOW_SIZE);
+  const rawStart = requestedStart ?? S.virtualWindowStart;
+  const start = Math.max(0, Math.min(maxStart, Math.floor(rawStart)));
+  const end = Math.min(total, start + VIRTUAL_WINDOW_SIZE);
+  S.virtualWindowStart = start;
+  S.virtualWindowEnd = end;
+  S.virtualHydratedCount = end - start;
+  const rowHeight = Math.max(1, S.virtualAvgRowHeight);
+  S.virtualTopSpacerPx = start * rowHeight;
+  S.virtualBottomSpacerPx = Math.max(0, total - end) * rowHeight;
 
   await replayHistoryToModal({
     preserveScroll,
     reason,
-    startIndex: 0,
-    maxEntries: S.virtualHydratedCount,
+    startIndex: start,
+    maxEntries: end - start,
   });
 }
 
@@ -292,50 +299,44 @@ function enterVirtualExpandedMode(handles: ModalHandles, sourceButton?: HTMLButt
   S.virtualWindowEnd = VIRTUAL_WINDOW_SIZE;
   S.virtualTopSpacerPx = 0;
   S.virtualBottomSpacerPx = 0;
-  S.virtualAvgRowHeight = 46;
+  S.virtualAvgRowHeight = VIRTUAL_DEFAULT_ROW_HEIGHT;
   S.virtualLastScrollUpdateAt = 0;
   S.virtualIgnoreScrollUntil = Date.now() + 220;
   invalidateVirtualCaches();
-  const currentRows = getEntryElements(handles.list).length;
-  const initialHydrated = Math.max(VIRTUAL_WINDOW_SIZE, currentRows + getAdaptiveHydrationChunkSize());
-  S.virtualHydratedCount = Math.max(0, initialHydrated);
+  S.virtualHydratedCount = VIRTUAL_WINDOW_SIZE;
   S.readPatchOrder = S.filters.order;
   S.readPatchStartIndex = 0;
-  S.readPatchMaxEntries = S.virtualHydratedCount;
+  S.readPatchMaxEntries = VIRTUAL_WINDOW_SIZE;
   S.virtualLoadButtonClassName = sourceButton?.className ?? S.virtualLoadButtonClassName;
   applyVirtualListLayout(handles.list);
   removeVirtualLoadMoreButton(handles.list);
   resetVirtualScrollToStart(handles);
-  void applyVirtualWindow('virtual-enter', false);
+  void applyVirtualWindow('virtual-enter', false, 0);
   scheduleModalRefresh(handles);
 }
 
 function hydrateMoreVirtualEntries(): void {
   if (S.virtualMode !== 'virtual-expanded') return;
   const chunk = getAdaptiveHydrationChunkSize();
-  const nextCount = Math.min(S.virtualTotalFiltered, S.virtualHydratedCount + chunk);
-  if (nextCount <= S.virtualHydratedCount) return;
-  S.virtualHydratedCount = nextCount;
-  S.virtualWindowStart = 0;
-  S.virtualWindowEnd = S.virtualHydratedCount;
+  const maxStart = Math.max(0, S.virtualTotalFiltered - VIRTUAL_WINDOW_SIZE);
+  const nextStart = Math.min(maxStart, S.virtualWindowStart + chunk);
+  if (nextStart === S.virtualWindowStart) return;
   S.virtualIgnoreScrollUntil = Date.now() + 180;
-  void applyVirtualWindow('virtual-load-more', false);
+  void applyVirtualWindow('virtual-load-more', false, nextStart);
 }
 
 function maybeUpdateVirtualWindowFromScroll(handles: ModalHandles): void {
   if (S.virtualMode !== 'virtual-expanded') return;
   const now = Date.now();
   if (now < S.virtualIgnoreScrollUntil) return;
-  if ((now - S.virtualLastScrollUpdateAt) < 96) return;
+  if ((now - S.virtualLastScrollUpdateAt) < VIRTUAL_SCROLL_THROTTLE_MS) return;
   S.virtualLastScrollUpdateAt = now;
 
-  const remaining = Math.max(0, S.virtualTotalFiltered - S.virtualHydratedCount);
-  if (remaining <= 0) return;
-  const host = handles.scrollHost;
-  const distanceToBottom = Math.max(0, host.scrollHeight - (host.scrollTop + host.clientHeight));
-  if (distanceToBottom > 260) return;
-  S.virtualIgnoreScrollUntil = Date.now() + 180;
-  hydrateMoreVirtualEntries();
+  const total = S.virtualTotalFiltered;
+  if (total <= VIRTUAL_WINDOW_SIZE) return;
+  const targetStart = computeScrollBasedWindowStart(handles);
+  if (targetStart === S.virtualWindowStart) return;
+  void applyVirtualWindow('virtual-scroll', true, targetStart);
 }
 
 export function queueReplay(reason: string): void {
@@ -495,10 +496,7 @@ async function replayHistoryToModal(opts?: {
       S.virtualPendingWindowStart = null;
       S.virtualPendingReason = '';
       S.virtualPendingPreserveScroll = false;
-      if (pendingStart !== S.virtualHydratedCount) {
-        S.virtualHydratedCount = pendingStart;
-      }
-      void applyVirtualWindow(pendingReason, pendingPreserve);
+      void applyVirtualWindow(pendingReason, pendingPreserve, pendingStart);
     }
   }
 }
@@ -689,6 +687,16 @@ function detachModal(): void {
 }
 
 function syncModalMount(): void {
+  // Cheap gate: while attached to a live modal, skip the document-wide
+  // `querySelectorAll('p.chakra-text')` sweep in findActivityModal(). Runs on
+  // every 250 ms tick of the visible interval — the sweep is the tracker item
+  // 1.18 hot path. React modal swaps still detach the old root, which flips
+  // isConnected to false and re-triggers the full scan on the next tick.
+  const current = S.modalHandles;
+  if (current && current.root.isConnected && current.list.isConnected) {
+    return;
+  }
+
   const modal = findActivityModal();
   if (!modal) {
     detachModal();
@@ -726,7 +734,31 @@ export function stopModalObserver(): void {
 export function ingestActivityLogs(value: unknown): void {
   if (Date.now() < S.suppressIngestUntil) return;
 
-  const nextSnapshot = normalizeList(extractActivityArray(value));
+  // Cheap fingerprint gate (item 1.21): if the raw array is byte-length /
+  // first-ts / last-ts identical to the previous ingest, skip normalization
+  // and diff. Game activity entries are timestamped and append-only, so this
+  // triple is a stable content proxy — an addition changes length + lastTs,
+  // an edit is not something the game does. Cost: 3 property reads vs a full
+  // {...spread}-per-entry normalize + O(N) diff for every myData push at
+  // gameplay cadence.
+  const raw = extractActivityArray(value);
+  const rawLen = raw.length;
+  const firstRaw = rawLen > 0 ? (raw[0] as { timestamp?: unknown } | null) : null;
+  const lastRaw = rawLen > 0 ? (raw[rawLen - 1] as { timestamp?: unknown } | null) : null;
+  const firstTsRaw = firstRaw && typeof firstRaw.timestamp === 'number' ? firstRaw.timestamp : 0;
+  const lastTsRaw = lastRaw && typeof lastRaw.timestamp === 'number' ? lastRaw.timestamp : 0;
+  if (
+    rawLen === S.lastIngestLength
+    && firstTsRaw === S.lastIngestFirstTs
+    && lastTsRaw === S.lastIngestLastTs
+  ) {
+    return;
+  }
+  S.lastIngestLength = rawLen;
+  S.lastIngestFirstTs = firstTsRaw;
+  S.lastIngestLastTs = lastTsRaw;
+
+  const nextSnapshot = normalizeList(raw);
   const prevSnapshot = S.lastSnapshot;
   S.lastSnapshot = nextSnapshot;
 

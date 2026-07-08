@@ -26,6 +26,7 @@ import {
 import type { ControllerProfile } from '../../features/input/controller/controller-profile';
 import { detectProfile } from '../../features/input/controller/controller-profile';
 import { storage } from '../../utils/storage';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { t } from '../../i18n';
 import { watchDetach } from '../../utils/dom/dom';
 import {
@@ -486,13 +487,14 @@ export function createControllerSection(
     cell.style.fontStyle = 'italic';
     cell.style.cursor = 'default';
 
-    let pollId: ReturnType<typeof setInterval> | null = null;
+    let stopPoll: (() => void) | null = null;
     let aborted = false;
 
     const abort = (): void => {
       if (aborted) return;
       aborted = true;
-      if (pollId !== null) clearInterval(pollId);
+      stopPoll?.();
+      stopPoll = null;
       cell.innerHTML = originalHTML;
       cell.style.color = 'var(--qpm-accent)';
       cell.style.fontStyle = '';
@@ -509,12 +511,13 @@ export function createControllerSection(
       break;
     }
 
-    pollId = setInterval(() => {
+    stopPoll = visibleInterval('controller-rebind-capture', () => {
       for (const gp of navigator.getGamepads()) {
         if (!gp) continue;
         gp.buttons.forEach((btn, i) => {
           if (btn.pressed && !(snapshot.get(i) ?? false) && !aborted) {
-            clearInterval(pollId!);
+            stopPoll?.();
+            stopPoll = null;
             applyRebind(action, i);
             aborted = true;
             captureAbort = null;

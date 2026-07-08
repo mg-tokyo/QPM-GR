@@ -387,52 +387,95 @@ function buildActivePetsModule(
   listEl.style.cssText = "display:flex;flex-direction:column;gap:4px;";
   card.appendChild(listEl);
 
+  interface PetRowRefs {
+    row: HTMLElement;
+    nameEl: HTMLElement;
+    barFill: HTMLElement;
+    pctEl: HTMLElement;
+    feedBtn: HTMLButtonElement;
+    slotIndex: number;
+  }
+  const petRows: PetRowRefs[] = [];
+  let emptyMsg: HTMLElement | null = null;
+
+  const buildRow = (): PetRowRefs => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:5px;";
+    const nameEl = document.createElement("span");
+    nameEl.style.cssText =
+      "font-size:12px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    const barWrap = document.createElement("div");
+    barWrap.style.cssText =
+      "flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;min-width:30px;";
+    const barFill = document.createElement("div");
+    barFill.style.cssText = "height:100%;width:0%;background:transparent;border-radius:3px;transition:width 0.4s;";
+    barWrap.appendChild(barFill);
+    const pctEl = document.createElement("span");
+    pctEl.style.cssText = "font-size:10px;color:rgba(224,224,224,0.5);min-width:28px;text-align:right;";
+    const feedBtn = document.createElement("button");
+    feedBtn.type = "button";
+    feedBtn.textContent = "🍖";
+    feedBtn.title = t("feature.dashboard.feedTooltip");
+    feedBtn.style.cssText =
+      "font-size:12px;padding:0 4px;border-radius:3px;cursor:pointer;border:1px solid rgba(143,130,255,0.2);background:rgba(143,130,255,0.06);flex-shrink:0;line-height:1.5;";
+    const refs: PetRowRefs = { row, nameEl, barFill, pctEl, feedBtn, slotIndex: -1 };
+    feedBtn.addEventListener("click", async () => {
+      if (refs.slotIndex < 0) return;
+      const idx = refs.slotIndex;
+      feedBtn.disabled = true;
+      feedBtn.textContent = "…";
+      try {
+        const { feedPetInstantly } =
+          await import("../../features/pets/instantFeed");
+        await feedPetInstantly(idx);
+      } catch (err) {
+        log("⚠️ Feed failed", err);
+      } finally {
+        feedBtn.disabled = false;
+        feedBtn.textContent = "🍖";
+      }
+    });
+    row.append(nameEl, barWrap, pctEl, feedBtn);
+    return refs;
+  };
+
   const render = (pets: ActivePetInfo[]): void => {
-    listEl.innerHTML = "";
-    if (!pets.length) {
-      const e = document.createElement("div");
-      e.style.cssText =
-        "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
-      e.textContent = t("feature.dashboard.noActivePets");
-      listEl.appendChild(e);
+    const target = pets.slice(0, 3);
+    if (!target.length) {
+      for (const r of petRows) r.row.style.display = "none";
+      if (!emptyMsg) {
+        emptyMsg = document.createElement("div");
+        emptyMsg.style.cssText =
+          "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
+        emptyMsg.textContent = t("feature.dashboard.noActivePets");
+        listEl.appendChild(emptyMsg);
+      }
+      emptyMsg.style.display = "";
       return;
     }
-    for (const pet of pets.slice(0, 3)) {
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:5px;";
-      const nameEl = document.createElement("span");
-      nameEl.style.cssText =
-        "font-size:12px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-      nameEl.textContent =
+    if (emptyMsg) emptyMsg.style.display = "none";
+    while (petRows.length < target.length) {
+      const refs = buildRow();
+      petRows.push(refs);
+      listEl.appendChild(refs.row);
+    }
+    for (let i = 0; i < petRows.length; i++) {
+      const refs = petRows[i]!;
+      const pet = target[i];
+      if (!pet) {
+        refs.row.style.display = "none";
+        continue;
+      }
+      refs.row.style.display = "";
+      refs.slotIndex = pet.slotIndex;
+      refs.nameEl.textContent =
         pet.name || pet.species || t("feature.dashboard.petFallback", { index: pet.slotIndex + 1 });
-      const pct = pet.hungerPct ?? 0;
-      const bar = makeBar(pct, hungerColor(pct));
-      const pctEl = document.createElement("span");
-      pctEl.style.cssText = `font-size:10px;color:${hungerColor(pct)};min-width:28px;text-align:right;`;
-      pctEl.textContent = `${Math.round(pct)}%`;
-      const feedBtn = document.createElement("button");
-      feedBtn.type = "button";
-      feedBtn.textContent = "🍖";
-      feedBtn.title = t("feature.dashboard.feedTooltip");
-      feedBtn.style.cssText =
-        "font-size:12px;padding:0 4px;border-radius:3px;cursor:pointer;border:1px solid rgba(143,130,255,0.2);background:rgba(143,130,255,0.06);flex-shrink:0;line-height:1.5;";
-      const idx = pet.slotIndex;
-      feedBtn.addEventListener("click", async () => {
-        feedBtn.disabled = true;
-        feedBtn.textContent = "…";
-        try {
-          const { feedPetInstantly } =
-            await import("../../features/pets/instantFeed");
-          await feedPetInstantly(idx);
-        } catch (err) {
-          log("⚠️ Feed failed", err);
-        } finally {
-          feedBtn.disabled = false;
-          feedBtn.textContent = "🍖";
-        }
-      });
-      row.append(nameEl, bar, pctEl, feedBtn);
-      listEl.appendChild(row);
+      const pct = Math.max(0, Math.min(100, pet.hungerPct ?? 0));
+      const clr = hungerColor(pct);
+      refs.barFill.style.width = `${pct}%`;
+      refs.barFill.style.background = clr;
+      refs.pctEl.style.color = clr;
+      refs.pctEl.textContent = `${Math.round(pct)}%`;
     }
   };
 
@@ -449,9 +492,34 @@ function buildXpNearMaxModule(
   listEl.style.cssText = "display:flex;flex-direction:column;gap:4px;";
   card.appendChild(listEl);
 
+  interface XpRowRefs {
+    row: HTMLElement;
+    nameEl: HTMLElement;
+    barFill: HTMLElement;
+    pctEl: HTMLElement;
+  }
+  const xpRows: XpRowRefs[] = [];
+  let emptyMsg: HTMLElement | null = null;
+
+  const buildRow = (): XpRowRefs => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:5px;";
+    const nameEl = document.createElement("span");
+    nameEl.style.cssText =
+      "font-size:12px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    const barWrap = document.createElement("div");
+    barWrap.style.cssText =
+      "flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;min-width:30px;";
+    const barFill = document.createElement("div");
+    barFill.style.cssText = "height:100%;width:0%;background:transparent;border-radius:3px;transition:width 0.4s;";
+    barWrap.appendChild(barFill);
+    const pctEl = document.createElement("span");
+    pctEl.style.cssText = "font-size:10px;min-width:30px;text-align:right;white-space:nowrap;color:rgba(255,255,255,0.5);";
+    row.append(nameEl, barWrap, pctEl);
+    return { row, nameEl, barFill, pctEl };
+  };
+
   const render = (pets: ActivePetInfo[]): void => {
-    listEl.innerHTML = "";
-    // Compute pct-to-max for each pet; sort closest-to-max first
     type PetWithPct = { pet: ActivePetInfo; pct: number; str: number };
     const withPct = pets
       .reduce<PetWithPct[]>((acc, p) => {
@@ -467,32 +535,44 @@ function buildXpNearMaxModule(
         if (pct !== null) acc.push({ pet: p, pct, str: p.strength });
         return acc;
       }, [])
-      .sort((a, b) => b.pct - a.pct);
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 3);
 
     if (!withPct.length) {
-      const e = document.createElement("div");
-      e.style.cssText =
-        "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
-      e.textContent = t("feature.dashboard.noXpData");
-      listEl.appendChild(e);
+      for (const r of xpRows) r.row.style.display = "none";
+      if (!emptyMsg) {
+        emptyMsg = document.createElement("div");
+        emptyMsg.style.cssText =
+          "font-size:12px;color:rgba(224,224,224,0.3);font-style:italic;";
+        emptyMsg.textContent = t("feature.dashboard.noXpData");
+        listEl.appendChild(emptyMsg);
+      }
+      emptyMsg.style.display = "";
       return;
     }
-    for (const { pet, pct, str } of withPct.slice(0, 3)) {
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:5px;";
-      const nameEl = document.createElement("span");
-      nameEl.style.cssText =
-        "font-size:12px;color:rgba(224,224,224,0.75);min-width:52px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-      nameEl.textContent =
-        pet.name || pet.species || t("feature.dashboard.petFallback", { index: pet.slotIndex + 1 });
+    if (emptyMsg) emptyMsg.style.display = "none";
+    while (xpRows.length < withPct.length) {
+      const refs = buildRow();
+      xpRows.push(refs);
+      listEl.appendChild(refs.row);
+    }
+    for (let i = 0; i < xpRows.length; i++) {
+      const refs = xpRows[i]!;
+      const entry = withPct[i];
+      if (!entry) {
+        refs.row.style.display = "none";
+        continue;
+      }
+      refs.row.style.display = "";
+      const { pet, pct, str } = entry;
       const clr =
         pct >= 95 ? "var(--qpm-accent)" : pct >= 80 ? "#ff9800" : "rgba(255,255,255,0.5)";
-      const bar = makeBar(pct, clr);
-      const pctEl = document.createElement("span");
-      pctEl.style.cssText = `font-size:10px;color:${clr};min-width:30px;text-align:right;white-space:nowrap;`;
-      pctEl.textContent = `${pct}% (${Math.round(str)})`;
-      row.append(nameEl, bar, pctEl);
-      listEl.appendChild(row);
+      refs.nameEl.textContent =
+        pet.name || pet.species || t("feature.dashboard.petFallback", { index: pet.slotIndex + 1 });
+      refs.barFill.style.width = `${pct}%`;
+      refs.barFill.style.background = clr;
+      refs.pctEl.style.color = clr;
+      refs.pctEl.textContent = `${pct}% (${Math.round(str)})`;
     }
   };
 

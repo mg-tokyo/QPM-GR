@@ -245,7 +245,6 @@ export function createPetCard(
                 border-radius: 4px;
                 font-size: 12px;
                 background: ${background};
-                ${(isRainbowGranter || isGoldGranter) ? 'background-size: 200% 200%; animation: shimmer 3s ease infinite;' : ''}
                 color: ${textColor};
                 border: 1px solid ${(isRainbowGranter || isGoldGranter) ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)'};
                 font-weight: ${(isRainbowGranter || isGoldGranter) ? '600' : '500'};

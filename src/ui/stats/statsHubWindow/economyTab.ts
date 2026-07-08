@@ -38,14 +38,16 @@ import { embedTopDropdown } from './economyTopValue';
 // ---------------------------------------------------------------------------
 
 /** Balance chip — currency sprite + value + label + optional rate + pop-out button */
-function balanceChip(
-  value: string, label: string, currencyType: 'coins' | 'credits' | 'dust',
-  accentColor: string, rate: number | null, connected: boolean,
-  cardType: ValueCardType,
-): HTMLElement {
+interface BalanceChipRefs {
+  el: HTMLElement;
+  num: HTMLElement;
+  note: HTMLElement;
+  rateEl: HTMLElement;
+}
+
+function balanceChip(label: string, cardType: ValueCardType): BalanceChipRefs {
   const el = document.createElement('div');
-  const bg = connected ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)';
-  el.style.cssText = `background:${bg};border:1px solid rgba(143,130,255,0.14);border-radius:8px;padding:7px 10px;display:flex;align-items:center;gap:7px;min-width:0;`;
+  el.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(143,130,255,0.14);border-radius:8px;padding:7px 10px;display:flex;align-items:center;gap:7px;min-width:0;';
 
   // Sprite icon (compact) — card-type-aware
   el.appendChild(chipIcon(cardType, 22));
@@ -56,8 +58,7 @@ function balanceChip(
 
   const num = document.createElement('div');
   num.setAttribute('data-value-num', '');
-  num.style.cssText = `font-size:15px;font-weight:700;line-height:1;color:${connected ? accentColor : 'rgba(224,224,224,0.4)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-  num.textContent = connected ? value : '\u2014';
+  num.style.cssText = 'font-size:15px;font-weight:700;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
   col.appendChild(num);
 
   const lbl = document.createElement('div');
@@ -65,48 +66,56 @@ function balanceChip(
   lbl.textContent = label;
   col.appendChild(lbl);
 
-  if (!connected) {
-    const note = document.createElement('div');
-    note.style.cssText = 'font-size:9px;color:rgba(224,224,224,0.35);';
-    note.textContent = t('feature.statsHub.economy.notConnected');
-    col.appendChild(note);
-  } else if (rate != null && Math.abs(rate) >= 1) {
-    const rateEl = document.createElement('div');
-    const sign = rate >= 0 ? '+' : '';
-    const rateColor = rate >= 0 ? 'var(--qpm-positive)' : 'var(--qpm-danger)';
-    rateEl.style.cssText = `font-size:9px;color:${rateColor};font-weight:600;white-space:nowrap;`;
-    rateEl.textContent = `${sign}${formatCoinsAbbreviated(Math.round(rate))}/hr`;
-    col.appendChild(rateEl);
-  }
+  const note = document.createElement('div');
+  note.style.cssText = 'font-size:9px;color:rgba(224,224,224,0.35);display:none;';
+  note.textContent = t('feature.statsHub.economy.notConnected');
+  col.appendChild(note);
+
+  const rateEl = document.createElement('div');
+  rateEl.style.cssText = 'font-size:9px;font-weight:600;white-space:nowrap;display:none;';
+  col.appendChild(rateEl);
 
   el.appendChild(col);
 
-  // Pop-out button
   const popBtn = document.createElement('button');
   popBtn.type = 'button';
   popBtn.title = t('feature.statsHub.economy.popOut', { label });
-  const open = isValueCardOpen(cardType);
-  popBtn.style.cssText = `background:none;border:1px solid rgba(143,130,255,${open ? '0.5' : '0.25'});border-radius:4px;color:rgba(224,224,224,${open ? '0.8' : '0.45'});font-size:11px;cursor:pointer;padding:1px 4px;flex-shrink:0;transition:color 0.12s,border-color 0.12s;line-height:1;`;
+  const applyPopBtnStyle = (): void => {
+    const open = isValueCardOpen(cardType);
+    popBtn.style.cssText = `background:none;border:1px solid rgba(143,130,255,${open ? '0.5' : '0.25'});border-radius:4px;color:rgba(224,224,224,${open ? '0.8' : '0.45'});font-size:11px;cursor:pointer;padding:1px 4px;flex-shrink:0;transition:color 0.12s,border-color 0.12s;line-height:1;`;
+  };
+  applyPopBtnStyle();
   popBtn.textContent = '\u2197';
   popBtn.addEventListener('mouseenter', () => {
     popBtn.style.color = 'var(--qpm-text)';
     popBtn.style.borderColor = 'rgba(143,130,255,0.6)';
   });
-  popBtn.addEventListener('mouseleave', () => {
-    const isOpen = isValueCardOpen(cardType);
-    popBtn.style.color = `rgba(224,224,224,${isOpen ? '0.8' : '0.45'})`;
-    popBtn.style.borderColor = `rgba(143,130,255,${isOpen ? '0.5' : '0.25'})`;
-  });
+  popBtn.addEventListener('mouseleave', applyPopBtnStyle);
   popBtn.addEventListener('click', (ev) => {
     ev.stopPropagation();
     toggleValueCard(cardType);
-    const isOpen = isValueCardOpen(cardType);
-    popBtn.style.color = `rgba(224,224,224,${isOpen ? '0.8' : '0.45'})`;
-    popBtn.style.borderColor = `rgba(143,130,255,${isOpen ? '0.5' : '0.25'})`;
+    applyPopBtnStyle();
   });
   el.appendChild(popBtn);
 
-  return el;
+  return { el, num, note, rateEl };
+}
+
+function updateBalanceChip(
+  refs: BalanceChipRefs, value: string, accentColor: string, rate: number | null, connected: boolean,
+): void {
+  refs.el.style.background = connected ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)';
+  refs.num.style.color = connected ? accentColor : 'rgba(224,224,224,0.4)';
+  refs.num.textContent = connected ? value : '—';
+  refs.note.style.display = connected ? 'none' : '';
+  if (connected && rate != null && Math.abs(rate) >= 1) {
+    const sign = rate >= 0 ? '+' : '';
+    refs.rateEl.style.color = rate >= 0 ? 'var(--qpm-positive)' : 'var(--qpm-danger)';
+    refs.rateEl.textContent = `${sign}${formatCoinsAbbreviated(Math.round(rate))}/hr`;
+    refs.rateEl.style.display = '';
+  } else {
+    refs.rateEl.style.display = 'none';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,10 +265,45 @@ export function buildEconomyTab(container: HTMLElement): () => void {
   content.style.cssText = 'flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:14px;';
   container.appendChild(content);
 
-  // Stable container for garden/inventory/net-worth value chips — updated independently
-  const gardenNumRef = { el: null as HTMLElement | null };
-  const inventoryNumRef = { el: null as HTMLElement | null };
-  const netWorthNumRef = { el: null as HTMLElement | null };
+  const chipsGrid = document.createElement('div');
+  chipsGrid.dataset.tour = 'stats-balance-chips';
+  chipsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;';
+  const coinsRefs = balanceChip(t('feature.statsHub.economy.coins'), 'coins');
+  const creditsRefs = balanceChip(t('feature.statsHub.economy.credits'), 'credits');
+  const dustRefs = balanceChip(t('feature.statsHub.economy.magicDust'), 'dust');
+  const gardenRefs = balanceChip(t('feature.statsHub.economy.garden'), 'garden');
+  const invRefs = balanceChip(t('feature.statsHub.economy.inventory'), 'inventory');
+  const nwRefs = balanceChip(t('feature.statsHub.economy.netWorth'), 'netWorth');
+  chipsGrid.append(coinsRefs.el, creditsRefs.el, dustRefs.el, gardenRefs.el, invRefs.el, nwRefs.el);
+  content.appendChild(chipsGrid);
+
+  const spendingSection = document.createElement('div');
+  spendingSection.style.cssText = 'display:flex;flex-direction:column;gap:14px;';
+  content.appendChild(spendingSection);
+
+  const txSection = document.createElement('div');
+  txSection.style.cssText = 'display:flex;flex-direction:column;gap:14px;';
+  content.appendChild(txSection);
+
+  const gardenDd = embedTopDropdown(gardenRefs.el);
+  const invDd = embedTopDropdown(invRefs.el);
+  const nwDd = embedTopDropdown(nwRefs.el);
+
+  function refreshDropdowns(): void {
+    const fb2 = getFriendBonusMultiplier();
+    gardenDd.update(getTopGardenItems(getGardenSnapshot(), fb2));
+    invDd.update(getTopInventoryItems(getInventoryItems(), fb2));
+    nwDd.update(getTopNetWorthItems(
+      getGardenSnapshot(), getInventoryItems(), getCachedStorages(), getActivePetInfos(), fb2,
+    ));
+  }
+  refreshDropdowns();
+  const debouncedDropdownRefresh = debounceCancelable(refreshDropdowns, 300);
+  const unsubDdG = onGardenSnapshot(() => debouncedDropdownRefresh(), false);
+  const unsubDdI = onInventoryChange(() => debouncedDropdownRefresh());
+  const unsubDdP = onActivePetInfos(() => debouncedDropdownRefresh(), false);
+  const unsubDdB = onFriendBonusChange(() => debouncedDropdownRefresh());
+  const unsubDdS = onStorageDataChange(() => debouncedDropdownRefresh());
 
   function updateAssetValues(): void {
     const fb = getFriendBonusMultiplier();
@@ -270,18 +314,13 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     const storageVal = computeAllStoragesValue(fb);
     const petsVal = computeActivePetsValue(fb);
     const placedDecorVal = computePlacedDecorAndEggValue(snap);
-    if (gardenNumRef.el) {
-      gardenNumRef.el.textContent = formatCoinsAbbreviated(gardenVal);
-    }
-    if (inventoryNumRef.el) {
-      inventoryNumRef.el.textContent = formatCoinsAbbreviated(invVal);
-    }
-    if (netWorthNumRef.el) {
-      const coins = getEconomySnapshot().coins.balance || 0;
-      const nw = (gardenVal || 0) + (growingVal || 0) + (invVal || 0) + (storageVal || 0) + (petsVal || 0) + (placedDecorVal || 0);
-      netWorthNumRef.el.textContent = formatCoinsAbbreviated(coins + nw);
-    }
+    updateBalanceChip(gardenRefs, formatCoinsAbbreviated(gardenVal), '#ffd600', null, true);
+    updateBalanceChip(invRefs, formatCoinsAbbreviated(invVal), '#ffd600', null, true);
+    const coins = getEconomySnapshot().coins.balance || 0;
+    const nw = (gardenVal || 0) + (growingVal || 0) + (invVal || 0) + (storageVal || 0) + (petsVal || 0) + (placedDecorVal || 0);
+    updateBalanceChip(nwRefs, formatCoinsAbbreviated(coins + nw), '#8f82ff', null, true);
   }
+  updateAssetValues();
 
   const debouncedAssetUpdate = debounceCancelable(() => updateAssetValues(), 250);
 
@@ -451,95 +490,19 @@ export function buildEconomyTab(container: HTMLElement): () => void {
   }
 
   function render(snapshot: EconomySnapshot): void {
-    content.innerHTML = '';
+    updateBalanceChip(coinsRefs, formatCoinsAbbreviated(snapshot.coins.balance), '#ffd600', snapshot.coins.rate, snapshot.coins.connected);
+    updateBalanceChip(creditsRefs, formatCoinsAbbreviated(snapshot.credits.balance), '#42a5f5', null, snapshot.credits.connected);
+    updateBalanceChip(dustRefs, formatCoinsAbbreviated(snapshot.dust.balance), '#ab47bc', snapshot.dust.rate, snapshot.dust.connected);
+    updateAssetValues();
 
-    // --- All value chips in a grid (3 cols → balances on row 1, assets on row 2) ---
-    const chips = document.createElement('div');
-    chips.dataset.tour = 'stats-balance-chips';
-    chips.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;';
+    spendingSection.innerHTML = '';
+    txSection.innerHTML = '';
 
-    chips.appendChild(balanceChip(
-      formatCoinsAbbreviated(snapshot.coins.balance),
-      t('feature.statsHub.economy.coins'), 'coins', '#ffd600',
-      snapshot.coins.rate, snapshot.coins.connected, 'coins',
-    ));
-    chips.appendChild(balanceChip(
-      formatCoinsAbbreviated(snapshot.credits.balance),
-      t('feature.statsHub.economy.credits'), 'credits', '#42a5f5',
-      null, snapshot.credits.connected, 'credits',
-    ));
-    chips.appendChild(balanceChip(
-      formatCoinsAbbreviated(snapshot.dust.balance),
-      t('feature.statsHub.economy.magicDust'), 'dust', '#ab47bc',
-      snapshot.dust.rate, snapshot.dust.connected, 'dust',
-    ));
-
-    // Garden value chip
-    const fb = getFriendBonusMultiplier();
-    const gardenChip = balanceChip(
-      formatCoinsAbbreviated(computeGardenValueFromCatalog(getGardenSnapshot(), fb)),
-      t('feature.statsHub.economy.garden'), 'coins', '#ffd600',
-      null, true, 'garden',
-    );
-    gardenNumRef.el = gardenChip.querySelector('[data-value-num]');
-    chips.appendChild(gardenChip);
-
-    // Inventory value chip
-    const invChip = balanceChip(
-      formatCoinsAbbreviated(computeInventoryValue(fb)),
-      t('feature.statsHub.economy.inventory'), 'coins', '#ffd600',
-      null, true, 'inventory',
-    );
-    inventoryNumRef.el = invChip.querySelector('[data-value-num]');
-    chips.appendChild(invChip);
-
-    // Net Worth chip (coins + garden + growing + inventory + storages + active pets + placed decor/eggs)
-    const initSnap = getGardenSnapshot();
-    const gardenVal = computeGardenValueFromCatalog(initSnap, fb);
-    const growingVal = computeGrowingCropsValue(initSnap);
-    const invVal = computeInventoryValue(fb);
-    const storageVal = computeAllStoragesValue(fb);
-    const petsVal = computeActivePetsValue(fb);
-    const placedDecorVal = computePlacedDecorAndEggValue(initSnap);
-    const netWorthVal = (snapshot.coins.balance || 0) + (gardenVal || 0) + (growingVal || 0) + (invVal || 0) + (storageVal || 0) + (petsVal || 0) + (placedDecorVal || 0);
-    const nwChip = balanceChip(
-      formatCoinsAbbreviated(netWorthVal),
-      t('feature.statsHub.economy.netWorth'), 'coins', '#8f82ff',
-      null, true, 'netWorth',
-    );
-    netWorthNumRef.el = nwChip.querySelector('[data-value-num]');
-    chips.appendChild(nwChip);
-
-    content.appendChild(chips);
-
-    // --- Top-10 overlay dropdowns on Garden, Inventory, and Net Worth chips ---
-    const gardenDd = embedTopDropdown(gardenChip);
-    const invDd = embedTopDropdown(invChip);
-    const nwDd = embedTopDropdown(nwChip);
-
-    function refreshDropdowns(): void {
-      const fb2 = getFriendBonusMultiplier();
-      gardenDd.update(getTopGardenItems(getGardenSnapshot(), fb2));
-      invDd.update(getTopInventoryItems(getInventoryItems(), fb2));
-      nwDd.update(getTopNetWorthItems(
-        getGardenSnapshot(), getInventoryItems(), getCachedStorages(), getActivePetInfos(), fb2,
-      ));
-    }
-    refreshDropdowns();
-    const debouncedDropdownRefresh = debounceCancelable(refreshDropdowns, 300);
-    const unsubDropdownGarden = onGardenSnapshot(() => debouncedDropdownRefresh(), false);
-    const unsubDropdownInv = onInventoryChange(() => debouncedDropdownRefresh());
-    const unsubDropdownPets = onActivePetInfos(() => debouncedDropdownRefresh(), false);
-    const unsubDropdownBonus = onFriendBonusChange(() => debouncedDropdownRefresh());
-    const unsubDropdownStorage = onStorageDataChange(() => debouncedDropdownRefresh());
-    compareCleanups.push(unsubDropdownGarden, unsubDropdownInv, unsubDropdownPets, unsubDropdownBonus, unsubDropdownStorage, debouncedDropdownRefresh.cancel, gardenDd.destroy, invDd.destroy, nwDd.destroy);
-
-    // --- Spending ---
     const totalData = snapshot.spending.total;
     const hasSpending = totalData.coins > 0 || totalData.credits > 0 || totalData.dust > 0;
 
     if (hasSpending) {
-      appendSectionHeader(content, t('feature.statsHub.economy.sessionSpending'));
+      appendSectionHeader(spendingSection, t('feature.statsHub.economy.sessionSpending'));
 
       const categories: Array<{ key: ShopCategoryKey; label: string }> = [
         { key: 'seeds', label: t('feature.statsHub.economy.seeds') },
@@ -557,7 +520,6 @@ export function buildEconomyTab(container: HTMLElement): () => void {
         list.appendChild(spendingRow(cat.label, d.coins, d.credits, d.dust));
       }
 
-      // Total row
       const totEl = spendingRow(t('feature.statsHub.economy.total'), totalData.coins, totalData.credits, totalData.dust);
       totEl.style.borderTop = '1px solid rgba(143,130,255,0.12)';
       totEl.style.paddingTop = '4px';
@@ -565,12 +527,11 @@ export function buildEconomyTab(container: HTMLElement): () => void {
       totEl.style.fontWeight = '700';
       list.appendChild(totEl);
 
-      content.appendChild(list);
+      spendingSection.appendChild(list);
     }
 
-    // --- Transaction log ---
     if (snapshot.transactions.length > 0) {
-      appendSectionHeader(content, t('feature.statsHub.economy.recentActivity'));
+      appendSectionHeader(txSection, t('feature.statsHub.economy.recentActivity'));
 
       const txList = document.createElement('div');
       txList.style.cssText = 'display:flex;flex-direction:column;';
@@ -578,12 +539,12 @@ export function buildEconomyTab(container: HTMLElement): () => void {
       for (const tx of snapshot.transactions.slice(0, 20)) {
         txList.appendChild(buildTransactionRow(tx));
       }
-      content.appendChild(txList);
+      txSection.appendChild(txList);
     } else if (!hasSpending) {
       const note = document.createElement('div');
       note.style.cssText = 'color:rgba(224,224,224,0.3);font-size:12px;padding:8px 0;';
       note.textContent = t('feature.statsHub.economy.noActivity');
-      content.appendChild(note);
+      txSection.appendChild(note);
     }
   }
 
@@ -603,6 +564,15 @@ export function buildEconomyTab(container: HTMLElement): () => void {
     unsubFriendBonus();
     unsubStorage();
     debouncedAssetUpdate.cancel();
+    unsubDdG();
+    unsubDdI();
+    unsubDdP();
+    unsubDdB();
+    unsubDdS();
+    debouncedDropdownRefresh.cancel();
+    gardenDd.destroy();
+    invDd.destroy();
+    nwDd.destroy();
     compareCleanups.forEach((fn) => fn());
     compareCleanups.length = 0;
   };

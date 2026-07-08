@@ -16,6 +16,10 @@ import {
   getCurrentVersion,
 } from './tileStatuses';
 import { logTileAsyncFailed, logTileImportFailed, makeDepGuard } from './tileHealth';
+import { throttle } from '../../utils/scheduling/scheduling';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
+
+const RECENT_PROC_CACHE_MS = 15_000;
 
 // ---------------------------------------------------------------------------
 // Multi-tile: pet-derived statuses (pet-teams + ability-tracker + xp-tracker)
@@ -38,7 +42,34 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
     if (version !== getCurrentVersion()) return;
 
     let latestPets = petsStore.getActivePetInfos();
-    const render = (): void => {
+    let cachedRecentAbilityEvents = 0;
+    let cachedRecentAbilityAt = 0;
+    let cachedRecentXpProcs = 0;
+    let cachedRecentXpAt = 0;
+
+    const computeRecentAbilityEvents = (): number => {
+      const now = Date.now();
+      if (now - cachedRecentAbilityAt < RECENT_PROC_CACHE_MS) return cachedRecentAbilityEvents;
+      cachedRecentAbilityEvents = uniqueMapValues(
+        Array.from(abilityLogs.getAbilityHistorySnapshot().values())
+          .flatMap((history) => history.events)
+          .filter((event) => now - event.performedAt < 60 * 60 * 1000)
+          .map((event) => `${event.abilityId}:${event.performedAt}`),
+      ).length;
+      cachedRecentAbilityAt = now;
+      return cachedRecentAbilityEvents;
+    };
+
+    const computeRecentXpProcs = (): number => {
+      const now = Date.now();
+      if (now - cachedRecentXpAt < RECENT_PROC_CACHE_MS) return cachedRecentXpProcs;
+      const xpProcs = xpTracker.getXpProcHistory();
+      cachedRecentXpProcs = xpProcs.filter((proc) => now - proc.timestamp < 6 * 60 * 60 * 1000).length;
+      cachedRecentXpAt = now;
+      return cachedRecentXpProcs;
+    };
+
+    const doRender = (): void => {
       const pets = latestPets;
       if (!pets.length) {
         const teams = teamsStore.getTeamsConfig().teams;
@@ -66,23 +97,15 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
       const abilityTotals = abilityTrackerWindow.getAbilityTrackerTotals(pets);
       const xpSummary = xpTrackerWindow.getXpTrackerSummaryStats(pets);
 
-      const recentAbilityEvents = uniqueMapValues(
-        Array.from(abilityLogs.getAbilityHistorySnapshot().values())
-          .flatMap((history) => history.events)
-          .filter((event) => Date.now() - event.performedAt < 60 * 60 * 1000)
-          .map((event) => `${event.abilityId}:${event.performedAt}`),
-      ).length;
       if (abilityTotals.abilityCount > 0) {
         setStatusText(abilityStatus, `${abilityTotals.procsPerHour.toFixed(1)} procs/hr / $${formatCompactNumber(abilityTotals.coinsPerHour)}/hr`, 'positive');
         if (abilityStatus) {
-          abilityStatus.title = `${abilityTotals.petCount} pets, ${abilityTotals.abilityCount} active ability rows, ${recentAbilityEvents} procs in the last hour`;
+          abilityStatus.title = `${abilityTotals.petCount} pets, ${abilityTotals.abilityCount} active ability rows, ${computeRecentAbilityEvents()} procs in the last hour`;
         }
       } else {
         setStatusText(abilityStatus, '0.0 procs/hr / $0/hr', 'muted');
       }
 
-      const xpProcs = xpTracker.getXpProcHistory();
-      const recentXpProcs = xpProcs.filter((proc) => Date.now() - proc.timestamp < 6 * 60 * 60 * 1000).length;
       if (xpSummary.abilityCount > 0) {
         setStatusText(
           xpStatus,
@@ -90,12 +113,14 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
           'positive',
         );
         if (xpStatus) {
-          xpStatus.title = `${xpSummary.abilityCount} XP abilities, ${recentXpProcs} XP proc logs in the last 6 hours`;
+          xpStatus.title = `${xpSummary.abilityCount} XP abilities, ${computeRecentXpProcs()} XP proc logs in the last 6 hours`;
         }
       } else {
         setStatusText(xpStatus, `${pets.length} pets / ${formatCompactNumber(xpSummary.totalTeamXpPerHour)} XP/hr base / 0 XP abilities`, 'muted');
       }
     };
+
+    const render = throttle(doRender, 1000);
 
     void petsStore.startPetInfoStore().catch((err) => logTileAsyncFailed('pet-teams', 'startPetInfoStore', err));
     teamsStore.initPetTeamsStore();
@@ -107,8 +132,14 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
       render();
     });
     const unsubTeams = teamsStore.onTeamsChange(render);
-    const unsubAbility = abilityLogs.onAbilityHistoryUpdate(render);
-    const unsubXp = xpTracker.onXpTrackerUpdate(render);
+    const unsubAbility = abilityLogs.onAbilityHistoryUpdate(() => {
+      cachedRecentAbilityAt = 0;
+      render();
+    });
+    const unsubXp = xpTracker.onXpTrackerUpdate(() => {
+      cachedRecentXpAt = 0;
+      render();
+    });
     render();
     addLiveCleanup(version, () => {
       unsubPets();
@@ -139,8 +170,8 @@ export function startPublicRoomsStatus(el: HTMLElement, addLiveCleanup: AddLiveC
       }).catch((err) => logTileAsyncFailed('public-rooms', 'fetchRooms', err));
     };
     render();
-    const timer = window.setInterval(render, 60_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
+    const stop = visibleInterval(`tile-public-rooms-v${version}`, render, 60_000);
+    addLiveCleanup(version, stop);
   }).catch((err) => logTileImportFailed('public-rooms', err));
 }
 
@@ -198,9 +229,9 @@ export function startJournalStatus(el: HTMLElement, addLiveCleanup: AddLiveClean
     };
     const { guardedRender, cleanup: depCleanup } = makeDepGuard(el, renderInner, ['catalogs'], 'catalogs');
     guardedRender();
-    const timer = window.setInterval(guardedRender, 45_000);
+    const stop = visibleInterval(`tile-journal-v${version}`, guardedRender, 45_000);
     addLiveCleanup(version, () => {
-      window.clearInterval(timer);
+      stop();
       depCleanup();
     });
   }).catch((err) => logTileImportFailed('journal', err));
@@ -262,13 +293,13 @@ export function startCropBoostStatus(el: HTMLElement, addLiveCleanup: AddLiveCle
     manualRefresh();
     guardedRender();
     const unsub = onAnalysisChange(guardedRender);
-    const timer = window.setInterval(() => {
+    const stop = visibleInterval(`tile-crop-boost-v${version}`, () => {
       manualRefresh();
       guardedRender();
     }, 30_000);
     addLiveCleanup(version, () => {
       unsub();
-      window.clearInterval(timer);
+      stop();
       depCleanup();
     });
   }).catch((err) => logTileImportFailed('crop-boost', err));
@@ -301,12 +332,12 @@ export function startValueDisplayStatus(el: HTMLElement, addLiveCleanup: AddLive
     const offState = storageValue.onStorageValueChange(guardedRender);
     const offData = storageValue.onStorageDataChange(guardedRender);
     const offInventory = inventory.onInventoryChange(guardedRender);
-    const timer = window.setInterval(guardedRender, 10_000);
+    const stop = visibleInterval(`tile-value-display-v${version}`, guardedRender, 10_000);
     addLiveCleanup(version, () => {
       offState();
       offData();
       offInventory();
-      window.clearInterval(timer);
+      stop();
       depCleanup();
     });
   }).catch((err) => logTileImportFailed('value-display', err));
@@ -330,8 +361,8 @@ export function startActivityLogStatus(el: HTMLElement, addLiveCleanup: AddLiveC
     };
     void startActivityLogEnhancer().catch((err) => logTileAsyncFailed('activity-log', 'startActivityLogEnhancer', err)).finally(render);
     render();
-    const timer = window.setInterval(render, 15_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
+    const stop = visibleInterval(`tile-activity-log-v${version}`, render, 15_000);
+    addLiveCleanup(version, stop);
   }).catch((err) => logTileImportFailed('activity-log', err));
 }
 
@@ -380,11 +411,11 @@ export function startProtectionStatus(el: HTMLElement, addLiveCleanup: AddLiveCl
     guardedRender();
     const offCapacity = capacity.onInventoryCapacityChange(guardedRender);
     const offInventory = inventory.onInventoryChange(guardedRender);
-    const timer = window.setInterval(guardedRender, 5_000);
+    const stop = visibleInterval(`tile-protection-v${version}`, guardedRender, 5_000);
     addLiveCleanup(version, () => {
       offCapacity();
       offInventory();
-      window.clearInterval(timer);
+      stop();
       depCleanup();
     });
   }).catch((err) => logTileImportFailed('protection', err));
@@ -446,7 +477,7 @@ export function startControllerStatus(el: HTMLElement, addLiveCleanup: AddLiveCl
       }
     };
     render();
-    const timer = window.setInterval(render, 3_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
+    const stop = visibleInterval(`tile-controller-v${version}`, render, 3_000);
+    addLiveCleanup(version, stop);
   }).catch((err) => logTileImportFailed('controller', err));
 }

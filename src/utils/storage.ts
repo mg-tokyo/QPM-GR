@@ -357,6 +357,8 @@ export function registerDynamicKey(key: string): void {
 
 const globalScope = globalThis as Record<string, unknown>;
 const modernCache = new Map<string, string>();
+const READ_CACHE_MISSING = Symbol('storage.read.missing');
+const readCache = new Map<string, unknown>();
 
 let runtime: StorageRuntime = 'local-storage';
 let legacyGm: LegacyGmStorageApi | null = null;
@@ -549,6 +551,9 @@ export function initializeStorage(): Promise<void> {
     try {
       await hydrateModernCache();
     } catch {}
+    // Reads issued before hydration cached fallbacks for keys hydration just populated;
+    // clear so the next get() re-reads from the freshly-hydrated modernCache.
+    readCache.clear();
     storageInitialized = true;
   })().finally(() => {
     storageInitPromise = null;
@@ -607,6 +612,7 @@ export function removeStorageKeysByPrefix(prefixes: readonly string[]): number {
   if (keys.length === 0) return 0;
 
   for (const key of keys) {
+    readCache.set(key, READ_CACHE_MISSING);
     if (runtime === 'modern-gm') {
       syncModernMirrorRemove(key);
     } else {
@@ -635,32 +641,43 @@ export function removeStorageKeysByPrefix(prefixes: readonly string[]): number {
 
 export const storage: Storage = {
   get<T = unknown>(key: string, fallback: T = null as T): T {
+    if (readCache.has(key)) {
+      const cached = readCache.get(key);
+      return cached === READ_CACHE_MISSING ? fallback : (cached as T);
+    }
+
     refreshRuntime();
 
+    let raw: string | null = null;
     if (runtime === 'legacy-gm' && legacyGm) {
       // Prefer localStorage: it's written synchronously by our mirror, so under
       // async-persistence script managers (e.g. SMM) it's fresher than the GM cache.
-      const localRaw = readLocalRaw(key);
-      if (localRaw != null) return deserialize(localRaw, fallback);
-      // No localStorage entry — try GM (covers Tampermonkey where
-      // localStorage may have been cleared but GM persists).
-      try {
-        const raw = legacyGm.getValue(key);
-        if (raw != null) return deserialize(raw, fallback);
-      } catch {}
+      raw = readLocalRaw(key);
+      if (raw == null) {
+        try {
+          const gmRaw = legacyGm.getValue(key);
+          raw = typeof gmRaw === 'string' ? gmRaw : null;
+        } catch {}
+      }
+    } else if (runtime === 'modern-gm') {
+      raw = readModernRaw(key);
+    } else {
+      raw = readLocalRaw(key);
+    }
+
+    if (raw == null) {
+      readCache.set(key, READ_CACHE_MISSING);
       return fallback;
     }
-
-    if (runtime === 'modern-gm') {
-      return deserialize(readModernRaw(key), fallback);
-    }
-
-    return deserialize(readLocalRaw(key), fallback);
+    const parsed = deserialize(raw, fallback);
+    readCache.set(key, parsed);
+    return parsed;
   },
 
   set(key: string, value: unknown): void {
     const raw = serialize(value);
     refreshRuntime();
+    readCache.set(key, value);
 
     if (runtime === 'legacy-gm' && legacyGm) {
       try {
@@ -686,6 +703,7 @@ export const storage: Storage = {
 
   remove(key: string): void {
     refreshRuntime();
+    readCache.set(key, READ_CACHE_MISSING);
 
     if (runtime === 'legacy-gm' && legacyGm) {
       try {
@@ -715,6 +733,7 @@ export const storage: Storage = {
     for (const key of keys) {
       storage.remove(key);
     }
+    readCache.clear();
   },
 };
 

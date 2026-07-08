@@ -35,32 +35,31 @@ const FILTERS: Record<string, SpriteFilterConfig> = {
   Thunderstruck: { op: 'source-atop', colors: ['rgb(255,220,50)'], a: 0.5 },
 };
 
-// Detect supported blend operations
-const SUPPORTED_BLEND_OPS = (() => {
+let _supportedBlendOps: Set<string> | null = null;
+function getSupportedBlendOps(): Set<string> {
+  if (_supportedBlendOps) return _supportedBlendOps;
   try {
     const c = document.createElement('canvas');
-    const g = c.getContext('2d', { willReadFrequently: true });
-    if (!g) return new Set<string>();
-
+    const g = c.getContext('2d');
+    if (!g) return (_supportedBlendOps = new Set<string>());
     const ops = ['color', 'hue', 'saturation', 'luminosity', 'overlay', 'screen', 'lighter', 'source-atop'];
     const ok = new Set<string>();
-
     for (const op of ops) {
       g.globalCompositeOperation = op as GlobalCompositeOperation;
       if (g.globalCompositeOperation === op) ok.add(op);
     }
-
-    return ok;
-  } catch (e) {
-    return new Set<string>();
+    return (_supportedBlendOps = ok);
+  } catch {
+    return (_supportedBlendOps = new Set<string>());
   }
-})();
+}
 
 function pickBlendOp(desired: string): GlobalCompositeOperation {
-  if (SUPPORTED_BLEND_OPS.has(desired)) return desired as GlobalCompositeOperation;
-  if (SUPPORTED_BLEND_OPS.has('overlay')) return 'overlay';
-  if (SUPPORTED_BLEND_OPS.has('screen')) return 'screen';
-  if (SUPPORTED_BLEND_OPS.has('lighter')) return 'lighter';
+  const ops = getSupportedBlendOps();
+  if (ops.has(desired)) return desired as GlobalCompositeOperation;
+  if (ops.has('overlay')) return 'overlay';
+  if (ops.has('screen')) return 'screen';
+  if (ops.has('lighter')) return 'lighter';
   return 'source-atop';
 }
 
@@ -189,7 +188,7 @@ function applyFilterOnto(ctx: CanvasRenderingContext2D, sourceCanvas: HTMLCanvas
     const m = document.createElement('canvas');
     m.width = w;
     m.height = h;
-    const mctx = m.getContext('2d', { willReadFrequently: true })!;
+    const mctx = m.getContext('2d')!;
     mctx.imageSmoothingEnabled = false;
     fillGrad(mctx, w, h, f, fullSpan);
     mctx.globalCompositeOperation = 'destination-in';
@@ -316,7 +315,7 @@ function drawSubRegion(tex: any, src: HTMLCanvasElement | HTMLImageElement): HTM
 
   c.width = fullW;
   c.height = fullH;
-  const ctx2d = c.getContext('2d', { willReadFrequently: true });
+  const ctx2d = c.getContext('2d');
   if (!ctx2d) return null;
   ctx2d.imageSmoothingEnabled = false;
 
@@ -334,35 +333,23 @@ function drawSubRegion(tex: any, src: HTMLCanvasElement | HTMLImageElement): HTM
   return c;
 }
 
-/**
- * Quick check if a canvas is completely transparent (blank).
- * Samples a small region to avoid reading the entire pixel buffer.
- */
 function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
   const w = canvas.width;
   const h = canvas.height;
   if (w === 0 || h === 0) return true;
 
   try {
-    const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx2d = canvas.getContext('2d');
     if (!ctx2d) return true;
 
-    // Sample the center and four quadrant points (5 pixels total).
-    // If all sampled alphas are 0, the canvas is likely blank.
-    const points: [number, number][] = [
-      [w >> 1, h >> 1],
-      [w >> 2, h >> 2],
-      [(w * 3) >> 2, h >> 2],
-      [w >> 2, (h * 3) >> 2],
-      [(w * 3) >> 2, (h * 3) >> 2],
-    ];
-    for (const [px, py] of points) {
-      const data = ctx2d.getImageData(px, py, 1, 1).data;
-      if (data[3] !== 0) return false; // Non-zero alpha → not blank
+    // Single mid-height row read — 1 getImageData call vs. the previous 5.
+    const data = ctx2d.getImageData(0, h >> 1, w, 1).data;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] !== 0) return false;
     }
     return true;
   } catch {
-    return false; // If getImageData fails (tainted), assume not blank
+    return false;
   }
 }
 
@@ -466,6 +453,11 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
   try {
     if (!tex || !state.ctors?.Texture) {
       return tex ?? null;
+    }
+
+    // Fast path: no mutations to composite — return base texture as-is.
+    if (V.muts.length === 0 && V.overlayMuts.length === 0 && V.selectedMuts.length === 0) {
+      return tex;
     }
 
     const { Texture } = state.ctors;

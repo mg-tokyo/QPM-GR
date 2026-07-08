@@ -9,10 +9,13 @@ import type { PetLogEvent, PetLogEventType } from '../types/petTeams';
 const STORAGE_KEY = 'qpm.petTeams.logs.v1';
 const MAX_EVENTS = 5000;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const PERSIST_DEBOUNCE_MS = 2000;
 
 let cachedLogs: PetLogEvent[] = [];
 const listeners = new Set<(logs: PetLogEvent[]) => void>();
 let feedPetListener: ((e: Event) => void) | null = null;
+let persistTimer: number | null = null;
+let unloadHandler: (() => void) | null = null;
 
 function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -27,7 +30,7 @@ function pruneOld(events: PetLogEvent[]): PetLogEvent[] {
   return filtered;
 }
 
-function persist(): void {
+function persistNow(): void {
   try {
     storage.set(STORAGE_KEY, cachedLogs);
   } catch (error) {
@@ -35,7 +38,24 @@ function persist(): void {
   }
 }
 
+function schedulePersist(): void {
+  if (persistTimer != null) return;
+  persistTimer = window.setTimeout(() => {
+    persistTimer = null;
+    persistNow();
+  }, PERSIST_DEBOUNCE_MS) as unknown as number;
+}
+
+function flushPersist(): void {
+  if (persistTimer != null) {
+    window.clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  persistNow();
+}
+
 function notify(): void {
+  if (listeners.size === 0) return;
   const snapshot = [...cachedLogs];
   for (const listener of listeners) {
     try {
@@ -51,7 +71,7 @@ function appendEvent(event: PetLogEvent): void {
   if (cachedLogs.length > MAX_EVENTS * 1.1) {
     cachedLogs = pruneOld(cachedLogs);
   }
-  persist();
+  schedulePersist();
   notify();
 }
 
@@ -84,12 +104,22 @@ export function initPetTeamsLogs(): void {
     );
   };
   window.addEventListener('qpm:feedPet', feedPetListener);
+
+  unloadHandler = () => flushPersist();
+  window.addEventListener('pagehide', unloadHandler);
+  window.addEventListener('beforeunload', unloadHandler);
 }
 
 export function stopPetTeamsLogs(): void {
+  flushPersist();
   if (feedPetListener) {
     window.removeEventListener('qpm:feedPet', feedPetListener);
     feedPetListener = null;
+  }
+  if (unloadHandler) {
+    window.removeEventListener('pagehide', unloadHandler);
+    window.removeEventListener('beforeunload', unloadHandler);
+    unloadHandler = null;
   }
   listeners.clear();
 }
@@ -169,7 +199,7 @@ export function getLogs(type?: PetLogEventType, limit?: number): PetLogEvent[] {
 
 export function clearLogs(): void {
   cachedLogs = [];
-  persist();
+  flushPersist();
   notify();
 }
 

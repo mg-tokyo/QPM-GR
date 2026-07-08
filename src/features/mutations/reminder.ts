@@ -2667,7 +2667,6 @@ function showSimpleNotification(title: string, message: string, type: 'success' 
     z-index: 999999;
     max-width: 320px;
     animation: slideInRight 0.3s ease-out;
-    transition: top 0.3s ease-out;
   `;
   
   notification.innerHTML = '';

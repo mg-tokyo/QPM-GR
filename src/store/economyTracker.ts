@@ -208,8 +208,15 @@ function pushSample(buf: BalanceSample[], value: number): void {
 // Spending breakdown from stats store
 // ---------------------------------------------------------------------------
 
+let cachedSpendingKey = -1;
+let cachedSpending: EconomySnapshot['spending'] | null = null;
+
 function buildSpending(): EconomySnapshot['spending'] {
-  const stats = getStatsSnapshot().shop;
+  const snap = getStatsSnapshot();
+  const key = snap.meta.updatedAt;
+  if (cachedSpending && cachedSpendingKey === key) return cachedSpending;
+
+  const stats = snap.shop;
   const total: SpendingBreakdown = {
     coins: stats.totalSpentCoins,
     credits: stats.totalSpentCredits,
@@ -233,7 +240,10 @@ function buildSpending(): EconomySnapshot['spending'] {
     }
   }
 
-  return { total, byCategory };
+  const result = { total, byCategory };
+  cachedSpending = result;
+  cachedSpendingKey = key;
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,5 +375,7 @@ export function destroyEconomyTracker(): void {
   coinsConnected = false;
   creditsConnected = false;
   dustConnected = false;
+  cachedSpending = null;
+  cachedSpendingKey = -1;
   initialized = false;
 }

@@ -329,6 +329,7 @@ const de: Dictionary = {
   'feature.locker.noCustomRulesYet': 'Noch keine benutzerdefinierten Regeln.',
   'feature.locker.cropSellProtection': 'Pflanzen-Verkaufsschutz',
   'feature.locker.cropSellHint': 'Bestimmte Pflanzen sperren, um "Alle Pflanzen verkaufen" zu blockieren.',
+  'feature.locker.sellProtection': 'Verkaufsschutz',
   'feature.locker.holdSellProtection': 'Halte-Verkaufsschutz',
   'feature.locker.holdSellHint': 'Verkauf geschützter Haustiere beim Halten der Leertaste blockieren. Nutzt die unten stehenden Regeln.',
   'feature.locker.inventoryReserve': 'Inventarreserve',
@@ -375,6 +376,8 @@ const de: Dictionary = {
   'feature.locker.filter.addOverride': '+ Überschreibung hinzufügen',
   'feature.locker.filter.noOverrides': 'Keine Pflanzen-Überschreibungen.',
   'feature.locker.filter.editFilters': 'Filter bearbeiten...',
+  'feature.locker.filter.enableOverride': 'Überschreibung aktivieren',
+  'feature.locker.filter.selectCrop': 'Wähle eine Pflanze, um ihren Filter zu konfigurieren.',
   'feature.locker.filter.quickLocks': 'Schnellsperren',
   'feature.locker.filter.quickLocksHint': 'Einfache Art- und Mutations-Schnellsperren.',
 

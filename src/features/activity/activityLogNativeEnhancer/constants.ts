@@ -20,6 +20,8 @@ export const LEGACY_STORAGE_KEYS = [
 ] as const;
 
 export const HISTORY_LIMIT = 5000;
+export const SAVE_DEBOUNCE_MS = 8000;
+export const BACKUP_ROTATION_MS = 300_000;
 export const FAST_REPLAY_DELAY_MS = 24;
 export const VIRTUAL_WINDOW_SIZE = 60;
 export const VIRTUAL_SCROLL_THROTTLE_MS = 96;

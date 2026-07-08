@@ -7,6 +7,7 @@ import { log } from '../utils/logger';
 const ABILITY_SOURCE_LABEL = 'myPetSlotInfosAtom';
 const HISTORY_LIMIT = 30;
 const HISTORY_WINDOW_MS = 1000 * 60 * 60 * 6; // keep roughly six hours of events per ability
+const MAX_CANONICAL_HISTORIES = 500;
 
 type UnknownMap = Record<string, unknown>;
 
@@ -168,6 +169,19 @@ const parseAbilityEntry = (sourceKey: string, value: unknown): ParsedTrigger | n
   };
 };
 
+const evictOldestCanonicalHistory = () => {
+  const iter = canonicalHistories.entries();
+  const next = iter.next();
+  if (next.done) return;
+  const [oldestKey, oldestHistory] = next.value;
+  for (const lookupKey of oldestHistory.lookupKeys) {
+    if (lookupHistories.get(lookupKey) === oldestHistory) {
+      lookupHistories.delete(lookupKey);
+    }
+  }
+  canonicalHistories.delete(oldestKey);
+};
+
 const upsertHistory = (parsed: ParsedTrigger): boolean => {
   const canonicalKey = `source:${parsed.sourceKey}::${parsed.abilityId}`;
   let history = canonicalHistories.get(canonicalKey);
@@ -182,6 +196,9 @@ const upsertHistory = (parsed: ParsedTrigger): boolean => {
       lookupKeys: new Set(),
     };
     canonicalHistories.set(canonicalKey, history);
+    while (canonicalHistories.size > MAX_CANONICAL_HISTORIES) {
+      evictOldestCanonicalHistory();
+    }
   }
 
   if (parsed.performedAt <= history.lastPerformedAt) {

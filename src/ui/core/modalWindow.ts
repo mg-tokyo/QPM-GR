@@ -11,7 +11,13 @@ import { renderWindowRenderError } from './modalWindowErrorBoundary';
 
 const windowLog = createNamedLogger('ui.window');
 
-export type PanelRender = (root: HTMLElement) => void;
+/**
+ * PanelRender may optionally return a cleanup fn — run on close/destroy/invalidate.
+ * Existing callers returning void keep compiling; opting in is per-window.
+ * Async renders (Promise<void>) remain valid — they should register cleanups
+ * via `registerWindowCleanup(id, fn)` once their async setup completes.
+ */
+export type PanelRender = (root: HTMLElement) => void | (() => void) | Promise<void>;
 
 export interface WindowConfig {
   id: string;
@@ -38,6 +44,8 @@ interface WindowState {
   restoreHeight: string | null;
   restoreMinHeight: string | null;
   restoreMaxHeight: string | null;
+  /** Optional teardown for content subscriptions/timers — invoked on close/destroy/invalidate. */
+  contentCleanup: (() => void) | null;
 }
 
 const WINDOW_POSITION_KEY = 'qpm-window-pos-';
@@ -77,6 +85,21 @@ function ratioPixelsToPct(x: number, y: number, w: number, h: number): { xPct: n
 
 function emitWindowEvent(eventName: string, id: string): void {
   window.dispatchEvent(new CustomEvent(eventName, { detail: { id } }));
+}
+
+/**
+ * Run and clear a window's content cleanup, if registered. Errors are logged, never thrown —
+ * cleanup failure must not block close/destroy.
+ */
+function runContentCleanup(w: WindowState): void {
+  const fn = w.contentCleanup;
+  if (!fn) return;
+  w.contentCleanup = null;
+  try {
+    fn();
+  } catch (err) {
+    log(`[Window] Content cleanup failed for "${w.id}"`, err);
+  }
 }
 
 function showWindowElement(el: HTMLElement, displayMode: 'flex' | 'block' = 'flex'): void {
@@ -297,6 +320,8 @@ function makeDraggable(win: HTMLElement, head: HTMLElement, state: WindowState):
   let sy = 0;
   let startLeft = 0;
   let startTop = 0;
+  let dragWidth = 0;
+  let dragHeight = 0;
 
   const onMove = (e: MouseEvent) => {
     if (!down) return;
@@ -307,10 +332,10 @@ function makeDraggable(win: HTMLElement, head: HTMLElement, state: WindowState):
     const rawLeft = startLeft + dx;
     const rawTop = startTop + dy;
 
-    // Clamp to viewport with margin
-    const rect = win.getBoundingClientRect();
-    const maxLeft = Math.max(WINDOW_MARGIN, window.innerWidth - rect.width - WINDOW_MARGIN);
-    const maxTop = Math.max(WINDOW_MARGIN, window.innerHeight - rect.height - WINDOW_MARGIN);
+    // Window size is stable during drag — reuse dragWidth/dragHeight captured
+    // at dragstart instead of forcing layout via getBoundingClientRect per move.
+    const maxLeft = Math.max(WINDOW_MARGIN, window.innerWidth - dragWidth - WINDOW_MARGIN);
+    const maxTop = Math.max(WINDOW_MARGIN, window.innerHeight - dragHeight - WINDOW_MARGIN);
     const clampedLeft = Math.max(WINDOW_MARGIN, Math.min(maxLeft, rawLeft));
     const clampedTop = Math.max(WINDOW_MARGIN, Math.min(maxTop, rawTop));
 
@@ -341,6 +366,8 @@ function makeDraggable(win: HTMLElement, head: HTMLElement, state: WindowState):
     const rect = win.getBoundingClientRect();
     startLeft = rect.left;
     startTop = rect.top;
+    dragWidth = rect.width;
+    dragHeight = rect.height;
 
     // Ensure left-anchored for drag
     win.style.left = `${rect.left}px`;
@@ -434,57 +461,55 @@ function makeResizable(win: HTMLElement, state: WindowState): void {
   });
 }
 
-// ─── Scrollbar styles ─────────────────────────────────────────────────────────
+// ─── Shared window styles ─────────────────────────────────────────────────────
 
-function addScrollbarStyles(id: string): void {
-  const styleId = `qpm-window-scrollbar-${id}`;
-  if (document.getElementById(styleId)) return;
+const SHARED_WINDOW_STYLES_ID = 'qpm-window-shared-styles';
+
+function ensureSharedWindowStyles(): void {
+  if (document.getElementById(SHARED_WINDOW_STYLES_ID)) return;
 
   const style = document.createElement('style');
-  style.id = styleId;
+  style.id = SHARED_WINDOW_STYLES_ID;
   style.textContent = `
-    /* Scrollbar on the window itself (Aries mod pattern) */
-    #qpm-window-${id}::-webkit-scrollbar {
+    .qpm-window::-webkit-scrollbar {
       width: 8px;
     }
-    #qpm-window-${id}::-webkit-scrollbar-track {
+    .qpm-window::-webkit-scrollbar-track {
       background: rgba(0, 0, 0, 0.2);
       border-radius: 4px;
     }
-    #qpm-window-${id}::-webkit-scrollbar-thumb {
+    .qpm-window::-webkit-scrollbar-thumb {
       background: rgba(143, 130, 255, 0.35);
       border-radius: 4px;
       transition: background 0.2s;
     }
-    #qpm-window-${id}::-webkit-scrollbar-thumb:hover {
+    .qpm-window::-webkit-scrollbar-thumb:hover {
       background: rgba(143, 130, 255, 0.55);
     }
 
-    /* Constrain all content within window - prevent horizontal overflow */
-    #qpm-window-${id} *,
-    #qpm-window-${id} *::before,
-    #qpm-window-${id} *::after {
+    .qpm-window *,
+    .qpm-window *::before,
+    .qpm-window *::after {
       box-sizing: border-box;
       max-width: 100%;
       word-wrap: break-word;
       overflow-wrap: break-word;
     }
 
-    #qpm-window-${id} .qpm-card,
-    #qpm-window-${id} .qpm-card__body,
-    #qpm-window-${id} .qpm-card__header,
-    #qpm-window-${id} .qpm-section-muted,
-    #qpm-window-${id} input,
-    #qpm-window-${id} button,
-    #qpm-window-${id} select,
-    #qpm-window-${id} div {
+    .qpm-window .qpm-card,
+    .qpm-window .qpm-card__body,
+    .qpm-window .qpm-card__header,
+    .qpm-window .qpm-section-muted,
+    .qpm-window input,
+    .qpm-window button,
+    .qpm-window select,
+    .qpm-window div {
       max-width: 100%;
       min-width: 0;
     }
 
-    /* Prevent pre/code from breaking layout */
-    #qpm-window-${id} pre,
-    #qpm-window-${id} code {
+    .qpm-window pre,
+    .qpm-window code {
       white-space: pre-wrap;
       word-break: break-all;
     }
@@ -592,7 +617,7 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
     box-sizing: border-box;
   `;
 
-  addScrollbarStyles(id);
+  ensureSharedWindowStyles();
 
   win.appendChild(head);
   win.appendChild(body);
@@ -635,6 +660,7 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
     restoreHeight: null,
     restoreMinHeight: null,
     restoreMaxHeight: null,
+    contentCleanup: null,
   };
 
   windows.set(id, state);
@@ -644,7 +670,10 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
   // QPM-UI-001 lands in the bus + error buffer; renderWindowRenderError paints
   // a structured card in the body so the window is never left blank.
   try {
-    render(body);
+    const result = render(body);
+    if (typeof result === 'function') {
+      state.contentCleanup = result;
+    }
   } catch (error) {
     windowLog.error('QPM-UI-001', { id }, error);
     try {
@@ -678,6 +707,7 @@ export function closeWindow(id: string): void {
   const w = windows.get(id);
   if (!w) return;
 
+  runContentCleanup(w);
   w.el.style.display = 'none';
   saveWindowState(id, false, w.isMinimized);
   emitWindowEvent('qpm:window-closed', id);
@@ -777,8 +807,8 @@ export function destroyWindow(id: string): void {
   const w = windows.get(id);
   if (!w) return;
 
+  runContentCleanup(w);
   w.el.remove();
-  document.getElementById(`qpm-window-scrollbar-${id}`)?.remove();
   windows.delete(id);
   saveWindowState(id, false, false);
 }
@@ -788,6 +818,37 @@ export function destroyWindow(id: string): void {
  */
 export function destroyAllWindows(): void {
   windows.forEach((w) => destroyWindow(w.id));
+}
+
+/**
+ * Register (or replace) the content cleanup fn for a window. Use when the render
+ * completes after `openWindow` returns — e.g. lazyWindow renders a placeholder first
+ * and installs real content later. Any previously registered cleanup is invoked
+ * before the new one is stored.
+ * If the window no longer exists, the cleanup is invoked immediately.
+ */
+export function registerWindowCleanup(id: string, cleanup: () => void): void {
+  const w = windows.get(id);
+  if (!w) {
+    try {
+      cleanup();
+    } catch (err) {
+      log(`[Window] Late cleanup failed for "${id}"`, err);
+    }
+    return;
+  }
+  runContentCleanup(w);
+  w.contentCleanup = cleanup;
+}
+
+/**
+ * Run and clear the registered content cleanup for a window, if any.
+ * Used by `lazyWindow.invalidateWindow` to tear down before a fresh re-render.
+ */
+export function runWindowContentCleanup(id: string): void {
+  const w = windows.get(id);
+  if (!w) return;
+  runContentCleanup(w);
 }
 
 /**

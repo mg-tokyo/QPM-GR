@@ -81,3 +81,14 @@ export const OVERLAY_ID = 'qpm-tile-info-overlay';
 export const TOOLTIP_STYLE_ID = 'qpm-tooltip-injection-style';
 export const TOOLTIP_ROW_ATTR = 'data-qpm-tooltip-row';
 export const JOURNAL_BADGE_ATTR = 'data-qpm-journal-badge';
+
+// Inner card node label (distinct from GARDEN_INFO_CARD_LABEL which is the
+// whole HUD system). Verified at
+// scraped-data/BetaGameSourceFiles/gg-preview-pr-2994-app/preview.magicgarden.gg/
+// src/games/Quinoa/components/QuinoaCanvas/systems/gardenInfo/ObjectCardSection.ts:226
+export const OBJECT_CARD_LABEL = 'GardenInfoObjectCard';
+
+/** Root DOM id for the QPM lock badge pinned to the object card's top-right. */
+export const LOCK_BADGE_ID = 'qpm-tile-info-lock';
+
+export type { TileLockContext } from '../../locker/tileLockCheck';

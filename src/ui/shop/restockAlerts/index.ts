@@ -3,6 +3,7 @@
 
 import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
+import { visibleInterval } from '../../../utils/scheduling/timerManager';
 import { onSpritesReady } from '../../../sprite-v2/compat';
 import { getShopStockState, onShopStock, startShopStockStore } from '../../../store/shopStock';
 import { startShopRegistry } from '../../../store/shopRegistry';
@@ -58,6 +59,8 @@ function getAlertRoomSocket(): WebSocket | null {
 
 function handleAlertSocketClose(): void {
   alertState.socketCloseGeneration++;
+  detachAlertSocketListener();
+  ensureAlertSocketPollRunning();
   if (pendingOwnershipConfirmations.size === 0) {
     debugLog('Socket close detected (no pending confirmations)', { generation: alertState.socketCloseGeneration });
     return;
@@ -68,11 +71,15 @@ function handleAlertSocketClose(): void {
 
 function bindAlertSocketIfNeeded(): void {
   const socket = getAlertRoomSocket();
-  if (!socket || socket === boundSocket) return;
+  if (!socket || socket === boundSocket) {
+    if (boundSocket) stopAlertSocketPoll();
+    return;
+  }
   const hadPreviousSocket = boundSocket !== null;
   detachAlertSocketListener();
   boundSocket = socket;
   boundSocket.addEventListener('close', handleAlertSocketClose);
+  stopAlertSocketPoll();
   if (hadPreviousSocket) {
     // Socket was replaced — the old connection is gone.  Increment generation
     // so any in-flight buy flow detects the disconnect, and fail any pending
@@ -91,6 +98,27 @@ function detachAlertSocketListener(): void {
   if (!boundSocket) return;
   boundSocket.removeEventListener('close', handleAlertSocketClose);
   boundSocket = null;
+}
+
+function stopAlertSocketPoll(): void {
+  if (alertState.socketPollStop != null) {
+    alertState.socketPollStop();
+    alertState.socketPollStop = null;
+  }
+}
+
+function ensureAlertSocketPollRunning(): void {
+  if (!alertState.started) return;
+  if (boundSocket) return;
+  if (alertState.socketPollStop != null) return;
+  alertState.socketPollGeneration++;
+  alertState.socketPollStop = visibleInterval(
+    `shop-restock-socket-poll-v${alertState.socketPollGeneration}`,
+    () => {
+      bindAlertSocketIfNeeded();
+    },
+    SOCKET_BIND_POLL_MS
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +212,7 @@ export function startShopRestockAlerts(): void {
     window.addEventListener(TRACKED_UPDATED_EVENT, alertState.trackedChangedHandler as EventListener);
 
     bindAlertSocketIfNeeded();
-    alertState.socketPollTimer = window.setInterval(bindAlertSocketIfNeeded, SOCKET_BIND_POLL_MS);
+    ensureAlertSocketPollRunning();
 
     startWeatherAlertProcessor();
   } catch (error) {
@@ -212,10 +240,7 @@ export function stopShopRestockAlerts(): void {
     window.removeEventListener(TRACKED_UPDATED_EVENT, alertState.trackedChangedHandler as EventListener);
     alertState.trackedChangedHandler = null;
   }
-  if (alertState.socketPollTimer != null) {
-    clearInterval(alertState.socketPollTimer);
-    alertState.socketPollTimer = null;
-  }
+  stopAlertSocketPoll();
   detachAlertSocketListener();
   stopAllLoops();
   stopWeatherAlertProcessor();

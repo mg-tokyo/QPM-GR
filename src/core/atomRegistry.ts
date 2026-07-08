@@ -319,8 +319,8 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
       isRec(v) && 'cols' in v && 'rows' in v && 'globalTileIdxToDirtTile' in v,
   },
   dirtTileIndex: { label: /^myOwn(?:Current)?DirtTile(?:Index|Idx)(?:Data)?Atom$/i },
-  gardenObject: { label: /^myCurrent(?:Garden)?Object(?:Data)?Atom$/i },
-  ownGardenObject: { label: /^myOwn(?:Current)?(?:Garden)?Object(?:Data)?Atom$/i },
+  gardenObject: { label: /^myCurrent(?:Garden)?Object(?:Data)?Atom$/i, tier: 'composite' },
+  ownGardenObject: { label: /^myOwn(?:Current)?(?:Garden)?Object(?:Data)?Atom$/i, tier: 'composite' },
   gardenTile: { label: /^myCurrent(?:Garden)?Tile(?:Data)?Atom$/i },
 
   // ── UI State ──────────────────────────────────────────────────────────
@@ -641,11 +641,12 @@ export async function readAtomValue<K extends AtomRegistryKey>(key: K): Promise<
  *    subscribe via `stateTreeSubscribe` with a memoized selector. Unchanged
  *    from the pre-reactive-migration behavior — these subscribers keep their
  *    push-based path even before the reactive rollout completes.
- * 2. Else: `subscribeRawAtom(atom, cb, effectiveHint)` where
- *    `effectiveHint = hint ?? finder.tier`. The jotai polyfill's `sub()`
- *    diverts to the reactive manager when that tier's kill switch is on;
- *    otherwise it falls back to the polling manager. Behavior is
- *    unchanged until the state kill switch flips.
+ * 2. Else: `subscribeRawAtom(atom, cb, effectiveHint, finder.statePath)`
+ *    where `effectiveHint = hint ?? finder.tier`. The jotai polyfill's
+ *    `sub()` diverts to the reactive manager when that tier's kill switch is
+ *    on; the manager uses `statePath` (JSON Pointer prefix, may include the
+ *    `{myIdx}` placeholder) to gate patch-driven dirty marks so only patches
+ *    under the subscribed slice fire the callback.
  */
 export async function subscribeAtomValue<K extends AtomRegistryKey>(
   key: K,
@@ -662,6 +663,8 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
 
   // stateTree route: subscribe via the memoized fan-out. Callback fires only
   // when the derived sub-value changes, not on every unrelated state event.
+  // `finder.statePath` (if set) is threaded to stateTree.subscribe so patches
+  // that don't touch this key's slice skip the selector + deep-equal entirely.
   if (resolution.useStateTree) {
     const selector = ensureSelector(resolution, finder);
     const stop = stateTreeSubscribe(
@@ -671,6 +674,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
         cb((value ?? null) as RegistryValue<K>);
       },
       `atomRegistry:${key}`,
+      finder.statePath,
     );
     return stop;
   }
@@ -685,7 +689,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
   const unsubscribe = await subscribeRawAtom(resolution.atom, (raw: unknown) => {
     const value = applyTransform(finder, raw, key, resolution.pathPrefix);
     cb((value ?? null) as RegistryValue<K>);
-  }, effectiveHint);
+  }, effectiveHint, finder.statePath);
 
   return () => {
     try { unsubscribe(); } catch (error) {

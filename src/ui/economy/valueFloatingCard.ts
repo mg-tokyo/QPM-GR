@@ -456,10 +456,14 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
   body.appendChild(textCol);
   card.appendChild(body);
 
-  // Top-10 overlay dropdown for garden, inventory, and netWorth cards
-  let topOverlay: { el: HTMLElement | null; cached: TopValueItem[]; outsideHandler: ((ev: MouseEvent) => void) | null } | null = null;
+  let topOverlay: {
+    el: HTMLElement | null;
+    cached: TopValueItem[];
+    outsideHandler: ((ev: MouseEvent) => void) | null;
+    computeTop: (() => TopValueItem[]) | null;
+  } | null = null;
   if (type === 'garden' || type === 'inventory' || type === 'netWorth') {
-    topOverlay = { el: null, cached: [], outsideHandler: null };
+    topOverlay = { el: null, cached: [], outsideHandler: null, computeTop: null };
 
     // Add toggle arrow to header (before close button)
     const topArrow = document.createElement('button');
@@ -483,6 +487,7 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
 
     function openTopOverlay(): void {
       if (!topOverlay) return;
+      if (topOverlay.computeTop) topOverlay.cached = topOverlay.computeTop();
       const overlay = document.createElement('div');
       overlay.style.cssText = [
         'position:fixed', 'z-index:999991',
@@ -587,19 +592,19 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
     const unsub = subscribeEconomy(applyEconomy);
     cleanups.push(unsub);
   } else if (type === 'garden') {
+    const computeTop = (): TopValueItem[] => getTopGardenItems(getGardenSnapshot(), getFriendBonusMultiplier());
+    if (topOverlay) topOverlay.computeTop = computeTop;
     const debouncedUpdate = debounceCancelable(() => {
       if (destroyed) return;
       const fb = getFriendBonusMultiplier();
       updateAmount(computeGardenValueFromCatalog(getGardenSnapshot(), fb));
-      updateTopItems(getTopGardenItems(getGardenSnapshot(), fb));
-    }, 200);
+      if (topOverlay?.el) updateTopItems(computeTop());
+    }, 1000);
     cleanups.push(debouncedUpdate.cancel);
 
     cleanups.push(onGardenSnapshot(() => debouncedUpdate(), false));
     cleanups.push(onFriendBonusChange(() => debouncedUpdate()));
-    const fbInit = getFriendBonusMultiplier();
-    updateAmount(computeGardenValueFromCatalog(getGardenSnapshot(), fbInit));
-    updateTopItems(getTopGardenItems(getGardenSnapshot(), fbInit));
+    updateAmount(computeGardenValueFromCatalog(getGardenSnapshot(), getFriendBonusMultiplier()));
   } else if (type === 'netWorth') {
     function computeNetWorth(): number {
       const fb = getFriendBonusMultiplier();
@@ -612,17 +617,17 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
         + (computeActivePetsValue(fb) || 0)
         + (computePlacedDecorAndEggValue(snap) || 0);
     }
+    const computeTop = (): TopValueItem[] => getTopNetWorthItems(
+      getGardenSnapshot(), getInventoryItems(), getCachedStorages(), getActivePetInfos(), getFriendBonusMultiplier(),
+    );
+    if (topOverlay) topOverlay.computeTop = computeTop;
     const debouncedUpdate = debounceCancelable(() => {
       if (destroyed) return;
       updateAmount(computeNetWorth());
-      const fb = getFriendBonusMultiplier();
-      updateTopItems(getTopNetWorthItems(
-        getGardenSnapshot(), getInventoryItems(), getCachedStorages(), getActivePetInfos(), fb,
-      ));
-    }, 200);
+      if (topOverlay?.el) updateTopItems(computeTop());
+    }, 1000);
     cleanups.push(debouncedUpdate.cancel);
 
-    // React to coins, garden, inventory, pet, storage, and friend bonus changes
     cleanups.push(subscribeEconomy(() => debouncedUpdate()));
     cleanups.push(onGardenSnapshot(() => debouncedUpdate(), false));
     cleanups.push(onInventoryChange(() => debouncedUpdate()));
@@ -630,27 +635,21 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
     cleanups.push(onFriendBonusChange(() => debouncedUpdate()));
     cleanups.push(onStorageDataChange(() => debouncedUpdate()));
     updateAmount(computeNetWorth());
-    {
-      const fb = getFriendBonusMultiplier();
-      updateTopItems(getTopNetWorthItems(
-        getGardenSnapshot(), getInventoryItems(), getCachedStorages(), getActivePetInfos(), fb,
-      ));
-    }
   } else {
     // inventory card
+    const computeTop = (): TopValueItem[] => getTopInventoryItems(getInventoryItems(), getFriendBonusMultiplier());
+    if (topOverlay) topOverlay.computeTop = computeTop;
     const debouncedUpdate = debounceCancelable(() => {
       if (destroyed) return;
       const fb = getFriendBonusMultiplier();
       updateAmount(computeInventoryValue(fb));
-      updateTopItems(getTopInventoryItems(getInventoryItems(), fb));
-    }, 200);
+      if (topOverlay?.el) updateTopItems(computeTop());
+    }, 1000);
     cleanups.push(debouncedUpdate.cancel);
 
     cleanups.push(onInventoryChange(() => debouncedUpdate()));
     cleanups.push(onFriendBonusChange(() => debouncedUpdate()));
-    const fbInit = getFriendBonusMultiplier();
-    updateAmount(computeInventoryValue(fbInit));
-    updateTopItems(getTopInventoryItems(getInventoryItems(), fbInit));
+    updateAmount(computeInventoryValue(getFriendBonusMultiplier()));
   }
 
   // Drag
@@ -659,6 +658,29 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
   let cardStartLeft = 0;
   let cardStartTop = 0;
   let isDragging = false;
+
+  const onMouseMove = (event: MouseEvent): void => {
+    if (!isDragging) return;
+    const dx = event.clientX - dragStartX;
+    const dy = event.clientY - dragStartY;
+    applyPosition(card, cardStartLeft + dx, cardStartTop + dy);
+  };
+
+  const onMouseUp = (): void => {
+    if (!isDragging) return;
+    isDragging = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    // Update ratios from final pixel position
+    const entry = registry.get(type);
+    if (entry) {
+      const rect = card.getBoundingClientRect();
+      const pct = pixelsToPct(rect.left, rect.top, rect.width || CARD_W, rect.height || CARD_H_APPROX);
+      entry.xPct = pct.xPct;
+      entry.yPct = pct.yPct;
+    }
+    persistRegistryState();
+  };
 
   const onMouseDown = (event: MouseEvent): void => {
     if ((event.target as Element).closest('.qpm-value-card__close')) return;
@@ -671,33 +693,12 @@ function createValueCard(type: ValueCardType, initialPct: { xPct: number; yPct: 
     dragStartY = event.clientY;
     cardStartLeft = rect.left;
     cardStartTop = rect.top;
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
     event.preventDefault();
   };
 
-  const onMouseMove = (event: MouseEvent): void => {
-    if (!isDragging) return;
-    const dx = event.clientX - dragStartX;
-    const dy = event.clientY - dragStartY;
-    applyPosition(card, cardStartLeft + dx, cardStartTop + dy);
-  };
-
-  const onMouseUp = (): void => {
-    if (!isDragging) return;
-    isDragging = false;
-    // Update ratios from final pixel position
-    const entry = registry.get(type);
-    if (entry) {
-      const rect = card.getBoundingClientRect();
-      const pct = pixelsToPct(rect.left, rect.top, rect.width || CARD_W, rect.height || CARD_H_APPROX);
-      entry.xPct = pct.xPct;
-      entry.yPct = pct.yPct;
-    }
-    persistRegistryState();
-  };
-
   header.addEventListener('mousedown', onMouseDown);
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
   cleanups.push(() => {
     header.removeEventListener('mousedown', onMouseDown);
     document.removeEventListener('mousemove', onMouseMove);

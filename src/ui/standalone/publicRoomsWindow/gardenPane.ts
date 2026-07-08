@@ -253,7 +253,7 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
                 <span class="pr-journal-count">${petsDiscovered} / ${totalPets}</span>
               </div>
               <div class="pr-progress-bar">
-                <div class="pr-progress-fill pr-progress-animated" style="width:${petsPct}%;background:${petsPct === 100 ? 'linear-gradient(90deg, #FF1744, #FF9100, #FFEA00, #00E676, #2979FF, #D500F9)' : 'linear-gradient(90deg, #FF7043, #FF5722)'};${petsPct === 100 ? 'animation: qpm-rainbow-progress 3s linear infinite; background-size: 200% 100%;' : ''}"></div>
+                <div class="pr-progress-fill pr-progress-animated" style="width:${petsPct}%;background:${petsPct === 100 ? 'linear-gradient(90deg, #FF1744, #FF9100, #FFEA00, #00E676, #2979FF, #D500F9)' : 'linear-gradient(90deg, #FF7043, #FF5722)'};"></div>
               </div>
               <div class="pr-progress-pct">${petsPct.toFixed(1)}%</div>
             </div>
@@ -263,7 +263,7 @@ export function renderGardenPane(view: PlayerView, _isFriend: boolean, _privacy:
                 <span class="pr-journal-count">${produceVariantsDiscovered} / ${totalProduceVariants}</span>
               </div>
               <div class="pr-progress-bar">
-                <div class="pr-progress-fill pr-progress-animated" style="width:${producePct}%;background:${producePct === 100 ? 'linear-gradient(90deg, #FF1744, #FF9100, #FFEA00, #00E676, #2979FF, #D500F9)' : 'linear-gradient(90deg, #3ab573, #4fd18b)'};${producePct === 100 ? 'animation: qpm-rainbow-progress 3s linear infinite; background-size: 200% 100%;' : ''}"></div>
+                <div class="pr-progress-fill pr-progress-animated" style="width:${producePct}%;background:${producePct === 100 ? 'linear-gradient(90deg, #FF1744, #FF9100, #FFEA00, #00E676, #2979FF, #D500F9)' : 'linear-gradient(90deg, #3ab573, #4fd18b)'};"></div>
               </div>
               <div class="pr-progress-pct">${producePct.toFixed(1)}%</div>
             </div>

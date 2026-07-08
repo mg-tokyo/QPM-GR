@@ -524,6 +524,7 @@ let petUnsubscribe: (() => void) | null = null;
 let latestGarden: GardenSnapshot = getGardenSnapshot();
 let latestPets: ActivePetInfo[] = getActivePetInfos();
 let lastTurtleGardenFingerprint = '';
+let lastTurtlePetFingerprint = '';
 
 const listeners = new Set<(state: TurtleTimerState) => void>();
 
@@ -605,6 +606,27 @@ function parseTimestamp(value: unknown): number | null {
     }
   }
   return null;
+}
+
+// Cheap fingerprint over the pet fields recompute actually reads. Bucketing
+// strength / xp / targetScale prevents 1 Hz strength rolls from firing recompute
+// every tick while still catching real changes when a pet crosses a bucket.
+// Includes species/name/mutations because the published contribution surfaces
+// them for downstream display — a rename or mutation swap should recompute.
+function getTurtlePetFingerprint(pets: ActivePetInfo[]): string {
+  let sig = `${pets.length}|${config.minActiveHungerPct}|${config.maxTargetScale}`;
+  for (const pet of pets) {
+    if (!pet || typeof pet !== 'object') continue;
+    const abilities = Array.isArray(pet.abilities) ? pet.abilities.join(',') : '';
+    const mutations = Array.isArray(pet.mutations) ? pet.mutations.join(',') : '';
+    const hungerOk = pet.hungerPct == null || pet.hungerPct > config.minActiveHungerPct ? '1' : '0';
+    const strengthBucket = Math.floor((pet.strength ?? 0) / 5);
+    const xpBucket = Math.floor((pet.xp ?? 0) / 100);
+    const level = pet.level ?? 0;
+    const targetScale = Math.round((pet.targetScale ?? 0) * 100);
+    sig += `#${pet.petId ?? pet.slotId ?? ''}:${pet.species ?? ''}:${pet.name ?? ''}:${abilities}:${mutations}:${hungerOk}:${strengthBucket}:${xpBucket}:${level}:${targetScale}`;
+  }
+  return sig;
 }
 
 // Cheap fingerprint (slot count + endTime sum) to skip recompute when nothing changed.
@@ -1504,6 +1526,9 @@ export function initializeTurtleTimer(initialConfig?: TurtleTimerConfig): void {
 
   petUnsubscribe = onActivePetInfos((infos) => {
     latestPets = infos;
+    const fp = getTurtlePetFingerprint(infos);
+    if (fp === lastTurtlePetFingerprint) return;
+    lastTurtlePetFingerprint = fp;
     recompute();
   });
 
@@ -1518,11 +1543,15 @@ export function disposeTurtleTimer(): void {
   petUnsubscribe = null;
   initialized = false;
   lastTurtleGardenFingerprint = '';
+  lastTurtlePetFingerprint = '';
   state = createInitialState();
 }
 
 export function configureTurtleTimer(next: TurtleTimerConfig): void {
   mergeConfig(next);
+  // Config changes may affect the pet fingerprint (minActiveHungerPct,
+  // maxTargetScale). Reset so the next petInfos push always recomputes.
+  lastTurtlePetFingerprint = '';
   recompute();
 }
 

@@ -9,7 +9,8 @@
 // button) so we cache the node reference and re-walk only when it dies.
 
 import { pageWindow } from '../../../core/pageContext';
-import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL } from './types';
+import { onPixiNodeAdded, onPixiNodeRemoved } from '../../../core/pixiSceneEvents';
+import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL, OBJECT_CARD_LABEL } from './types';
 
 // ---------------------------------------------------------------------------
 // PIXI shapes (structural — avoids depending on pixi.js types)
@@ -77,8 +78,16 @@ function nodeBounds(node: PixiNode): PixiBounds | null {
   try { return parseBounds(node.getBounds()); } catch { return null; }
 }
 
+// Reusable stack across walks — avoids per-frame allocation on the hot path.
+// Not shared between findNodeByLabel and findAllNodesByLabel to keep the
+// invariants (both fully drain before returning) simple.
+const _findStack: PixiNode[] = [];
+const _findAllStack: PixiNode[] = [];
+
 function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
-  const stack: PixiNode[] = [root];
+  const stack = _findStack;
+  stack.length = 0;
+  stack.push(root);
   const seen = new WeakSet<object>();
   while (stack.length > 0) {
     const node = stack.pop();
@@ -86,7 +95,10 @@ function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
     if (seen.has(node as object)) continue;
     seen.add(node as object);
     if (!isVisible(node)) continue;
-    if (typeof node.label === 'string' && node.label === label) return node;
+    if (typeof node.label === 'string' && node.label === label) {
+      stack.length = 0;
+      return node;
+    }
     if (Array.isArray(node.children)) {
       for (let i = node.children.length - 1; i >= 0; i--) {
         const c = node.children[i];
@@ -99,7 +111,9 @@ function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
 
 /** Collect ALL visible nodes with the given label (unlike findNodeByLabel which returns the first). */
 function findAllNodesByLabel(root: PixiNode, label: string): PixiNode[] {
-  const stack: PixiNode[] = [root];
+  const stack = _findAllStack;
+  stack.length = 0;
+  stack.push(root);
   const seen = new WeakSet<object>();
   const out: PixiNode[] = [];
   while (stack.length > 0) {
@@ -148,19 +162,35 @@ function getRefs(): PixiRefs | null {
 }
 
 // ---------------------------------------------------------------------------
-// Cache — node reference (re-walk on invalidation) plus refs
+// Cache — node references maintained by PIXI scene-graph events (addChild /
+// removeChild). Zero per-frame or per-invalidation stage walks; the cache
+// updates the moment MG adds or removes the labeled container. `parent`
+// chain + `destroyed` flag are still checked at read time as a safety net.
 // ---------------------------------------------------------------------------
 
 let cachedCard: PixiNode | null = null;
+let cachedObjectCard: PixiNode | null = null;
 let cachedRefs: PixiRefs | null = null;
+let listenersInstalled = false;
 
-function isCardStillValid(): boolean {
-  if (!cachedCard) return false;
-  if (cachedCard.destroyed === true) return false;
-  if (!isVisible(cachedCard)) return false;
-  // Ensure still attached to a live parent chain — MG's controller destroys
-  // parents on some transitions without touching the child's `destroyed` flag.
-  let p: unknown = cachedCard.parent;
+function ensureSceneListeners(): void {
+  if (listenersInstalled) return;
+  onPixiNodeAdded(GARDEN_INFO_CARD_LABEL, (node) => { cachedCard = node; });
+  onPixiNodeRemoved(GARDEN_INFO_CARD_LABEL, (node) => {
+    if (cachedCard === node) cachedCard = null;
+  });
+  onPixiNodeAdded(OBJECT_CARD_LABEL, (node) => { cachedObjectCard = node; });
+  onPixiNodeRemoved(OBJECT_CARD_LABEL, (node) => {
+    if (cachedObjectCard === node) cachedObjectCard = null;
+  });
+  listenersInstalled = true;
+}
+
+function isNodeStillLive(node: PixiNode | null): boolean {
+  if (!node) return false;
+  if (node.destroyed === true) return false;
+  if (!isVisible(node)) return false;
+  let p: unknown = node.parent;
   let hops = 0;
   while (p && typeof p === 'object' && hops < 20) {
     if ((p as PixiNode).destroyed === true) return false;
@@ -192,8 +222,12 @@ export function getCardBounds(): CardBounds | null {
     cachedRefs = getRefs();
     if (!cachedRefs) return null;
   }
+  ensureSceneListeners();
 
-  if (!isCardStillValid()) {
+  // Event-cache miss (listeners registered too late for an existing node,
+  // or the game re-labels an already-attached container) — do a single
+  // catch-up walk. Steady-state operation hits the cached reference.
+  if (!isNodeStillLive(cachedCard)) {
     cachedCard = findNodeByLabel(cachedRefs.stage, GARDEN_INFO_CARD_LABEL);
     if (!cachedCard) return null;
   }
@@ -262,9 +296,51 @@ export function getCardBounds(): CardBounds | null {
   };
 }
 
+/**
+ * CSS bounds of the inner `GardenInfoObjectCard` node — the actual tile
+ * info card (not the whole system that also contains toggles + ability
+ * chip + browse buttons). Distinct from `getCardBounds()`. Returns null
+ * when the card is hidden. Cheap when the cached node is still valid.
+ */
+export function getObjectCardBounds(): CardBounds | null {
+  if (!cachedRefs) {
+    cachedRefs = getRefs();
+    if (!cachedRefs) return null;
+  }
+  ensureSceneListeners();
+
+  // Event-cache miss safety net — same rationale as getCardBounds().
+  if (!isNodeStillLive(cachedObjectCard)) {
+    cachedObjectCard = findNodeByLabel(cachedRefs.stage, OBJECT_CARD_LABEL);
+    if (!cachedObjectCard) return null;
+  }
+
+  const node = cachedObjectCard;
+  if (!node) return null;
+
+  const b = nodeBounds(node);
+  if (!b) return null;
+
+  const cr = cachedRefs.canvas.getBoundingClientRect();
+  if (cr.width <= 0 || cr.height <= 0) return null;
+  const sw = Number(cachedRefs.renderer.screen?.width) || cachedRefs.canvas.width || 750;
+  const sh = Number(cachedRefs.renderer.screen?.height) || cachedRefs.canvas.height || 1304;
+  if (sw <= 0 || sh <= 0) return null;
+  const scaleX = cr.width / sw;
+  const scaleY = cr.height / sh;
+
+  return {
+    left: cr.left + b.x * scaleX,
+    top: cr.top + b.y * scaleY,
+    width: b.width * scaleX,
+    height: b.height * scaleY,
+  };
+}
+
 /** Drop cached node + refs — call on canvas resize or subsystem stop. */
 export function resetAnchor(): void {
   cachedCard = null;
+  cachedObjectCard = null;
   cachedRefs = null;
 }
 
@@ -328,7 +404,7 @@ function debugReport(): AnchorDebugReport {
   const pixiCaptured = !!root.__QPM_PIXI_CAPTURED__;
   const refs = getRefs();
   const refsFound = !!refs;
-  const cachedValid = isCardStillValid();
+  const cachedValid = isNodeStillLive(cachedCard);
   const bounds = getCardBounds();
 
   let gardenInfoAll: AnchorDebugNode[] = [];

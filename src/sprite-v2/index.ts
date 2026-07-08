@@ -8,7 +8,7 @@ import { createPixiHooks, waitForPixi, ensureDocumentReady } from './hooks';
 import { getJSON, loadAtlasJsons, isAtlas, getBlob, blobToImage, joinPath, relPath } from './manifest';
 import { getCtors, rememberBaseTex } from './utils';
 import { buildAtlasTextures, buildItemsFromTextures } from './atlas';
-import { processVariantJobs, computeVariantSignature, textureToCanvas } from './renderer';
+import { computeVariantSignature, textureToCanvas } from './renderer';
 import { clearVariantCache, getCacheStats } from './cache';
 import { clearSpriteDataUrlCache } from './compat';
 import * as api from './api';
@@ -2580,22 +2580,10 @@ async function start(): Promise<SpriteService> {
   const hasCompressedAtlases = loadResult.atlasReports.some((report) => report.mode === 'compressed');
   publishLoadResult(loadResult);
 
-  // Start job processor using ticker if available, otherwise use requestAnimationFrame
+  // Variant-job pipeline is dormant — nothing pushes to state.jobs. The ticker
+  // registration was a permanent no-op every frame. Register on first enqueue
+  // instead if the pipeline is ever revived; see processVariantJobs in renderer.ts.
   ctx.state.open = true;
-  if (app?.ticker?.add) {
-    app.ticker.add(() => {
-      processVariantJobs(ctx!.state, ctx!.cfg);
-    });
-  } else {
-    // Fallback: use requestAnimationFrame for job processing
-    const processLoop = () => {
-      if (ctx?.state?.open) {
-        processVariantJobs(ctx.state, ctx.cfg);
-        requestAnimationFrame(processLoop);
-      }
-    };
-    requestAnimationFrame(processLoop);
-  }
 
   // Helper to render texture to canvas
   const renderTextureToCanvas = (tex: any): HTMLCanvasElement | null => {

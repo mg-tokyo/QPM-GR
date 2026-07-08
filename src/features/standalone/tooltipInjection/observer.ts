@@ -12,15 +12,22 @@
 // and the config wrappers don't need signature changes.
 
 import { log } from '../../../utils/logger';
-import { getCardBounds, resetAnchor, installAnchorDebugBridge, uninstallAnchorDebugBridge } from './pixiAnchor';
+import { getCardBounds, getObjectCardBounds, resetAnchor, installAnchorDebugBridge, uninstallAnchorDebugBridge } from './pixiAnchor';
 import type { CardBounds } from './pixiAnchor';
 import {
   OVERLAY_ID,
+  LOCK_BADGE_ID,
   TOOLTIP_STYLE_ID,
   TOOLTIP_ROW_ATTR,
   JOURNAL_BADGE_ATTR,
 } from './types';
 import type { InjectorFn } from './types';
+import {
+  createLockBadgeElement,
+  destroyLockBadgeElement,
+  updateLockBadge,
+  hideLockBadge,
+} from './lockBadge';
 
 // ---------------------------------------------------------------------------
 // Injector registry
@@ -126,6 +133,26 @@ function ensureStyles(): void {
       min-width: 10px;
       text-align: center;
     }
+
+    #${LOCK_BADGE_ID} {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      user-select: none;
+      width: 32px;
+      height: 32px;
+      transform: translate(-50%, -50%);
+      display: none;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.65));
+    }
+    #${LOCK_BADGE_ID}.qpm-visible { display: block; }
+    #${LOCK_BADGE_ID} img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      transform-origin: 50% 50%;
+    }
   `.trim();
 
   document.head.appendChild(style);
@@ -187,14 +214,35 @@ function runInjectors(container: HTMLElement): void {
 let rafHandle: number | null = null;
 let cardWasVisible = false;
 let dirtyContent = true;
+// When no card is visible, `getCardBounds()` still walks the whole PIXI stage
+// looking for GardenInfoCardSystem. Decimate that walk: run only every Nth
+// frame while idle. Atoms mark `dirtyContent = true` on selection change to
+// re-arm the walk immediately.
+const IDLE_DISCOVERY_INTERVAL = 12;
+let idleFrameCounter = 0;
 
 function tick(): void {
   rafHandle = null;
+
+  // Idle path — no card last frame and no atom-driven dirty flag.
+  // Skip the stage walk until the counter elapses.
+  if (!cardWasVisible && !dirtyContent) {
+    idleFrameCounter++;
+    if (idleFrameCounter < IDLE_DISCOVERY_INTERVAL) {
+      rafHandle = window.requestAnimationFrame(tick);
+      return;
+    }
+    idleFrameCounter = 0;
+  } else {
+    idleFrameCounter = 0;
+  }
+
   const bounds = getCardBounds();
 
   if (!bounds) {
     if (cardWasVisible) {
       hideOverlay();
+      hideLockBadge();
       cardWasVisible = false;
     }
     rafHandle = window.requestAnimationFrame(tick);
@@ -220,6 +268,13 @@ function tick(): void {
     if (!el.classList.contains('qpm-visible')) el.classList.add('qpm-visible');
   }
 
+  // Badge path — anchors to the inner GardenInfoObjectCard, distinct
+  // from the stacked overlay's GardenInfoCardSystem anchor. The badge
+  // re-evaluates every frame from cached (reactive-push-populated) state;
+  // subscription cache updates promptly, so this is snappy.
+  const objBounds: CardBounds | null = getObjectCardBounds();
+  updateLockBadge(objBounds);
+
   rafHandle = window.requestAnimationFrame(tick);
 }
 
@@ -241,6 +296,7 @@ export function startObserver(): void {
   if (rafHandle !== null) return;
   ensureStyles();
   ensureOverlay();
+  createLockBadgeElement();
   installAnchorDebugBridge();
   cardWasVisible = false;
   dirtyContent = true;
@@ -269,6 +325,7 @@ export function stopObserver(): void {
     overlayEl.remove();
     overlayEl = null;
   }
+  destroyLockBadgeElement();
   resetAnchor();
   uninstallAnchorDebugBridge();
   removeStyles();

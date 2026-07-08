@@ -1,7 +1,15 @@
 // src/features/locker/rules.ts
 // Pure rule engine for the Locker. No side effects, no store/UI imports.
 
-import type { LockerConfig, GuardResult, HarvestFilterSettings } from './types';
+import type { LockerConfig, GuardResult } from './types';
+import {
+  hasAnyLockedMutation,
+  evaluateSizeFilter,
+  evaluateColorFilter,
+  evaluateWeatherFilter,
+  resolveEffectiveFilter,
+  hasAnyCriteria,
+} from './rules-primitives';
 
 export interface InventorySnapshot {
   itemCount: number;
@@ -34,97 +42,6 @@ function inventoryReserveCheck(config: LockerConfig, inventory: InventorySnapsho
     };
   }
   return PASS;
-}
-
-function hasAnyLockedMutation(mutations: string[], locks: Record<string, boolean>): string | undefined {
-  for (const m of mutations) {
-    if (locks[m]) return m;
-  }
-  return undefined;
-}
-
-// ── Harvest filter evaluation (Aries-style) ───────────────────────────────
-
-interface DimensionResult {
-  hasCriteria: boolean; // true if the user configured any criteria in this dimension
-  matched: boolean;     // true if the tile matches the criteria
-}
-
-function evaluateSizeFilter(settings: HarvestFilterSettings, sizePercent: number): DimensionResult {
-  switch (settings.scaleLockMode) {
-    case 'RANGE':
-      return { hasCriteria: true, matched: sizePercent >= settings.minScalePct && sizePercent <= settings.maxScalePct };
-    case 'MINIMUM':
-      return { hasCriteria: true, matched: sizePercent >= settings.minScalePct };
-    case 'MAXIMUM':
-      return { hasCriteria: true, matched: sizePercent <= settings.maxScalePct };
-    case 'NONE':
-    default:
-      return { hasCriteria: false, matched: false };
-  }
-}
-
-function evaluateColorFilter(settings: HarvestFilterSettings, mutations: string[]): DimensionResult {
-  if (!settings.colorGold && !settings.colorRainbow && !settings.colorNormal) {
-    return { hasCriteria: false, matched: false };
-  }
-  const mutSet = new Set(mutations.map(m => m.toLowerCase()));
-  const isGold = mutSet.has('gold') || mutSet.has('golden');
-  const isRainbow = mutSet.has('rainbow');
-  const isNormal = !isGold && !isRainbow;
-
-  const matched = (settings.colorGold && isGold)
-    || (settings.colorRainbow && isRainbow)
-    || (settings.colorNormal && isNormal);
-  return { hasCriteria: true, matched };
-}
-
-function evaluateWeatherFilter(settings: HarvestFilterSettings, mutations: string[]): DimensionResult {
-  const mutLower = new Set(mutations.map(m => m.toLowerCase()));
-
-  if (settings.weatherMode === 'RECIPES') {
-    const nonEmpty = settings.weatherRecipes.filter(r => r.length > 0);
-    if (nonEmpty.length === 0) return { hasCriteria: false, matched: false };
-    // Each recipe is an AND group; recipes are OR'd together
-    const matched = nonEmpty.some(recipe =>
-      recipe.every(tag => mutLower.has(tag.toLowerCase())),
-    );
-    return { hasCriteria: true, matched };
-  }
-
-  // ANY / ALL modes use weatherTags
-  if (settings.weatherTags.length === 0) return { hasCriteria: false, matched: false };
-
-  if (settings.weatherMode === 'ALL') {
-    const matched = settings.weatherTags.every(tag => mutLower.has(tag.toLowerCase()));
-    return { hasCriteria: true, matched };
-  }
-  // ANY (default)
-  const matched = settings.weatherTags.some(tag => mutLower.has(tag.toLowerCase()));
-  return { hasCriteria: true, matched };
-}
-
-/**
- * Resolves the effective harvest filter for a species (crop override if present, else global).
- * Returns null if the filter has no active criteria (no-op).
- */
-function resolveEffectiveFilter(
-  config: LockerConfig,
-  species?: string,
-): HarvestFilterSettings | null {
-  if (species) {
-    const override = config.cropOverrides[species];
-    if (override?.enabled) return override.settings;
-  }
-  return config.harvestFilter;
-}
-
-function hasAnyCriteria(settings: HarvestFilterSettings): boolean {
-  if (settings.scaleLockMode !== 'NONE') return true;
-  if (settings.colorGold || settings.colorRainbow || settings.colorNormal) return true;
-  if (settings.weatherMode === 'RECIPES' && settings.weatherRecipes.some(r => r.length > 0)) return true;
-  if (settings.weatherMode !== 'RECIPES' && settings.weatherTags.length > 0) return true;
-  return false;
 }
 
 function evaluateHarvestFilterBlock(config: LockerConfig, tile?: TileContext): GuardResult {

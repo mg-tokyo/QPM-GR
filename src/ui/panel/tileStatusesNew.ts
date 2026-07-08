@@ -10,6 +10,7 @@ import {
 import type { PerTileStatusProvider } from './tileStatusTypes';
 import { t } from '../../i18n';
 import { logTileAsyncFailed, logTileImportFailed, makeDepGuard } from './tileHealth';
+import { visibleInterval } from '../../utils/scheduling/timerManager';
 
 // ── Providers moved from tileStatuses.ts ────────────────────────────────────
 
@@ -109,8 +110,8 @@ export const startShopKeybindsStatus: PerTileStatusProvider = (el, addLiveCleanu
       setStatusText(el, t('tile.status.enabledBindCount', { count }), 'positive');
     };
     render();
-    const timer = window.setInterval(render, 5_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
+    const stop = visibleInterval(`tile-shop-keybinds-v${version}`, render, 5_000);
+    addLiveCleanup(version, stop);
   }).catch((err) => logTileImportFailed('shop-keybinds', err));
 };
 
@@ -166,8 +167,8 @@ export const startInstaHarvestStatus: PerTileStatusProvider = (el, addLiveCleanu
       setStatusText(el, parts.length > 0 ? parts.join(' / ') : t('common.off'), parts.length > 0 ? 'positive' : 'muted');
     };
     render();
-    const timer = window.setInterval(render, 5_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
+    const stop = visibleInterval(`tile-insta-harvest-v${version}`, render, 5_000);
+    addLiveCleanup(version, stop);
   }).catch((err) => logTileImportFailed('insta-harvest', err));
 };
 
@@ -180,8 +181,8 @@ export const startHoldSettingsStatus: PerTileStatusProvider = (el, addLiveCleanu
       setStatusText(el, `${cfg.holdRateHz} Hz / ${enabledCount} ctx`, enabledCount > 0 ? 'positive' : 'muted');
     };
     render();
-    const timer = window.setInterval(render, 5_000);
-    addLiveCleanup(version, () => window.clearInterval(timer));
+    const stop = visibleInterval(`tile-hold-settings-v${version}`, render, 5_000);
+    addLiveCleanup(version, stop);
   }).catch((err) => logTileImportFailed('hold-settings', err));
 };
 

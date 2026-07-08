@@ -13,26 +13,35 @@ import { pageWindow, isIsolatedContext, shareGlobal } from '../../core/pageConte
 const STORAGE_KEY = 'qpm.gardenFilters.v1';
 const DIM_ALPHA = 0.1; // Barely visible
 
+// Pre-compiled Tile-label matchers. Used in the hot traversal and cache paths;
+// avoiding the double `.test()` + `.match()` roundtrip halves regex work per node.
+const TILE_LABEL_CAPTURE_RE = /^Tile \((\d+), (\d+)\)$/;
+const TILE_LABEL_TEST_RE = /^Tile \(\d+, \d+\)$/;
+
 // ── Per-frame alpha guards (PIXI ticker) ────────────────────────────────────
 // The game toggles `visible` on Tile containers when the player walks.  When
 // visible goes false→true, PIXI may render with stale worldAlpha (1.0) because
 // color-update dirty flags are cleared while the node was invisible.
 //
-// Fix: hook into the PIXI app's own ticker so our guard runs BEFORE render
-// (not after, like rAF would).  Force-dirty alpha by toggling the value past
-// PIXI's same-value check — the intermediate value is never rendered because
-// render happens after all ticker callbacks complete.
+// Only the visible false→true transition needs the force-dirty; on all other
+// frames the alpha setter is a no-op that still burns dirty-flag churn. Track
+// last-known visibility per node and force-dirty only on the transition.
 
 const guardedNodes = new Set<any>();
+const lastKnownVisible = new WeakMap<any, boolean>();
 let guardTickerCleanup: (() => void) | null = null;
 
 function guardTick(): void {
   for (const node of guardedNodes) {
-    // Force PIXI to re-process alpha even if localAlpha already matches.
-    // Setting to 1 then DIM_ALPHA ensures the setter's change-detection fires
-    // and marks the node's color dirty before the renderer reads it.
-    node.alpha = 1;
-    node.alpha = DIM_ALPHA;
+    const currentlyVisible = node.visible !== false;
+    const wasVisible = lastKnownVisible.get(node);
+    if (wasVisible === false && currentlyVisible) {
+      // false → true transition: PIXI cleared dirty flags while invisible.
+      // Toggle to force the alpha setter's change-detection to re-mark dirty.
+      node.alpha = 1;
+      node.alpha = DIM_ALPHA;
+    }
+    lastKnownVisible.set(node, currentlyVisible);
   }
 }
 
@@ -376,11 +385,13 @@ function getGardenTileData(x: number, y: number): any {
 function buildTileNodeCache(node: any, out: TileNode[] = [], depth = 0, maxDepth = 10): TileNode[] {
   if (!node || depth > maxDepth) return out;
 
-  if (node.label && /^Tile \((\d+), (\d+)\)$/.test(node.label)) {
-    const match = node.label.match(/^Tile \((\d+), (\d+)\)$/)!;
-    out.push({ node, x: parseInt(match[1]!), y: parseInt(match[2]!) });
-    // Tiles don't contain other tiles — skip recursing into them
-    return out;
+  if (typeof node.label === 'string') {
+    const match = TILE_LABEL_CAPTURE_RE.exec(node.label);
+    if (match) {
+      out.push({ node, x: parseInt(match[1]!), y: parseInt(match[2]!) });
+      // Tiles don't contain other tiles — skip recursing into them
+      return out;
+    }
   }
 
   if (node.children && Array.isArray(node.children)) {
@@ -426,12 +437,12 @@ function applyFiltersToStage(
   if (!node || depth > maxDepth) return;
 
   // Check if this is a Tile container
-  if (node.label && /^Tile \((\d+), (\d+)\)$/.test(node.label)) {
-    const match = node.label.match(/^Tile \((\d+), (\d+)\)$/);
+  const match = typeof node.label === 'string' ? TILE_LABEL_CAPTURE_RE.exec(node.label) : null;
+  if (match) {
     const childLabel = node.children?.[0]?.label;
 
     // Skip empty tiles and sprite-only tiles
-    if (match && childLabel && childLabel !== 'Sprite') {
+    if (childLabel && childLabel !== 'Sprite') {
       const x = parseInt(match[1]!);
       const y = parseInt(match[2]!);
       const isEgg = childLabel === 'Egg';
@@ -531,7 +542,7 @@ function resetFiltersOnStage(
 ): void {
   if (!node || depth > maxDepth) return;
 
-  if (node.label && /^Tile \(\d+, \d+\)$/.test(node.label)) {
+  if (typeof node.label === 'string' && TILE_LABEL_TEST_RE.test(node.label)) {
     removeVisibleGuard(node);
     node.alpha = 1.0;
   }

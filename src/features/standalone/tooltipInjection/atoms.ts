@@ -1,12 +1,16 @@
 // src/features/tooltipInjection/atoms.ts
-// Single shared atom subscription for tooltip injection.
-// Merges the duplicate subscription logic from cropSizeIndicator + tileValueIndicator
-// with retry support (from tileValueIndicator).
+// Reactive tile-state source for the tooltip subsystem. Manages the
+// subscriptions to `gardenObject` + `selectedSlotId` internally and exposes
+// an `onTileChanged` push API. Consumers (observer.ts, lockBadge.ts) register
+// listeners; both atom callbacks funnel through a single notify. This
+// eliminates the race between two separate cache reads that used to happen
+// during rapid slot cycling.
 
 import { readAtomValue, subscribeAtomValue } from '../../../core/atomRegistry';
 import { log } from '../../../utils/logger';
 import { isRecord } from '../../../utils/typeGuards';
-import type { ResolvedSlot } from './types';
+import { getCropMaxScaleSafe } from '../../../utils/game/catalogHelpers';
+import type { ResolvedSlot, TileLockContext } from './types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -25,6 +29,10 @@ let retryCount = 0;
 let retryTimer: number | null = null;
 
 const cleanups: Array<() => void> = [];
+const listeners = new Set<() => void>();
+
+let trackingStarted = false;
+let trackingPromise: Promise<void> | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,8 +57,21 @@ function parseSlot(raw: unknown): ResolvedSlot | null {
   return { species, targetScale, mutations, slotId, endTime };
 }
 
+function computeSizePercent(species: string, targetScale: number): number {
+  const maxScale = getCropMaxScaleSafe(species);
+  if (maxScale === null || maxScale <= 1) return 100;
+  const clamped = Math.max(1, Math.min(maxScale, targetScale));
+  return Math.max(50, Math.min(100, Math.round(50 + ((clamped - 1) / (maxScale - 1)) * 50)));
+}
+
+function notify(): void {
+  for (const cb of listeners) {
+    try { cb(); } catch { /* isolate listener failures */ }
+  }
+}
+
 // ---------------------------------------------------------------------------
-// Public API
+// Public API — resolvers (read from subscription-populated cache)
 // ---------------------------------------------------------------------------
 
 /** Resolve the currently selected slot from the cached garden object + selected slot ID. */
@@ -61,91 +82,149 @@ export function resolveCurrentSlot(): ResolvedSlot | null {
   const slots = cachedGardenObject.slots;
   if (!Array.isArray(slots) || slots.length === 0) return null;
 
-  // Find slot matching the selected slot ID (C/X key cycling)
   for (const raw of slots) {
     if (!isRecord(raw)) continue;
-    if (raw.slotId === cachedSelectedSlotId) {
-      return parseSlot(raw);
-    }
+    if (raw.slotId === cachedSelectedSlotId) return parseSlot(raw);
   }
 
-  // Fallback: first slot (no match means single-harvest or initial state)
   return parseSlot(slots[0]);
 }
 
 /**
- * Subscribe to garden object + selected slot ID atoms.
- * Calls `onChange` whenever slot data changes.
- * Returns an unsubscribe function.
+ * Resolve the currently-focused garden tile to a lock-check context.
+ * Returns null when no tile is focused or the tile has no meaningful lock target.
+ * Both `cachedGardenObject` and `cachedSelectedSlotId` are updated by push
+ * callbacks funneled through the same notify, so this always reads a
+ * consistent snapshot — no race between the two atoms during rapid cycling.
  */
-export async function subscribeTooltipAtoms(onChange: () => void): Promise<() => void> {
-  const attemptSubscribe = async (): Promise<void> => {
-    // Try gardenObject first, fall back to ownGardenObject
-    let gardenUnsub = await subscribeAtomValue('gardenObject', (value) => {
-      cachedGardenObject = isRecord(value) ? value : null;
-      onChange();
-    });
-    if (!gardenUnsub) {
-      gardenUnsub = await subscribeAtomValue('ownGardenObject', (value) => {
-        cachedGardenObject = isRecord(value) ? value : null;
-        onChange();
-      });
-    }
+export function resolveCurrentTile(): TileLockContext | null {
+  const obj = cachedGardenObject;
+  if (!obj) return null;
 
-    if (!gardenUnsub) {
-      if (retryCount < MAX_RETRIES) {
-        retryCount++;
-        retryTimer = window.setTimeout(() => {
-          retryTimer = null;
-          attemptSubscribe().catch(() => {});
-        }, RETRY_DELAY_MS);
-      } else {
-        log('[TooltipAtoms] Garden object atom not found after retries');
-      }
-      return;
-    }
+  const objectType = obj.objectType;
+  if (typeof objectType !== 'string' || objectType.length === 0) return null;
 
-    log('[TooltipAtoms] Found garden object atom');
-    cleanups.push(gardenUnsub);
+  if (objectType === 'plant') {
+    const slot = resolveCurrentSlot();
+    if (!slot) return null;
+    return {
+      kind: 'plant',
+      species: slot.species,
+      mutations: slot.mutations,
+      sizePercent: computeSizePercent(slot.species, slot.targetScale),
+    };
+  }
 
-    // Read initial garden value
-    try {
-      let initial = await readAtomValue('gardenObject');
-      if (initial == null) initial = await readAtomValue('ownGardenObject');
-      cachedGardenObject = isRecord(initial) ? initial : null;
-    } catch { /* ignore */ }
+  if (objectType === 'egg') {
+    const eggId = obj.eggId;
+    if (typeof eggId !== 'string' || eggId.length === 0) return null;
+    return { kind: 'egg', eggId };
+  }
 
-    // Subscribe to selected slot ID changes (C/X key)
-    const slotIdUnsub = await subscribeAtomValue('selectedSlotId', (value) => {
-      cachedSelectedSlotId = typeof value === 'number' ? value : 0;
-      onChange();
-    });
-    if (slotIdUnsub) {
-      cleanups.push(slotIdUnsub);
-      try {
-        const initial = await readAtomValue('selectedSlotId');
-        cachedSelectedSlotId = typeof initial === 'number' ? initial : 0;
-      } catch { /* ignore */ }
-      log('[TooltipAtoms] Found mySelectedSlotIdAtom');
-    }
+  // Any other objectType is a decor id (matches guard.ts:203-205).
+  return { kind: 'decor', decorId: objectType };
+}
 
-    // Fire initial change
-    onChange();
-  };
+// ---------------------------------------------------------------------------
+// Public API — listener registration + lifecycle
+// ---------------------------------------------------------------------------
 
-  await attemptSubscribe();
-
+/**
+ * Register a listener called whenever the focused tile or selected slot
+ * changes. Idempotent: multiple consumers may subscribe. Returns an
+ * unsubscribe function. Automatically starts internal atom tracking on
+ * first registration.
+ */
+export function onTileChanged(cb: () => void): () => void {
+  listeners.add(cb);
+  void startTileTracking();
   return () => {
-    for (const cleanup of cleanups) {
-      try { cleanup(); } catch { /* ignore */ }
-    }
-    cleanups.length = 0;
-    cachedGardenObject = null;
-    cachedSelectedSlotId = 0;
-    retryCount = 0;
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
+    listeners.delete(cb);
   };
+}
+
+/**
+ * Start the internal atom subscriptions. Idempotent — safe to call multiple
+ * times. Returns a promise that resolves when subscriptions are attached
+ * (or when retries exhaust). Consumers can await this if they need to
+ * synchronize with initial state; otherwise `onTileChanged` alone is enough.
+ */
+export function startTileTracking(): Promise<void> {
+  if (trackingStarted) return trackingPromise ?? Promise.resolve();
+  trackingStarted = true;
+  trackingPromise = attemptSubscribe();
+  return trackingPromise;
+}
+
+/** Stop internal subscriptions and clear caches. Idempotent. */
+export function stopTileTracking(): void {
+  for (const cleanup of cleanups) {
+    try { cleanup(); } catch { /* ignore */ }
+  }
+  cleanups.length = 0;
+  cachedGardenObject = null;
+  cachedSelectedSlotId = 0;
+  retryCount = 0;
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  trackingStarted = false;
+  trackingPromise = null;
+}
+
+// ---------------------------------------------------------------------------
+// Internals — subscription attachment with retry
+// ---------------------------------------------------------------------------
+
+async function attemptSubscribe(): Promise<void> {
+  // Garden object — try `gardenObject` first, fall back to `ownGardenObject`.
+  let gardenUnsub = await subscribeAtomValue('gardenObject', (value) => {
+    cachedGardenObject = isRecord(value) ? value : null;
+    notify();
+  });
+  if (!gardenUnsub) {
+    gardenUnsub = await subscribeAtomValue('ownGardenObject', (value) => {
+      cachedGardenObject = isRecord(value) ? value : null;
+      notify();
+    });
+  }
+
+  if (!gardenUnsub) {
+    if (retryCount < MAX_RETRIES) {
+      retryCount++;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        attemptSubscribe().catch(() => {});
+      }, RETRY_DELAY_MS);
+    } else {
+      log('[TooltipAtoms] Garden object atom not found after retries');
+    }
+    return;
+  }
+
+  log('[TooltipAtoms] Found garden object atom');
+  cleanups.push(gardenUnsub);
+
+  try {
+    let initial = await readAtomValue('gardenObject');
+    if (initial == null) initial = await readAtomValue('ownGardenObject');
+    cachedGardenObject = isRecord(initial) ? initial : null;
+  } catch { /* ignore */ }
+
+  const slotIdUnsub = await subscribeAtomValue('selectedSlotId', (value) => {
+    cachedSelectedSlotId = typeof value === 'number' ? value : 0;
+    notify();
+  });
+  if (slotIdUnsub) {
+    cleanups.push(slotIdUnsub);
+    try {
+      const initial = await readAtomValue('selectedSlotId');
+      cachedSelectedSlotId = typeof initial === 'number' ? initial : 0;
+    } catch { /* ignore */ }
+    log('[TooltipAtoms] Found mySelectedSlotIdAtom');
+  }
+
+  // Fire initial notification so late-registering listeners see current state.
+  notify();
 }

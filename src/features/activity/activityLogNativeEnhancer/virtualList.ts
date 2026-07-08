@@ -219,7 +219,7 @@ export function ensureVirtualLoadMoreButton(handles: ModalHandles): void {
     return;
   }
 
-  const remaining = Math.max(0, S.virtualTotalFiltered - S.virtualHydratedCount);
+  const remaining = Math.max(0, S.virtualTotalFiltered - S.virtualWindowEnd);
   if (remaining <= 0) {
     removeVirtualLoadMoreButton(handles.list);
     return;
@@ -319,15 +319,18 @@ export function updateVirtualSpacers(list: HTMLElement): void {
   bottom.style.height = `${Math.max(0, Math.floor(S.virtualBottomSpacerPx))}px`;
 }
 
-export function updateVirtualAverageRowHeight(list: HTMLElement): void {
-  const rows = getEntryElements(list);
+const AVG_ROW_HEIGHT_SAMPLE_SIZE = 20;
+
+export function updateVirtualAverageRowHeight(list: HTMLElement, cachedRows?: HTMLElement[]): void {
+  const rows = cachedRows ?? getEntryElements(list);
   if (!rows.length) return;
+  const sampleSize = Math.min(rows.length, AVG_ROW_HEIGHT_SAMPLE_SIZE);
   let totalHeight = 0;
-  for (const row of rows) {
-    totalHeight += Math.max(1, Math.round(row.getBoundingClientRect().height || 0));
+  for (let i = 0; i < sampleSize; i += 1) {
+    totalHeight += Math.max(1, Math.round(rows[i]!.getBoundingClientRect().height || 0));
   }
   if (totalHeight <= 0) return;
-  const avg = totalHeight / rows.length;
+  const avg = totalHeight / sampleSize;
   if (!Number.isFinite(avg) || avg <= 0) return;
   S.virtualAvgRowHeight = Math.max(24, Math.min(120, avg));
 }
@@ -343,6 +346,18 @@ export function getScrollOffsetWithinList(handles: ModalHandles): number {
     return Math.max(0, host.scrollTop);
   }
   return Math.max(0, Math.round(hostRect.top - listRect.top));
+}
+
+export function computeScrollBasedWindowStart(handles: ModalHandles): number {
+  const total = S.virtualTotalFiltered;
+  const maxStart = Math.max(0, total - VIRTUAL_WINDOW_SIZE);
+  if (maxStart === 0) return 0;
+  const rowHeight = Math.max(1, S.virtualAvgRowHeight);
+  const visibleTopPx = getScrollOffsetWithinList(handles);
+  const firstVisibleRow = Math.floor(visibleTopPx / rowHeight);
+  const buffer = Math.min(15, Math.floor(VIRTUAL_WINDOW_SIZE / 4));
+  const start = Math.max(0, firstVisibleRow - buffer);
+  return Math.min(maxStart, start);
 }
 
 export function resetVirtualScrollToStart(handles: ModalHandles): void {
