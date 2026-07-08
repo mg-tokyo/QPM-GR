@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
 
+const PROFILE_BUILD = process.env.PROFILE === '1';
+
 export default defineConfig({
   build: {
     lib: {
@@ -20,19 +22,20 @@ export default defineConfig({
     terserOptions: {
       compress: {
         drop_console: false,
-        drop_debugger: true
+        drop_debugger: true,
+        passes: 2
       },
-      // keep_fnames + keep_classnames: name-only attribution insurance policy.
-      // Even if DevTools fails to attach the inline map on chrome-extension://
-      // origins, hot functions (tick, processVariantJobs, guardTick, …) and
-      // classes (TimerManager, AtomPoller, JobQueue) still surface with
-      // readable names in the flame chart.
+      // keep_fnames + keep_classnames are gated on PROFILE=1. Release builds
+      // mangle names (~224 KB raw / ~38 KB gzip win); user bug-report stack
+      // traces show mangled names. To retrace hot functions/classes on a
+      // flame chart (tick, processVariantJobs, guardTick, TimerManager, …),
+      // rebuild with `PROFILE=1 SOURCEMAP=inline npm run build`.
       mangle: {
-        keep_fnames: true,
-        keep_classnames: true
+        keep_fnames: PROFILE_BUILD,
+        keep_classnames: PROFILE_BUILD
       },
-      keep_fnames: true,
-      keep_classnames: true,
+      keep_fnames: PROFILE_BUILD,
+      keep_classnames: PROFILE_BUILD,
       format: {
         comments: false
       }

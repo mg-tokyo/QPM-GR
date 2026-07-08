@@ -1,13 +1,6 @@
-// src/store/petTeams/feedPolicy.ts
-// Feed policy CRUD — per-pet food overrides.
-
 import { normalizeSpeciesKey } from '../../utils/helpers';
 import type { PetFeedPolicy, PetItemFeedOverride } from '../../types/petTeams';
 import { store, saveFeedPolicy } from './state';
-
-// ---------------------------------------------------------------------------
-// Read
-// ---------------------------------------------------------------------------
 
 export function getFeedPolicy(): PetFeedPolicy {
   const petItemOverrides: PetFeedPolicy['petItemOverrides'] = {};
@@ -23,10 +16,6 @@ export function getFeedPolicy(): PetFeedPolicy {
     updatedAt: store.feedPolicy.updatedAt,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Write
-// ---------------------------------------------------------------------------
 
 export function setFeedPolicyOverride(petItemId: string, override: Partial<PetItemFeedOverride>): void {
   const normalizedPetItemId = String(petItemId ?? '').trim();

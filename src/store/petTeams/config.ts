@@ -1,6 +1,3 @@
-// src/store/petTeams/config.ts
-// Lifecycle (init/stop), team CRUD, slot management, keybinds, detection, purge.
-
 import { storage, getStorageRuntime } from '../../utils/storage';
 import { log } from '../../utils/logger';
 import { getActivePetInfos, onActivePetInfos } from '../pets';
@@ -19,20 +16,14 @@ import {
 } from './state';
 import { getAllPooledPetsWithStatus } from './pool';
 
-// ---------------------------------------------------------------------------
-// Init / stop
-// ---------------------------------------------------------------------------
-
 export function initPetTeamsStore(): void {
   const rawLoaded = storage.get<PetTeamsConfig | null>(store.resolvedConfigKey, null);
   store.config = rawLoaded ?? createDefaultConfig();
   log(`[PetTeams:Init] key=${store.resolvedConfigKey} runtime=${getStorageRuntime()} loaded=${rawLoaded ? 'yes' : 'null'} teams=${store.config.teams.length}`);
-  // Ensure required fields exist after version upgrades
   if (!Array.isArray(store.config.teams)) store.config.teams = [];
   if (typeof store.config.keybinds !== 'object' || store.config.keybinds === null) store.config.keybinds = {};
   if (store.config.activeTeamId === undefined) store.config.activeTeamId = null;
   if (typeof store.config.lastAppliedAt !== 'number') store.config.lastAppliedAt = 0;
-  // Ensure each team has a valid slots array (guards against corrupt / pre-schema storage)
   let teamsNormalized = false;
   for (const team of store.config.teams) {
     const rawSlots = Array.isArray(team.slots) ? team.slots : [];
@@ -89,7 +80,6 @@ export function initPetTeamsStore(): void {
     store.feedPolicy.petItemOverrides = {};
   }
 
-  // Track active pet changes to update detected team
   store.activePetsUnsubscribe = onActivePetInfos(() => {
     const detectedId = detectCurrentTeam();
     if (detectedId !== store.config.activeTeamId) {
@@ -98,10 +88,7 @@ export function initPetTeamsStore(): void {
     }
   });
 
-  // Debounced purge of stale pet references (sold/missing pets).
-  // Fires on both active-pet and inventory changes so selling from hutch/inventory is caught.
-  // Gated on purgeReady — which is only set after resolvePlayerKeyAndMigrate settles,
-  // so we never purge before we know which player config we're operating on.
+  // Debounced purge of stale pet refs; gated on purgeReady so it never fires before the player-scoped config resolves.
   function schedulePurge(): void {
     if (store.purgeTimer) clearTimeout(store.purgeTimer);
     store.purgeTimer = setTimeout(async () => {
@@ -124,16 +111,12 @@ export function initPetTeamsStore(): void {
           return;
         }
         const validIds = new Set(pool.map(p => p.id));
-        // Skip purge if the account changed since store init
         const currentId = await resolveCurrentPlayerId();
         if (store.initPlayerId !== null && currentId !== null && currentId !== store.initPlayerId) {
           log('[PetTeams] Skipping purge — account change detected');
           return;
         }
-        // Coverage check: count how many team-referenced pet IDs exist in the
-        // pool vs how many would be purged. Allow small purges (1-2 pets sold)
-        // unconditionally, but block large purges when coverage is low — that
-        // pattern indicates stale atom data, not legitimate sells.
+        // Allow small purges (1-2 pets) unconditionally; block large purges when pool coverage is low (indicates stale atom data, not real sells).
         const referencedIds = new Set<string>();
         for (const team of store.config.teams) {
           for (const s of team.slots) {
@@ -159,8 +142,6 @@ export function initPetTeamsStore(): void {
   store.purgeInvUnsubscribe = onInventoryChange(() => schedulePurge(), false);
 
   log(`[PetTeams] Store initialized - ${store.config.teams.length} teams`);
-  // Resolve player-scoped key in background. Purge is gated on purgeReady
-  // so it cannot fire until this settles and config/key are consistent.
   resolvePlayerKeyAndMigrate()
     .catch(err => log('[PetTeams] Key resolution failed', err))
     .finally(() => {
@@ -178,7 +159,6 @@ export function stopPetTeamsStore(): void {
   store.purgeInvUnsubscribe = null;
   if (store.purgeTimer) { clearTimeout(store.purgeTimer); store.purgeTimer = null; }
   store.configListeners.clear();
-  // Reset player-scoped key state so re-init works correctly
   store.resolvedConfigKey = CONFIG_KEY;
   store.resolvedFeedKey = FEED_POLICY_KEY;
   store.initPlayerId = null;
@@ -186,10 +166,6 @@ export function stopPetTeamsStore(): void {
   store.applyInProgress = false;
   store.purgeReady = false;
 }
-
-// ---------------------------------------------------------------------------
-// Read API
-// ---------------------------------------------------------------------------
 
 export function getTeamsConfig(): PetTeamsConfig {
   return {
@@ -209,10 +185,6 @@ export function onTeamsChange(cb: (config: PetTeamsConfig) => void): () => void 
   store.configListeners.add(cb);
   return () => store.configListeners.delete(cb);
 }
-
-// ---------------------------------------------------------------------------
-// Team CRUD
-// ---------------------------------------------------------------------------
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -247,7 +219,6 @@ export function renameTeam(id: string, name: string): void {
 export function deleteTeam(id: string): void {
   store.config.teams = store.config.teams.filter(t => t.id !== id);
   if (store.config.activeTeamId === id) store.config.activeTeamId = null;
-  // Clear keybinds that pointed to the deleted team.
   for (const [key, teamId] of Object.entries(store.config.keybinds)) {
     if (teamId === id) {
       delete store.config.keybinds[key];
@@ -260,17 +231,11 @@ export function reorderTeams(fromIndex: number, toIndex: number): void {
   if (fromIndex < 0 || toIndex < 0 || fromIndex >= store.config.teams.length || toIndex >= store.config.teams.length) return;
   const [moved] = store.config.teams.splice(fromIndex, 1);
   if (!moved) return;
-  // After splice(fromIndex, 1), indices at or above fromIndex shifted left.
-  // When moving down (toIndex > fromIndex), subtract 1 so the item lands
-  // at the caller's intended position in the original array.
+  // After the splice, indices >= fromIndex shifted left by 1 — adjust when moving down.
   const adjustedTo = toIndex > fromIndex ? toIndex - 1 : toIndex;
   store.config.teams.splice(adjustedTo, 0, moved);
   saveConfig();
 }
-
-// ---------------------------------------------------------------------------
-// Team slot management
-// ---------------------------------------------------------------------------
 
 export function saveCurrentTeamSlots(teamId: string): void {
   const team = store.config.teams.find(t => t.id === teamId);
@@ -297,10 +262,6 @@ export function clearTeamSlot(teamId: string, slotIndex: 0 | 1 | 2): void {
   setTeamSlot(teamId, slotIndex, null);
 }
 
-// ---------------------------------------------------------------------------
-// Stale slot purge (sold / missing pets)
-// ---------------------------------------------------------------------------
-
 export function purgeGonePets(validIds: Set<string>): number {
   let cleared = 0;
   const details: string[] = [];
@@ -321,10 +282,6 @@ export function purgeGonePets(validIds: Set<string>): number {
   return cleared;
 }
 
-// ---------------------------------------------------------------------------
-// Team detection
-// ---------------------------------------------------------------------------
-
 export function detectCurrentTeam(): string | null {
   const activePets = getActivePetInfos();
   const activeSet = new Set(activePets.map(p => p.slotId).filter((id): id is string => id !== null));
@@ -333,17 +290,12 @@ export function detectCurrentTeam(): string | null {
   for (const team of store.config.teams) {
     const teamSet = new Set(team.slots.filter((s): s is string => s !== null));
     if (teamSet.size === 0) continue;
-    // A team matches if every non-null slot is currently active
     if ([...teamSet].every(id => activeSet.has(id))) {
       return team.id;
     }
   }
   return null;
 }
-
-// ---------------------------------------------------------------------------
-// Keybinds
-// ---------------------------------------------------------------------------
 
 export function setKeybind(key: string, teamId: string): void {
   const normalized = key.toLowerCase();

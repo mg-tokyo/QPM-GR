@@ -129,6 +129,12 @@ export interface SpriteState {
     decodeSuccesses: number;
     decodeFailures: number;
     totalDecodeMs: number;
+    discoveryStrategy: 'resource-timing' | 'bundle-scan' | 'failed' | 'pending';
+    workerUrl: string | null;
+    wasmUrl: string | null;
+    wasmBytes: number;
+    wasmFetchMs: number;
+    discoveryMs: number;
   };
   runtimeTextureHints?: any[];
   /** WeakMap from PIXI texture source → KTX2-decoded source canvas for reliable 2D extraction */

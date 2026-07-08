@@ -1,11 +1,5 @@
-// src/store/statsRecorder.ts
-// Central wiring bridge: connects game events → stats.ts record*() functions.
-//
-// Primary source: myDataAtom.activityLog — server-confirmed action entries.
+// Wires game events to stats.ts record*() functions. Primary: myDataAtom.activityLog (server-confirmed).
 // Secondary: abilityLogs store for pet ability procs (not in activity log).
-//
-// The game's activity log uses action strings like 'feedPet', 'harvest',
-// 'purchaseSeed', 'plantSeed', etc. We map these to stats.ts record functions.
 
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { ACTION_MAP } from '../features/activity/activityLogNativeEnhancer/constants';
@@ -32,9 +26,7 @@ let activityLogCounts = { garden: 0, shop: 0, feed: 0, ability: 0 };
 // Track ability proc timestamps to avoid double-counting
 let lastSeenAbilityTimestamps = new Map<string, number>();
 
-// ---------------------------------------------------------------------------
 // Activity log entry processing
-// ---------------------------------------------------------------------------
 
 interface LogEntry {
   action?: string;
@@ -52,13 +44,10 @@ function normalizeTimestamp(value: unknown): number {
   return Math.round(value);
 }
 
-/** Map game action string to our ActionKey category */
 function classifyAction(action: string): string | null {
-  // Direct match from the game's ACTION_MAP
   const direct = ACTION_MAP[action];
   if (direct) return direct;
 
-  // Case-insensitive fallback
   const lower = action.toLowerCase();
   for (const [key, value] of Object.entries(ACTION_MAP)) {
     if (key.toLowerCase() === lower) return value;
@@ -123,7 +112,6 @@ function processLogEntry(entry: LogEntry): void {
       break;
     }
     case 'feed': {
-      // Extract pet name from parameters
       const pet = (params.pet && typeof params.pet === 'object')
         ? params.pet as Record<string, unknown>
         : null;
@@ -141,9 +129,7 @@ function processLogEntry(entry: LogEntry): void {
   }
 }
 
-// ---------------------------------------------------------------------------
 // myDataAtom activity log subscription
-// ---------------------------------------------------------------------------
 
 function processActivityLog(rawValue: unknown): void {
   if (!rawValue || typeof rawValue !== 'object') return;
@@ -159,7 +145,6 @@ function processActivityLog(rawValue: unknown): void {
     return;
   }
 
-  // Only process new entries
   if (activityLog.length <= lastSeenLogLength) {
     lastSeenLogLength = activityLog.length;
     return;
@@ -194,9 +179,7 @@ async function subscribeToActivityLog(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Ability stats — from abilityLogs store (not in activity log)
-// ---------------------------------------------------------------------------
 
 function handleAbilityUpdate(snapshot: ReadonlyMap<string, AbilityHistory>): void {
   for (const [_key, history] of snapshot) {
@@ -209,7 +192,6 @@ function handleAbilityUpdate(snapshot: ReadonlyMap<string, AbilityHistory>): voi
         recordAbilityProc(history.abilityId, 0, event.performedAt);
         activityLogCounts.ability++;
 
-        // Wire XP proc tracking — look up pet info for name/species
         if (history.petId) {
           const pet = getActivePetInfos().find(p => p.petId === history.petId);
           recordXpProc(
@@ -230,11 +212,8 @@ function handleAbilityUpdate(snapshot: ReadonlyMap<string, AbilityHistory>): voi
   }
 }
 
-// ---------------------------------------------------------------------------
 // Lifecycle
-// ---------------------------------------------------------------------------
 
-/** Start recording stats from game activity log + ability procs. */
 export function startStatsRecorder(): () => void {
   if (started) return () => {};
   started = true;

@@ -1,6 +1,3 @@
-// src/store/petTeams/applyHelpers.ts
-// Snapshot reads, polling, ID normalization, and helpers for the apply engine.
-
 import { log } from '../../utils/logger';
 import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
@@ -8,9 +5,7 @@ import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { DEFAULT_HUTCH_CAPACITY } from '../hutch';
 import type { InventorySnapshot, HutchSnapshot } from './types';
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 export const INVENTORY_ATOM_LABEL = 'myInventoryAtom';
 export const HUTCH_ATOM_LABEL = 'myPetHutchPetItemsAtom';
@@ -23,15 +18,11 @@ export const APPLY_STEP_DELAY_MS = 120;
 export const FAST_PATH_SETTLE_TIMEOUT_MS = 1200;
 export const FAST_SETTLE_POLL_INTERVAL_MS = 50;
 export const REPAIR_SETTLE_TIMEOUT_MS = 1200;
-/** Delay between fast-path phases (retrieve → swap → store) to let the game
- *  settle each batch of state updates before the next batch arrives.
- *  Without this gap the game's frozen-state reducer can throw
- *  "Cannot assign to read only property 'updatedAt'" on rapid updates. */
+/** Gap between fast-path phases — without it the game's frozen-state reducer
+ *  can throw "Cannot assign to read only property 'updatedAt'" on rapid updates. */
 export const FAST_PATH_PHASE_GAP_MS = 100;
 
-// ---------------------------------------------------------------------------
 // ID normalization
-// ---------------------------------------------------------------------------
 
 export function normalizeId(value: unknown): string | null {
   if (typeof value === 'string') {
@@ -44,9 +35,7 @@ export function normalizeId(value: unknown): string | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
 // Inventory item extraction
-// ---------------------------------------------------------------------------
 
 export function extractInventoryItems(raw: unknown): unknown[] {
   if (Array.isArray(raw)) {
@@ -111,9 +100,7 @@ export function isLikelyPetInventoryEntry(entry: Record<string, unknown>): boole
   return Array.isArray(entry.abilities);
 }
 
-// ---------------------------------------------------------------------------
 // Active slot reads
-// ---------------------------------------------------------------------------
 
 export function getActiveSlotIds(): string[] {
   return getActivePetInfos()
@@ -121,9 +108,7 @@ export function getActiveSlotIds(): string[] {
     .filter((id): id is string => Boolean(id));
 }
 
-// ---------------------------------------------------------------------------
 // Snapshot reads
-// ---------------------------------------------------------------------------
 
 export async function readInventorySnapshot(): Promise<InventorySnapshot> {
   const ids = new Set<string>();
@@ -212,7 +197,6 @@ export async function readHutchSnapshot(resolvedCapacity?: number | null): Promi
       }
     }
 
-    // Use resolved capacity if available, otherwise fall back to heuristic
     const effectiveMax = resolvedCapacity ?? Math.max(items.length, occupied, DEFAULT_HUTCH_CAPACITY);
 
     let freeIndex: number | null = null;
@@ -243,9 +227,7 @@ export async function readInventoryIdSet(): Promise<Set<string>> {
   return result;
 }
 
-// ---------------------------------------------------------------------------
 // Polling waits
-// ---------------------------------------------------------------------------
 
 export async function waitForInventoryContains(itemId: string, timeoutMs: number): Promise<boolean> {
   const expected = normalizeId(itemId);
@@ -352,14 +334,8 @@ export async function waitForActiveTeamMatch(
   return false;
 }
 
-// ---------------------------------------------------------------------------
 // Pet location
-// ---------------------------------------------------------------------------
 
-/**
- * Locate a pet across all known locations.
- * Returns 'active' | 'inventory' | 'hutch' | null.
- */
 export async function locatePet(petId: string): Promise<'active' | 'inventory' | 'hutch' | null> {
   const activeIds = new Set(getActiveSlotIds());
   if (activeIds.has(petId)) return 'active';

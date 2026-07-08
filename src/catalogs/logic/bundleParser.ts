@@ -21,6 +21,21 @@ const BUNDLE_CONTENT_ANCHOR = 'ProduceScaleBoost';
 const bundleTextCache = new Map<string, string>();
 const bundleFetchInFlightByUrl = new Map<string, Promise<void>>();
 
+// Consumers that hold the shared text cache open. Once every declared consumer
+// signals its final cache is populated, the multi-MB bundle text is released.
+const pendingBundleConsumers = new Set<string>(['weather', 'ability-colors']);
+
+export function markBundleConsumerDone(name: string): void {
+  if (!pendingBundleConsumers.delete(name)) return;
+  if (pendingBundleConsumers.size === 0) {
+    bundleTextCache.clear();
+  }
+}
+
+export function clearBundleTextCache(): void {
+  bundleTextCache.clear();
+}
+
 function shouldDebug(): boolean {
   try {
     return readSharedGlobal('__QPM_DEBUG_ABILITY_COLORS') === true;

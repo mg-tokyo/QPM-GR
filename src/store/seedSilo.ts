@@ -1,4 +1,3 @@
-// src/store/seedSilo.ts
 // Reactive seed silo state: slot count, capacity, and upgrade level via Jotai subscription.
 
 import { subscribeAtomValue } from '../core/atomRegistry';
@@ -8,9 +7,7 @@ import { createStoreDiagnostics } from './_storeDiagnostics';
 const diag = createStoreDiagnostics('storeSeedSilo', 'seedSilo');
 let firstAtomValueSeen = false;
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 export const DEFAULT_SEED_SILO_CAPACITY = 25;
 
@@ -26,9 +23,7 @@ export function seedSiloCapacityForLevel(level: number): number {
   return SEED_SILO_CAPACITY_BY_LEVEL[clamped] ?? DEFAULT_SEED_SILO_CAPACITY;
 }
 
-// ---------------------------------------------------------------------------
 // Storage entry matching
-// ---------------------------------------------------------------------------
 
 const SILO_TOKENS = ['seedsilo', 'seed_silo', 'silo'];
 
@@ -46,9 +41,7 @@ function isSeedSiloEntry(entry: unknown): boolean {
   return false;
 }
 
-// ---------------------------------------------------------------------------
 // Reactive state
-// ---------------------------------------------------------------------------
 
 export interface SeedSiloState {
   /** Number of unique seed types (slots used). */
@@ -106,7 +99,6 @@ function updateFromInventory(raw: unknown): void {
     if (!isSeedSiloEntry(storage)) continue;
     const entry = storage as Record<string, unknown>;
 
-    // Capacity level
     const level = Number(entry.capacityLevel ?? entry.level);
     const capacityLevel = Number.isFinite(level) && level >= 0
       ? Math.max(0, Math.min(Math.floor(level), SEED_SILO_CAPACITY_BY_LEVEL.length - 1))
@@ -117,7 +109,6 @@ function updateFromInventory(raw: unknown): void {
     const items = Array.isArray(entry.items) ? entry.items : [];
     const count = items.length;
 
-    // Only notify if something changed
     if (state.count === count && state.capacity === capacity && state.capacityLevel === capacityLevel) {
       if (!firstAtomValueSeen) {
         firstAtomValueSeen = true;
@@ -135,9 +126,7 @@ function updateFromInventory(raw: unknown): void {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Init / stop
-// ---------------------------------------------------------------------------
 
 export async function startSeedSiloStore(): Promise<void> {
   if (inventoryUnsub) return;
@@ -173,9 +162,7 @@ export function stopSeedSiloStore(): void {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Read API (synchronous)
-// ---------------------------------------------------------------------------
 
 export function getSeedSiloState(): SeedSiloState {
   return { ...state };
@@ -197,14 +184,11 @@ export function isSeedSiloFull(): boolean {
   return state.count >= state.capacity;
 }
 
-/** True if the seed silo store is actively subscribed. */
 export function isSeedSiloStoreActive(): boolean {
   return inventoryUnsub !== null;
 }
 
-// ---------------------------------------------------------------------------
 // Subscribe API
-// ---------------------------------------------------------------------------
 
 export function onSeedSiloChange(
   callback: (state: SeedSiloState) => void,

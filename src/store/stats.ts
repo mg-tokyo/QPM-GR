@@ -1,4 +1,3 @@
-// src/store/stats.ts
 import { storage } from '../utils/storage';
 import { startWeatherHub, onWeatherSnapshot, getWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
 import { visibleInterval } from '../utils/scheduling/timerManager';
@@ -105,7 +104,7 @@ const SAVE_DEBOUNCE_MS = 1200;
 const WEATHER_TICK_INTERVAL = 5000;
 const WEATHER_COMMIT_MIN_INTERVAL_MS = 60_000;
 const MAX_SHOP_ITEMS = 40;
-const MAX_HISTORY = 1000; // Store up to 1000 history entries
+const MAX_HISTORY = 1000;
 
 let state: StatsState;
 let initialized = false;
@@ -191,7 +190,6 @@ function hydrateState(): StatsState {
 
   const base = createDefaultState(stored.meta?.initializedAt ?? now);
 
-  // Feed
   if (stored.feed) {
     base.feed.totalFeeds = Number(stored.feed.totalFeeds ?? base.feed.totalFeeds);
     base.feed.lastFeedAt = stored.feed.lastFeedAt ?? null;
@@ -208,7 +206,6 @@ function hydrateState(): StatsState {
     }
   }
 
-  // Weather
   if (stored.weather) {
     base.weather.activeKind = stored.weather.activeKind ?? base.weather.activeKind;
     base.weather.lastSnapshotAt = stored.weather.lastSnapshotAt ?? now;
@@ -220,7 +217,6 @@ function hydrateState(): StatsState {
     }
   }
 
-  // Shop
   if (stored.shop) {
     base.shop.totalPurchases = Number(stored.shop.totalPurchases ?? 0);
     base.shop.totalSpentCoins = Number(stored.shop.totalSpentCoins ?? 0);
@@ -273,7 +269,6 @@ function hydrateState(): StatsState {
     }
   }
 
-  // Garden
   if (stored.garden) {
     base.garden.totalPlanted = Number(stored.garden.totalPlanted ?? 0);
     base.garden.totalHarvested = Number(stored.garden.totalHarvested ?? 0);
@@ -285,7 +280,6 @@ function hydrateState(): StatsState {
     base.garden.lastWateredAt = stored.garden.lastWateredAt ?? null;
   }
 
-  // Pets
   if (stored.pets) {
     base.pets.totalHatched = Number(stored.pets.totalHatched ?? 0);
     if (stored.pets.hatchedByRarity) {
@@ -297,7 +291,6 @@ function hydrateState(): StatsState {
     base.pets.lastHatchedRarity = stored.pets.lastHatchedRarity ?? null;
   }
 
-  // Abilities
   if (stored.abilities) {
     base.abilities.totalProcs = Number(stored.abilities.totalProcs ?? 0);
     base.abilities.totalEstimatedValue = Number(stored.abilities.totalEstimatedValue ?? 0);
@@ -315,7 +308,6 @@ function hydrateState(): StatsState {
     base.abilities.lastProcAbility = stored.abilities.lastProcAbility ?? null;
   }
 
-  // Meta
   if (stored.meta) {
     base.meta.initializedAt = stored.meta.initializedAt ?? base.meta.initializedAt;
     base.meta.updatedAt = stored.meta.updatedAt ?? base.meta.updatedAt;

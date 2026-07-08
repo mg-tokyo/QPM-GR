@@ -1,4 +1,3 @@
-// src/store/economyTracker.ts
 // Samples currency balances from Jotai atoms and computes earning rates.
 // Hooks into WS sends (SellPet, Purchase*) for per-action transaction context.
 
@@ -7,10 +6,6 @@ import { getStatsSnapshot, type ShopCategoryKey } from './stats';
 import { visibleInterval } from '../utils/scheduling/timerManager';
 import { onActionSent, type RoomActionType } from '../websocket/api';
 import { log } from '../utils/logger';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface CurrencySnapshot {
   balance: number;
@@ -46,10 +41,6 @@ export interface EconomySnapshot {
   updatedAt: number;
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
 interface BalanceSample {
   value: number;
   time: number;
@@ -74,13 +65,8 @@ const transactions: Transaction[] = [];
 const MAX_TRANSACTIONS = 100;
 const sessionStart = Date.now();
 
-// ---------------------------------------------------------------------------
-// Debounced transaction recording
-// ---------------------------------------------------------------------------
-// Rapid balance changes (e.g. batch sells at 40ms intervals) get coalesced by
-// Jotai into a few atom updates. We debounce so all changes within a window
-// merge into one transaction entry, then annotate it with WS action context.
-
+// Rapid balance changes (e.g. batch sells) get coalesced by Jotai into a few
+// atom updates; debounce merges them into one transaction entry.
 const TX_DEBOUNCE_MS = 600;
 const MIN_TRANSACTION_AMOUNT = 1;
 
@@ -117,7 +103,6 @@ function buildTransactionContext(currency: CurrencyType, amount: number): string
     // Income — check for pending SellPet actions
     const sells = pendingActions.filter(a => a.type === 'SellPet');
     if (sells.length > 0) {
-      // Consume these actions
       for (const s of sells) {
         const idx = pendingActions.indexOf(s);
         if (idx >= 0) pendingActions.splice(idx, 1);
@@ -180,10 +165,7 @@ function bufferTransaction(currency: CurrencyType, delta: number, balanceAfter: 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Rate calculation — linear regression over sliding window
-// ---------------------------------------------------------------------------
-
+// Rate calculation: linear regression over sliding window
 function computeRate(samples: BalanceSample[]): number {
   if (samples.length < 2) return 0;
   const oldest = samples[0]!;
@@ -203,10 +185,6 @@ function pushSample(buf: BalanceSample[], value: number): void {
   buf.push({ value, time: now });
   if (buf.length > MAX_SAMPLES) buf.shift();
 }
-
-// ---------------------------------------------------------------------------
-// Spending breakdown from stats store
-// ---------------------------------------------------------------------------
 
 let cachedSpendingKey = -1;
 let cachedSpending: EconomySnapshot['spending'] | null = null;
@@ -230,7 +208,6 @@ function buildSpending(): EconomySnapshot['spending'] {
     byCategory[cat] = { coins: 0, credits: 0, dust: 0 };
   }
 
-  // Derive per-category from history entries
   for (const entry of stats.history) {
     const cat = entry.category;
     if (byCategory[cat]) {
@@ -245,10 +222,6 @@ function buildSpending(): EconomySnapshot['spending'] {
   cachedSpendingKey = key;
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// Snapshot
-// ---------------------------------------------------------------------------
 
 function buildSnapshot(): EconomySnapshot {
   return {
@@ -269,10 +242,6 @@ function notifyListeners(): void {
     try { cb(snapshot); } catch { /* ignore */ }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export function getEconomySnapshot(): EconomySnapshot {
   return buildSnapshot();
@@ -354,7 +323,6 @@ export async function initEconomyTracker(): Promise<void> {
 }
 
 export function destroyEconomyTracker(): void {
-  // Clear any pending debounce timers
   for (const key of ['coins', 'credits', 'dust'] as CurrencyType[]) {
     const pending = pendingTxMap[key];
     if (pending) {

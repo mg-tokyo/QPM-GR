@@ -1,4 +1,3 @@
-// src/store/petTeamsLogs.ts
 // Persistent event log for the Pet Teams feature.
 // Tracks ability, feed, and team-apply events with a 5000-event cap and 30-day TTL.
 
@@ -124,9 +123,7 @@ export function stopPetTeamsLogs(): void {
   listeners.clear();
 }
 
-// ---------------------------------------------------------------------------
 // Logging helpers
-// ---------------------------------------------------------------------------
 
 export function logAbilityEvent(
   petItemId: string,
@@ -185,9 +182,7 @@ export function logTeamEvent(
   });
 }
 
-// ---------------------------------------------------------------------------
 // Read API
-// ---------------------------------------------------------------------------
 
 export function getLogs(type?: PetLogEventType, limit?: number): PetLogEvent[] {
   let result = type ? cachedLogs.filter(e => e.type === type) : [...cachedLogs];

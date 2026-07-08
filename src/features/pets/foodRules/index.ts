@@ -35,5 +35,4 @@ export {
   readInventorySnapshot,
   evaluateFoodAvailabilityForPet,
   selectFoodForPet,
-  selectFoodForPetLegacyCompatibility,
 } from './diet';

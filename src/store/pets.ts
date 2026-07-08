@@ -1,4 +1,3 @@
-// src/store/pets.ts
 // Bridge for active pet information via myPrimitivePetSlotsAtom.
 
 import { subscribeAtomValue } from '../core/atomRegistry';
@@ -649,7 +648,6 @@ function extractStrengthFromDOM(): number[] {
   const strengthValues: number[] = [];
 
   try {
-    // Look for <p class="chakra-text css-1jrst1o"> elements with "STR XX" pattern
     const strElements = document.querySelectorAll('p.chakra-text.css-1jrst1o');
 
     for (const el of strElements) {
@@ -664,7 +662,6 @@ function extractStrengthFromDOM(): number[] {
       }
     }
   } catch (error) {
-    // Silently fail if DOM extraction doesn't work
   }
 
   _strengthCache = strengthValues;
@@ -681,7 +678,6 @@ function normalizePetInfos(raw: unknown): ActivePetInfo[] {
   const now = Date.now();
   const infos: ActivePetInfo[] = [];
 
-  // Extract strength values from DOM as fallback
   const domStrengthValues = extractStrengthFromDOM();
 
   entries.forEach((entry, idx) => {
@@ -749,39 +745,32 @@ function normalizePetInfos(raw: unknown): ActivePetInfo[] {
       }
     }
 
-    // Fallback: extract strength from DOM if not in Jotai data
     if (atomStrength == null && slotIndex < domStrengthValues.length) {
       atomStrength = domStrengthValues[slotIndex] ?? null;
     }
 
-    // Calculate CURRENT strength from XP
     // Slot 2 often has no strength field in atom, so we calculate from targetScale + XP
     let strength: number | null = null;
 
-    // Primary method: Calculate from targetScale and XP
     if (targetScale != null && xp != null && species) {
       const maxStr = calculateMaxStrength(targetScale, species);
       const xpPerLevel = getSpeciesXpPerLevel(species);
 
       if (maxStr != null && xpPerLevel != null && xpPerLevel > 0) {
-        // Levels gained from XP (capped at 30)
         const levelsGainedFromXp = Math.floor(xp / xpPerLevel);
         const actualLevelsGained = Math.min(30, levelsGainedFromXp);
 
         // Hatch strength = max - 30 levels
         const hatchStrength = maxStr - 30;
 
-        // Current strength = hatch + actual levels gained
         const calculatedCurrent = hatchStrength + actualLevelsGained;
 
-        // Use calculated value if it makes sense
         if (calculatedCurrent >= hatchStrength && calculatedCurrent <= maxStr) {
           strength = calculatedCurrent;
         }
       }
     }
 
-    // Fallback: If targetScale is missing, try using atomStrength
     if (strength == null && atomStrength != null && xp != null && species) {
       if (atomStrength >= 80 && atomStrength <= 100) {
         // Assume atomStrength is max strength, calculate current from XP
@@ -829,12 +818,9 @@ function normalizePetInfos(raw: unknown): ActivePetInfo[] {
       raw: entry,
     };
 
-    // Calculate level from XP if not available from Jotai
     if (petInfo.level == null && petInfo.xp != null && petInfo.petId) {
-      // Record XP for rate tracking
       recordPetXP(petInfo);
 
-      // Estimate level from XP gain rate
       const levelEstimate = estimatePetLevel(petInfo);
       if (levelEstimate.currentLevel != null) {
         petInfo.level = levelEstimate.currentLevel;
@@ -888,7 +874,6 @@ export function stopPetInfoStore(): void {
   try {
     unsubscribe?.();
   } catch {
-    // noop
   }
   unsubscribe = null;
   cachedInfos = [];
@@ -901,10 +886,7 @@ export function stopPetInfoStore(): void {
   clearStartRetry();
 }
 
-/**
- * Debug function to get current active pet data
- * Can be called from browser console via window.QPM.debugPets()
- */
+/** Callable from browser console via window.QPM.debugPets(). */
 export function getActivePetsDebug(): ActivePetInfo[] {
   return cachedInfos;
 }

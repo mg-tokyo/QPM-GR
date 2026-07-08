@@ -1,6 +1,3 @@
-// src/store/inventory.ts
-// Bridge for inventory data via myInventoryAtom and myCropInventoryAtom
-
 import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { log } from '../utils/logger';
@@ -20,8 +17,8 @@ export interface InventoryItem {
   count?: number;
   amount?: number;
   stackSize?: number;
-  abilities?: any[]; // Pet abilities
-  strength?: number; // Pet strength
+  abilities?: any[];
+  strength?: number;
   raw: unknown;
 }
 
@@ -71,7 +68,6 @@ function normalizeInventoryItem(raw: any): InventoryItem | null {
 function normalizeInventoryData(raw: any): InventoryData | null {
   if (!raw) return null;
 
-  // Try to extract items array
   let itemsArray: any[] = [];
   if (Array.isArray(raw)) {
     itemsArray = raw;
@@ -80,7 +76,6 @@ function normalizeInventoryData(raw: any): InventoryData | null {
   } else if (Array.isArray(raw.inventory)) {
     itemsArray = raw.inventory;
   } else if (typeof raw === 'object') {
-    // Try to find an array in the object
     const values = Object.values(raw);
     const candidate = values.find((v): v is any[] =>
       Array.isArray(v) && v.length > 0 && typeof v[0] === 'object'
@@ -98,7 +93,6 @@ function normalizeInventoryData(raw: any): InventoryData | null {
     }
   }
 
-  // Extract favorited item IDs
   let favoritedItemIds: string[] = [];
   if (Array.isArray(raw?.favoritedItemIds)) {
     favoritedItemIds = raw.favoritedItemIds.filter((id: any): id is string => typeof id === 'string');
@@ -179,10 +173,7 @@ export async function startInventoryStore(): Promise<void> {
   initializing = true;
   diag.register('Waiting for inventory');
   try {
-    // Route through atomRegistry — its `inventory` selector projects
-    // stateAtom.child.data.userSlots[me].data.inventory via the stateTree
-    // fan-out. No more polling; also no more crop-atom fallback because the
-    // container the crop atom sliced from IS the value we now read.
+    // Routes through atomRegistry's `inventory` selector (stateTree fan-out) — no polling, no crop-atom fallback needed.
     const unsub = await subscribeAtomValue('inventory', (value) => {
       lastRawInventoryValue = value;
       updateCache(value);
@@ -214,17 +205,10 @@ export function stopInventoryStore(): void {
   lastNotifySignature = null;
 }
 
-/**
- * Get current inventory items (synchronous)
- * Returns cached data from the subscribed atom
- */
 export function getInventoryItems(): InventoryItem[] {
   return [...cachedInventory];
 }
 
-/**
- * Get current favorited item IDs (synchronous)
- */
 export function getFavoritedItemIds(): Set<string> {
   return new Set(cachedFavorites);
 }
@@ -246,17 +230,11 @@ export function onInventoryChange(
   };
 }
 
-/**
- * Check if inventory store is running
- */
 export function isInventoryStoreActive(): boolean {
   return unsubscribe !== null;
 }
 
-/**
- * Read inventory directly from atom (async, bypasses cache)
- * Useful for one-time reads without subscribing
- */
+/** Reads inventory directly from the atom, bypassing the cache. */
 export async function readInventoryDirect(): Promise<InventoryData | null> {
   try {
     let atom = getAtomByLabel(INVENTORY_ATOM_LABEL);

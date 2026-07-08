@@ -1,4 +1,3 @@
-// src/store/hatchStatsStore.ts
 // Rich per-hatch stats tracking: species + abilities + session/lifetime counts.
 
 import { storage } from '../utils/storage';
@@ -72,7 +71,6 @@ function notify(): void {
     try {
       cb(state);
     } catch {
-      // ignore listener errors
     }
   }
 }
@@ -85,10 +83,7 @@ function persist(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
 // One-time data cleanup — removes inflated/corrupted entries
-// ---------------------------------------------------------------------------
-
 /** Heuristic: does a species key look like a real species name (not a pet nickname)? */
 function looksLikeSpeciesName(key: string): boolean {
   // Real species are short alpha strings like "Turtle", "Butterfly", "Rose"
@@ -101,13 +96,12 @@ function looksLikeSpeciesName(key: string): boolean {
 }
 
 function runCleanup(): void {
-  if (state.meta.cleanedAt) return; // Already cleaned
+  if (state.meta.cleanedAt) return;
 
   const bucket = state.lifetime;
   const originalTotal = bucket.totalHatched;
   const originalSpeciesCount = Object.keys(bucket.bySpecies).length;
 
-  // Build a set of known valid species from catalogs (if available)
   let validSpecies: Set<string> | null = null;
   if (areCatalogsReady()) {
     const all = getAllPetSpecies();
@@ -116,7 +110,6 @@ function runCleanup(): void {
     }
   }
 
-  // Filter species entries
   const cleanedSpecies: Record<string, SpeciesCounts> = {};
   let cleanedTotal = 0;
 
@@ -124,11 +117,9 @@ function runCleanup(): void {
     // Always remove "Unknown" entries — they're from extraction failures
     if (species === 'Unknown') continue;
 
-    // If catalogs available, validate against known species
     if (validSpecies) {
       if (!validSpecies.has(species.toLowerCase())) continue;
     } else {
-      // Fallback: heuristic filter for obviously-bad entries
       if (!looksLikeSpeciesName(species)) continue;
     }
 
@@ -170,7 +161,6 @@ export function initHatchStatsStore(): void {
       state = defaultState();
     }
 
-    // Run one-time cleanup of corrupted data
     if (!state.meta.cleanedAt) {
       if (areCatalogsReady()) {
         runCleanup();
@@ -261,10 +251,6 @@ export function resetHatchStats(): void {
   notify();
   log('[HatchStats] Full reset');
 }
-
-// ---------------------------------------------------------------------------
-// Seed lifetime from existing pets (inventory / hutch backfill)
-// ---------------------------------------------------------------------------
 
 function extractSeedMutations(pet: PetSeedInput): string[] {
   const slot = (pet as Record<string, unknown>).slot as Record<string, unknown> | undefined;

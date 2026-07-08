@@ -1,4 +1,3 @@
-// src/store/petTeams/index.ts
 // Public re-exports only — no logic here.
 
 // config.ts

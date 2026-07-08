@@ -32,19 +32,26 @@ export class Cursor {
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private speedPxPerSec: number;
   private observer: MutationObserver;
+  private reappendRafId: number | null = null;
 
   constructor(speedPxPerSec: number) {
     this.speedPxPerSec = speedPxPerSec;
     this.el = this.createElement();
 
-    // Append to <html> — sibling of <body>, paints after all body content
     document.documentElement.appendChild(this.el);
 
-    // Stay last child so we beat any mod that also appends to <html>
+    // Stay last child so we beat any mod that also appends to <html>.
+    // rAF-coalesced so ping-pong with another keep-last-child mod (Aries) can't
+    // spin — at most one re-append per frame.
     this.observer = new MutationObserver(() => {
-      if (document.documentElement.lastChild !== this.el) {
-        document.documentElement.appendChild(this.el);
-      }
+      if (this.reappendRafId !== null) return;
+      if (document.documentElement.lastChild === this.el) return;
+      this.reappendRafId = requestAnimationFrame(() => {
+        this.reappendRafId = null;
+        if (document.documentElement.lastChild !== this.el) {
+          document.documentElement.appendChild(this.el);
+        }
+      });
     });
     this.observer.observe(document.documentElement, { childList: true });
   }
@@ -148,6 +155,10 @@ export class Cursor {
 
   destroy(): void {
     if (this.hideTimer !== null) clearTimeout(this.hideTimer);
+    if (this.reappendRafId !== null) {
+      cancelAnimationFrame(this.reappendRafId);
+      this.reappendRafId = null;
+    }
     this.observer.disconnect();
     this.el.remove();
   }

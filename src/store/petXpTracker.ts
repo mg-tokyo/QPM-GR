@@ -1,6 +1,3 @@
-// src/store/petXpTracker.ts
-// Observes pet XP/level changes to build species-specific progression tables.
-
 import { startPetInfoStore, onActivePetInfos, type ActivePetInfo } from './pets';
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';

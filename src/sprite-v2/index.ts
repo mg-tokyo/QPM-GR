@@ -5,6 +5,7 @@ import type { SpriteState, SpriteConfig, SpriteService, GetSpriteParams, RenderO
 import { DEFAULT_CFG } from './settings';
 import { detectGameVersionWithRetry, buildAssetsBaseUrl, getRuntimeWindow } from './detector';
 import { createPixiHooks, waitForPixi, ensureDocumentReady } from './hooks';
+import type { PixiHooks } from './types';
 import { getJSON, loadAtlasJsons, isAtlas, getBlob, blobToImage, joinPath, relPath } from './manifest';
 import { getCtors, rememberBaseTex } from './utils';
 import { buildAtlasTextures, buildItemsFromTextures } from './atlas';
@@ -31,6 +32,8 @@ const HYDRATION_EVENT = 'qpm:sprite-hydration-state-change';
 let spriteDiagnosticsStarted = false;
 let hydrationEventHandler: ((event: Event) => void) | null = null;
 let lastPublishedSig = '';
+let sprite005ReportedThisBoot = false;
+let sprite006ReportedThisBoot = false;
 
 // Global state
 let ctx: {
@@ -38,9 +41,20 @@ let ctx: {
   state: SpriteState;
 } | null = null;
 
-// CRITICAL: Create hooks at MODULE LOAD TIME, not inside async functions!
-// The game calls __PIXI_APP_INIT__ early - we must have hooks ready before that.
-const hooks = createPixiHooks();
+// PIXI hooks must install BEFORE the game calls __PIXI_APP_INIT__. main.ts calls
+// initPixiHooks() as its very first statement so this stays at the same document-start
+// timing that the old module-scope side-effect had.
+let hooks: PixiHooks | null = null;
+
+export function initPixiHooks(): void {
+  if (hooks) return;
+  hooks = createPixiHooks();
+}
+
+function requirePixiHooks(): PixiHooks {
+  if (!hooks) hooks = createPixiHooks();
+  return hooks;
+}
 
 function createInitialState(): SpriteState {
   return {
@@ -234,6 +248,12 @@ function createDecoderTelemetry(): Ktx2DecoderTelemetry {
     decodeSuccesses: 0,
     decodeFailures: 0,
     totalDecodeMs: 0,
+    discoveryStrategy: 'pending',
+    workerUrl: null,
+    wasmUrl: null,
+    wasmBytes: 0,
+    wasmFetchMs: 0,
+    discoveryMs: 0,
   };
 }
 
@@ -245,8 +265,10 @@ function chooseKtx2DecoderConcurrency(): number {
   return lowEndByCores || lowEndByMemory ? 1 : 2;
 }
 
-function classifyKtx2Error(error: unknown): 'fetch-failed' | 'decode-timeout' | 'decode-failed' | 'canvas-build-failed' | 'wasm-blocked' {
+function classifyKtx2Error(error: unknown): 'discovery-failed' | 'protocol-mismatch' | 'fetch-failed' | 'decode-timeout' | 'decode-failed' | 'canvas-build-failed' | 'wasm-blocked' {
   const msg = String((error as Error)?.message ?? error ?? '').toLowerCase();
+  if (msg.includes('discovery')) return 'discovery-failed';
+  if (msg.includes('protocol')) return 'protocol-mismatch';
   if (msg.includes('wasm') || msg.includes('webassembly') || msg.includes('csp') || msg.includes('script-src')) return 'wasm-blocked';
   if (msg.includes('timeout')) return 'decode-timeout';
   if (msg.includes('http') || msg.includes('network') || msg.includes('fetch')) return 'fetch-failed';
@@ -348,10 +370,29 @@ function computeHydrationStatus(coverage: number): SpriteHydrationStatus {
   return 'failed';
 }
 
+let lastHydrationDispatchFingerprint = '';
+let lastHydrationDispatchAt = 0;
+const HYDRATION_DEDUPE_WINDOW_MS = 500;
+
 function dispatchHydrationEvent(reason: string, detail: Record<string, unknown>): void {
+  const coverageBucket = typeof detail.coverage === 'number'
+    ? Math.round(detail.coverage * 100)
+    : -1;
+  const statusToken = typeof detail.status === 'string' ? detail.status : '';
+  const fingerprint = `${reason}|${coverageBucket}|${statusToken}`;
+  const now = Date.now();
+  if (
+    fingerprint === lastHydrationDispatchFingerprint &&
+    now - lastHydrationDispatchAt < HYDRATION_DEDUPE_WINDOW_MS
+  ) {
+    return;
+  }
+  lastHydrationDispatchFingerprint = fingerprint;
+  lastHydrationDispatchAt = now;
+
   const payload = {
     reason,
-    at: Date.now(),
+    at: now,
     ...detail,
   };
   const evt = new CustomEvent('qpm:sprite-hydration-state-change', { detail: payload });
@@ -1880,6 +1921,21 @@ async function loadTextures(
             failureKind,
             error: String((error as Error)?.message ?? error),
           });
+          if (failureKind === 'discovery-failed' && !sprite005ReportedThisBoot) {
+            sprite005ReportedThisBoot = true;
+            diagLog.error('QPM-SPRITE-005', {
+              atlasPath: path,
+              imagePath: imgPath,
+              error: String((error as Error)?.message ?? error),
+            }, error);
+          } else if (failureKind === 'protocol-mismatch' && !sprite006ReportedThisBoot) {
+            sprite006ReportedThisBoot = true;
+            diagLog.error('QPM-SPRITE-006', {
+              atlasPath: path,
+              imagePath: imgPath,
+              error: String((error as Error)?.message ?? error),
+            }, error);
+          }
         }
 
         atlasReports.push({
@@ -2215,28 +2271,43 @@ async function resolvePixiFast(): Promise<PixiBundle> {
     return null;
   };
   
-  // Check 4: React fiber traversal (direct DOM inspection)
+  // Check 4: React fiber traversal (direct DOM inspection). Expensive — up to
+  // ~10k-node BFS per call. Rate-limited on the poll path (see FIBER_POLL_EVERY_N
+  // below) after cheap checks have missed a few times in a row.
   const checkFiber = (): PixiBundle | null => findPixiViaFiber();
-  
-  // Combined check - injected capture is most reliable for Chrome
-  const check = (): PixiBundle | null => checkInjectedCapture() || checkGlobals() || checkAriesService() || checkFiber();
-  
-  // Try immediately
-  const hit = check();
+
+  const cheapCheck = (): PixiBundle | null =>
+    checkInjectedCapture() || checkGlobals() || checkAriesService();
+
+  // Try immediately (include fiber — a hit here skips all polling)
+  const hit = cheapCheck() || checkFiber();
   if (hit) return hit;
 
-  // Poll for up to 15 seconds with all methods
+  // Poll for up to 15 seconds. Cheap checks every 100ms; fiber only every ~1s
+  // and only after a streak of cheap misses.
   const maxMs = 15000;
   const pollStart = performance.now();
-  
+  const FIBER_MIN_MISS_STREAK = 5;
+  const FIBER_POLL_EVERY_N = 10;
+  let pollIter = 0;
+  let cheapMissStreak = 0;
+
   while (performance.now() - pollStart < maxMs) {
     await new Promise(r => setTimeout(r, 100));
-    const retry = check();
-    if (retry) return retry;
+    pollIter += 1;
+
+    const cheap = cheapCheck();
+    if (cheap) return cheap;
+    cheapMissStreak += 1;
+
+    if (cheapMissStreak >= FIBER_MIN_MISS_STREAK && pollIter % FIBER_POLL_EVERY_N === 0) {
+      const fibered = checkFiber();
+      if (fibered) return fibered;
+    }
   }
 
   // Final fallback: wait on hooks
-  const waited = await waitForPixi(hooks, 5000).catch(() => ({ app: null, renderer: null, version: null }));
+  const waited = await waitForPixi(requirePixiHooks(), 5000).catch(() => ({ app: null, renderer: null, version: null }));
   
   if (waited.renderer || waited.app?.renderer) {
     return { app: waited.app, renderer: waited.renderer || waited.app?.renderer, version: waited.version };
@@ -2290,6 +2361,11 @@ function buildSpriteMetrics(detail?: Record<string, unknown>): Readonly<Record<s
   const loadMode = String(
     (detail?.['loadMode'] as string | undefined) ?? report?.loadMode ?? ctx?.state.loadMode ?? 'unknown',
   );
+  const decoder = ctx?.state.decoder;
+  const decoderSuccesses = decoder?.decodeSuccesses ?? 0;
+  const decoderAvgMs = decoderSuccesses > 0
+    ? Number(((decoder?.totalDecodeMs ?? 0) / decoderSuccesses).toFixed(1))
+    : 0;
   return {
     coverage: Number.isFinite(coverage) ? Number(coverage.toFixed(3)) : 0,
     expectedFrames: Number.isFinite(expected) ? expected : 0,
@@ -2298,6 +2374,11 @@ function buildSpriteMetrics(detail?: Record<string, unknown>): Readonly<Record<s
     loadMode,
     textures: ctx?.state.tex.size ?? 0,
     items: ctx?.state.items.length ?? 0,
+    decoderAttempts: decoder?.decodeAttempts ?? 0,
+    decoderSuccesses,
+    decoderFailures: decoder?.decodeFailures ?? 0,
+    decoderAvgMs,
+    decoderDiscovery: decoder?.discoveryStrategy ?? 'pending',
   };
 }
 

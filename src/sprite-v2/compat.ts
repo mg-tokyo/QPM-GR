@@ -243,7 +243,6 @@ export function setSpriteService(svc: SpriteService): void {
   hasLoggedServiceNotReady = false;
   ensureHydrationEventListener();
   serviceReadyResolve?.(service);
-  // Notify all waiting callbacks that sprites are ready
   notifySpritesReady();
 }
 

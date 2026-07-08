@@ -255,6 +255,7 @@ export async function getCosmeticCatalogFromBundle(): Promise<RuntimeCosmeticCat
     const catalog = await loadFromBundle();
     if (!catalog) return null;
     cosmeticCatalogCache = catalog;
+    cosmeticBundleCache = null;
     return catalog;
   })().finally(() => {
     cosmeticCatalogInFlight = null;

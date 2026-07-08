@@ -1,4 +1,3 @@
-// src/store/shopStock.ts
 // Normalized view of shop atom data and restock timers.
 
 import { readAtomValue as readRegistryAtomValue, readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
@@ -127,11 +126,7 @@ function getEffectivePurchasesSnapshot(): ShopPurchasesAtomSnapshot | null {
   return myDataPurchasesSnapshot;
 }
 
-/**
- * Weather-gated shop items (Dawn, Snow) lack price fields in their raw atom data.
- * Resolve prices by detecting the underlying item type and looking up
- * the catalog price for that type (seeds, eggs, tools, decor).
- */
+/** Weather-gated shop items lack price fields in raw atom data — resolve via catalog lookup by item type. */
 function resolveWeatherShopCatalogPrices(items: ShopStockItem[]): void {
   for (const item of items) {
     if (item.priceCoins != null) continue;
@@ -238,10 +233,7 @@ export async function startShopStockStore(): Promise<void> {
       rebuildState();
     });
 
-    // Fallback: subscribe to quinoaData.shops for categories not covered
-    // by customRestockInventories (e.g. dawn shop, which has no custom restock).
-    // Keep quinoaDataAtomRef resolved for forceRefreshShopStock's synchronous
-    // store.get fallback path.
+    // Fallback: subscribe to quinoaData.shops for categories with no customRestockInventories (e.g. dawn shop).
     quinoaDataAtomRef = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
     try {
       const unsub = await subscribeAtomValue('quinoaData', (value) => {
@@ -293,11 +285,7 @@ export function stopShopStockStore(): void {
   lastNotifySignature = null;
 }
 
-/**
- * Re-read shop atoms directly via store.get() and rebuild if changed.
- * Used by the background atom poller to detect changes when native
- * Jotai subscriptions don't fire (background tabs).
- */
+/** Re-read shop atoms via store.get() and rebuild if changed — used by the background atom poller when Jotai subscriptions don't fire (background tabs). */
 export function forceRefreshShopStock(): void {
   const store = getCachedStore();
   if (!store || store.__polyfill) return;
@@ -313,7 +301,6 @@ export function forceRefreshShopStock(): void {
     }
   } catch {}
 
-  // Re-read myDataAtom purchases
   if (myDataAtomRef) {
     try {
       const freshMyData = store.get(myDataAtomRef);
@@ -325,7 +312,6 @@ export function forceRefreshShopStock(): void {
     } catch {}
   }
 
-  // Re-read custom inventories
   if (myUserSlotAtomRef) {
     try {
       const freshSlot = store.get(myUserSlotAtomRef);

@@ -1,7 +1,7 @@
 // src/catalogs/logic/abilityColors.ts
 // Ability color extraction from game bundle (Gemini-style).
 
-import { fetchBundleContaining, findAllIndices, extractBalancedBlock } from './bundleParser';
+import { fetchBundleContaining, findAllIndices, extractBalancedBlock, markBundleConsumerDone } from './bundleParser';
 import { readSharedGlobal } from '../../core/pageContext';
 
 export interface RuntimeAbilityColor {
@@ -213,6 +213,7 @@ export async function getAbilityColorMap(): Promise<Record<string, RuntimeAbilit
     const map = await loadAbilityColorsFromBundle();
     if (!map) return null;
     abilityColorMapCache = map;
+    markBundleConsumerDone('ability-colors');
     return map;
   })().finally(() => {
     abilityColorMapInFlight = null;

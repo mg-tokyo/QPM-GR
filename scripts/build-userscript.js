@@ -1,6 +1,7 @@
 // scripts/build-userscript.js
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const ROOT_DIR = path.join(__dirname, "..");
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, "package.json");
@@ -17,6 +18,24 @@ const DASHBOARD_CHANGELOG_PATH = path.join(
   "sections",
   "changelog-data.ts",
 );
+
+function resolveBuiltAt() {
+  if (process.env.BUILD_DATE) return process.env.BUILD_DATE;
+  try {
+    return execSync("git log -1 --format=%cI HEAD", {
+      cwd: ROOT_DIR,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+function jsStringLiteral(value) {
+  return JSON.stringify(String(value));
+}
 
 function readFileOrThrow(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -100,7 +119,7 @@ function validateVersionSync(packageVersion) {
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         QPM (ALPHA)
 // @namespace    Quinoa
-// @version      3.3.10
+// @version      3.3.11
 // @description  Quality-of-life enhancements for Magic Garden: crop type locking, mutation tracking, value calculator, harvest reminders, journal species checker, and persistent feed statistics.
 // @author       TOKYO.#6464
 // @match        https://1227719606223765687.discordsays.com/*
@@ -178,8 +197,19 @@ function buildUserscript() {
     }
     const cleanedCode = bodyCode.replace(/\/\/# sourceMappingURL=.*$/gm, "");
 
+    const builtAt = resolveBuiltAt();
+    // Burned BEFORE the vite bundle so window.__QPM_BUNDLE_INFO__ is populated
+    // by the time src/diagnostics/bundleInfo.ts reads it during boot.
+    const bundleInfoLine =
+      `window.__QPM_BUNDLE_INFO__={version:${jsStringLiteral(packageVersion)},` +
+      `iifeBytes:${builtCode.length},builtAt:${jsStringLiteral(builtAt)}};\n`;
+
     const userscript =
-      USERSCRIPT_HEADER + cleanedCode + USERSCRIPT_FOOTER + inlineMapComment;
+      USERSCRIPT_HEADER +
+      bundleInfoLine +
+      cleanedCode +
+      USERSCRIPT_FOOTER +
+      inlineMapComment;
 
     const outputPath = path.join(__dirname, "..", "dist", "QPM.user.js");
     fs.writeFileSync(outputPath, userscript, "utf8");

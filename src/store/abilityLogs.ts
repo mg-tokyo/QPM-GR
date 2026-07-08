@@ -1,4 +1,3 @@
-// src/store/abilityLogs.ts
 // Watches pet ability triggers (myPetSlotInfosAtom) to expose live proc history.
 
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';

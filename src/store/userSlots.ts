@@ -1,4 +1,3 @@
-// src/store/userSlots.ts
 import { ensureJotaiStore, findAtomsByLabel, getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
 import { log } from '../utils/logger';
 

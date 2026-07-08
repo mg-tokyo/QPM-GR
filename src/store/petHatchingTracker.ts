@@ -1,6 +1,5 @@
-// src/store/petHatchingTracker.ts
-// Tracks pet hatching events by monitoring pet collection changes
-// Integrates with auto-favorite to favorite rare pets
+// Tracks pet hatching events by monitoring pet collection changes.
+// Integrates with auto-favorite to favorite rare pets.
 
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { recordPetHatch } from './stats';
@@ -51,7 +50,6 @@ function extractSpecies(pet: PetInfo): string | null {
   return null;
 }
 
-/** Extract string list from nested pet data sources */
 function extractStringList(sources: unknown[]): string[] {
   const result: string[] = [];
   for (const src of sources) {
@@ -90,7 +88,6 @@ function extractMutations(pet: PetInfo): string[] {
 // Track known pet IDs to detect new hatches - PERSISTED to prevent compounding bug
 let knownPetIds = new Set<string>();
 
-// Load known pet IDs from storage
 function loadKnownPetIds(): void {
   try {
     const stored = storage.get<string[]>(STORAGE_KEY, []);
@@ -104,7 +101,6 @@ function loadKnownPetIds(): void {
   }
 }
 
-// Save known pet IDs to storage
 function saveKnownPetIds(): void {
   try {
     storage.set(STORAGE_KEY, Array.from(knownPetIds));
@@ -152,12 +148,10 @@ function extractPetInfos(value: unknown): PetInfo[] {
     return [];
   }
 
-  // Handle both array and object formats
   if (Array.isArray(value)) {
     return value.filter(pet => pet && typeof pet === 'object') as PetInfo[];
   }
 
-  // Handle object with pet entries
   const data = value as Record<string, unknown>;
   const pets: PetInfo[] = [];
 
@@ -211,7 +205,6 @@ function processPetData(value: unknown): void {
 export async function startPetHatchingTracker(): Promise<void> {
   if (started) return;
 
-  // Load known pet IDs from storage first
   loadKnownPetIds();
 
   let isFirstCall = true;

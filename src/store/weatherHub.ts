@@ -1,6 +1,3 @@
-// src/store/weatherHub.ts
-// Centralised weather polling hub that reuses the shared detection helpers.
-
 import {
   DetailedWeather,
   classifyWeather,

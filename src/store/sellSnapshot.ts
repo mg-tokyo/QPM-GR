@@ -1,6 +1,3 @@
-// src/store/sellSnapshot.ts
-// Capture produce inventory just before a Sell All Crops action executes
-
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
 import { InventoryItem, readInventoryDirect } from './inventory';
 import { log } from '../utils/logger';
@@ -57,9 +54,7 @@ export async function startSellSnapshotWatcher(): Promise<void> {
       return;
     }
 
-    // 'composite' tier: actionAtom composes state (weather, garden tile) +
-    // client-local input (activeActionIndex). Reactive manager subscribes to
-    // both trigger sources; refs-check dedups redundant fires.
+    // 'composite' tier: actionAtom composes state + client-local input; reactive manager dedups redundant fires.
     unsubscribe = await subscribeAtom<string>(actionAtom, (value) => {
       if (value === SELL_ALL_ACTION) {
         void captureProduceSnapshot();

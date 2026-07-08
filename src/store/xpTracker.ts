@@ -1,5 +1,3 @@
-// src/store/xpTracker.ts - Track XP ability procs and calculate XP rates
-
 import { storage } from '../utils/storage';
 import { log } from '../utils/logger';
 import { debounce } from '../utils/scheduling/debounce';
@@ -102,9 +100,6 @@ const scheduleSaveConfig = debounce(() => {
   }
 }, SAVE_DEBOUNCE_MS);
 
-/**
- * Record an XP proc from an ability
- */
 export function recordXpProc(
   petId: string,
   petName: string,
@@ -134,7 +129,6 @@ export function recordXpProc(
 }
 
 /**
- * Calculate XP statistics for a given pet's XP ability
  * @param currentWeather Current weather state (for weather-dependent abilities like SnowyPetXpBoost)
  */
 export function calculateXpStats(
@@ -150,7 +144,6 @@ export function calculateXpStats(
   const petId = pet.petId ?? '';
   const species = pet.species ?? 'Unknown';
 
-  // Check if weather requirement is met
   const isWeatherSatisfied = !requiredWeather || !currentWeather || currentWeather === 'unknown'
     ? true // No requirement or weather unknown - assume active
     : currentWeather === requiredWeather;
@@ -162,8 +155,7 @@ export function calculateXpStats(
 
   const multiplier = Math.max(MIN_MULTIPLIER, strength / 100);
 
-  // Game checks every SECOND, not every minute
-  // So we divide the per-minute chance by 60 to get per-second chance
+  // Game checks every SECOND, so divide per-minute chance by 60
   const baseChancePerMinute = baseChance;
   const baseChancePerSecond = baseChance / 60; // e.g., 30% per minute = 0.5% per second
 
@@ -177,7 +169,6 @@ export function calculateXpStats(
   const rollsPerHour = 3600;
   const expectedProcsPerHour = rollsPerHour * chancePerSecondDecimal;
 
-  // Calculate XP values
   const actualXpPerProc = baseXp * multiplier;
 
   // If weather requirement not met, ability doesn't proc (XP = 0)
@@ -211,11 +202,7 @@ export function calculateXpStats(
   };
 }
 
-/**
- * Get total stats for multiple pets with XP abilities
- * Note: Abilities roll independently - they don't "combine" in game logic
- * The combined chance is calculated for display purposes only
- */
+/** Abilities roll independently in game logic; the combined chance below is for display only. */
 export function getCombinedXpStats(stats: XpAbilityStats[]): {
   totalXpPerHour: number;
   totalProcsPerHour: number;
@@ -227,9 +214,7 @@ export function getCombinedXpStats(stats: XpAbilityStats[]): {
   const totalXpPerHour = stats.reduce((sum, s) => sum + s.expectedXpPerHour, 0);
   const totalProcsPerHour = stats.reduce((sum, s) => sum + s.expectedProcsPerHour, 0);
 
-  // Calculate combined probability for DISPLAY purposes only
-  // This represents the statistical chance of at least one proc per second
-  // BUT the game doesn't use this - each ability rolls independently
+  // Display-only: statistical chance of at least one proc/sec; game rolls each ability independently
   const individualChancesPerSecond = stats.map((s) => s.actualChancePerSecond / 100);
   const combinedChancePerSecondDecimal = 1 - individualChancesPerSecond.reduce((prod, p) => prod * (1 - p), 1);
   const combinedChancePerSecond = combinedChancePerSecondDecimal * 100;
@@ -250,10 +235,7 @@ export function getCombinedXpStats(stats: XpAbilityStats[]): {
   };
 }
 
-/**
- * Get XP required per level for a species
- * Automatically calculated based on hours to mature
- */
+/** Automatically calculated based on hours to mature. */
 export function getSpeciesXpPerLevel(species: string): number | null {
   // Priority 1: Try catalog first (from inferXpPerLevel utility)
   const catalogXp = inferXpPerLevel(species);
@@ -270,19 +252,12 @@ export function getSpeciesXpPerLevel(species: string): number | null {
   return null;
 }
 
-/**
- * Get max scale for a species — reads from the live petCatalog.
- * Works automatically for any species the game adds.
- */
+/** Reads from the live petCatalog — works automatically for any species the game adds. */
 export function getSpeciesMaxScale(species: string): number | null {
   return getPetMaxScale(species);
 }
 
-/**
- * Calculate MAX Strength for a pet using targetScale
- * Formula from Aries mod: ((targetScale - 1) / (maxScale - 1)) * 20 + 80
- * This gives a range of 80-100 based on the pet's targetScale
- */
+/** Formula from Aries mod: ((targetScale - 1) / (maxScale - 1)) * 20 + 80 → range 80-100. */
 export function calculateMaxStrength(
   targetScale: number | null,
   species: string
@@ -300,7 +275,6 @@ export function calculateMaxStrength(
   const maxStr = ratio * 20 + 80;
   const rounded = Math.floor(maxStr);
 
-  // Validate the result is in expected range (80-100)
   if (rounded < 80 || rounded > 100) {
     return null;
   }
@@ -308,9 +282,6 @@ export function calculateMaxStrength(
   return rounded;
 }
 
-/**
- * Calculate time to level up for a pet
- */
 export function calculateTimeToLevel(
   currentXp: number,
   targetXp: number,
@@ -329,9 +300,6 @@ export function calculateTimeToLevel(
   return { hours, minutes, totalMinutes };
 }
 
-/**
- * Subscribe to XP tracker updates
- */
 export function onXpTrackerUpdate(callback: () => void): () => void {
   updateCallbacks.push(callback);
   return () => {
@@ -349,16 +317,12 @@ function notifyListeners(): void {
   });
 }
 
-/**
- * Auto-populate XP estimates from catalog (FUTUREPROOF!)
- */
 function autoPopulateXpEstimates(): void {
   const catalogEstimates = getAllPetXpEstimates();
 
   // Merge with existing config (don't overwrite user customizations)
   for (const [species, xp] of Object.entries(catalogEstimates)) {
     if (!(species in configData.speciesXpPerLevel)) {
-      // Only add if not already configured
       configData.speciesXpPerLevel[species] = xp;
     }
   }
@@ -366,9 +330,6 @@ function autoPopulateXpEstimates(): void {
   scheduleSaveConfig();
 }
 
-/**
- * Initialize XP tracker from storage
- */
 export function initializeXpTracker(): void {
   diag.register('Restoring XP tracker from storage');
   try {
@@ -386,11 +347,9 @@ export function initializeXpTracker(): void {
     diag.warn('QPM-STORE-001', { phase: 'restoreFromStorage' }, error);
   }
 
-  // Auto-populate XP estimates from catalog (FUTUREPROOF!)
   if (areCatalogsReady()) {
     autoPopulateXpEstimates();
   } else {
-    // Wait for catalogs and populate once ready
     onCatalogsReady(() => {
       autoPopulateXpEstimates();
     });
@@ -402,9 +361,6 @@ export function initializeXpTracker(): void {
   });
 }
 
-/**
- * Get all XP procs for debugging
- */
 export function getXpProcHistory(): XpProcEntry[] {
   return [...procHistory];
 }

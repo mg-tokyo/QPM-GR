@@ -128,12 +128,6 @@ export function renderProgressBar(percent: number, label: string): string {
   `;
 }
 
-export function spriteCircle(url: string | null | undefined, fallback: string): string {
-  const safeUrl = sanitizeImageUrl(url);
-  const style = safeUrl ? `background-image:url("${safeUrl}");` : '';
-  return `<div class="pr-sprite-circle" style="${style}">${safeUrl ? '' : fallback}</div>`;
-}
-
 export function renderAvatarBlock(view: PlayerView, name: string): string {
   const safeAvatar = sanitizeImageUrl(view.avatarUrl);
   const safeAvatarUrl = safeAvatar ? `url("${safeAvatar}")` : '';

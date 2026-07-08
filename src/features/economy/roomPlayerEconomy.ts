@@ -52,6 +52,8 @@ let selfPlayerId: string | null = null;
 let currentSnapshot: RoomPlayersSnapshot = { self: null, others: [], updatedAt: 0 };
 const listeners = new Set<(snap: RoomPlayersSnapshot) => void>();
 
+let slotEconomyCache = new WeakMap<object, RoomPlayerEconomy>();
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -194,7 +196,15 @@ function rebuildSnapshot(stateValue: unknown): void {
     const slot = slots[i];
     if (!isRecord(slot)) continue;
 
-    const economy = extractSlotEconomy(slot as Record<string, unknown>, i, nameMap);
+    let economy: RoomPlayerEconomy | null;
+    const cached = slotEconomyCache.get(slot);
+    if (cached && cached.slotIndex === i) {
+      const freshName = nameMap.get(cached.playerId) ?? cached.displayName;
+      economy = freshName === cached.displayName ? cached : { ...cached, displayName: freshName };
+    } else {
+      economy = extractSlotEconomy(slot as Record<string, unknown>, i, nameMap);
+      if (economy) slotEconomyCache.set(slot, economy);
+    }
     if (!economy) continue;
 
     if (selfPlayerId && economy.playerId === selfPlayerId) {
@@ -244,15 +254,15 @@ export async function startRoomPlayerEconomy(): Promise<() => void> {
       const state = await readAtomValue<unknown>(stateAtom);
       rebuildSnapshot(state);
     } catch { /* ignore */ }
-  }, 300);
+  }, 1500);
 
   try {
-    const unsub = await subscribeAtomValue('state', () => {
+    const unsub = await subscribeAtomValue('userSlots', () => {
       debouncedUpdate?.();
     });
     if (unsub) stateAtomUnsub = unsub;
   } catch (err) {
-    log('Failed to subscribe to stateAtom', err);
+    log('Failed to subscribe to userSlots', err);
     started = false;
     return () => {};
   }
@@ -276,4 +286,5 @@ export function stopRoomPlayerEconomy(): void {
   listeners.clear();
   selfPlayerId = null;
   currentSnapshot = { self: null, others: [], updatedAt: 0 };
+  slotEconomyCache = new WeakMap();
 }

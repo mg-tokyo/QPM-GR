@@ -39,9 +39,11 @@ import {
   startSpriteV2Diagnostics,
   stopSpriteV2Diagnostics,
   reportSpriteV2InitFailed,
+  initPixiHooks,
 } from './sprite-v2/index';
 import type { SpriteService } from './sprite-v2/types';
 import { setSpriteService, spriteExtractor, inspectPetSprites, renderSpriteGridOverlay, renderAllSpriteSheetsOverlay, listTrackedSpriteResources, loadTrackedSpriteSheets } from './sprite-v2/compat';
+import { initStitcherHydrationListener } from './sprite-v2/stitcher';
 import { isSpriteLogsEnabled, printSpriteLogDump, setSpriteLogsEnabled } from './sprite-v2/diagnostics';
 import { initTooltipInjection } from './features/standalone/tooltipInjection';
 import { startNativeFeedIntercept, stopNativeFeedIntercept } from './features/pets/nativeFeedIntercept';
@@ -143,6 +145,12 @@ import {
 import { startCatalogsDiagnostics, stopCatalogsDiagnostics } from './catalogs/catalogLoader';
 // Diagnostics (Phase 1 foundation — no subsystems publish yet)
 import { initDiagnostics, mountDiagnosticsBadge, teardownDiagnostics } from './diagnostics/init';
+import { startBundleInfoDiagnostics } from './diagnostics/bundleInfo';
+
+// Install PIXI capture hooks at document-start, before the game's __PIXI_APP_INIT__.
+// Was a module-scope side effect in sprite-v2/index.ts; now an explicit call so
+// the lifecycle is auditable.
+initPixiHooks();
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 let DEBUG_GLOBALS_ENABLED = false;
@@ -1472,6 +1480,7 @@ async function initialize(): Promise<void> {
   startJotaiBridgeDiagnostics();
   startSpriteV2Diagnostics();
   startRestockDataDiagnostics();
+  startBundleInfoDiagnostics();
 
   const cfg = buildCfg();
 
@@ -1532,6 +1541,7 @@ async function initialize(): Promise<void> {
   const spriteInit = initSpriteSystem().then((service) => {
     spriteService = service;
     setSpriteService(service);
+    initStitcherHydrationListener();
     if (DEBUG_GLOBALS_ENABLED) {
       shareGlobal('Sprites', service);
     }

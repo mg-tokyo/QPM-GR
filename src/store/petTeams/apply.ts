@@ -1,6 +1,3 @@
-// src/store/petTeams/apply.ts
-// Apply engine — team swap orchestration (fast path + repair pass).
-
 import { log } from '../../utils/logger';
 import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
@@ -32,9 +29,7 @@ import {
   locatePet,
 } from './applyHelpers';
 
-// ---------------------------------------------------------------------------
 // Serialization queue
-// ---------------------------------------------------------------------------
 
 let applyQueue: Promise<void> = Promise.resolve();
 
@@ -47,9 +42,7 @@ function enqueueApply<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-// ---------------------------------------------------------------------------
 // Apply engine
-// ---------------------------------------------------------------------------
 
 async function applyTeamInternal(teamId: string): Promise<ApplyTeamResult> {
   store.applyInProgress = true;
@@ -94,10 +87,8 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
   // Resolve player's garden slot index once — used by all PlacePet calls.
   const resolvedSlotIdx = await resolveMyUserSlotIdx();
 
-  // Read hutch capacity synchronously from the reactive hutch store.
   const resolvedHutchCap = getHutchCapacity();
 
-  // Pre-validate: check that all target pets are locatable somewhere.
   const validTargetIds: string[] = [];
   for (const targetId of targetIds) {
     if (currentSet.has(targetId)) {
@@ -128,9 +119,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
   const validTargetSet = new Set(validTargetIds);
 
-  // ---------------------------------------------------------------------------
   // WS send helpers (scoped to this apply call)
-  // ---------------------------------------------------------------------------
 
   const sendRetrieveFromHutch = (itemId: string, toInventoryIndex: number | null, skipThrottle = false) => {
     const payload: Record<string, unknown> = {
@@ -219,9 +208,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     };
   };
 
-  // ---------------------------------------------------------------------------
   // Confirmed action helpers
-  // ---------------------------------------------------------------------------
 
   const placeFromInventoryWithConfirm = async (petId: string): Promise<boolean> => {
     const place = sendPlaceFromInventory(petId, false);
@@ -347,9 +334,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     return true;
   };
 
-  // ---------------------------------------------------------------------------
   // Fast path
-  // ---------------------------------------------------------------------------
 
   const applyTeamFastHutchPath = async (): Promise<boolean> => {
     const modeledActive = getActiveSlotIds();
@@ -476,9 +461,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     return settled;
   };
 
-  // ---------------------------------------------------------------------------
   // Repair pass
-  // ---------------------------------------------------------------------------
 
   const applyTeamRepairPass = async (): Promise<void> => {
     // Reset claimed positions — fast path tiles are stale after failure.
@@ -577,9 +560,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     await waitForActiveTeamMatch(validTargetIds, REPAIR_SETTLE_TIMEOUT_MS, FAST_SETTLE_POLL_INTERVAL_MS);
   };
 
-  // ---------------------------------------------------------------------------
   // Execute
-  // ---------------------------------------------------------------------------
 
   const fastSettled = await applyTeamFastHutchPath();
   if (!fastSettled) {
@@ -605,9 +586,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
   return finishApply();
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 export async function applyTeam(teamId: string): Promise<ApplyTeamResult> {
   return enqueueApply(() => applyTeamInternal(teamId));

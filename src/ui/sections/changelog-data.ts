@@ -2,6 +2,21 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.11",
+    date: "2026-07-09",
+    notes: [
+      "Improved userscript size: release builds now mangle QPM function and class names, and the KTX2 sprite decoder reuses the game's own worker and wasm instead of shipping a bundled basis transcoder, cutting hundreds of kilobytes off the download",
+      "Improved memory after boot: once the weather, ability color, and cosmetic catalogs finish extracting from the game bundle, the shared multi-megabyte bundle text cache is released instead of being held for the entire session",
+      "Improved co-existence with Aries Mod: the QPM cursor overlay's stay-last-child observer now coalesces its re-append through requestAnimationFrame, so ping-pong with another userscript that also appends to the page root can't spin the CPU",
+      "Improved the Room Player Economy tracker used by the public rooms hub: it now subscribes to userSlots instead of the full state tree, debounces updates at 1.5 seconds instead of 300 milliseconds, and caches per-slot economy calculations so unchanged players aren't recomputed on every tick",
+      "Added a QPM-BUNDLE-001 diagnostics row that surfaces the running build's version, byte size, and build date directly in the Diagnostics window",
+      "Added QPM-SPRITE-005 and QPM-SPRITE-006 diagnostics rows so a developer can tell KTX2 decoder discovery failure or worker protocol mismatch apart from generic sprite hydration failure after the game renames its ktx2 worker or libktx wasm assets",
+      "Added a bundle size check step to npm run build so accidental size regressions are caught before shipping",
+      "Improved PIXI capture reliability at startup: hook installation is now the very first statement in main.ts instead of a module-scope side effect, so the game can't beat QPM to __PIXI_APP_INIT__ during heavy page loads",
+      "Improved code hygiene across the store and scheduling layers: retired legacy helpers (unused throttle, scheduleNonBlocking, selectFoodForPetLegacyCompatibility) and cleaned up boilerplate comments so future updates ship faster and smaller",
+    ],
+  },
+  {
     version: "3.3.10",
     date: "2026-07-08",
     notes: [

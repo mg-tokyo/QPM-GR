@@ -139,55 +139,6 @@ export function throttle<T extends (...args: any[]) => any>(
 }
 
 /**
- * Debounce a function to run only after a pause in calls.
- * @param fn Function to debounce
- * @param waitMs Time to wait after last call
- */
-export function debounce<T extends (...args: any[]) => any>(
-  fn: T,
-  waitMs: number
-): T {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-
-  const debounced = (...args: Parameters<T>) => {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    timeout = setTimeout(() => {
-      timeout = null;
-      fn(...args);
-    }, waitMs);
-  };
-
-  return debounced as T;
-}
-
-/**
- * Schedule work during browser idle time. Uses requestIdleCallback when available, falling back to rAF then setTimeout.
- * @param cb Callback to execute during idle time
- * @param timeoutMs Maximum time to wait before forcing execution (default 50ms)
- */
-export function scheduleNonBlocking<T>(cb: () => T | Promise<T>, timeoutMs: number = 50): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const runner = () => {
-      Promise.resolve()
-        .then(cb)
-        .then(resolve)
-        .catch(reject);
-    };
-
-    if (typeof (window as any).requestIdleCallback === 'function') {
-      (window as any).requestIdleCallback(runner, { timeout: timeoutMs });
-    } else if (typeof requestAnimationFrame === 'function') {
-      // Fallback to rAF - runs before next paint
-      requestAnimationFrame(runner);
-    } else {
-      setTimeout(runner, 0);
-    }
-  });
-}
-
-/**
  * Process items in staggered batches, waiting delayMs between each batch.
  * @param batchSize Number of items per batch (default 3)
  * @param delayMs Delay between batches in ms (default 8)

@@ -1,7 +1,7 @@
 // src/catalogs/logic/weatherCatalog.ts
 // Weather catalog extraction from live main bundle (Gemini-style).
 
-import { fetchMainBundle, extractBalancedBlock, extractBalancedObjectLiteral, findAllIndices } from './bundleParser';
+import { fetchMainBundle, extractBalancedBlock, extractBalancedObjectLiteral, findAllIndices, markBundleConsumerDone } from './bundleParser';
 import { readSharedGlobal } from '../../core/pageContext';
 
 const WEATHER_IDS = ['Rain', 'Frost', 'Thunderstorm', 'Dawn', 'AmberMoon'] as const;
@@ -208,6 +208,7 @@ export async function getWeatherCatalogMap(): Promise<RuntimeWeatherCatalog | nu
     const map = await loadWeatherCatalogFromBundle();
     if (!map) return null;
     weatherCatalogCache = map;
+    markBundleConsumerDone('weather');
     return map;
   })().finally(() => {
     weatherCatalogInFlight = null;

@@ -1,8 +1,3 @@
-// src/store/hutch.ts
-// Reactive hutch state: pet count, capacity, and pet IDs derived from the
-// state tree. Migrated to Tier 3 state-tree subscriptions — no direct atom
-// label dependencies remain.
-
 import { subscribe as stateTreeSubscribe } from '../core/stateTree';
 import { getPlayerIdSync } from '../core/playerContext';
 import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
@@ -12,9 +7,7 @@ import { createStoreDiagnostics } from './_storeDiagnostics';
 const diag = createStoreDiagnostics('storeHutch', 'hutch');
 let firstStateSeen = false;
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 export const DEFAULT_HUTCH_CAPACITY = 25;
 export const INVENTORY_MAX = 100;
@@ -32,20 +25,13 @@ export function hutchCapacityForLevel(level: number): number {
   return HUTCH_CAPACITY_BY_LEVEL[clamped] ?? DEFAULT_HUTCH_CAPACITY;
 }
 
-/**
- * Reverse-derive the upgrade level (0-10) from an actual capacity slot count.
- * The game's `myPetHutchCapacitySlotsAtom` (pr-2994 rename) exposes the raw
- * count, not the level — level survives as a QPM public API by lookup.
- * Falls back to 0 when the capacity doesn't match a known tier.
- */
+/** Reverse-derives upgrade level (0-10) from capacity slot count; falls back to 0 if unmatched. */
 function hutchLevelForCapacity(capacity: number): number {
   const idx = HUTCH_CAPACITY_BY_LEVEL.indexOf(capacity);
   return idx >= 0 ? idx : 0;
 }
 
-// ---------------------------------------------------------------------------
 // Reactive state
-// ---------------------------------------------------------------------------
 
 export interface HutchState {
   /** Number of pets currently in the hutch. */
@@ -92,9 +78,7 @@ function publishHutchHealth(): void {
   );
 }
 
-// ---------------------------------------------------------------------------
 // State-tree selector
-// ---------------------------------------------------------------------------
 
 interface HutchSlice {
   items: QuinoaInventoryItem[];
@@ -105,15 +89,8 @@ const NULL_HUTCH_SLICE: HutchSlice = { items: [], capacity: DEFAULT_HUTCH_CAPACI
 
 /**
  * Selector: state → { items, capacity } for the local player's PetHutch.
- *
- * Fully atom-independent as of 2026-07-03: derives our user-slot index from
- * `state.child.data.userSlots.findIndex(s => s.playerId === myId)` where myId
- * comes from `getPlayerIdSync()` (tries `playerAtom` first, falls back to the
- * WS URL `?playerId=` param). Survives deprecation of `playerAtom`,
- * `myUserSlotIdxAtom`, and any other atom that used to feed this store.
- *
- * Returns NULL_HUTCH_SLICE when playerId isn't yet resolvable, no matching
- * slot exists yet, or the PetHutch storage entry hasn't been placed.
+ * Fully atom-independent (derives user-slot from playerId, not `myUserSlotIdxAtom`).
+ * Returns NULL_HUTCH_SLICE when playerId/slot/storage isn't resolvable yet.
  */
 function selectHutchSlice(snapshot: QuinoaStateSnapshot): HutchSlice {
   const playerId = getPlayerIdSync();
@@ -152,9 +129,7 @@ function selectHutchSlice(snapshot: QuinoaStateSnapshot): HutchSlice {
   return { items, capacity };
 }
 
-// ---------------------------------------------------------------------------
 // State updates
-// ---------------------------------------------------------------------------
 
 function updateFromSlice(slice: HutchSlice | null): void {
   const s = slice ?? NULL_HUTCH_SLICE;
@@ -202,9 +177,7 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // Init / stop
-// ---------------------------------------------------------------------------
 
 export async function startHutchStore(): Promise<void> {
   if (storageUnsub) return;
@@ -237,9 +210,7 @@ export function stopHutchStore(): void {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Read API (synchronous)
-// ---------------------------------------------------------------------------
 
 export function getHutchState(): HutchState {
   return { ...state, petIds: new Set(state.petIds) };
@@ -265,14 +236,11 @@ export function isHutchFull(): boolean {
   return state.count >= state.capacity;
 }
 
-/** True if the hutch store is actively subscribed. */
 export function isHutchStoreActive(): boolean {
   return storageUnsub !== null;
 }
 
-// ---------------------------------------------------------------------------
 // Subscribe API
-// ---------------------------------------------------------------------------
 
 export function onHutchChange(
   callback: (state: HutchState) => void,

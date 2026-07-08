@@ -244,6 +244,33 @@ register({
   sinceVersion: CURRENT_VERSION,
 });
 
+register({
+  code: 'QPM-SPRITE-005',
+  subsystem: 'spriteV2',
+  category: 'core',
+  severity: 'error',
+  title: 'KTX2 decoder unavailable',
+  description: 'Discovery of the game\'s ktx2.worker-*.js / libktx-*.wasm assets on the game origin failed, or the wasm fetch failed. Compressed atlases cannot decode; sprite hydration degrades and QPM-SPRITE-001/002 will surface the user-visible signal.',
+  userAction: 'Refresh the game tab.',
+  devNotes: 'src/sprite-v2/ktx2/client.ts + src/utils/gameAssetDiscovery.ts. If the game renamed assets, update the DISCOVERY_QUERIES filename patterns (ktx2.worker-*.js / libktx-*.wasm) in client.ts.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — user-facing signal already emerges via SPRITE-001/002; this row targets the diagnostics
+  // panel so a developer can distinguish "game renamed assets" from generic hydration failure.
+  notifyUser: false,
+});
+
+register({
+  code: 'QPM-SPRITE-006',
+  subsystem: 'spriteV2',
+  category: 'core',
+  severity: 'error',
+  title: 'KTX2 worker protocol mismatch',
+  description: 'The game\'s KTX2 worker replied with an unexpected message shape or texture format — the game changed its decode pipeline. Compressed atlases fail to decode; SPRITE-001/002 surface the user-visible degradation.',
+  devNotes: 'src/sprite-v2/ktx2/client.ts validateTextureOptions. Re-run the discovery/protocol audit in .claude/plans/2026-07-08-ktx2-libktx-port.md against the new ktx2.worker-*.js.',
+  sinceVersion: CURRENT_VERSION,
+  notifyUser: false,
+});
+
 // STORE-* codes are shared by every src/store/* module. The `subsystem` field
 // here is a placeholder ('store'); the bus subsystem is overridden per-call by
 // _storeDiagnostics.ts so each store gets its own row attributed via
@@ -483,5 +510,16 @@ register({
   title: 'Restock API config invalid',
   description: 'RESTOCK_URL malformed or anon key missing. Network fetch disabled for the session — only cached data is served.',
   devNotes: 'src/utils/restock/dataService.ts getRestockRequestConfig — most likely a build-time misconfiguration. The hub stays degraded for the session because config is static; restart required to recover.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-BUNDLE-001',
+  subsystem: 'bundle',
+  category: 'core',
+  severity: 'info',
+  title: 'Bundle info published',
+  description: 'Startup publish of build artefact metadata (version, iifeBytes, builtAt) to the health bus for size-regression visibility in the Diagnostics window.',
+  devNotes: 'src/diagnostics/bundleInfo.ts reads window.__QPM_BUNDLE_INFO__ (burned in by scripts/build-userscript.js before USERSCRIPT_FOOTER). Metric-only; never fires a log call.',
   sinceVersion: CURRENT_VERSION,
 });

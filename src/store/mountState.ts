@@ -1,9 +1,5 @@
-// src/store/mountState.ts
-// Reactive mount state tracker. Dual-source: atom subscription (primary) + WS intercept (fallback).
-// Also provides ridePet/dismountPet helpers that replicate the native game flow:
-//   1. Send RidePet/DismountPet WS message
-//   2. Write myRiddenPetIdAtom (client-authoritative)
-//   3. Send SetRiddenPet to sync to server
+// Dual-source mount tracker: atom subscription (primary) + WS intercept (fallback).
+// ridePet/dismountPet mirror the native flow: send WS action, write myRiddenPetIdAtom, send SetRiddenPet.
 
 import { subscribeAtomValue, writeRegistryAtom } from '../core/atomRegistry';
 import { onNativeSend } from '../websocket/nativeSendObserver';
@@ -26,19 +22,14 @@ function emit(nextId: string | null): void {
   }
 }
 
-/**
- * Write myRiddenPetIdAtom and send SetRiddenPet.
- * Best-effort — failures are logged but don't block the action.
- */
+/** Write myRiddenPetIdAtom and send SetRiddenPet. Best-effort — failures are logged, not thrown. */
 async function syncRiddenState(petId: string | null): Promise<void> {
-  // Write client-authoritative atom
   try {
     await writeRegistryAtom('riddenPetId', petId);
   } catch (err) {
     log('[MountState] Failed to write riddenPetId atom:', err);
   }
 
-  // Sync to server (mirrors the native QuinoaCanvasWrapper subscription)
   sendRoomAction('SetRiddenPet', { petId }, { throttleMs: 0, skipThrottle: true });
 }
 
@@ -47,7 +38,6 @@ export function startMountStateTracker(): void {
   if (started) return;
   started = true;
 
-  // Primary: atom subscription
   subscribeAtomValue('riddenPetId', (value) => {
     emit(value ?? null);
   }).then((unsub) => {
@@ -60,7 +50,6 @@ export function startMountStateTracker(): void {
     log('[MountState] riddenPetId atom subscription failed — relying on WS fallback');
   });
 
-  // Fallback: watch native WS sends (covers both game and QPM sends)
   const unsubNative = onNativeSend((type, payload) => {
     if (type === 'RidePet') {
       const petItemId = typeof payload.petItemId === 'string' ? payload.petItemId : null;
@@ -71,7 +60,6 @@ export function startMountStateTracker(): void {
   });
   cleanups.push(unsubNative);
 
-  // Optimistic: also listen for QPM's own sends for instant local update
   const unsubAction = onActionSent((type, payload) => {
     if (type === 'RidePet') {
       const petItemId = typeof payload.petItemId === 'string' ? payload.petItemId : null;
@@ -106,40 +94,26 @@ export function onRiddenPetChange(cb: RiddenPetChangeCallback): () => void {
   return () => { listeners.delete(cb); };
 }
 
-/**
- * Mount a pet. Replicates the native game flow:
- *   1. Send RidePet to server
- *   2. Set myRiddenPetIdAtom locally (client-authoritative)
- *   3. Send SetRiddenPet to sync
- */
+/** Mount a pet: WS RidePet first (server needs it before atom for displacement logic), then atom + sync. */
 export function ridePet(petItemId: string): void {
-  // Step 1: WS message first (server needs it before atom for displacement logic)
   const result = sendRoomAction('RidePet', { petItemId }, { throttleMs: 500 });
   if (!result.ok) {
     log(`[MountState] RidePet send failed: ${result.reason}`);
     return;
   }
 
-  // Step 2+3: Write atom + sync (fires in background)
   emit(petItemId);
   void syncRiddenState(petItemId);
 }
 
-/**
- * Dismount the current pet. Replicates the native game flow:
- *   1. Send DismountPet to server
- *   2. Clear myRiddenPetIdAtom locally
- *   3. Send SetRiddenPet(null) to sync
- */
+/** Dismount: WS DismountPet first (server resolves landing tile), then clear atom + sync. */
 export function dismountPet(): void {
-  // Step 1: WS message first (server resolves landing tile)
   const result = sendRoomAction('DismountPet', {}, { throttleMs: 500 });
   if (!result.ok) {
     log(`[MountState] DismountPet send failed: ${result.reason}`);
     return;
   }
 
-  // Step 2+3: Write atom + sync
   emit(null);
   void syncRiddenState(null);
 }

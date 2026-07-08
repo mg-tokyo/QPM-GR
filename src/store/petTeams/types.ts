@@ -1,6 +1,3 @@
-// src/store/petTeams/types.ts
-// Apply-engine types used by applyHelpers and apply modules.
-
 import type { WebSocketSendFailureReason } from '../../websocket/api';
 
 export type ApplyErrorReason =

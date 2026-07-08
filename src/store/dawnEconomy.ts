@@ -1,4 +1,3 @@
-// src/store/dawnEconomy.ts
 // Dawn-specific economy tracking: spend breakdown, harvest value, and ROI.
 // Dawn purchases already flow through recordShopPurchase() via ShopCategoryKey 'dawn'.
 // This module adds session-scoped Dawn spend/harvest aggregation.
@@ -6,10 +5,6 @@
 import { log } from '../utils/logger';
 import { subscribeToStats, type StatsSnapshot } from './stats';
 import { onWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface DawnEconomySnapshot {
   /** Coins spent on Dawn Shop purchases this session */
@@ -28,10 +23,6 @@ export interface DawnEconomySnapshot {
   dawnEventsThisSession: number;
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
 let sessionStart = 0;
 let coinsSpentAtSessionStart = 0;
 let creditsSpentAtSessionStart = 0;
@@ -48,21 +39,14 @@ let initialized = false;
 
 const listeners = new Set<(snapshot: DawnEconomySnapshot) => void>();
 
-// ---------------------------------------------------------------------------
-// Computation
-// ---------------------------------------------------------------------------
-
 function buildSnapshot(): DawnEconomySnapshot {
   const stats = latestStats;
   const dawnPurchases = stats?.shop.purchasesByCategory.dawn ?? 0;
   const totalCoins = stats?.shop.totalSpentCoins ?? 0;
   const totalCredits = stats?.shop.totalSpentCredits ?? 0;
 
-  // Session-relative values — we track the delta since session start.
-  // This is approximate: we don't have per-category coin/credit breakdowns
-  // in the stats store, only total. Dawn-specific spend would require
-  // augmenting the stats store with per-category currency breakdowns.
-  // For now, use purchase count delta as the primary metric.
+  // Approximate: stats store has no per-category coin/credit breakdown, only
+  // totals, so coins/credits spent are session deltas, not Dawn-specific.
   const purchaseCount = Math.max(0, dawnPurchases - purchaseCountAtSessionStart);
   const coinsSpent = Math.max(0, totalCoins - coinsSpentAtSessionStart);
   const creditsSpent = Math.max(0, totalCredits - creditsSpentAtSessionStart);
@@ -90,10 +74,6 @@ function emit(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Handlers
-// ---------------------------------------------------------------------------
-
 function handleStats(stats: StatsSnapshot): void {
   latestStats = stats;
   emit();
@@ -111,10 +91,6 @@ function handleWeather(snapshot: WeatherSnapshot): void {
 
   emit();
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export function initDawnEconomy(): void {
   if (initialized) return;

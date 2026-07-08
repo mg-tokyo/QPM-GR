@@ -174,11 +174,18 @@ export function invalidateSpecies(speciesRoot: string): void {
   }
 }
 
-// Hook into hydration events to clear stitch cache alongside the main sprite cache
-if (typeof window !== 'undefined') {
-  window.addEventListener('qpm:sprite-hydration-state-change', () => {
-    clearStitchCache();
-  });
+let stitchHydrationHandler: (() => void) | null = null;
+
+export function initStitcherHydrationListener(): void {
+  if (typeof window === 'undefined' || stitchHydrationHandler) return;
+  stitchHydrationHandler = () => { clearStitchCache(); };
+  window.addEventListener('qpm:sprite-hydration-state-change', stitchHydrationHandler);
+}
+
+export function stopStitcherHydrationListener(): void {
+  if (typeof window === 'undefined' || !stitchHydrationHandler) return;
+  window.removeEventListener('qpm:sprite-hydration-state-change', stitchHydrationHandler);
+  stitchHydrationHandler = null;
 }
 
 // ============================================================================

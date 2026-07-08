@@ -1,4 +1,3 @@
-// src/store/shopRegistry.ts
 // Tracks the set of shop ids the game state exposes. Persists discovered
 // ids so consumers don't need to re-discover on every page load.
 
@@ -124,11 +123,7 @@ export function clearDiscovered(id: string): void {
   persistDiscovered();
 }
 
-/**
- * Inject a synthetic shop bucket into `quinoaData.shops` for testing.
- * Patches the quinoaDataAtom value, then registers the id so consumers
- * pick the new bucket up via their normal subscription paths.
- */
+/** Inject a synthetic shop bucket into `quinoaData.shops` for testing; patches the atom and registers the id. */
 export function injectShopInventory(
   shopId: string,
   inventory: ShopInventoryEntry[],

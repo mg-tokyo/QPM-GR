@@ -1,6 +1,3 @@
-// src/store/petLevelCalculator.ts
-// Calculate pet levels from XP gain rate and time-to-mature
-
 import { getTimeToMatureSeconds } from '../features/pets/data/petTimeToMature';
 import { log } from '../utils/logger';
 import type { ActivePetInfo } from './pets';
@@ -18,19 +15,14 @@ interface LevelEstimate {
   xpGainRate: number | null; // XP per second
 }
 
-// Store XP snapshots per pet (by petId)
 const xpHistory = new Map<string, XPSnapshot[]>();
-const warnedSpecies = new Set<string>(); // Track which species we've warned about
+const warnedSpecies = new Set<string>();
 
-// Constants from wiki
-const TOTAL_LEVELS = 30; // Pets start 30 levels below max strength
-const MIN_SAMPLES = 2; // Need at least 2 XP samples to calculate rate
-const MAX_HISTORY = 10; // Keep last 10 XP snapshots per pet
+const TOTAL_LEVELS = 30; // pets start 30 levels below max strength
+const MIN_SAMPLES = 2;
+const MAX_HISTORY = 10;
 const MAX_TRACKED_PETS = 200;
 
-/**
- * Record XP observation for a pet
- */
 export function recordPetXP(pet: ActivePetInfo): void {
   if (!pet.petId || pet.xp == null) return;
 
@@ -50,39 +42,30 @@ export function recordPetXP(pet: ActivePetInfo): void {
     }
   }
 
-  // Add new snapshot
   history.push({
     xp: pet.xp,
     timestamp: now,
   });
 
-  // Keep only recent snapshots
   if (history.length > MAX_HISTORY) {
     history.shift();
   }
 }
 
-/**
- * Calculate XP gain rate (XP per second)
- */
 function calculateXPGainRate(history: XPSnapshot[]): number | null {
   if (history.length < MIN_SAMPLES) return null;
 
-  // Use first and last snapshots for rate calculation
   const first = history[0]!;
   const last = history[history.length - 1]!;
 
   const xpGained = last.xp - first.xp;
-  const timeElapsed = (last.timestamp - first.timestamp) / 1000; // Convert to seconds
+  const timeElapsed = (last.timestamp - first.timestamp) / 1000;
 
   if (timeElapsed <= 0 || xpGained <= 0) return null;
 
   return xpGained / timeElapsed;
 }
 
-/**
- * Estimate pet level using XP gain rate and time-to-mature
- */
 export function estimatePetLevel(pet: ActivePetInfo): LevelEstimate {
   const defaultResult: LevelEstimate = {
     currentLevel: null,
@@ -108,7 +91,6 @@ export function estimatePetLevel(pet: ActivePetInfo): LevelEstimate {
 
   const timeToMatureSeconds = getTimeToMatureSeconds(pet.species);
   if (!timeToMatureSeconds) {
-    // Only log once per species to avoid console spam
     if (pet.species && !warnedSpecies.has(pet.species)) {
       warnedSpecies.add(pet.species);
       log(`⚠️ No time-to-mature data for species: ${pet.species}`);
@@ -116,27 +98,19 @@ export function estimatePetLevel(pet: ActivePetInfo): LevelEstimate {
     return { ...defaultResult, xpGainRate };
   }
 
-  // Calculate total XP needed to reach max level
-  // Total XP = XP gain rate × time to mature
+  // totalXPNeeded = xpGainRate × timeToMature; level = (xp / totalXPNeeded) × TOTAL_LEVELS
   const totalXPNeeded = xpGainRate * timeToMatureSeconds;
 
-  // Calculate current level
-  // Since all levels are equal XP apart:
-  // Level = (current XP / total XP) × max levels
   let currentLevel = (pet.xp / totalXPNeeded) * TOTAL_LEVELS;
 
-  // Clamp to valid range
   currentLevel = Math.max(0, Math.min(TOTAL_LEVELS, currentLevel));
 
-  // Determine confidence based on sample size and time span
   const timeSpan = (history[history.length - 1]!.timestamp - history[0]!.timestamp) / 1000;
   let confidence: 'high' | 'medium' | 'low' = 'low';
 
   if (history.length >= 5 && timeSpan >= 300) {
-    // 5+ samples over 5+ minutes
     confidence = 'high';
   } else if (history.length >= 3 && timeSpan >= 120) {
-    // 3+ samples over 2+ minutes
     confidence = 'medium';
   }
 
@@ -149,9 +123,6 @@ export function estimatePetLevel(pet: ActivePetInfo): LevelEstimate {
   };
 }
 
-/**
- * Get XP history for debugging
- */
 export function getPetXPHistory(petId: string): XPSnapshot[] {
   return xpHistory.get(petId) ?? [];
 }

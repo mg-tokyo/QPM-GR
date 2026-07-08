@@ -1,6 +1,4 @@
-// src/store/shopStockParsers.ts
-// Pure parsing helpers for shop stock normalization.
-// No side effects; no module-level state; safe to import anywhere.
+// Pure parsing helpers for shop stock normalization. No side effects; no module-level state.
 
 import type {
   ShopInventoryEntry,
@@ -10,9 +8,7 @@ import type {
 import { type ShopCategory, type StandardShopId } from '../types/shops';
 import { getKnownShopIds, isStandardShop } from './shopRegistry';
 
-// ---------------------------------------------------------------------------
 // Constants & type aliases (exported for use in shopStock.ts)
-// ---------------------------------------------------------------------------
 
 /** The four standard shops use a plural category id and a singular atom key. */
 const STANDARD_ATOM_KEY: Record<StandardShopId, 'seed' | 'egg' | 'tool' | 'decor'> = {
@@ -22,11 +18,7 @@ const STANDARD_ATOM_KEY: Record<StandardShopId, 'seed' | 'egg' | 'tool' | 'decor
   decor: 'decor',
 };
 
-/**
- * Translate a shop category id to the key used inside the shopPurchases atom.
- * Standard shops (`seeds`, `eggs`, `tools`, `decor`) use a singular form;
- * weather-gated and runtime-discovered ids pass through verbatim.
- */
+/** Standard shops use a singular atom key; other ids pass through verbatim. */
 export function getAtomKeyForCategory(category: string): string {
   if (isStandardShop(category)) {
     return STANDARD_ATOM_KEY[category as StandardShopId];
@@ -41,9 +33,7 @@ export function getShopPurchaseKeys(): readonly string[] {
 
 export type CustomInventoryMap = Record<string, { items: ShopInventoryEntry[] } | null> | null;
 
-// ---------------------------------------------------------------------------
 // Public type definitions
-// ---------------------------------------------------------------------------
 
 export interface ShopStockItem {
   category: ShopCategory;
@@ -80,9 +70,7 @@ export interface ShopStockState {
   categories: Record<ShopCategory, ShopStockCategoryState>;
 }
 
-// ---------------------------------------------------------------------------
 // Value coercion
-// ---------------------------------------------------------------------------
 
 export function toNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -118,9 +106,7 @@ export function toNonNegativeInteger(value: unknown): number | null {
   return rounded >= 0 ? rounded : null;
 }
 
-// ---------------------------------------------------------------------------
 // Item field derivation
-// ---------------------------------------------------------------------------
 
 export function deriveItemId(category: ShopCategory, entry: ShopInventoryEntry): string | null {
   switch (category) {
@@ -286,9 +272,7 @@ function computeRemaining(initialStock: number | null, purchased: number, canSpa
   return canSpawn ? remaining : 0;
 }
 
-// ---------------------------------------------------------------------------
 // Extraction helpers (pure — all inputs are passed as parameters)
-// ---------------------------------------------------------------------------
 
 export function extractCustomInventories(slotValue: unknown): CustomInventoryMap {
   if (!slotValue || typeof slotValue !== 'object') return null;
@@ -351,9 +335,7 @@ export function hasPurchaseBucket(
   return !!bucket && typeof bucket === 'object';
 }
 
-// ---------------------------------------------------------------------------
 // Item normalization
-// ---------------------------------------------------------------------------
 
 export function normalizeEntry(
   category: ShopCategory,
@@ -416,9 +398,7 @@ export function normalizeEntry(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Category normalization (pure — customInventory is passed explicitly)
-// ---------------------------------------------------------------------------
 
 export function buildCategoryState(
   category: ShopCategory,

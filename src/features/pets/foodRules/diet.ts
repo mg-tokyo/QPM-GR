@@ -672,15 +672,6 @@ export function evaluateFoodAvailabilityForPet(
   };
 }
 
-export function selectFoodForPetLegacyCompatibility(
-  petSpecies: string | null,
-  snapshot: InventorySnapshot | null,
-  options: FoodSelectionOptions = {},
-): FoodSelection | null {
-  // Legacy alias for integrations that still expect this helper path.
-  return selectFoodForPet(petSpecies, snapshot, options);
-}
-
 export function selectFoodForPet(
   petSpecies: string | null,
   snapshot: InventorySnapshot | null,
