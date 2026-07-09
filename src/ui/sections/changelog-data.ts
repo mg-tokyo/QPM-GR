@@ -2,6 +2,14 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.13",
+    date: "2026-07-09",
+    notes: [
+      "Fixed controller cursor D-pad snap not finding anything to snap to after the game moved inventory, hotbar, shop cards, action buttons, browse arrows, nav buttons, and garden info card sections onto the PIXI canvas, QPM now walks the game's live PIXI stage through its own capture hook so the cursor snaps to every visible on-screen clickable element without waiting on the game engine atom",
+      "Fixed multi-harvest slot cycling on the controller pressing RT and LT changing hotbar selection instead of stepping through grow slots, the browse buttons moved from React DOM to PIXI so QPM now detects the multi-slot context from the garden state directly",
+    ],
+  },
+  {
     version: "3.3.12",
     date: "2026-07-09",
     notes: [

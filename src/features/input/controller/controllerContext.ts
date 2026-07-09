@@ -26,11 +26,16 @@
 import {
   ensureJotaiStore,
   getAtomByLabel,
-  getCachedStore,
   type JotaiStore,
 } from '../../../core/jotaiBridge';
 import { pageWindow } from '../../../core/pageContext';
 import { readAtomValueSync } from '../../../core/atomRegistry';
+import {
+  getPixiRuntime,
+  walkScene,
+  getBounds,
+  toCssRect,
+} from '../../../core/pixiScene';
 import { getGardenSnapshot } from '../../garden/bridge';
 import { isRecord } from '../../../utils/typeGuards';
 
@@ -455,75 +460,36 @@ export async function cyclePetSlot(direction: 'next' | 'prev'): Promise<void> {
 
 /**
  * Returns viewport-coordinate centers of all interactive Pixi containers
- * that have `cursor = 'pointer'` (inventory items, world objects, pet slots, etc.).
+ * currently on-screen (inventory items, hotbar/pet slots, shop cards, action
+ * HUD, plant/pet tiles, browse buttons, nav buttons, garden info card).
  *
- * Called synchronously on every D-pad press — traverses the Pixi display tree
- * and collects eligible containers. Skips invisible branches for performance.
+ * Uses QPM's canonical PIXI runtime capture (src/core/pixiScene.ts) — reads
+ * from window.__QPM_PIXI_CAPTURED__ populated by createPixiHooks() at boot,
+ * with no dependency on the QuinoaEngine atom fiber-scan (which can time out
+ * in production and would leave this returning [], breaking D-pad snap).
  *
- * Coordinate conversion: Pixi's getBounds() returns canvas-local CSS pixels.
- * Adding the canvas element's viewport offset gives us viewport coordinates.
- * For a full-screen game the canvas is at (0,0) so this is usually a no-op.
+ * The `eventMode === 'static' && cursor === 'pointer'` predicate is what PIXI
+ * stamps on every clickable control across the game — device-agnostic, no
+ * per-system allowlist needed. Uses walkScene(visibleOnly:true) so hidden
+ * branches (closed modals, off-screen panels) are skipped for free.
  */
 export function getPixiInteractives(): Array<{ x: number; y: number }> {
-  const cachedStore = getCachedStore();
-  if (!quinoaEngineAtom || !cachedStore) return [];
+  const runtime = getPixiRuntime();
+  if (!runtime.ready) return [];
+  const { stage, renderer, canvas } = runtime;
 
-  const engine = cachedStore.get(quinoaEngineAtom);
-  if (!engine || typeof engine !== 'object') return [];
-
-  const app = (engine as Record<string, unknown>)['app'];
-  if (!app || typeof app !== 'object') return [];
-
-  // Pixi v8 uses app.canvas; v7 used app.view (keep fallback)
-  const canvas = ((app as Record<string, unknown>)['canvas'] ??
-                  (app as Record<string, unknown>)['view']) as HTMLCanvasElement | null;
-  const stage  = (app as Record<string, unknown>)['stage'];
-  if (!stage || !canvas) return [];
-
-  const canvasRect = canvas.getBoundingClientRect();
   const out: Array<{ x: number; y: number }> = [];
-  collectPixiInteractives(stage as Record<string, unknown>, canvasRect, out);
+  walkScene(stage, (node) => {
+    if (node['eventMode'] !== 'static' || node['cursor'] !== 'pointer') return;
+    const bounds = getBounds(node);
+    if (!bounds) return;
+    const rect = toCssRect(bounds, renderer, canvas!);
+    if (!rect) return;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    if (cx >= 0 && cx <= window.innerWidth && cy >= 0 && cy <= window.innerHeight) {
+      out.push({ x: cx, y: cy });
+    }
+  }, { visibleOnly: true });
   return out;
-}
-
-type PixiObj = Record<string, unknown>;
-
-function collectPixiInteractives(
-  obj: PixiObj,
-  canvasRect: DOMRect,
-  out: Array<{ x: number; y: number }>,
-): void {
-  // Skip invisible branches entirely (saves traversal time)
-  if (obj['visible'] === false) return;
-  if (typeof obj['alpha'] === 'number' && (obj['alpha'] as number) <= 0) return;
-
-  // Collect leaf-level interactive objects that show a pointer cursor.
-  // Using cursor='pointer' rather than eventMode alone avoids collecting
-  // large background panels or scroll containers.
-  if (obj['eventMode'] === 'static' && obj['cursor'] === 'pointer') {
-    try {
-      // getBounds() returns bounds in canvas-local CSS pixels (Pixi v7 + v8)
-      const bounds = (obj as { getBounds(): { x: number; y: number; width: number; height: number } }).getBounds();
-      if (bounds.width > 0 && bounds.height > 0) {
-        const cx = bounds.x + bounds.width  / 2 + canvasRect.left;
-        const cy = bounds.y + bounds.height / 2 + canvasRect.top;
-        // Only include points within the visible viewport
-        if (cx >= 0 && cx <= window.innerWidth && cy >= 0 && cy <= window.innerHeight) {
-          out.push({ x: cx, y: cy });
-        }
-      }
-    } catch {
-      // getBounds() can throw for destroyed or unattached containers
-    }
-  }
-
-  // Recurse into children
-  const children = obj['children'];
-  if (Array.isArray(children)) {
-    for (const child of children) {
-      if (child && typeof child === 'object') {
-        collectPixiInteractives(child as PixiObj, canvasRect, out);
-      }
-    }
-  }
 }
