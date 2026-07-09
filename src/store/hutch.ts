@@ -9,15 +9,13 @@ let firstStateSeen = false;
 
 // Constants
 
-export const DEFAULT_HUTCH_CAPACITY = 25;
+export const DEFAULT_HUTCH_CAPACITY = 10;
 export const INVENTORY_MAX = 100;
 
-/**
- * Hutch capacity by upgrade level (0-10).
- * Verified from beta source: decorDex.ts PetHutch upgrade tiers.
- */
+// PetHutch upgrade tiers, verified at scraped-data/BetaGameSourceFiles/
+// gg-preview-pr-3208-app/.../decorDex.ts:835-903 (toCapacitySlots values).
 const HUTCH_CAPACITY_BY_LEVEL: readonly number[] = [
-  25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100,
+  10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100,
 ];
 
 export function hutchCapacityForLevel(level: number): number {

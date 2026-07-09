@@ -2,7 +2,7 @@
 // Cosmetic catalog extraction from a code-split bundle chunk.
 // Cosmetics live in index-*.js, NOT the main bundle — so we fetch separately.
 
-import { findAllIndices, extractBalancedArray } from './bundleParser';
+import { findAllIndices, extractBalancedArray, convertBacktickStrings } from './bundleParser';
 import { pageWindow, readSharedGlobal } from '../../core/pageContext';
 
 export interface RuntimeCosmeticEntry {
@@ -158,13 +158,6 @@ function buildPriceResolver(bundleText: string, arrayStart: number): (ref: strin
     const suffix = ref.split('.').pop() ?? '';
     return PRICE_TIERS[suffix] ?? 0;
   };
-}
-
-function convertBacktickStrings(source: string): string {
-  return source.replace(/`([^`\\]*(\\.[^`\\]*)*)`/g, (_m, inner: string) => {
-    const unescaped = inner.replace(/\\`/g, '`').replace(/\\"/g, '"');
-    return JSON.stringify(unescaped);
-  });
 }
 
 function quoteUnquotedKeys(source: string): string {

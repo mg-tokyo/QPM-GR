@@ -30,6 +30,9 @@ import {
   type JotaiStore,
 } from '../../../core/jotaiBridge';
 import { pageWindow } from '../../../core/pageContext';
+import { readAtomValueSync } from '../../../core/atomRegistry';
+import { getGardenSnapshot } from '../../garden/bridge';
+import { isRecord } from '../../../utils/typeGuards';
 
 // ---------------------------------------------------------------------------
 // Atom label constants (work on dev / QPM-enriched builds)
@@ -103,14 +106,24 @@ function subscribeToModalAtom(store: JotaiStore): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Returns true when the player is on a multi-harvest plant tile.
+ * Returns true when the player is standing on a multi-harvest plant tile.
  *
- * The game renders `<IconButton aria-label="Previous [x]">` (ActionBrowseButton)
- * only when numGrowSlots > 1. Checking for that element in the DOM is the
- * simplest reliable signal with no atom access required.
+ * Previously detected via the ActionBrowseButton DOM element, but the game
+ * moved the browse controls into the PIXI canvas (BrowseButtonSprite) so no
+ * matching DOM element exists anymore. Read directly from the garden snapshot
+ * — same pattern as instaHarvest.ts:61.
  */
 export function isGrowSlotContextActive(): boolean {
-  return document.querySelector('button[aria-label="Previous [x]"]') !== null;
+  const dirtTileIndex = readAtomValueSync('dirtTileIndex');
+  if (dirtTileIndex === null) return false;
+  const garden = getGardenSnapshot();
+  if (!garden) return false;
+  const key = String(dirtTileIndex);
+  const tile =
+    (garden.tileObjects as Record<string, unknown> | undefined)?.[key]
+    ?? (garden.boardwalkTileObjects as Record<string, unknown> | undefined)?.[key];
+  if (!isRecord(tile) || !Array.isArray(tile.slots)) return false;
+  return tile.slots.length > 1;
 }
 
 // ---------------------------------------------------------------------------

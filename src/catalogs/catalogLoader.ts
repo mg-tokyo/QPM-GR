@@ -826,27 +826,28 @@ function checkAndNotifyReady(): void {
   }
 }
 
-function countLoadedCatalogs(): { loaded: number; total: number } {
-  const slots = [
-    capturedCatalogs.itemCatalog,
-    capturedCatalogs.decorCatalog,
-    capturedCatalogs.mutationCatalog,
-    capturedCatalogs.eggCatalog,
-    capturedCatalogs.petCatalog,
-    capturedCatalogs.petAbilities,
-    capturedCatalogs.plantCatalog,
-    capturedCatalogs.weatherCatalog,
-    capturedCatalogs.cosmeticCatalog,
+function countLoadedCatalogs(): { loaded: number; total: number; missing: string[] } {
+  const slots: Array<[string, unknown]> = [
+    ['itemCatalog', capturedCatalogs.itemCatalog],
+    ['decorCatalog', capturedCatalogs.decorCatalog],
+    ['mutationCatalog', capturedCatalogs.mutationCatalog],
+    ['eggCatalog', capturedCatalogs.eggCatalog],
+    ['petCatalog', capturedCatalogs.petCatalog],
+    ['petAbilities', capturedCatalogs.petAbilities],
+    ['plantCatalog', capturedCatalogs.plantCatalog],
+    ['weatherCatalog', capturedCatalogs.weatherCatalog],
+    ['cosmeticCatalog', capturedCatalogs.cosmeticCatalog],
   ];
-  const loaded = slots.reduce<number>((n, slot) => n + (slot !== null ? 1 : 0), 0);
-  return { loaded, total: slots.length };
+  const missing = slots.filter(([, slot]) => slot === null).map(([name]) => name);
+  return { loaded: slots.length - missing.length, total: slots.length, missing };
 }
 
 function publishCatalogsHealth(): void {
   if (!diagnosticsStarted) return;
-  const { loaded, total } = countLoadedCatalogs();
+  const { loaded, total, missing } = countLoadedCatalogs();
+  const missingSuffix = missing.length > 0 ? ` (missing: ${missing.join(', ')})` : '';
   const message = catalogsReady
-    ? `${loaded}/${total} catalogs loaded`
+    ? `${loaded}/${total} catalogs loaded${missingSuffix}`
     : `Capturing… (${loaded}/${total} so far)`;
   const status: SubsystemHealth['status'] | undefined = catalogsReady ? 'ok' : undefined;
   healthBus.publish({

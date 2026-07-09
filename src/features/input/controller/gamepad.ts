@@ -42,6 +42,10 @@ const DPAD_SNAP_VECTORS: Array<[keyof typeof DPAD_INDICES, number, number]> = [
 const TRIGGER_THRESHOLD = 0.5;
 const STICK_DEAD_ZONE = 0.15;
 
+// Elevated threshold used to distinguish deliberate input from stick drift
+// when promoting a candidate to the active gamepad.
+const ACTIVITY_AXIS_THRESHOLD = 0.5;
+
 // LB and RB button indices (used for chord detection)
 const LB_INDEX = 4;
 const RB_INDEX = 5;
@@ -65,7 +69,14 @@ export class GamepadPoller {
   private prevButtons: Map<number, boolean> = new Map();
   private prevDpad: Map<number, boolean> = new Map();
   private lastTimestamp: number = 0;
-  private connectedGamepadIndex: number | null = null;
+  private activeGamepadIndex: number | null = null;
+  // All connected gamepads awaiting an activity check. Devices land here on
+  // gamepadconnected and are only promoted to activeGamepadIndex after a
+  // rising-edge button press or a stick deflection past ACTIVITY_AXIS_THRESHOLD —
+  // this filters out HID devices (headsets, adapters) that fire connect events
+  // without ever producing real gamepad input.
+  private candidates: Set<number> = new Set();
+  private candidatePrevButtons: Map<number, boolean[]> = new Map();
   private currentProfile: ControllerProfile | null = null;
 
   constructor(
@@ -90,14 +101,10 @@ export class GamepadPoller {
     window.addEventListener('gamepadconnected', this.onConnect);
     window.addEventListener('gamepaddisconnected', this.onDisconnect);
 
-    // Check if a gamepad is already connected (e.g. plugged in before script ran)
+    // Register any gamepads already present (plugged in before script ran).
+    // Promotion still waits for real input.
     for (const gp of getGamepadsSafe()) {
-      if (gp) {
-        this.connectedGamepadIndex = gp.index;
-        this.currentProfile = detectProfile(gp);
-        this.onProfileChange(this.currentProfile);
-        break;
-      }
+      if (gp) this.registerCandidate(gp);
     }
 
     this.scheduleFrame();
@@ -110,6 +117,10 @@ export class GamepadPoller {
     }
     window.removeEventListener('gamepadconnected', this.onConnect);
     window.removeEventListener('gamepaddisconnected', this.onDisconnect);
+    this.candidates.clear();
+    this.candidatePrevButtons.clear();
+    this.activeGamepadIndex = null;
+    this.currentProfile = null;
     releaseAllDirectionKeys();
   }
 
@@ -117,26 +128,65 @@ export class GamepadPoller {
     return this.currentProfile;
   }
 
+  private registerCandidate(gp: Gamepad): void {
+    if (this.candidates.has(gp.index) || gp.index === this.activeGamepadIndex) return;
+    this.candidates.add(gp.index);
+    // Snapshot the initial button state so a button that arrives already
+    // "pressed" (stuck HID state on connect) does not count as a rising edge.
+    this.candidatePrevButtons.set(gp.index, gp.buttons.map(b => b.pressed));
+    console.log(`[QPM Controller] Gamepad detected (awaiting input): ${gp.id}`);
+  }
+
   private onConnect = (ev: GamepadEvent): void => {
-    if (this.connectedGamepadIndex === null) {
-      this.connectedGamepadIndex = ev.gamepad.index;
-      this.currentProfile = detectProfile(ev.gamepad);
-      this.onProfileChange(this.currentProfile);
-      console.log(`[QPM Controller] Gamepad connected: ${ev.gamepad.id}`);
-    }
+    this.registerCandidate(ev.gamepad);
   };
 
   private onDisconnect = (ev: GamepadEvent): void => {
-    if (ev.gamepad.index === this.connectedGamepadIndex) {
-      this.connectedGamepadIndex = null;
+    const idx = ev.gamepad.index;
+    this.candidates.delete(idx);
+    this.candidatePrevButtons.delete(idx);
+    if (idx === this.activeGamepadIndex) {
+      this.activeGamepadIndex = null;
       this.currentProfile = null;
       this.prevButtons.clear();
       this.prevDpad.clear();
       releaseAllDirectionKeys();
       this.onProfileChange(null);
-      console.log(`[QPM Controller] Gamepad disconnected.`);
+      console.log(`[QPM Controller] Active gamepad disconnected: ${ev.gamepad.id}`);
     }
   };
+
+  private hasActivity(gp: Gamepad): boolean {
+    const prev = this.candidatePrevButtons.get(gp.index);
+    if (prev) {
+      for (let i = 0; i < gp.buttons.length; i++) {
+        const now = gp.buttons[i]?.pressed ?? false;
+        const was = prev[i] ?? false;
+        if (now && !was) return true;
+      }
+    }
+    for (const axis of gp.axes) {
+      if (Math.abs(axis) > ACTIVITY_AXIS_THRESHOLD) return true;
+    }
+    return false;
+  }
+
+  private updateCandidatePrev(gp: Gamepad): void {
+    const prev = this.candidatePrevButtons.get(gp.index);
+    if (!prev) return;
+    for (let i = 0; i < gp.buttons.length; i++) {
+      prev[i] = gp.buttons[i]?.pressed ?? false;
+    }
+  }
+
+  private promoteToActive(gp: Gamepad): void {
+    this.activeGamepadIndex = gp.index;
+    this.candidates.delete(gp.index);
+    this.candidatePrevButtons.delete(gp.index);
+    this.currentProfile = detectProfile(gp);
+    this.onProfileChange(this.currentProfile);
+    console.log(`[QPM Controller] Gamepad active: ${gp.id}`);
+  }
 
   private scheduleFrame(): void {
     this.rafId = requestAnimationFrame(this.frame);
@@ -146,18 +196,28 @@ export class GamepadPoller {
     const dt = this.lastTimestamp > 0 ? Math.min((timestamp - this.lastTimestamp) / 1000, 0.1) : 0.016;
     this.lastTimestamp = timestamp;
 
-    const gp = this.getActiveGamepad();
-    if (gp) {
-      this.processGamepad(gp, dt);
+    const pads = getGamepadsSafe();
+
+    if (this.activeGamepadIndex !== null) {
+      const gp = pads[this.activeGamepadIndex] ?? null;
+      if (gp) this.processGamepad(gp, dt);
+    } else {
+      // Scan candidates for real input. First one to fire a rising-edge button
+      // press or push a stick past ACTIVITY_AXIS_THRESHOLD becomes active.
+      for (const idx of this.candidates) {
+        const gp = pads[idx];
+        if (!gp) continue;
+        if (this.hasActivity(gp)) {
+          this.promoteToActive(gp);
+          this.processGamepad(gp, dt);
+          break;
+        }
+        this.updateCandidatePrev(gp);
+      }
     }
 
     this.scheduleFrame();
   };
-
-  private getActiveGamepad(): Gamepad | null {
-    if (this.connectedGamepadIndex === null) return null;
-    return getGamepadsSafe()[this.connectedGamepadIndex] ?? null;
-  }
 
   private processGamepad(gp: Gamepad, dt: number): void {
     if (!gp.buttons.length) return;

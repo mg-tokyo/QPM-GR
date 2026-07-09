@@ -33,6 +33,10 @@ export type RoomActionType =
   | 'CropCleanser'
   | 'MutationPotion'
   | 'DismountPet'
+  | 'SwapPetFromStorage'
+  | 'UpgradePetHutch'
+  | 'UpgradeSeedSilo'
+  | 'UpgradeDecorShed'
   // Keep the SetRiddenPet member as the final entry of this union — the
   // QPM FULL PRIVATE overlay's apply-transforms.js anchors ws:extend-union
   // to that literal line and inserts automation-only types after it. Add
@@ -108,6 +112,7 @@ type RetrievePayload = { itemId: string; storageId: string; toInventoryIndex?: n
 type PutInStoragePayload = { itemId: string; storageId: string; toStorageIndex?: number; quantity?: number };
 type PickupPetPayload = { petId: string };
 type SwapPayload = { petSlotId: string; petInventoryId: string };
+type SwapFromStoragePayload = { petSlotId: string; storagePetId: string; storageId: string };
 /** V16 unified shop purchase payload. itemType values: 'Seed'|'Egg'|'Tool'|'Decor'. */
 type PurchaseShopItemPayload = {
   shop: string;
@@ -211,6 +216,14 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       const p = payload as SwapPayload;
       return isNonEmptyString(p.petSlotId) && isNonEmptyString(p.petInventoryId);
     }
+    case 'SwapPetFromStorage': {
+      const p = payload as SwapFromStoragePayload;
+      return (
+        isNonEmptyString(p.petSlotId) &&
+        isNonEmptyString(p.storagePetId) &&
+        isNonEmptyString(p.storageId)
+      );
+    }
     case 'XPPotion':
     case 'ReplenishPotion':
       return isNonEmptyString(payload.petItemId);
@@ -223,6 +236,10 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
     case 'RidePet':
       return isNonEmptyString(payload.petItemId);
     case 'DismountPet':
+      return true;
+    case 'UpgradePetHutch':
+    case 'UpgradeSeedSilo':
+    case 'UpgradeDecorShed':
       return true;
     case 'SetRiddenPet':
       // petId can be a string (mount) or null (dismount)
@@ -271,6 +288,8 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
       return type;
     case 'SwapPet':
       return `${type}:${String(payload.petSlotId ?? '')}:${String(payload.petInventoryId ?? '')}`;
+    case 'SwapPetFromStorage':
+      return `${type}:${String(payload.petSlotId ?? '')}:${String(payload.storagePetId ?? '')}`;
     case 'XPPotion':
     case 'ReplenishPotion':
       return `${type}:${String(payload.petItemId ?? '')}`;
@@ -281,6 +300,10 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'RidePet':
       return `${type}:${String(payload.petItemId ?? '')}`;
     case 'DismountPet':
+      return type;
+    case 'UpgradePetHutch':
+    case 'UpgradeSeedSilo':
+    case 'UpgradeDecorShed':
       return type;
     case 'SetRiddenPet':
       return type;

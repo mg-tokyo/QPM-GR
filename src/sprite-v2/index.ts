@@ -2272,7 +2272,7 @@ async function resolvePixiFast(): Promise<PixiBundle> {
   };
   
   // Check 4: React fiber traversal (direct DOM inspection). Expensive — up to
-  // ~10k-node BFS per call. Rate-limited on the poll path (see FIBER_POLL_EVERY_N
+  // ~10k-node BFS per call. Rate-limited on the poll path (see FIBER_MIN_INTERVAL_MS
   // below) after cheap checks have missed a few times in a row.
   const checkFiber = (): PixiBundle | null => findPixiViaFiber();
 
@@ -2283,24 +2283,29 @@ async function resolvePixiFast(): Promise<PixiBundle> {
   const hit = cheapCheck() || checkFiber();
   if (hit) return hit;
 
-  // Poll for up to 15 seconds. Cheap checks every 100ms; fiber only every ~1s
-  // and only after a streak of cheap misses.
+  // Poll for up to 15 seconds. Cheap checks every 100ms; the expensive fiber
+  // BFS at most once per second of WALL time (not iterations — background-tab
+  // timer throttling collapses iteration counts) and only after a streak of
+  // cheap misses.
   const maxMs = 15000;
   const pollStart = performance.now();
   const FIBER_MIN_MISS_STREAK = 5;
-  const FIBER_POLL_EVERY_N = 10;
-  let pollIter = 0;
+  const FIBER_MIN_INTERVAL_MS = 1000;
   let cheapMissStreak = 0;
+  let lastFiberAt = pollStart;
 
   while (performance.now() - pollStart < maxMs) {
     await new Promise(r => setTimeout(r, 100));
-    pollIter += 1;
 
     const cheap = cheapCheck();
     if (cheap) return cheap;
     cheapMissStreak += 1;
 
-    if (cheapMissStreak >= FIBER_MIN_MISS_STREAK && pollIter % FIBER_POLL_EVERY_N === 0) {
+    if (
+      cheapMissStreak >= FIBER_MIN_MISS_STREAK &&
+      performance.now() - lastFiberAt >= FIBER_MIN_INTERVAL_MS
+    ) {
+      lastFiberAt = performance.now();
       const fibered = checkFiber();
       if (fibered) return fibered;
     }

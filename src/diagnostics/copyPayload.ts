@@ -88,12 +88,21 @@ function compactContext(context: Record<string, unknown> | undefined): string {
   return ` ${s.substring(0, 57)}...`;
 }
 
+function truncateCauseText(cause: string): string {
+  const collapsed = cause.replace(/\s+/g, ' ').trim();
+  return collapsed.length <= 90 ? collapsed : `${collapsed.substring(0, 87)}…`;
+}
+
 function renderErrorEntryCompact(entry: ErrorBufferEntry): string {
-  const time = new Date(entry.lastSeen).toISOString().substring(11, 19);
+  // The buffer persists across sessions and can span days — HH:MM:SS alone
+  // made multi-day reports unattributable to a release.
+  const iso = new Date(entry.lastSeen).toISOString();
+  const time = `${iso.substring(5, 10)} ${iso.substring(11, 19)}`;
   const sev = severityTag(entry.severity);
   const ctx = compactContext(entry.context);
+  const cause = entry.causeText ? `  ← ${truncateCauseText(entry.causeText)}` : '';
   const count = entry.count > 1 ? `  ×${entry.count}` : '';
-  return `${time}  ${sev}  ${entry.code}  ${entry.message}${ctx}${count}`;
+  return `${time}  ${sev}  ${entry.code}  ${entry.message}${ctx}${cause}${count}`;
 }
 
 function renderIssuesLines(issues: readonly SubsystemHealth[]): string {

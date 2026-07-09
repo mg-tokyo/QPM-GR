@@ -2,6 +2,20 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.12",
+    date: "2026-07-09",
+    notes: [
+      "Fixed the weather catalog failing to load (diagnostics showed catalogs degraded with QPM-CATALOG-003 weatherCatalog) after the game switched bundlers around version 678, the parser now handles the new output format and finds the weather data no matter which chunk the game moves it to",
+      "Improved game-bundle chunk discovery for ability colors and weather: instead of a fixed list of chunk names, QPM now scans every loaded game chunk for the data it needs, so future game builds that shuffle code between files keep working",
+      "Improved diagnostics reports: the catalogs row now names exactly which catalogs are missing, and copied error reports include the date and the underlying error cause so multi-day reports can be attributed to a specific failure",
+      "Improved sprite system PIXI detection in background tabs: the fallback scan now paces itself by wall-clock time instead of poll iterations, so heavily throttled tabs keep retrying instead of giving up after one attempt",
+      "Fixed controller support being hijacked by non-gamepad HID devices (headsets, wireless adapters, mouse dongles) that emit a connect event without ever sending real input, QPM now waits for a real button press or stick deflection before promoting a device to the active gamepad",
+      "Improved pet team switching speed and reliability by using the game's single-message SwapPetFromStorage action when pulling a hutch pet into an occupied active slot, replaces the old retrieve then place then store sequence so teams apply in fewer round trips and can no longer stall halfway through when the inventory is near full",
+      "Updated hutch and seed silo capacity tables to match the game's new upgrade tiers, hutch level 0 is now 10 slots (previously 25) and both the hutch and seed silo now extend all the way to 100 slots at max level",
+      "Added Decor Shed capacity tracking alongside the existing hutch and seed silo counters so the underlying full state and slot counts are available to future UI",
+    ],
+  },
+  {
     version: "3.3.11",
     date: "2026-07-09",
     notes: [

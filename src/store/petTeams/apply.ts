@@ -143,6 +143,13 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       skipThrottle ? { skipThrottle: true } : { throttleMs: 100 },
     );
 
+  const sendSwapPetFromStorage = (petSlotId: string, storagePetId: string, skipThrottle = false) =>
+    sendRoomAction(
+      'SwapPetFromStorage',
+      { petSlotId, storagePetId, storageId: PET_HUTCH_STORAGE_ID },
+      skipThrottle ? { skipThrottle: true } : { throttleMs: 100 },
+    );
+
   // Track positions claimed during this apply to avoid placing two pets on the
   // same tile when the fast path fires multiple PlacePet messages at once.
   const claimedPositions = new Set<string>();
@@ -334,6 +341,26 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     return true;
   };
 
+  const swapFromStorageWithConfirm = async (
+    targetId: string,
+    outgoingActiveId: string,
+  ): Promise<boolean> => {
+    const swap = sendSwapPetFromStorage(outgoingActiveId, targetId, false);
+    if (!swap.ok) {
+      pushError(
+        mapSendReason(swap.reason, 'swap_failed_or_timeout'),
+        'SwapPetFromStorage failed: ' + outgoingActiveId + ' -> ' + targetId + ' (' + String(swap.reason ?? 'unknown') + ')',
+      );
+      return false;
+    }
+    const swapped = await waitForPetInActiveList(targetId, PLACE_TIMEOUT_MS);
+    if (!swapped) {
+      pushError('swap_failed_or_timeout', 'SwapPetFromStorage timed out: ' + outgoingActiveId + ' -> ' + targetId);
+      return false;
+    }
+    return true;
+  };
+
   // Fast path
 
   const applyTeamFastHutchPath = async (): Promise<boolean> => {
@@ -356,21 +383,57 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     let fastOpsSent = 0;
     let fastApplied = 0;
 
-    const retrieveTargets = pendingTargets.filter((targetId) => modeledHutchIds.has(targetId));
+    // Pre-assign an op per pending target based on where it lives and outgoing
+    // slot availability. Hutch targets with an outgoing slot use the single-
+    // message SwapPetFromStorage (server auto-returns the outgoing pet to
+    // hutch). Hutch targets without an outgoing slot still need retrieve→place.
+    const outgoingCandidates: Array<{ id: string; idx: number }> = [];
+    for (let i = 0; i < modeledActive.length; i++) {
+      const id = modeledActive[i];
+      if (id && !validTargetSet.has(id)) outgoingCandidates.push({ id, idx: i });
+    }
+    let outgoingCursor = 0;
 
-    for (const targetId of retrieveTargets) {
+    type FastOp =
+      | { kind: 'swapFromStorage'; targetId: string; outgoing: { id: string; idx: number } }
+      | { kind: 'swapPet'; targetId: string; outgoing: { id: string; idx: number } }
+      | { kind: 'retrieveThenPlace'; targetId: string }
+      | { kind: 'place'; targetId: string };
+
+    const ops: FastOp[] = [];
+    for (const targetId of pendingTargets) {
+      if (modeledActiveSet.has(targetId)) continue;
+      const inHutch = modeledHutchIds.has(targetId);
+      if (outgoingCursor < outgoingCandidates.length) {
+        const outgoing = outgoingCandidates[outgoingCursor++]!;
+        ops.push({
+          kind: inHutch ? 'swapFromStorage' : 'swapPet',
+          targetId,
+          outgoing,
+        });
+      } else if (inHutch) {
+        ops.push({ kind: 'retrieveThenPlace', targetId });
+      } else {
+        ops.push({ kind: 'place', targetId });
+      }
+    }
+
+    // Phase A: retrieves — only for empty-slot placements sourced from hutch.
+    let retrievesSent = 0;
+    for (const op of ops) {
+      if (op.kind !== 'retrieveThenPlace') continue;
       if (modeledInventoryCount >= INVENTORY_MAX) {
-        unavailableTargets.add(targetId);
+        unavailableTargets.add(op.targetId);
         continue;
       }
-
-      const retrieve = sendRetrieveFromHutch(targetId, modeledInventoryIndex, true);
+      const retrieve = sendRetrieveFromHutch(op.targetId, modeledInventoryIndex, true);
       if (!retrieve.ok) {
-        unavailableTargets.add(targetId);
+        unavailableTargets.add(op.targetId);
         continue;
       }
       fastOpsSent++;
-      modeledHutchIds.delete(targetId);
+      retrievesSent++;
+      modeledHutchIds.delete(op.targetId);
       modeledHutchCount = Math.max(0, modeledHutchCount - 1);
       modeledInventoryCount++;
       if (modeledHutchCount < hutch.hutchMax && modeledHutchIndex == null) {
@@ -380,47 +443,49 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
         modeledInventoryIndex += 1;
       }
     }
-
-    // Let the game settle hutch-retrieve state updates before issuing swaps.
-    if (retrieveTargets.length > 0) {
+    if (retrievesSent > 0) {
       await delay(FAST_PATH_PHASE_GAP_MS);
     }
 
+    // Phase B: swaps and places.
     const displacedPets: string[] = [];
-    for (const targetId of pendingTargets) {
-      if (modeledActiveSet.has(targetId) || unavailableTargets.has(targetId)) {
-        continue;
-      }
-
-      const outgoingIndex = modeledActive.findIndex((id) => !validTargetSet.has(id));
-      if (outgoingIndex >= 0) {
-        const outgoing = modeledActive[outgoingIndex];
-        if (!outgoing) {
-          continue;
-        }
-        const swap = sendSwapPet(outgoing, targetId, true);
-        if (!swap.ok) {
-          continue;
-        }
+    let swapFromStorageSent = 0;
+    let swapPetSent = 0;
+    let placesSent = 0;
+    for (const op of ops) {
+      if (unavailableTargets.has(op.targetId)) continue;
+      if (op.kind === 'swapFromStorage') {
+        const swap = sendSwapPetFromStorage(op.outgoing.id, op.targetId, true);
+        if (!swap.ok) continue;
         fastOpsSent++;
-        modeledActive[outgoingIndex] = targetId;
-        modeledActiveSet.delete(outgoing);
-        modeledActiveSet.add(targetId);
-        displacedPets.push(outgoing);
+        swapFromStorageSent++;
+        modeledActive[op.outgoing.idx] = op.targetId;
+        modeledActiveSet.delete(op.outgoing.id);
+        modeledActiveSet.add(op.targetId);
+        fastApplied++;
+      } else if (op.kind === 'swapPet') {
+        const swap = sendSwapPet(op.outgoing.id, op.targetId, true);
+        if (!swap.ok) continue;
+        fastOpsSent++;
+        swapPetSent++;
+        modeledActive[op.outgoing.idx] = op.targetId;
+        modeledActiveSet.delete(op.outgoing.id);
+        modeledActiveSet.add(op.targetId);
+        displacedPets.push(op.outgoing.id);
         fastApplied++;
       } else {
-        const place = sendPlaceFromInventory(targetId, true);
-        if (!place.ok) {
-          continue;
-        }
+        const place = sendPlaceFromInventory(op.targetId, true);
+        if (!place.ok) continue;
         fastOpsSent++;
-        modeledActive.push(targetId);
-        modeledActiveSet.add(targetId);
+        placesSent++;
+        modeledActive.push(op.targetId);
+        modeledActiveSet.add(op.targetId);
         fastApplied++;
       }
     }
 
-    // Let the game settle swap state updates before storing displaced pets.
+    // Phase C: store SwapPet-displaced pets. SwapPetFromStorage displacements
+    // are already in hutch server-side — no PutItemInStorage needed for those.
     if (displacedPets.length > 0) {
       await delay(FAST_PATH_PHASE_GAP_MS);
     }
@@ -447,7 +512,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
     }
 
-    log(`[PetTeams:Fast] sent=${fastOpsSent} (retrieves=${retrieveTargets.length}, swaps=${fastApplied}, storesAttempted=${displacedPets.length} storesSent=${fastStoresSent})`);
+    log(`[PetTeams:Fast] sent=${fastOpsSent} (retrieves=${retrievesSent}, swapFromStorage=${swapFromStorageSent}, swapPet=${swapPetSent}, places=${placesSent}, storesAttempted=${displacedPets.length} storesSent=${fastStoresSent})`);
     if (fastOpsSent === 0) {
       log('[PetTeams:Fast] Nothing sent — falling through to repair');
       return false;
@@ -489,6 +554,15 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
 
       if (location === 'hutch') {
+        const outgoingForStorageSwap = getActiveSlotIds().find((id) => !validTargetSet.has(id)) ?? null;
+        if (outgoingForStorageSwap) {
+          const swapped = await swapFromStorageWithConfirm(targetId, outgoingForStorageSwap);
+          if (swapped) {
+            applied++;
+            await delay(APPLY_STEP_DELAY_MS);
+            continue;
+          }
+        }
         const retrieved = await retrieveFromHutchWithConfirm(targetId);
         if (!retrieved) {
           await delay(APPLY_STEP_DELAY_MS);

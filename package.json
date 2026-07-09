@@ -1,6 +1,6 @@
 {
   "name": "quinoa-pet-manager",
-  "version": "3.3.11",
+  "version": "3.3.12",
   "description": "Quality of life tools for Magic Garden including crop tracking, mutation reminders, and inventory management",
   "main": "dist/userscript.js",
   "scripts": {
@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "postinstall": "echo Cross-platform setup complete!",
-    "check:i18n": "node scripts/check-i18n-keys.mjs"
+    "check:i18n": "node scripts/check-i18n-keys.mjs",
+    "check:weather-parser": "node --experimental-strip-types scripts/check-weather-parser.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

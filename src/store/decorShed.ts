@@ -4,50 +4,50 @@ import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } fro
 import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
-const diag = createStoreDiagnostics('storeSeedSilo', 'seedSilo');
+const diag = createStoreDiagnostics('storeDecorShed', 'decorShed');
 let firstStateSeen = false;
 
 // Constants
 
-export const DEFAULT_SEED_SILO_CAPACITY = 10;
+export const DEFAULT_DECOR_SHED_CAPACITY = 10;
 
-// SeedSilo upgrade tiers, verified at scraped-data/BetaGameSourceFiles/
-// gg-preview-pr-3208-app/.../decorDex.ts:918-983 (toCapacitySlots values).
-const SEED_SILO_CAPACITY_BY_LEVEL: readonly number[] = [
-  10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100,
+// DecorShed upgrade tiers, verified at scraped-data/BetaGameSourceFiles/
+// gg-preview-pr-3208-app/.../decorDex.ts:778-817 (toCapacitySlots values).
+const DECOR_SHED_CAPACITY_BY_LEVEL: readonly number[] = [
+  10, 15, 20, 25, 30, 35, 40, 45, 50,
 ];
 
-export function seedSiloCapacityForLevel(level: number): number {
-  const clamped = Math.max(0, Math.min(level, SEED_SILO_CAPACITY_BY_LEVEL.length - 1));
-  return SEED_SILO_CAPACITY_BY_LEVEL[clamped] ?? DEFAULT_SEED_SILO_CAPACITY;
+export function decorShedCapacityForLevel(level: number): number {
+  const clamped = Math.max(0, Math.min(level, DECOR_SHED_CAPACITY_BY_LEVEL.length - 1));
+  return DECOR_SHED_CAPACITY_BY_LEVEL[clamped] ?? DEFAULT_DECOR_SHED_CAPACITY;
 }
 
-function seedSiloLevelForCapacity(capacity: number): number {
-  const idx = SEED_SILO_CAPACITY_BY_LEVEL.indexOf(capacity);
+function decorShedLevelForCapacity(capacity: number): number {
+  const idx = DECOR_SHED_CAPACITY_BY_LEVEL.indexOf(capacity);
   return idx >= 0 ? idx : 0;
 }
 
 // Reactive state
 
-export interface SeedSiloState {
+export interface DecorShedState {
   count: number;
   capacity: number;
   capacityLevel: number;
   updatedAt: number;
 }
 
-let state: SeedSiloState = {
+let state: DecorShedState = {
   count: 0,
-  capacity: DEFAULT_SEED_SILO_CAPACITY,
+  capacity: DEFAULT_DECOR_SHED_CAPACITY,
   capacityLevel: 0,
   updatedAt: 0,
 };
 
 let storageUnsub: (() => void) | null = null;
-const listeners = new Set<(state: SeedSiloState) => void>();
+const listeners = new Set<(state: DecorShedState) => void>();
 
 function notifyListeners(): void {
-  const snapshot = getSeedSiloState();
+  const snapshot = getDecorShedState();
   for (const listener of listeners) {
     try { listener(snapshot); } catch (err) {
       diag.warn('QPM-STORE-003', { phase: 'notify' }, err);
@@ -55,7 +55,7 @@ function notifyListeners(): void {
   }
 }
 
-function publishSeedSiloHealth(): void {
+function publishDecorShedHealth(): void {
   diag.publishMetrics(
     `count=${state.count}/${state.capacity} (level ${state.capacityLevel})`,
     {
@@ -69,14 +69,14 @@ function publishSeedSiloHealth(): void {
 
 // State-tree selector
 
-interface SeedSiloSlice {
+interface DecorShedSlice {
   items: QuinoaInventoryItem[];
   capacity: number;
 }
 
-const NULL_SLICE: SeedSiloSlice = { items: [], capacity: DEFAULT_SEED_SILO_CAPACITY };
+const NULL_SLICE: DecorShedSlice = { items: [], capacity: DEFAULT_DECOR_SHED_CAPACITY };
 
-function selectSeedSiloSlice(snapshot: QuinoaStateSnapshot): SeedSiloSlice {
+function selectDecorShedSlice(snapshot: QuinoaStateSnapshot): DecorShedSlice {
   const playerId = getPlayerIdSync();
   if (!playerId) return NULL_SLICE;
 
@@ -90,17 +90,18 @@ function selectSeedSiloSlice(snapshot: QuinoaStateSnapshot): SeedSiloSlice {
   const storages = mySlot.data?.inventory?.storages;
   if (!Array.isArray(storages)) return NULL_SLICE;
 
-  const silo = storages.find((s: QuinoaStorageEntry) =>
-    s?.decorId === 'SeedSilo' || s?.storageId === 'SeedSilo' || s?.id === 'SeedSilo'
+  const shed = storages.find((s: QuinoaStorageEntry) =>
+    s?.decorId === 'DecorShed' || s?.storageId === 'DecorShed' || s?.id === 'DecorShed'
   );
-  if (!silo) return NULL_SLICE;
+  if (!shed) return NULL_SLICE;
 
-  const rawCapacity = silo.capacitySlots ?? silo.capacityLevel;
+  const rawCapacity = shed.capacitySlots ?? shed.capacityLevel;
   const capacity = typeof rawCapacity === 'number' && Number.isFinite(rawCapacity) && rawCapacity > 0
     ? rawCapacity
-    : DEFAULT_SEED_SILO_CAPACITY;
+    : DEFAULT_DECOR_SHED_CAPACITY;
 
-  const rawItems = silo.items;
+  // No itemType filter — shed can hold Decor/Plant/Produce mixed.
+  const rawItems = shed.items;
   const items = Array.isArray(rawItems)
     ? rawItems.filter((i): i is QuinoaInventoryItem => !!i && typeof i === 'object')
     : [];
@@ -110,11 +111,11 @@ function selectSeedSiloSlice(snapshot: QuinoaStateSnapshot): SeedSiloSlice {
 
 // State updates
 
-function updateFromSlice(slice: SeedSiloSlice | null): void {
+function updateFromSlice(slice: DecorShedSlice | null): void {
   const s = slice ?? NULL_SLICE;
   const count = s.items.length;
   const capacity = s.capacity;
-  const capacityLevel = seedSiloLevelForCapacity(capacity);
+  const capacityLevel = decorShedLevelForCapacity(capacity);
 
   const changed = state.count !== count
     || state.capacity !== capacity
@@ -137,37 +138,37 @@ function updateFromSlice(slice: SeedSiloSlice | null): void {
       },
     );
   } else {
-    publishSeedSiloHealth();
+    publishDecorShedHealth();
   }
 }
 
 // Init / stop
 
-export async function startSeedSiloStore(): Promise<void> {
+export async function startDecorShedStore(): Promise<void> {
   if (storageUnsub) return;
-  diag.register('Subscribing to state-tree silo slice');
+  diag.register('Subscribing to state-tree shed slice');
 
   try {
     storageUnsub = stateTreeSubscribe(
-      selectSeedSiloSlice,
+      selectDecorShedSlice,
       (slice) => updateFromSlice(slice),
-      'store:seedSilo',
+      'store:decorShed',
     );
-    log('[SeedSilo] Store initialized (state-tree subscription)');
+    log('[DecorShed] Store initialized (state-tree subscription)');
   } catch (err) {
-    diag.warn('QPM-STORE-001', { phase: 'startSeedSiloStore' }, err);
+    diag.warn('QPM-STORE-001', { phase: 'startDecorShedStore' }, err);
     throw err;
   }
 }
 
-export function stopSeedSiloStore(): void {
+export function stopDecorShedStore(): void {
   storageUnsub?.();
   storageUnsub = null;
   firstStateSeen = false;
   listeners.clear();
   state = {
     count: 0,
-    capacity: DEFAULT_SEED_SILO_CAPACITY,
+    capacity: DEFAULT_DECOR_SHED_CAPACITY,
     capacityLevel: 0,
     updatedAt: 0,
   };
@@ -175,40 +176,40 @@ export function stopSeedSiloStore(): void {
 
 // Read API (synchronous)
 
-export function getSeedSiloState(): SeedSiloState {
+export function getDecorShedState(): DecorShedState {
   return { ...state };
 }
 
-export function getSeedSiloCount(): number {
+export function getDecorShedCount(): number {
   return state.count;
 }
 
-export function getSeedSiloCapacity(): number {
+export function getDecorShedCapacity(): number {
   return state.capacity;
 }
 
-export function getSeedSiloCapacityLevel(): number {
+export function getDecorShedCapacityLevel(): number {
   return state.capacityLevel;
 }
 
-export function isSeedSiloFull(): boolean {
+export function isDecorShedFull(): boolean {
   return state.count >= state.capacity;
 }
 
-export function isSeedSiloStoreActive(): boolean {
+export function isDecorShedStoreActive(): boolean {
   return storageUnsub !== null;
 }
 
 // Subscribe API
 
-export function onSeedSiloChange(
-  callback: (state: SeedSiloState) => void,
+export function onDecorShedChange(
+  callback: (state: DecorShedState) => void,
   fireImmediately = false,
 ): () => void {
   listeners.add(callback);
   if (fireImmediately) {
-    try { callback(getSeedSiloState()); } catch (err) {
-      diag.warn('QPM-STORE-003', { phase: 'onSeedSiloChange.immediate' }, err);
+    try { callback(getDecorShedState()); } catch (err) {
+      diag.warn('QPM-STORE-003', { phase: 'onDecorShedChange.immediate' }, err);
     }
   }
   return () => { listeners.delete(callback); };

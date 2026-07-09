@@ -24,6 +24,7 @@ import { startHutchStore, stopHutchStore } from './store/hutch';
 import { stopWeatherHub } from './store/weatherHub';
 import { destroyEconomyTracker, initEconomyTracker } from './store/economyTracker';
 import { startSeedSiloStore, stopSeedSiloStore } from './store/seedSilo';
+import { startDecorShedStore, stopDecorShedStore } from './store/decorShed';
 import { startSellSnapshotWatcher } from './store/sellSnapshot';
 import { shareGlobal } from './core/pageContext';
 import { estimatePetLevel, getPetXPHistory } from './store/petLevelCalculator';
@@ -1377,6 +1378,7 @@ window.addEventListener('beforeunload', () => {
   stopStorageValueOverlay();
   stopStorageValue();
   stopSeedSiloStore();
+  stopDecorShedStore();
   stopDawnShopTracker();
   stopCapsuleTracker();
   stopChargedAbilities();
@@ -1646,6 +1648,9 @@ async function initialize(): Promise<void> {
   });
   await startSeedSiloStore().catch((error) => {
     log('Seed silo store pre-init failed', error);
+  });
+  await startDecorShedStore().catch((error) => {
+    log('Decor shed store pre-init failed', error);
   });
   await yieldToBrowser();
   await startPetInfoStore().catch((error) => {

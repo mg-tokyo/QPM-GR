@@ -146,6 +146,13 @@ interface AtomValueMap {
   hutchPets: unknown[] | null;
   hutchCapacity: number | null;
   petHutch: unknown | null;
+  numHutchItems: number | null;
+  seedSiloItems: unknown[] | null;
+  seedSiloCapacity: number | null;
+  numSeedSiloItems: number | null;
+  decorShedItems: unknown[] | null;
+  decorShedCapacity: number | null;
+  numDecorShedItems: number | null;
   // Inventory
   inventory: unknown | null;
   cropInventory: unknown | null;
@@ -285,6 +292,41 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
     statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
   },
   petHutch: { label: /^myPetHutch(?:Storages)?(?:Data)?Atom$/i },
+  numHutchItems: {
+    label: /^myNumPetHutchItems(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
+  seedSiloItems: {
+    label: /^mySeedSiloSeed?Items(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
+  seedSiloCapacity: {
+    label: /^mySeedSiloCapacity(?:Slots|Level)(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
+  numSeedSiloItems: {
+    label: /^myNumSeedSiloItems(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
+  decorShedItems: {
+    label: /^myDecorShedDecor?Items(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
+  decorShedCapacity: {
+    label: /^myDecorShedCapacity(?:Slots|Level)(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
+  numDecorShedItems: {
+    label: /^myNumDecorShedItems(?:Data)?Atom$/i,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/data/inventory/storages',
+  },
 
   // ── Inventory ─────────────────────────────────────────────────────────
   inventory: {

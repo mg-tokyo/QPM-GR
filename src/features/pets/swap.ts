@@ -40,7 +40,10 @@ function normalizeId(value: unknown): string | null {
   return null;
 }
 
-function sendAction(type: 'RetrieveItemFromStorage' | 'PlacePet' | 'SwapPet', payload: Record<string, unknown>): boolean {
+function sendAction(
+  type: 'RetrieveItemFromStorage' | 'PlacePet' | 'SwapPet' | 'SwapPetFromStorage',
+  payload: Record<string, unknown>,
+): boolean {
   const sent = sendRoomAction(type, payload, { throttleMs: 100 });
   if (!sent.ok && sent.reason !== 'throttled') {
     log('[petSwap] send failed', { type, payload, reason: sent.reason });
@@ -248,19 +251,19 @@ export async function swapPetIntoActiveSlot(args: SwapPetIntoActiveSlotArgs): Pr
 
   if (args.source === 'hutch') {
     const storageId = normalizeId(args.storageId) ?? DEFAULT_STORAGE_ID;
-    const retrieveSent = sendAction('RetrieveItemFromStorage', {
-      itemId,
+    const swapSent = sendAction('SwapPetFromStorage', {
+      petSlotId: targetSlotId,
+      storagePetId: itemId,
       storageId,
     });
-
-    if (!retrieveSent) {
-      return { ok: false, reason: 'retrieve_failed_or_inventory_full' };
+    if (!swapSent) {
+      return { ok: false, reason: 'swap_failed_or_timeout' };
     }
-
-    const retrieved = await waitForInventoryContains(itemId, HUTCH_RETRIEVE_TIMEOUT_MS);
-    if (!retrieved) {
-      return { ok: false, reason: 'retrieve_failed_or_inventory_full' };
+    const applied = await waitForSwapApplied(targetSlotId, itemId, SWAP_TIMEOUT_MS);
+    if (!applied) {
+      return { ok: false, reason: 'swap_failed_or_timeout' };
     }
+    return { ok: true };
   }
 
   const swapSent = sendAction('SwapPet', {
