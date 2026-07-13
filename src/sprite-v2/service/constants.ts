@@ -1,0 +1,9 @@
+export const COMPRESSED_ATLAS_RE = /\.ktx2(?:[?#].*)?$/i;
+export const IMAGE_EXT_RE = /\.(png|webp|avif|jpg|jpeg|ktx2)$/i;
+export const TARGET_COMPRESSED_COVERAGE = 0.95;
+export const MAX_MISSING_SAMPLE = 8;
+export const ATLAS_DIMENSION_TOLERANCE = 3;
+export const RENDER_TARGET_HINT_RE = /backbuffer|render.?target|framebuffer|bigtriangle|gpu|view\.texture/i;
+export const KTX2_NATIVE_REQUIRED_VERSION = 114;
+export const ALLOW_KTX2_LEGACY_FALLBACK_KEY = 'qpm.debug.sprite.allowLegacyFallbackOnKtx2';
+export const HYDRATION_EVENT = 'qpm:sprite-hydration-state-change';

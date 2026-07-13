@@ -1,6 +1,3 @@
-// src/features/locker/state.ts
-// Persisted config for the Locker.
-
 import { storage } from '../../utils/storage';
 import type {
   LockerConfig,

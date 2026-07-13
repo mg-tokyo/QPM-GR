@@ -1,4 +1,3 @@
-// src/features/gardenQol/ariesHold.ts
 // Rapid-fire hold mode: holding Space rapidly simulates pressing it at N Hz.
 // Replicates the Aries mod "Hold to repeat" feature for all game actions
 // (planting, harvesting, interacting, collecting, etc.).

@@ -1,7 +1,4 @@
-// src/features/chargedAbilities/abilities/types.ts
-// Catalog-driven ability registry — each player-activated ability is a plugin
-// matching this shape. New abilities require zero changes to the surface code:
-// drop a plugin file + add it to the registry index.
+// Plugin registry: new abilities need only a plugin file + registry entry, no surface code changes.
 
 export interface PlantSlotMinimal {
   species: string;

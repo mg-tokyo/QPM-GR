@@ -687,11 +687,8 @@ function detachModal(): void {
 }
 
 function syncModalMount(): void {
-  // Cheap gate: while attached to a live modal, skip the document-wide
-  // `querySelectorAll('p.chakra-text')` sweep in findActivityModal(). Runs on
-  // every 250 ms tick of the visible interval — the sweep is the tracker item
-  // 1.18 hot path. React modal swaps still detach the old root, which flips
-  // isConnected to false and re-triggers the full scan on the next tick.
+  // Skip the document-wide querySelectorAll sweep in findActivityModal() while
+  // still attached; modal swaps detach the root, flipping isConnected to re-trigger it.
   const current = S.modalHandles;
   if (current && current.root.isConnected && current.list.isConnected) {
     return;
@@ -734,13 +731,8 @@ export function stopModalObserver(): void {
 export function ingestActivityLogs(value: unknown): void {
   if (Date.now() < S.suppressIngestUntil) return;
 
-  // Cheap fingerprint gate (item 1.21): if the raw array is byte-length /
-  // first-ts / last-ts identical to the previous ingest, skip normalization
-  // and diff. Game activity entries are timestamped and append-only, so this
-  // triple is a stable content proxy — an addition changes length + lastTs,
-  // an edit is not something the game does. Cost: 3 property reads vs a full
-  // {...spread}-per-entry normalize + O(N) diff for every myData push at
-  // gameplay cadence.
+  // Fingerprint gate: skip normalize+diff if length/first-ts/last-ts match the
+  // previous ingest — entries are append-only, so this triple is a stable proxy.
   const raw = extractActivityArray(value);
   const rawLen = raw.length;
   const firstRaw = rawLen > 0 ? (raw[0] as { timestamp?: unknown } | null) : null;

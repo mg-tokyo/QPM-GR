@@ -1,16 +1,7 @@
-// src/features/dawnCapture/index.ts
-// Tracks DawnCapture ability cooldowns per Hedgehog.
-// Listens for 'dawnCapture' activity log entries and maintains per-pet
-// cooldown timers. Provides a subscribable snapshot for UI overlays.
-
 import { log } from '../../../utils/logger';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { DAWN_CAPTURE_ACTION } from '../capsule/constants';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface DawnCapturePetState {
   petSlotId: string;
@@ -29,16 +20,8 @@ export interface DawnCaptureSnapshot {
   sessionCapsulesProduced: number;
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 /** DawnCapture cooldown in ms (5 minutes, from beta faunaAbilitiesDex). */
 const DAWN_CAPTURE_COOLDOWN_MS = 300_000;
-
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 
 const perPet = new Map<string, DawnCapturePetState>();
 let isDawnActive = false;
@@ -51,10 +34,6 @@ let lastSeenLogLength = 0;
 let initialized = false;
 
 const listeners = new Set<(snapshot: DawnCaptureSnapshot) => void>();
-
-// ---------------------------------------------------------------------------
-// Snapshot
-// ---------------------------------------------------------------------------
 
 function buildSnapshot(): DawnCaptureSnapshot {
   return {
@@ -75,10 +54,6 @@ function emit(): void {
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Activity log processing
-// ---------------------------------------------------------------------------
 
 function processActivityLogs(rawValue: unknown): void {
   if (!rawValue || typeof rawValue !== 'object') return;
@@ -148,10 +123,6 @@ function processActivityLogs(rawValue: unknown): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Weather tracking
-// ---------------------------------------------------------------------------
-
 function handleWeather(snapshot: WeatherSnapshot): void {
   const nowDawn = snapshot.kind === 'dawn';
   if (isDawnActive !== nowDawn) {
@@ -159,10 +130,6 @@ function handleWeather(snapshot: WeatherSnapshot): void {
     emit();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export function startDawnCaptureTracker(): void {
   if (initialized) return;
@@ -219,10 +186,7 @@ export function getDawnCaptureSnapshot(): DawnCaptureSnapshot {
   return buildSnapshot();
 }
 
-/**
- * Get remaining cooldown in ms for a specific pet.
- * Returns 0 if ready (cooldown elapsed or no record).
- */
+/** Remaining cooldown in ms; 0 if ready or no record. */
 export function getCooldownRemainingMs(petSlotId: string): number {
   const pet = perPet.get(petSlotId);
   if (!pet) return 0;

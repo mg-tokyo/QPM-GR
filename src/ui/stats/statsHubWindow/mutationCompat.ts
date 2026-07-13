@@ -2,7 +2,7 @@
 // Mutation compatibility engine — faithfully models game's updateMutationList.ts.
 
 import { resolveMutation } from '../../../utils/game/cropMultipliers';
-import { BASE_WATER_MUTS, UPGRADED_WATER_MUTS, UPGRADED_DAWN_MUTS, UPGRADED_AMBER_MUTS } from './constants';
+import { BASE_WATER_MUTS, UPGRADED_WATER_MUTS, UPGRADED_DAWN_MUTS, UPGRADED_AMBER_MUTS, UPGRADED_ELECTRIC_MUTS } from './constants';
 import type { TileEntry } from './types';
 
 /** Resolve any display name or alias to its canonical lowercase name. */
@@ -36,13 +36,21 @@ export function canApplyMutation(mutationName: string, existingCanonical: string
   switch (ml) {
     case 'wet':
     case 'chilled':
-      // Blocked by Frozen or Thunderstruck
-      return !existingCanonical.includes('frozen') && !existingCanonical.includes('thunderstruck');
+      // Blocked by Frozen, Thunderstruck, or Thundercharged (updateMutationList.ts:32-66)
+      return !existingCanonical.includes('frozen')
+        && !existingCanonical.includes('thunderstruck')
+        && !existingCanonical.some((m) => UPGRADED_ELECTRIC_MUTS.has(m));
     case 'frozen':
-      // Blocked by Thunderstruck or existing Frozen
-      return !existingCanonical.includes('thunderstruck') && !existingCanonical.includes('frozen');
+      // Blocked by Thunderstruck, existing Frozen, or Thundercharged (updateMutationList.ts:68-79)
+      return !existingCanonical.includes('thunderstruck')
+        && !existingCanonical.includes('frozen')
+        && !existingCanonical.some((m) => UPGRADED_ELECTRIC_MUTS.has(m));
     case 'thunderstruck':
-      // Blocked by any water mutation (Wet, Chilled, or Frozen)
+      // Blocked by any water mutation or the upgraded electric mutation (updateMutationList.ts:87-101)
+      return !existingCanonical.some((m) => BASE_WATER_MUTS.has(m) || UPGRADED_WATER_MUTS.has(m) || UPGRADED_ELECTRIC_MUTS.has(m));
+    case 'thundercharged':
+      // Blocked by water mutations; upgrade from Thunderstruck is allowed
+      // (Thunderstruck will be replaced) — updateMutationList.ts:103-123
       return !existingCanonical.some((m) => BASE_WATER_MUTS.has(m) || UPGRADED_WATER_MUTS.has(m));
     case 'dawnlit':
     case 'ambershine':
@@ -105,6 +113,10 @@ export function simulateMutationsAfterApplying(existing: string[], toAdd: string
         break;
       case 'ambercharged':
         state = [...state.filter((e) => e !== 'ambershine'), 'ambercharged'];
+        break;
+      case 'thundercharged':
+        // Upgrades (replaces) Thunderstruck — never stacks with it
+        state = [...state.filter((e) => e !== 'thunderstruck'), 'thundercharged'];
         break;
       default:
         state = [...state, ml];

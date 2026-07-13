@@ -1,23 +1,8 @@
-// src/features/gardenQol/instaAction.ts
-// Bypass the game's 500ms press-and-hold delay for tool actions.
-//
-// The game requires a 500ms sustained hold for certain actions
-// (removeGardenObject, cropCleanser, mutationPotion, etc.).
-// When ariesHold is enabled, its rapid tap cycle (20ms keydown->keyup)
-// never reaches the 500ms threshold, so actions never fire.
-//
-// This module intercepts Space keydowns and sends the WS message via the
-// centralised sendRoomAction facade (Locker guard rules still apply).
-//
-// Handled actions:
-//   removeGardenObject (shovel)
-//   cropCleanser
-//   mutationPotion
-//
-// NOT handled:
-//   rainbowHarvest / goldHarvest  — handled by instaHarvest.ts
-//   instaGrow                     — uses RPC (not WS), costs premium credits
-//   wish                          — disabled in game (hidden)
+// Bypasses the game's 500ms press-and-hold delay for removeGardenObject,
+// cropCleanser, and mutationPotion — needed because ariesHold's rapid tap
+// cycle (20ms keydown->keyup) never reaches the 500ms threshold on its own.
+// rainbowHarvest/goldHarvest are handled by instaHarvest.ts; instaGrow uses
+// RPC not WS; wish is disabled in-game.
 
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
@@ -34,12 +19,7 @@ const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenInstaAction';
 const FEATURE_NAME = 'gardenInstaAction';
 const log = createNamedLogger(FEATURE_SUBSYSTEM);
 
-/**
- * Re-attribute a FEATURE-* code emission to this feature's bus row. The
- * registered placeholder subsystem on FEATURE-001 is `'feature'`; without this
- * override the bus would degrade a generic `feature` entry instead of
- * `feature:gardenInstaAction`.
- */
+/** Re-attributes a FEATURE-* code emission to this feature's bus row instead of the generic `feature` placeholder. */
 function warnFeature(code: Parameters<typeof buildError>[0], ctx: Record<string, unknown>, cause?: unknown): void {
   const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
   log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });

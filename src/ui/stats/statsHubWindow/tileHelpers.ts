@@ -84,6 +84,27 @@ export function tileSpecies(tile: TileEntry): string {
   return tile.slots[0]?.species ?? 'Unknown';
 }
 
+/** Distinct species across all slots — rare variants (PurpleDaisy, SnowdropDouble, …)
+ *  live in slot.species and differ from the representative/base species. */
+export function tileAllSpecies(tile: TileEntry): string[] {
+  const out = new Set<string>();
+  for (const slot of tile.slots) out.add(slot.species);
+  return Array.from(out);
+}
+
+/** Whether any slot on the tile grows one of the given species. */
+export function tileHasAnySpecies(tile: TileEntry, species: ReadonlySet<string>): boolean {
+  return tile.slots.some(slot => species.has(slot.species));
+}
+
+/** Base sell price for a species, or 0 when unknown. */
+export function speciesBasePrice(species: string): number {
+  try {
+    const spec = getPlantSpecies(species);
+    return typeof spec?.crop?.baseSellPrice === 'number' ? spec.crop.baseSellPrice : 0;
+  } catch { return 0; }
+}
+
 /** Union of all mutations across all slots of a tile */
 export function tileMutations(tile: TileEntry): string[] {
   const all = new Set<string>();
@@ -98,13 +119,13 @@ export function tileFruitCount(tile: TileEntry): number {
   return tile.slots.reduce((s, slot) => s + slot.fruitCount, 0);
 }
 
-/** Current sell value of a tile (all slots × base × multiplier) */
+/** Current sell value of a tile — per-slot base price, so rare-variant slots
+ *  (e.g. a PurpleDaisy in a Daisy patch) are priced as their own species. */
 export function tileValue(tile: TileEntry): number {
   try {
-    const plantSpec = getPlantSpecies(tileSpecies(tile));
-    const base = typeof plantSpec?.crop?.baseSellPrice === 'number' ? plantSpec.crop.baseSellPrice : 0;
-    if (base <= 0) return 0;
     return tile.slots.reduce((sum, slot) => {
+      const base = speciesBasePrice(slot.species);
+      if (base <= 0) return sum;
       return sum + Math.round(base * slot.targetScale * computeMutationMultiplier(slot.mutations).totalMultiplier);
     }, 0);
   } catch { return 0; }

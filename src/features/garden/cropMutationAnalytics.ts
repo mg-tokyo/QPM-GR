@@ -1,5 +1,3 @@
-// src/features/cropMutationAnalytics.ts - Analytics for Crop Mutation Boost abilities
-
 import { getGardenSnapshot } from './bridge';
 import { getWeatherSnapshot } from '../../store/weatherHub';
 import { calculatePlantValue } from '../economy/valueCalculator';

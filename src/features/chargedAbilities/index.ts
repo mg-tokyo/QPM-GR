@@ -1,5 +1,3 @@
-// src/features/chargedAbilities/index.ts
-// Public entry point — wires the reactive selector to the floating panel.
 
 import { startAbilityTargetingSelector, stopAbilityTargetingSelector } from './selector';
 import {

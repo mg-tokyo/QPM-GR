@@ -1,5 +1,3 @@
-// sprite-v2/types.ts - TypeScript type definitions for the new sprite system
-
 export type SpriteMode = 'bitmap' | 'canvas' | 'dataURL';
 
 export type MutationName =

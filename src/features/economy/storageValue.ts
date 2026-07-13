@@ -1,7 +1,3 @@
-// src/features/storageValue.ts
-// Storage Value feature — pure computation layer (no DOM)
-// Computes total sell/shop value of items in Seed Silo, Pet Hutch, Decor Shed, and Inventory
-
 import { subscribeAtomValue } from '../../core/atomRegistry';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
 import { getInventoryItems, onInventoryChange } from '../../store/inventory';
@@ -27,26 +23,14 @@ import { criticalInterval, timerManager } from '../../utils/scheduling/timerMana
 
 const log = createLogger('QPM:StorageValue');
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /** Clamp non-finite catalog prices (Infinity for dust-only items, NaN) to 0. */
 function finiteOr0(v: number | null | undefined): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const STORAGE_CONFIG_KEY = 'qpm.storageValue.v1';
 const MODAL_RETRY_TIMER_ID = 'storageValue:modalAtomRetry';
 const MODAL_RETRY_MAX = 30;
-
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
 
 export interface StorageValueConfig {
   seedSilo: boolean;
@@ -62,10 +46,6 @@ const DEFAULT_CONFIG: StorageValueConfig = {
   inventory: true,
 };
 
-// ---------------------------------------------------------------------------
-// State types
-// ---------------------------------------------------------------------------
-
 export type StorageValueStatus = 'ready' | 'loading' | 'hidden';
 
 export interface StorageValueState {
@@ -73,10 +53,6 @@ export interface StorageValueState {
   value: number;
   status: StorageValueStatus;
 }
-
-// ---------------------------------------------------------------------------
-// Target modals and storage mapping
-// ---------------------------------------------------------------------------
 
 const TARGET_MODALS = new Set(['seedSilo', 'petHutch', 'decorShed', 'inventory']);
 
@@ -86,10 +62,7 @@ const MODAL_TO_STORAGE_DECORID: Record<string, string> = {
   decorShed: 'DecorShed',
 };
 
-// ---------------------------------------------------------------------------
-// Pet scale formula (exact game logic from pets.ts)
-// ---------------------------------------------------------------------------
-
+// Pet scale formula — exact game logic from pets.ts
 export function computeGamePetScale(
   xp: number,
   targetScale: number,
@@ -122,10 +95,6 @@ export function computeGamePetScale(
   const progress = targetStrength > 0 ? currentStrength / targetStrength : 1;
   return progress * targetScale;
 }
-
-// ---------------------------------------------------------------------------
-// Value computations
-// ---------------------------------------------------------------------------
 
 export function computePetSellPrice(pet: Record<string, unknown>, friendBonus = 1): number {
   const species = ((pet.petSpecies ?? pet.species) as string | undefined) ?? '';
@@ -294,7 +263,6 @@ export function computeAllStoragesValue(friendBonus = 1): number {
       if (entry) total += finiteOr0(entry.coinPrice);
     }
 
-    // Value of items inside the storage
     const items = Array.isArray(rec.items) ? (rec.items as unknown[]) : [];
     total += computeStorageItemsValue(items, friendBonus);
   }
@@ -398,10 +366,6 @@ export function getCachedStorages(): unknown[] {
   return cachedStorages;
 }
 
-// ---------------------------------------------------------------------------
-// Module state
-// ---------------------------------------------------------------------------
-
 let started = false;
 let currentConfig: StorageValueConfig = { ...DEFAULT_CONFIG };
 let currentState: StorageValueState = { activeModal: null, value: 0, status: 'hidden' };
@@ -419,10 +383,6 @@ let invUnsub: (() => void) | null = null;
 let catalogReadyUnsub: (() => void) | null = null;
 let stopRetryTimer: (() => void) | null = null;
 let debouncedRecompute: ((() => void) & { cancel: () => void }) | null = null;
-
-// ---------------------------------------------------------------------------
-// State helpers
-// ---------------------------------------------------------------------------
 
 function notifyListeners(state: StorageValueState): void {
   currentState = state;
@@ -485,10 +445,6 @@ function recompute(): void {
   notifyListeners({ activeModal: currentModalId, value, status: 'ready' });
 }
 
-// ---------------------------------------------------------------------------
-// Atom subscriptions (async, fire-and-forget)
-// ---------------------------------------------------------------------------
-
 async function trySubscribeModalAtom(): Promise<boolean> {
   if (modalAtomUnsub) return true;
 
@@ -534,10 +490,6 @@ async function initDataAtomSubscription(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 export function getStorageValueState(): StorageValueState {
   return { ...currentState };
 }
@@ -578,7 +530,6 @@ export function startStorageValue(): void {
 
   debouncedRecompute = debounceCancelable(recompute, 200);
 
-  // Try subscribing to modal atom immediately
   void trySubscribeModalAtom();
 
   // Retry every second until found (handles minified label-less builds)
@@ -597,10 +548,8 @@ export function startStorageValue(): void {
     void trySubscribeModalAtom();
   }, 1000);
 
-  // Subscribe to game data atom for storage building contents
   void initDataAtomSubscription();
 
-  // Subscribe to inventory changes (for Inventory modal)
   invUnsub = onInventoryChange(() => {
     if (currentModalId === 'inventory') {
       debouncedRecompute?.();

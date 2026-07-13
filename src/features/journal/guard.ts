@@ -1,6 +1,3 @@
-// src/features/journalGuard.ts
-// Pre-sell journal variant detection: auto-sends LogItems for unlogged pet variants.
-
 import { getJournal, type Journal } from './checker';
 import { getPetMaxScale } from '../../catalogs/gameCatalogs';
 import { sendRoomAction } from '../../websocket/api';
@@ -43,10 +40,7 @@ function petHasUnloggedVariants(pet: PetVariantInfo, journal: Journal): boolean 
   return false;
 }
 
-/**
- * Check pets for unlogged journal variants and send LogItems if any found.
- * Returns true if LogItems was sent; false otherwise. Never throws.
- */
+/** Sends LogItems if any pet has an unlogged variant. Never throws. */
 export async function ensureJournalLogged(pets: PetVariantInfo[]): Promise<boolean> {
   try {
     if (!pets.length) return false;

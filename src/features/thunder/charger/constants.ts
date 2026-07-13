@@ -1,4 +1,3 @@
-// src/features/thunder/charger/constants.ts
 // Thundercharger ability constants (mirrors DawnCapture pattern).
 
 /** Activity log action name written by the server when Thundercharger fires. */

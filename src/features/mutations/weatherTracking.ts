@@ -1,4 +1,3 @@
-// src/features/weatherMutationTracking.ts
 // Tracks weather mutation (Wet, Chilled, Frozen, Amberlit, Amberbound, Dawnlit, Dawnbound) generation rates and value.
 
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
@@ -18,57 +17,47 @@ const SAVE_DEBOUNCE_MS = 3000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-// Weather mutation types
 export type WeatherMutationType = 'wet' | 'chilled' | 'frozen' | 'dawnlit' | 'dawnbound' | 'amberlit' | 'amberbound';
 
 export interface WeatherMutationStats {
-  // Wet mutations
   wetCount: number;
   wetPerHour: number;
   wetTotalValue: number;
   wetLastAt: number | null;
 
-  // Chilled mutations
   chilledCount: number;
   chilledPerHour: number;
   chilledTotalValue: number;
   chilledLastAt: number | null;
 
-  // Frozen mutations
   frozenCount: number;
   frozenPerHour: number;
   frozenTotalValue: number;
   frozenLastAt: number | null;
 
-  // Dawnlit mutations
   dawnlitCount: number;
   dawnlitPerHour: number;
   dawnlitTotalValue: number;
   dawnlitLastAt: number | null;
 
-  // Dawnbound mutations
   dawnboundCount: number;
   dawnboundPerHour: number;
   dawnboundTotalValue: number;
   dawnboundLastAt: number | null;
 
-  // Amberlit mutations
   amberlitCount: number;
   amberlitPerHour: number;
   amberlitTotalValue: number;
   amberlitLastAt: number | null;
 
-  // Amberbound mutations
   amberboundCount: number;
   amberboundPerHour: number;
   amberboundTotalValue: number;
   amberboundLastAt: number | null;
 
-  // Session totals
   sessionValue: number;
   sessionStart: number;
 
-  // Best records
   bestHourValue: number;
   bestHourTime: number | null;
   bestSessionValue: number;
@@ -194,9 +183,8 @@ function extractCropSlots(gardenSnapshot: GardenSnapshot | null): CropSlot[] {
           .map((value) => (typeof value === 'string' ? value : null))
           .filter((value): value is string => !!value);
 
-        if (mutations.length === 0) return; // No mutations
+        if (mutations.length === 0) return;
 
-        // Extract crop name
         const cropName = readSlotSpecies(slot);
         const slotState = computeSlotStateFromMutationNames(mutations);
 
@@ -238,11 +226,9 @@ function readSlotSpecies(slot: Record<string, unknown>): string | null {
 function calculateSlotValue(cropName: string | null, mutations: string[]): number {
   if (!cropName) return 0;
 
-  // Get crop stats — getCropStats overlays catalog data when available
   const cropStats = getCropStats(cropName);
   if (!cropStats) return 0;
 
-  // Use the correct additive formula from utils/cropMultipliers
   const { totalMultiplier } = computeMutationMultiplier(mutations);
   return cropStats.baseSellPrice * totalMultiplier;
 }
@@ -251,24 +237,20 @@ function processGardenUpdate(gardenSnapshot: GardenSnapshot | null): void {
   const now = Date.now();
   const slots = extractCropSlots(gardenSnapshot);
 
-  // Track new mutations (not just new slots)
   const currentSlotIds = new Set<string>();
 
   for (const slot of slots) {
     const slotId = `${slot.tileId}-${slot.slotIndex}`;
     currentSlotIds.add(slotId);
 
-    // Get or create mutation set for this slot
     let seenMutations = trackedSlots.get(slotId);
     if (!seenMutations) {
       seenMutations = new Set<WeatherMutationType>();
       trackedSlots.set(slotId, seenMutations);
     }
 
-    // Calculate the value this slot contributes
     const slotValue = calculateSlotValue(slot.cropName, slot.mutations);
 
-    // Check each weather mutation type - count it if we haven't seen it on this slot before
     if (slot.slotState.hasWet && !seenMutations.has('wet')) {
       seenMutations.add('wet');
       snapshot.stats.wetCount++;
@@ -335,7 +317,6 @@ function recalculateRates(): void {
   const duration = Math.max(1, now - sessionStart);
   const hours = duration / HOUR_MS;
 
-  // Calculate per-hour rates
   snapshot.stats.wetPerHour = hours > 0 ? snapshot.stats.wetCount / hours : 0;
   snapshot.stats.chilledPerHour = hours > 0 ? snapshot.stats.chilledCount / hours : 0;
   snapshot.stats.frozenPerHour = hours > 0 ? snapshot.stats.frozenCount / hours : 0;
@@ -344,7 +325,6 @@ function recalculateRates(): void {
   snapshot.stats.amberlitPerHour = hours > 0 ? snapshot.stats.amberlitCount / hours : 0;
   snapshot.stats.amberboundPerHour = hours > 0 ? snapshot.stats.amberboundCount / hours : 0;
 
-  // Calculate session value
   snapshot.stats.sessionValue =
     snapshot.stats.wetTotalValue +
     snapshot.stats.chilledTotalValue +
@@ -354,7 +334,6 @@ function recalculateRates(): void {
     snapshot.stats.amberlitTotalValue +
     snapshot.stats.amberboundTotalValue;
 
-  // Update best records
   if (snapshot.stats.sessionValue > snapshot.stats.bestSessionValue) {
     snapshot.stats.bestSessionValue = snapshot.stats.sessionValue;
     snapshot.stats.bestSessionTime = now;
@@ -374,14 +353,13 @@ const scheduleSave = debounce(() => {
 }, SAVE_DEBOUNCE_MS);
 
 function serializeSnapshot(): any {
-  // Convert Map<string, Set<WeatherMutationType>> to JSON-serializable format
   const trackedSlotsArray: Array<[string, WeatherMutationType[]]> = [];
   for (const [slotId, mutations] of trackedSlots.entries()) {
     trackedSlotsArray.push([slotId, Array.from(mutations)]);
   }
 
   return {
-    version: 2, // Bumped version for new format
+    version: 2,
     stats: { ...snapshot.stats },
     updatedAt: snapshot.updatedAt,
     trackedSlots: trackedSlotsArray,
@@ -391,22 +369,18 @@ function serializeSnapshot(): any {
 function restoreSnapshot(persisted: any): void {
   if (!persisted) return;
 
-  // Support both version 1 (old) and version 2 (new)
   if (persisted.version !== 1 && persisted.version !== 2) return;
 
-  // Only restore best records from previous sessions
-  // Reset all counts and session data for current session
+  // Only restore best records; counts/session data reset for the new session
   snapshot.stats.bestHourValue = persisted.stats.bestHourValue || 0;
   snapshot.stats.bestHourTime = persisted.stats.bestHourTime || null;
   snapshot.stats.bestSessionValue = persisted.stats.bestSessionValue || 0;
   snapshot.stats.bestSessionTime = persisted.stats.bestSessionTime || null;
 
-  // Reset session start to now (current session only)
   snapshot.stats.sessionStart = Date.now();
   snapshot.updatedAt = Date.now();
 
-  // Do NOT restore trackedSlots - start fresh for new session
-  // (We want to track NEW mutations that happen this session)
+  // Do NOT restore trackedSlots — start fresh so only NEW mutations this session count
   trackedSlots = new Map();
 }
 
@@ -440,7 +414,6 @@ export function initializeWeatherMutationTracking(): void {
     const slotId = `${slot.tileId}-${slot.slotIndex}`;
     const seenMutations = new Set<WeatherMutationType>();
 
-    // Mark all current mutations as "already seen" without counting them
     if (slot.slotState.hasWet) seenMutations.add('wet');
     if (slot.slotState.hasChilled) seenMutations.add('chilled');
     if (slot.slotState.hasFrozen) seenMutations.add('frozen');
@@ -454,25 +427,20 @@ export function initializeWeatherMutationTracking(): void {
     }
   }
 
-  // Prime the fingerprint from the current snapshot so the subscription's first
-  // fire (fireImmediately=true below) passes the guard and does initial population.
-  lastGardenMutationCount = -1; // Force first fire to always process
+  // Prime so the subscription's first fireImmediately fire passes the guard and populates
+  lastGardenMutationCount = -1;
 
   console.log(`[QPM] 🔄 Weather mutation tracking initialized - ${trackedSlots.size} existing slots marked, tracking NEW mutations only`);
 
-  // Subscribe to garden updates — only process when mutation count actually changes.
-  // The garden atom fires on every game tick; without the fingerprint guard this ran
-  // extractCropSlots() + calculateSlotValue() + recalculateRates() on every fire.
+  // Guard against re-running extractCropSlots/calculateSlotValue/recalculateRates on every game tick
   gardenUnsubscribe = onGardenSnapshot((gardenSnapshot) => {
     const count = getGardenMutationCount(gardenSnapshot);
-    if (count === lastGardenMutationCount) return; // Nothing changed — skip
+    if (count === lastGardenMutationCount) return;
     lastGardenMutationCount = count;
     processGardenUpdate(gardenSnapshot);
   }, true);
 
-  // Recalculate rates periodically so per-hour figures stay accurate as time passes.
-  // Does NOT notify listeners or schedule a save — purely an in-memory rate update.
-  // Listeners are notified by processGardenUpdate() only when new mutations appear.
+  // In-memory rate refresh only; listeners are notified by processGardenUpdate instead
   visibleInterval('weather-mutation-recalc', () => {
     const now = Date.now();
     const sessionStart = snapshot.stats.sessionStart;
@@ -488,7 +456,6 @@ export function initializeWeatherMutationTracking(): void {
 }
 
 export function clearAllWeatherMutationHistory(): void {
-  // Completely wipe all stored data
   try {
     storage.remove(STORAGE_KEY);
     console.log('[QPM] 🗑️ All weather mutation history cleared from storage');
@@ -496,7 +463,6 @@ export function clearAllWeatherMutationHistory(): void {
     console.error('[weatherMutationTracking] Failed to clear storage:', error);
   }
 
-  // Reset in-memory snapshot to defaults
   snapshot = {
     stats: {
       wetCount: 0,
@@ -552,7 +518,7 @@ export function subscribeToWeatherMutationTracking(
   listener: (snapshot: WeatherMutationSnapshot) => void
 ): () => void {
   listeners.add(listener);
-  listener(getWeatherMutationSnapshot()); // Immediate callback
+  listener(getWeatherMutationSnapshot());
   return () => listeners.delete(listener);
 }
 
@@ -608,12 +574,10 @@ export function resetWeatherMutationTracking(): void {
   const currentGarden = getGardenSnapshot();
   const currentSlots = extractCropSlots(currentGarden);
 
-  // Mark all current mutations as "already seen" without counting them
   for (const slot of currentSlots) {
     const slotId = `${slot.tileId}-${slot.slotIndex}`;
     const seenMutations = new Set<WeatherMutationType>();
 
-    // Record which weather mutations this slot already has
     if (slot.slotState.hasWet) seenMutations.add('wet');
     if (slot.slotState.hasChilled) seenMutations.add('chilled');
     if (slot.slotState.hasFrozen) seenMutations.add('frozen');
@@ -627,7 +591,7 @@ export function resetWeatherMutationTracking(): void {
     }
   }
 
-  // Immediately save (don't wait for debounce)
+  // Skip debounce — save immediately after reset
   try {
     storage.set(STORAGE_KEY, serializeSnapshot());
   } catch (error) {

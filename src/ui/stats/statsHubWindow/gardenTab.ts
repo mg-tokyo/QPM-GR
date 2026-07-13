@@ -4,7 +4,7 @@
 import { storage } from '../../../utils/storage';
 import { t } from '../../../i18n';
 import { onGardenSnapshot, getGardenSnapshot, type GardenSnapshot } from '../../../features/garden/bridge';
-import { getPlantSpecies, getMutationCatalog } from '../../../catalogs/gameCatalogs';
+import { getMutationCatalog } from '../../../catalogs/gameCatalogs';
 import { computeMutationMultiplier } from '../../../utils/game/cropMultipliers';
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
 import { createToggle } from '../../components';
@@ -13,7 +13,7 @@ import type { TileEntry, StatsHubFilters, SectionFilterSource } from './types';
 import { STATS_HUB_FILTERS_KEY, FILTER_MUTATIONS_FALLBACK } from './constants';
 import { plantSprite } from './spriteHelpers';
 import { pillBtnCss, makeCoinValueEl } from './styleHelpers';
-import { extractTiles, tileSpecies, tileValue, tilesToKeys } from './tileHelpers';
+import { extractTiles, tileAllSpecies, tileHasAnySpecies, speciesBasePrice, tileValue, tilesToKeys } from './tileHelpers';
 import {
   mutsMatch,
   filterCompatibleMutations,
@@ -67,14 +67,12 @@ function computeGardenValue(
   let current = 0;
   let potential = 0;
   for (const tile of tiles) {
-    const plantSpec = getPlantSpecies(tileSpecies(tile));
-    const base = typeof plantSpec?.crop?.baseSellPrice === 'number'
-      ? plantSpec.crop.baseSellPrice : 0;
-    if (base <= 0) continue;
-
     const tileIsComplete = selectedMutations.length > 0 ? !isTileActionable(tile, selectedMutations) : true;
 
     for (const slot of tile.slots) {
+      // Per-slot base price — rare-variant slots are priced as their own species
+      const base = speciesBasePrice(slot.species);
+      if (base <= 0) continue;
       const mutMult = computeMutationMultiplier(slot.mutations).totalMultiplier;
       const slotCurrent = Math.round(base * slot.targetScale * mutMult);
       current += slotCurrent;
@@ -229,7 +227,9 @@ export function buildGardenTab(container: HTMLElement): () => void {
     if (plantDropdownEl) { closePlantDropdown(); return; }
 
     const currentTiles = extractTiles(currentSnapshot);
-    const speciesInGarden = Array.from(new Set(currentTiles.map(tileSpecies))).sort();
+    // Include every slot's species so rare variants (PurpleDaisy, SnowdropDouble, …)
+    // inside a base-species patch are individually filterable.
+    const speciesInGarden = Array.from(new Set(currentTiles.flatMap(tileAllSpecies))).sort();
 
     const dropdown = document.createElement('div');
     dropdown.style.cssText = [
@@ -428,7 +428,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     }
 
     const tiles = activeSpeciesFilters.size > 0
-      ? allTiles.filter((t) => activeSpeciesFilters.has(tileSpecies(t)))
+      ? allTiles.filter((t) => tileHasAnySpecies(t, activeSpeciesFilters))
       : allTiles;
 
     if (tiles.length === 0) {

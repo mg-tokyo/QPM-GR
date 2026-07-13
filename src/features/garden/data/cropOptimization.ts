@@ -10,18 +10,11 @@ import {
   onCatalogsReady,
 } from '../../../catalogs/gameCatalogs';
 
-/**
- * Harvest Strategy Types
- */
 export type HarvestStrategy =
   | 'freeze-and-sell'      // Worth waiting for Frozen mutation
   | 'sell-when-mature'     // Sell immediately when mature
   | 'freeze-if-gold';      // Freeze only if Gold mutation present
 
-/**
- * Crop Optimization Data
- * Includes base rate, frozen value, and recommended strategy
- */
 export interface CropOptimizationData {
   species: string;
   baseRatePerHour: number;
@@ -93,10 +86,8 @@ function computeForSpecies(species: string): CropOptimizationData | null {
   const isMulti = bp.harvestType === 'Multiple';
   const fruitCount = isMulti ? bp.slotCount : 1;
 
-  // Pick the appropriate grow time denominator
   let growSeconds: number;
   if (isMulti) {
-    // Use total plant maturation time for multi-harvest
     growSeconds = bp.plantSecondsToMature ?? bp.secondsToMature ?? 0;
   } else {
     growSeconds = bp.secondsToMature ?? 0;
@@ -143,7 +134,6 @@ function buildDynamicCache(): Record<string, CropOptimizationData> {
     if (data) entries.push(data);
   }
 
-  // Sort by frozenValuePerHour descending to assign ranks
   entries.sort((a, b) => b.frozenValuePerHour - a.frozenValuePerHour);
   const result: Record<string, CropOptimizationData> = {};
   for (let i = 0; i < entries.length; i++) {
@@ -187,17 +177,11 @@ function getOptimizationTable(): Record<string, CropOptimizationData> {
  */
 export const CROP_OPTIMIZATION = FALLBACK_OPTIMIZATION;
 
-/**
- * Get harvest strategy for a crop species
- */
 export function getHarvestStrategy(species: string): HarvestStrategy | null {
   const table = getOptimizationTable();
   return table[species]?.strategy ?? null;
 }
 
-/**
- * Get crops by strategy type
- */
 export function getCropsByStrategy(strategy: HarvestStrategy): string[] {
   const table = getOptimizationTable();
   return Object.values(table)
@@ -206,9 +190,6 @@ export function getCropsByStrategy(strategy: HarvestStrategy): string[] {
     .map(crop => crop.species);
 }
 
-/**
- * Get strategy description for UI
- */
 export function getStrategyDescription(strategy: HarvestStrategy): string {
   switch (strategy) {
     case 'freeze-and-sell':
@@ -220,9 +201,6 @@ export function getStrategyDescription(strategy: HarvestStrategy): string {
   }
 }
 
-/**
- * Calculate expected value gain from freezing
- */
 export function getFreezingValueGain(species: string): number {
   const table = getOptimizationTable();
   const data = table[species];
@@ -230,9 +208,6 @@ export function getFreezingValueGain(species: string): number {
   return data.frozenValuePerHour - data.baseRatePerHour;
 }
 
-/**
- * Determine if crop is worth freezing
- */
 export function isWorthFreezing(species: string, hasGoldMutation = false): boolean {
   const table = getOptimizationTable();
   const data = table[species];
@@ -243,9 +218,6 @@ export function isWorthFreezing(species: string, hasGoldMutation = false): boole
   return false;
 }
 
-/**
- * Get top N most valuable crops to freeze
- */
 export function getTopCropsToFreeze(limit = 10): CropOptimizationData[] {
   const table = getOptimizationTable();
   return Object.values(table)
@@ -254,9 +226,6 @@ export function getTopCropsToFreeze(limit = 10): CropOptimizationData[] {
     .slice(0, limit);
 }
 
-/**
- * Get optimization data for a specific species.
- */
 export function getCropOptimization(species: string): CropOptimizationData | null {
   const table = getOptimizationTable();
   return table[species] ?? null;

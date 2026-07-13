@@ -1,4 +1,3 @@
-// src/data/cropBaseStats.ts
 // Crop base statistics from Magic Garden Wiki
 // Source: https://magicgarden.wiki/Crops
 //
@@ -552,9 +551,6 @@ export function getAllCropNames(): string[] {
   });
 }
 
-/**
- * Calculate crop value with scale
- */
 export function calculateCropValue(cropName: string, scale: number): number {
   const stats = getCropStats(cropName);
   if (!stats) return 0;

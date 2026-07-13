@@ -1,4 +1,3 @@
-// src/features/chargedAbilities/abilities/index.ts
 // Plugin registry. Adding a new ability = drop a plugin file + extend PROJECTIONS.
 
 import type { AbilityProjection } from './types';

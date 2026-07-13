@@ -1,6 +1,3 @@
-// src/features/gardenQol/types.ts
-// Config types for garden QOL features (extracted from locker).
-
 export interface HoldContexts {
   harvest: boolean;   // harvest/rainbowHarvest/goldHarvest
   plant: boolean;     // planting seeds

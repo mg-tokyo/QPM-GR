@@ -1,7 +1,5 @@
-// src/features/chargedAbilities/selector.ts
-// Reactive per-pet ability-target hub. Recomputes a debounced snapshot
-// whenever active pets / garden / player position / mounted pet changes,
-// then fans out to UI subscribers.
+// Reactive per-pet ability-target hub. Recomputes a debounced snapshot on
+// pet/garden/position/mount changes and fans out to UI subscribers.
 
 import { getActivePetInfos, onActivePetInfos } from '../../store/pets';
 import { onGardenSnapshot } from '../garden/bridge';

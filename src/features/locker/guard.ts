@@ -1,6 +1,3 @@
-// src/features/locker/guard.ts
-// Native sendMessage hook + preflight function for the Locker.
-
 import { pageWindow } from '../../core/pageContext';
 import { notify } from '../../core/notifications';
 import { getInventoryItems, getFavoritedItemIds, type InventoryItem } from '../../store/inventory';
@@ -118,14 +115,8 @@ function extractSlotMutations(slotRecord: Record<string, unknown>): string[] | u
 
 /**
  * Resolve a slot number from a native WS message to tile context.
- *
- * Garden data layout:
- *   tileObjects:          Record<slot, { objectType, eggId?, slots?[{ species, mutations, slotId }] }>
- *   boardwalkTileObjects: Record<slot, { objectType, eggId?, slots?[{ species, mutations, slotId }] }>
- *
- * For HarvestCrop, `slotsIndex` identifies the specific grow slot being
- * harvested (matches GrowSlot.slotId). Mutations are read from that slot
- * so that per-mutation rules apply to the targeted fruit, not slot 0.
+ * For HarvestCrop, `slotsIndex` identifies the specific grow slot being harvested
+ * (matches GrowSlot.slotId) so per-mutation rules apply to the targeted fruit, not slot 0.
  */
 function resolveTileContext(slot: unknown, slotsIndex?: unknown): TileContext | undefined {
   if (typeof slot !== 'number' || !Number.isFinite(slot)) return undefined;
@@ -142,54 +133,44 @@ function resolveTileContext(slot: unknown, slotsIndex?: unknown): TileContext | 
 
   const objectType = typeof tile.objectType === 'string' ? tile.objectType : undefined;
   const eggId = typeof tile.eggId === 'string' ? tile.eggId : undefined;
+  const tileSpecies = typeof tile.species === 'string' && tile.species.length > 0 ? tile.species : undefined;
 
-  let species: string | undefined;
+  let species: string | undefined = tileSpecies;
   let mutations: string[] | undefined;
   let decorId: string | undefined;
+  let sizePercent: number | undefined;
+  const allSpecies = new Set<string>();
+  const allMutations = new Set<string>();
+  if (tileSpecies) allSpecies.add(tileSpecies);
 
   if (Array.isArray(tile.slots) && tile.slots.length > 0) {
-    // Species is the same across all slots on a plant — read from first.
-    const firstSlot = tile.slots[0];
-    if (isRecord(firstSlot)) {
-      const raw = firstSlot.species;
-      if (typeof raw === 'string' && raw.length > 0) species = raw;
-    }
-
-    // Mutations are per-slot. When slotsIndex is provided (HarvestCrop),
-    // resolve from the targeted slot so the guard evaluates the correct fruit.
+    // Rare variants (SnowdropDouble, PurpleDaisy, FourLeafClover, VariegatedCattail)
+    // and override slots (ThunderCelestialShroomPlant) live in slot.species while
+    // tile.species stays the base plant — collect every slot's species.
     let targetSlot: Record<string, unknown> | undefined;
-    if (typeof slotsIndex === 'number' && Number.isFinite(slotsIndex)) {
-      for (const s of tile.slots) {
-        if (isRecord(s) && s.slotId === slotsIndex) {
-          targetSlot = s;
-          break;
-        }
+    for (const s of tile.slots) {
+      if (!isRecord(s)) continue;
+      if (typeof s.species === 'string' && s.species.length > 0) allSpecies.add(s.species);
+      for (const m of extractSlotMutations(s) ?? []) allMutations.add(m);
+      if (typeof slotsIndex === 'number' && Number.isFinite(slotsIndex) && s.slotId === slotsIndex) {
+        targetSlot = s;
       }
     }
-    // Fall back to first slot when no specific slot was requested or found.
-    if (!targetSlot && isRecord(firstSlot)) {
-      targetSlot = firstSlot;
+    if (!targetSlot && isRecord(tile.slots[0])) {
+      targetSlot = tile.slots[0] as Record<string, unknown>;
     }
-    if (targetSlot) {
-      mutations = extractSlotMutations(targetSlot);
-    }
-  }
 
-  // Size percent: convert targetScale → 50–100% using species maxScale
-  let sizePercent: number | undefined;
-  if (species && Array.isArray(tile.slots)) {
-    let targetSlotForSize: Record<string, unknown> | undefined;
-    if (typeof slotsIndex === 'number' && Number.isFinite(slotsIndex)) {
-      for (const s of tile.slots) {
-        if (isRecord(s) && s.slotId === slotsIndex) { targetSlotForSize = s; break; }
+    if (targetSlot) {
+      // Species and mutations of the targeted grow slot (slotsIndex = GrowSlot.slotId
+      // on HarvestCrop) so per-species and per-mutation rules evaluate the actual fruit.
+      if (typeof targetSlot.species === 'string' && targetSlot.species.length > 0) {
+        species = targetSlot.species;
       }
-    }
-    if (!targetSlotForSize && tile.slots.length > 0 && isRecord(tile.slots[0])) {
-      targetSlotForSize = tile.slots[0] as Record<string, unknown>;
-    }
-    if (targetSlotForSize) {
-      const scale = typeof targetSlotForSize.targetScale === 'number' ? targetSlotForSize.targetScale : null;
-      if (scale !== null && Number.isFinite(scale)) {
+      mutations = extractSlotMutations(targetSlot);
+
+      // Size percent: convert targetScale → 50–100% using the slot species' maxScale
+      const scale = typeof targetSlot.targetScale === 'number' ? targetSlot.targetScale : null;
+      if (species && scale !== null && Number.isFinite(scale)) {
         const maxScale = getCropMaxScaleSafe(species);
         if (maxScale !== null && maxScale > 1) {
           const clamped = Math.max(1, Math.min(maxScale, scale));
@@ -204,14 +185,31 @@ function resolveTileContext(slot: unknown, slotsIndex?: unknown): TileContext | 
     decorId = objectType;
   }
 
-  // Build result without undefined values (exactOptionalPropertyTypes)
+  return buildTileContext({ objectType, species, baseSpecies: tileSpecies, eggId, decorId, mutations, sizePercent, allSpecies, allMutations });
+}
+
+/** Assemble a TileContext without undefined values (exactOptionalPropertyTypes). */
+function buildTileContext(parts: {
+  objectType?: string | undefined;
+  species?: string | undefined;
+  baseSpecies?: string | undefined;
+  eggId?: string | undefined;
+  decorId?: string | undefined;
+  mutations?: string[] | undefined;
+  sizePercent?: number | undefined;
+  allSpecies: Set<string>;
+  allMutations: Set<string>;
+}): TileContext {
   const ctx: TileContext = {};
-  if (objectType !== undefined) ctx.objectType = objectType;
-  if (species !== undefined) ctx.species = species;
-  if (eggId !== undefined) ctx.eggId = eggId;
-  if (decorId !== undefined) ctx.decorId = decorId;
-  if (mutations !== undefined) ctx.mutations = mutations;
-  if (sizePercent !== undefined) ctx.sizePercent = sizePercent;
+  if (parts.objectType !== undefined) ctx.objectType = parts.objectType;
+  if (parts.species !== undefined) ctx.species = parts.species;
+  if (parts.baseSpecies !== undefined) ctx.baseSpecies = parts.baseSpecies;
+  if (parts.eggId !== undefined) ctx.eggId = parts.eggId;
+  if (parts.decorId !== undefined) ctx.decorId = parts.decorId;
+  if (parts.mutations !== undefined) ctx.mutations = parts.mutations;
+  if (parts.sizePercent !== undefined) ctx.sizePercent = parts.sizePercent;
+  if (parts.allSpecies.size > 0) ctx.allSpecies = Array.from(parts.allSpecies);
+  if (parts.allMutations.size > 0) ctx.allMutations = Array.from(parts.allMutations);
   return ctx;
 }
 
@@ -275,7 +273,7 @@ function evaluatePetSell(itemId: string): GuardResult {
 
   const items = getInventoryItems();
   const item = items.find(i => i.id === itemId);
-  if (!item) return PASS; // unknown item — allow
+  if (!item) return PASS;
 
   const mutations = readPetMutations(item.raw);
   const mutationsLower = mutations.map(m => m.toLowerCase());
@@ -320,19 +318,10 @@ function evaluatePetSell(itemId: string): GuardResult {
 // ── Core evaluate helper ───────────────────────────────────────────────────
 
 /**
- * Unwrap the game's QuinoaCommand RPC envelope so rules see the actual action.
- *
- *   { type: 'QuinoaCommand', requestId, command: { type: 'HarvestCrop', ... } }
- *     →
- *   actionType: 'HarvestCrop', payload: { type: 'HarvestCrop', ... }
- *
- * The game funnels HarvestCrop, PurchaseShopItem, and potPlant through
- * sendQuinoaRpc → trySendMessageNow, wrapping the payload this way. Without
- * unwrap the switch in rules.ts hits `default: return PASS` and every
- * harvest/purchase rule silently no-ops.
- *
- * No-op for QPM's own sendRoomAction preflight path (actionType is already the
- * inner RoomActionType there).
+ * IMPORTANT: Unwraps the game's QuinoaCommand RPC envelope (HarvestCrop/PurchaseShopItem/potPlant
+ * go through sendQuinoaRpc → trySendMessageNow this way) so rules.ts sees the inner actionType.
+ * Without this, the switch hits `default: return PASS` and those rules silently no-op.
+ * No-op for QPM's own sendRoomAction preflight path.
  */
 function unwrapQuinoaCommand(
   actionType: string,

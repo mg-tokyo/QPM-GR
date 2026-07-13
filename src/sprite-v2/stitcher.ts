@@ -1,6 +1,4 @@
-// sprite-v2/stitcher.ts — Composites multi-harvest plant sprites using runtime blueprint data.
-// Renders base plant + N fruit sprites at their catalog-defined slot offsets, matching the game's
-// own tile rendering.
+// Composites multi-harvest plant sprites from runtime blueprint data, matching the game's own tile rendering.
 
 import { areCatalogsReady, getFloraBlueprint, getAllPlantSpecies } from '../catalogs/gameCatalogs';
 import type { FloraBlueprint } from '../catalogs/gameCatalogs';
@@ -15,9 +13,7 @@ import {
   clearSpriteDataUrlCache,
 } from './compat';
 
-// ============================================================================
 // CONSTANTS
-// ============================================================================
 
 /** Default output canvas size in pixels. */
 const DEFAULT_OUTPUT_SIZE = 256;
@@ -28,9 +24,7 @@ const MAX_STITCH_CACHE = 200;
 /** World tile size in pixels (game constant). */
 const TILE_SIZE_WORLD = 256;
 
-// ============================================================================
 // CACHE
-// ============================================================================
 
 const stitchCache = new Map<string, HTMLCanvasElement>();
 
@@ -60,9 +54,7 @@ function buildCacheKey(
   return `stitch:${species}:${activeSlotCount}:${mutHash}:${scaleHash}:${size}`;
 }
 
-// ============================================================================
 // PUBLIC API
-// ============================================================================
 
 export interface StitchOptions {
   species: string;
@@ -123,7 +115,6 @@ export function stitchPlantSprite(opts: StitchOptions): StitchResult | null {
     slotScales = opts.slotScales ?? [];
   }
 
-  // Cache check
   const cacheKey = buildCacheKey(species, activeSlotCount, slotMutations, slotScales, size);
   if (!noCache && stitchCache.has(cacheKey)) {
     return {
@@ -134,13 +125,11 @@ export function stitchPlantSprite(opts: StitchOptions): StitchResult | null {
     };
   }
 
-  // Single-harvest or no slot offsets → render single crop sprite
   if (blueprint.harvestType === 'Single' || blueprint.slotOffsets.length === 0) {
     const mutations = normalizeMutationsArg(slotMutations, 0);
     const canvas = getMultiHarvestSpriteCanvas(species, mutations);
     if (!canvas) return null;
 
-    // Scale to output size if needed
     const out = scaleCanvasToSize(canvas, size);
     stitchCache.set(cacheKey, out);
     cacheEvict();
@@ -148,7 +137,6 @@ export function stitchPlantSprite(opts: StitchOptions): StitchResult | null {
     return { canvas: out, cacheKey, renderedSlots: 0, fromCatalog: true };
   }
 
-  // Multi-harvest: composite base + fruits
   return renderMultiHarvest(blueprint, opts, activeSlotCount, slotScales, cacheKey, size);
 }
 
@@ -188,9 +176,7 @@ export function stopStitcherHydrationListener(): void {
   stitchHydrationHandler = null;
 }
 
-// ============================================================================
 // INTERNAL RENDERING
-// ============================================================================
 
 /** Resolve mutations for a specific slot index from the user-provided arg. */
 function normalizeMutationsArg(slotMutations: string[][] | string[], slotIndex: number): string[] {
@@ -199,7 +185,6 @@ function normalizeMutationsArg(slotMutations: string[][] | string[], slotIndex: 
   if (typeof slotMutations[0] === 'string') {
     return slotMutations as string[];
   }
-  // Per-slot arrays
   const perSlot = slotMutations as string[][];
   return perSlot[slotIndex] ?? perSlot[0] ?? [];
 }
@@ -251,7 +236,6 @@ function renderMultiHarvest(
     ? renderBySpriteKey(blueprint.cropSpriteKey, sampleMuts)
     : getMultiHarvestSpriteCanvas(species, sampleMuts);
   if (!fruitCanvas) {
-    // No fruit sprite — return base only
     const out = scaleCanvasToSize(baseCanvas, outputSize);
     stitchCache.set(cacheKey, out);
     cacheEvict();
@@ -263,12 +247,8 @@ function renderMultiHarvest(
   const fw = fruitCanvas.width;
   const fh = fruitCanvas.height;
 
-  // Compute the relative scale of fruit textures vs base.
-  // The game applies baseTileScale to each element in world space:
-  //   - plantBaseTileScale (e.g. 1.0) for the bush
-  //   - cropBaseTileScale  (e.g. 0.25) for each fruit
-  // But the atlas textures may be different native sizes, so we compute
-  // the world-space ratio and apply it to the fruit canvas dimensions.
+  // Relative scale of fruit vs base: game applies plantBaseTileScale/cropBaseTileScale
+  // in world space, but atlas textures may differ in native size, so we compute the ratio.
   const baseScale = blueprint.plantBaseTileScale || 1;
   const cropScale = blueprint.cropBaseTileScale ?? 0.5;
   const fruitBaseRatio = cropScale / baseScale;
@@ -311,7 +291,6 @@ function renderMultiHarvest(
   // Scale factor to fit everything inside outputSize with 4% padding
   const fitScale = Math.min(outputSize / bboxW, outputSize / bboxH) * 0.92;
 
-  // Create output canvas
   const out = document.createElement('canvas');
   out.width = outputSize;
   out.height = outputSize;
@@ -327,12 +306,10 @@ function renderMultiHarvest(
   const baseDrawY = originY - ay * bh * fitScale;
   ctx.drawImage(baseCanvas, baseDrawX, baseDrawY, bw * fitScale, bh * fitScale);
 
-  // Draw each active fruit slot
   for (let i = 0; i < count; i++) {
     const off = blueprint.slotOffsets[i];
     if (!off) continue;
 
-    // Render fruit with per-slot mutations via exact crop sprite key
     const mutations = normalizeMutationsArg(slotMutations, i);
     let slotFruitCanvas: HTMLCanvasElement;
     if (i === 0 && mutations === sampleMuts) {
@@ -370,9 +347,7 @@ function renderMultiHarvest(
   return { canvas: out, cacheKey, renderedSlots: count, fromCatalog: true };
 }
 
-// ============================================================================
 // DIAGNOSTICS
-// ============================================================================
 
 const warnedSpecies = new Set<string>();
 
@@ -395,7 +370,6 @@ export function diagnoseFloraBlueprints(species?: string): void {
     return;
   }
 
-  // All species summary
   const all = getAllPlantSpecies();
   const rows: Array<Record<string, unknown>> = [];
   for (const sp of all) {
@@ -435,7 +409,6 @@ export function testStitch(species: string, mutations?: string[]): HTMLCanvasEle
 
   const bp = getFloraBlueprint(species);
 
-  // Create overlay
   const overlay = document.createElement('div');
   overlay.style.cssText = `
     position: fixed; top: 20px; right: 20px; z-index: 999999;

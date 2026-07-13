@@ -1,5 +1,3 @@
-// sprite-v2/atlas.ts - Atlas to PIXI texture conversion
-
 import type { AtlasData, PixiConstructors, SpriteState, SpriteItem } from './types';
 import { rememberBaseTex } from './utils';
 import { animParse, categoryOf } from './manifest';
@@ -24,7 +22,6 @@ function mkSubTex(Texture: any, baseTex: any, frame: any, orig: any, trim: any, 
       t.label = frame?.width && frame?.height ? `sub:${frame.width}x${frame.height}` : 'subtex';
     }
   } catch (e) {
-    // Ignore
   }
 
   if (anchor) {
@@ -50,7 +47,6 @@ function mkSubTex(Texture: any, baseTex: any, frame: any, orig: any, trim: any, 
   try {
     t?.updateUvs?.();
   } catch (e) {
-    // Ignore
   }
 
   return t;
@@ -64,7 +60,6 @@ export function buildAtlasTextures(data: AtlasData, baseTex: any, texMap: Map<st
       baseTex.label = data?.meta?.image || 'atlasBase';
     }
   } catch (e) {
-    // Ignore
   }
 
   rememberBaseTex(baseTex, atlasBases);

@@ -1,12 +1,8 @@
-// sprite-v2/utils.ts - PIXI utility functions
 // Simplified to match Aries Mod's approach for Chrome/Firefox compatibility
 
 import type { PixiConstructors } from './types';
 import { pageWindow } from '../core/pageContext';
 
-/**
- * Finds any node in a PIXI display tree matching a predicate
- */
 export function findAny(root: any, pred: (node: any) => boolean, lim = 25000): any {
   const stack = [root];
   const seen = new Set();
@@ -30,22 +26,16 @@ export function findAny(root: any, pred: (node: any) => boolean, lim = 25000): a
   return null;
 }
 
-/**
- * Get the page window context — delegates to pageContext for Firefox wrappedJSObject support.
- */
+// Delegates to pageContext for Firefox wrappedJSObject support.
 function getRoot(): any {
   return pageWindow;
 }
 
-/**
- * Extracts PIXI constructors from the app, renderer, or global PIXI object.
- * Uses unsafeWindow consistently for Chrome/Firefox compatibility.
- */
+// Uses unsafeWindow consistently for Chrome/Firefox compatibility.
 export function getCtors(app: any, renderer?: any): PixiConstructors {
   const root = getRoot();
   const P = root.PIXI || root.__PIXI__;
 
-  // Method 1: Try to get constructors from global PIXI object (most reliable)
   if (P?.Texture && P?.Sprite && P?.Container && P?.Rectangle) {
     return {
       Container: P.Container,
@@ -56,7 +46,6 @@ export function getCtors(app: any, renderer?: any): PixiConstructors {
     };
   }
 
-  // Method 2: Try to extract from app.stage if app is available
   if (app?.stage) {
     const stage = app.stage;
     const anySpr = findAny(stage, (x) => {
@@ -82,9 +71,6 @@ export function getCtors(app: any, renderer?: any): PixiConstructors {
   throw new Error('No PIXI constructors found - cannot extract from app or globals');
 }
 
-/**
- * Gets the base texture from a texture (handles different PIXI versions)
- */
 export function baseTexOf(tex: any): any {
   return (
     tex?.source ??
@@ -102,26 +88,17 @@ export function rememberBaseTex(tex: any, atlasBases: Set<any>): void {
   if (base) atlasBases.add(base);
 }
 
-/**
- * Normalizes a key for comparison (lowercase, alphanumeric only)
- */
 export function normalizeKey(s: string): string {
   return String(s || '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
 }
 
-/**
- * Gets the base name from a sprite key (last component)
- */
 export function baseNameOf(key: string): string {
   const parts = String(key || '').split('/').filter(Boolean);
   return parts[parts.length - 1] || '';
 }
 
-/**
- * Checks if a key represents a tall plant
- */
 export function isTallKey(k: string): boolean {
   return /tallplant/i.test(k);
 }

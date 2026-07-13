@@ -1,12 +1,9 @@
-// src/features/locker/types.ts
-// Config model and guard result types for the Locker.
-
 export interface InventoryReserveConfig {
   enabled: boolean;
   minFreeSlots: number; // 0–50, default 5
 }
 
-// ── Harvest Filter types ──────────────────────────────────────────────────
+// Harvest Filter types
 
 export type ScaleLockMode = 'RANGE' | 'MINIMUM' | 'MAXIMUM' | 'NONE';
 export type FilterMode = 'LOCK' | 'ALLOW';
@@ -30,7 +27,7 @@ export interface CropOverride {
   settings: HarvestFilterSettings;
 }
 
-// ── Main config ───────────────────────────────────────────────────────────
+// Main config
 
 export interface LockerConfig {
   enabled: boolean;              // master switch (off by default)
@@ -45,7 +42,7 @@ export interface LockerConfig {
   sellAllCropsLock: boolean;
   cropSellLocks: Record<string, boolean>; // per-crop sell protection (blocks SellAllCrops)
   petSellGuard: boolean;         // block selling protected pets during hold-Space
-  // ── Harvest filters (Aries-style) ──
+  // Harvest filters (Aries-style)
   harvestFilter: HarvestFilterSettings;               // global harvest filter
   cropOverrides: Record<string, CropOverride>;        // per-species filter overrides
 }

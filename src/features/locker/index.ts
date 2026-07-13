@@ -1,6 +1,3 @@
-// src/features/locker/index.ts
-// Public API for the Action Guard (Locker).
-
 import { registerSendPreflight, clearSendPreflight } from '../../websocket/api';
 import { lockerPreflight, startNativeHook, stopNativeHook } from './guard';
 

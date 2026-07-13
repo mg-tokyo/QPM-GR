@@ -1,8 +1,5 @@
-// src/features/dawnShop/index.ts
-// Dawn Shop weather-gated lifecycle: clears Dawn alerts when Dawn weather ends.
-// The existing shopRestockAlerts pipeline handles Dawn stock detection and alert
-// creation automatically (via ShopCategory 'dawn'). This module adds the
-// weather-bound cleanup behavior.
+// shopRestockAlerts already handles Dawn stock detection/alert creation; this module
+// only clears those alerts when Dawn weather ends.
 
 import { log } from '../../../utils/logger';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
@@ -12,10 +9,6 @@ import { removeAlert } from '../../../ui/shop/restockAlerts/alertDom';
 let weatherUnsubscribe: (() => void) | null = null;
 let lastWeatherKind: string | null = null;
 
-/**
- * Remove all Dawn shop alerts from the active alert set.
- * Called when Dawn weather ends.
- */
 function clearDawnAlerts(): void {
   let cleared = 0;
   for (const [key, active] of activeAlerts) {

@@ -1,4 +1,3 @@
-// sprite-v2/hooks.ts - PIXI.js integration hooks
 // Uses DOM script injection for Chrome compatibility
 
 import type { PixiHooks } from './types';
@@ -25,26 +24,20 @@ const _exportFn: ((fn: Function, target: object) => Function) | null =
     ? (globalThis as unknown as Record<string, unknown>).exportFunction as (fn: Function, target: object) => Function
     : null;
 
-/** Clone an object into the page context so it's fully accessible from both sides. */
 function cloneToPage(obj: unknown, target: object): unknown {
   if (!isIsolatedContext || !_cloneInto) return obj;
   try { return _cloneInto(obj, target); } catch { return obj; }
 }
 
-/** Export a function to the page context so it's callable from both sides. */
 function exportToPage(fn: Function, target: object): Function {
   if (!isIsolatedContext || !_exportFn) return fn;
   try { return _exportFn(fn, target); } catch { return fn; }
 }
 
 /**
- * Set up the sprite bridge objects directly on the given window reference.
- * Used on Discord (where CSP blocks inline scripts) to initialise the same
- * state that the injected script would normally create.
- *
- * On Firefox, objects must go through cloneInto and functions through
- * exportFunction so the page context (PIXI hooks, game code) can interact
- * with them across the Xray wrapper boundary.
+ * Used on Discord (where CSP blocks inline scripts) to set up bridge state
+ * the injected script would normally create. On Firefox, objects/functions
+ * must go through cloneInto/exportFunction to cross the Xray wrapper boundary.
  */
 function setupBridgeOnRoot(root: any): void {
   if (root.__QPM_PIXI_HOOKS_ACTIVE__) return;
@@ -99,13 +92,9 @@ function setupBridgeOnRoot(root: any): void {
 }
 
 /**
- * Hook HTMLCanvasElement.prototype.getContext on the page window.
- * Intercepts WebGL context creation so we can capture the PIXI canvas before
- * the Application is fully initialised. This runs before PIXI loads.
- *
- * After a WebGL context is created, we poll the canvas for PIXI back-references
- * (e.g. canvas.__PIXI_APP__) that some builds or devtools extensions set.
- * We also store the captured canvases for the canvas-based fallback scanner.
+ * Hooks getContext to capture the PIXI canvas before the Application is
+ * initialised, then polls for PIXI back-references (e.g. canvas.__PIXI_APP__)
+ * and stores captured canvases for the canvas-based fallback scanner.
  */
 function hookCanvasGetContext(root: any): void {
   if (root.__QPM_CANVAS_HOOK__) return;
@@ -138,14 +127,11 @@ function hookCanvasGetContext(root: any): void {
 }
 
 /**
- * Inject hooks directly into the page context via DOM script injection.
- * This is critical for Chrome where unsafeWindow doesn't give access to the same
- * window object that PIXI DevTools uses.
- *
+ * Injects hooks via DOM script injection — critical for Chrome, where
+ * unsafeWindow doesn't share the window object PIXI DevTools uses.
  * The injected script sets window.__QPM_PIXI_CAPTURED__ when PIXI is detected.
  */
 function injectPageContextHooks(): void {
-  // Only inject once
   const root = getRoot();
   if (root.__QPM_HOOKS_INJECTED__) return;
   root.__QPM_HOOKS_INJECTED__ = true;
@@ -158,7 +144,6 @@ function injectPageContextHooks(): void {
     return;
   }
 
-  // Create the script content that will run in the page context
   const scriptContent = `
 (function() {
   if (window.__QPM_PIXI_HOOKS_ACTIVE__) return;
@@ -580,9 +565,6 @@ function injectPageContextHooks(): void {
   }
 }
 
-/**
- * Waits for a promise with timeout
- */
 async function waitWithTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   const t0 = performance.now();
   const sleep = (ms: number) => new Promise<null>((resolve) => setTimeout(() => resolve(null), ms));
@@ -639,7 +621,6 @@ export function createPixiHooks(): PixiHooks {
     } catch { /* ignore */ }
   };
 
-  // Inject hooks into page context for Chrome compatibility
   injectPageContextHooks();
 
   // Hook into a global function on the page window.
@@ -660,7 +641,6 @@ export function createPixiHooks(): PixiHooks {
         }
       }
     };
-    // exportFunction makes the wrapper callable from page context on Firefox
     root[name] = _exportFn ? _exportFn(wrapper, root) : wrapper;
   };
 
@@ -703,7 +683,6 @@ export function createPixiHooks(): PixiHooks {
     } catch { /* ignore */ }
   });
 
-  // Log hook setup diagnostics
   console.log('[QPM PIXI] Hook setup:', {
     isDiscord: isDiscordSurface,
     isolated: isIsolatedContext,
@@ -712,10 +691,8 @@ export function createPixiHooks(): PixiHooks {
     rootIsGlobalThis: root === globalThis,
   });
 
-  // ── Canvas-based PIXI app fallback ────────────────────────────────────────
-  // When __PIXI_APP_INIT__ hooks fail (Firefox Xray, Discord CSP, stripped
-  // devtools), scan the DOM for canvas elements and find the PIXI app by
-  // intercepting the WebGL context and searching for PIXI-specific structures.
+  // Canvas fallback: when __PIXI_APP_INIT__ hooks fail (Firefox Xray, Discord
+  // CSP, stripped devtools), scan canvases for PIXI-specific structures.
   const tryCanvasFallback = () => {
     if (APP) return;
     try {
@@ -765,7 +742,6 @@ export function createPixiHooks(): PixiHooks {
     } catch { /* ignore canvas scan errors */ }
   };
 
-  // Try to find PIXI from multiple sources
   const tryResolveExisting = () => {
     if (APP && RDR) return;
 
@@ -814,7 +790,6 @@ export function createPixiHooks(): PixiHooks {
     if (APP) attachContextLossListener(APP);
   };
 
-  // Try immediately
   tryResolveExisting();
 
   // Poll for captured PIXI (especially important for Chrome)
@@ -846,9 +821,6 @@ export function createPixiHooks(): PixiHooks {
   };
 }
 
-/**
- * Waits for PIXI to be initialized and returns the app and renderer
- */
 export async function waitForPixi(
   handles: PixiHooks,
   timeoutMs = 15000
@@ -859,9 +831,6 @@ export async function waitForPixi(
   return { app, renderer, version: handles.pixiVersion };
 }
 
-/**
- * Ensures the document is ready before proceeding
- */
 export function ensureDocumentReady(): Promise<void> {
   if (document.readyState !== 'loading') {
     return Promise.resolve();

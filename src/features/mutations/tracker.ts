@@ -1,4 +1,3 @@
-// src/features/mutationTracker.ts
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import {
   buildMutationSummary,

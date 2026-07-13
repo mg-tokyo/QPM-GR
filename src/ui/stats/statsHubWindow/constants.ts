@@ -15,9 +15,12 @@ export const UPGRADED_DAWN_MUTS = new Set(['dawncharged']);
 /** Upgraded Amber mutations — Ambercharged (display: Amberbound) */
 export const UPGRADED_AMBER_MUTS = new Set(['ambercharged']);
 
+/** Upgraded electric mutations — Thundercharged (upgrades Thunderstruck) */
+export const UPGRADED_ELECTRIC_MUTS = new Set(['thundercharged']);
+
 /** Hardcoded fallback — used when the mutation catalog isn't loaded yet */
 export const FILTER_MUTATIONS_FALLBACK: readonly string[] = [
-  'Frozen', 'Wet', 'Chilled', 'Thunderstruck',
+  'Frozen', 'Wet', 'Chilled', 'Thunderstruck', 'Thundercharged',
   'Dawnlit', 'Dawnbound', 'Amberlit', 'Amberbound',
   'Rainbow', 'Gold',
 ];

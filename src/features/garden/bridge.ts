@@ -1,4 +1,3 @@
-// src/features/gardenBridge.ts
 import { ensureJotaiStore, getAtomByLabel, readAtomValue, getCachedStore } from '../../core/jotaiBridge';
 import { subscribeAtomValue } from '../../core/atomRegistry';
 import { shareGlobal, readSharedGlobal } from '../../core/pageContext';

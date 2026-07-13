@@ -1,13 +1,7 @@
-// sprite-v2/manifest.ts - Asset manifest and atlas loading
-
 import type { Manifest, AtlasData } from './types';
 
-/**
- * Makes a GM_xmlhttpRequest (bypasses CORS)
- * Falls back to fetch if GM_xmlhttpRequest is not available
- */
+/** Uses GM_xmlhttpRequest to bypass CORS; falls back to fetch if unavailable. */
 function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
-  // Check if GM_xmlhttpRequest is available (userscript environment)
   if (typeof GM_xmlhttpRequest !== 'undefined') {
     return new Promise((resolve, reject) => {
       const reqConfig: any = {
@@ -29,7 +23,6 @@ function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
     });
   }
 
-  // Fallback to fetch
   if (type === 'blob') {
     return fetch(url).then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status} (${url})`);
@@ -43,26 +36,17 @@ function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
   }
 }
 
-/**
- * Fetches JSON data from URL
- */
 export async function getJSON<T = any>(url: string): Promise<T> {
   const response = await gmRequest(url, 'text');
   const text = response.responseText || response;
   return JSON.parse(text) as T;
 }
 
-/**
- * Fetches Blob data from URL
- */
 export async function getBlob(url: string): Promise<Blob> {
   const response = await gmRequest(url, 'blob');
   return response.response || response;
 }
 
-/**
- * Converts a Blob to an Image element
- */
 export function blobToImage(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
@@ -84,31 +68,19 @@ export function blobToImage(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Joins base path with relative path
- */
 export function joinPath(base: string, path: string): string {
   return base.replace(/\/?$/, '/') + String(path || '').replace(/^\//, '');
 }
 
-/**
- * Gets directory of a path
- */
 export function dirOf(path: string): string {
   return path.lastIndexOf('/') >= 0 ? path.slice(0, path.lastIndexOf('/') + 1) : '';
 }
 
-/**
- * Resolves relative path based on current path
- */
 export function relPath(base: string, path: string): string {
   if (typeof path !== 'string') return path;
   return path.startsWith('/') ? path.slice(1) : dirOf(base) + path;
 }
 
-/**
- * Extracts atlas JSON files from manifest
- */
 export function extractAtlasJsons(manifest: Manifest): Set<string> {
   const jsons = new Set<string>();
 
@@ -155,31 +127,21 @@ export async function loadAtlasJsons(
     }
   };
 
-  // Load all atlas JSONs in parallel
   await Promise.all(Array.from(jsons).map((p) => loadOne(p)));
 
   return data;
 }
 
-/**
- * Checks if JSON is a valid atlas
- */
 export function isAtlas(j: any): j is AtlasData {
   return j && typeof j === 'object' && j.frames && j.meta && typeof j.meta.image === 'string';
 }
 
-/**
- * Splits a key into path components
- */
 export function splitKey(key: string): string[] {
   return String(key || '')
     .split('/')
     .filter(Boolean);
 }
 
-/**
- * Determines category from sprite key
- */
 export function categoryOf(key: string, catLevels = 1): string {
   const parts = splitKey(key);
   const start = parts[0] === 'sprite' || parts[0] === 'sprites' ? 1 : 0;

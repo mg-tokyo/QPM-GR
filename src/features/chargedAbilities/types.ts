@@ -1,5 +1,3 @@
-// src/features/chargedAbilities/types.ts
-
 import type { AbilityProjection, PlantSlotMinimal, ProjectedGain } from './abilities/types';
 import type { TilePosition } from '../garden/tileRadius';
 

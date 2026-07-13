@@ -1,4 +1,3 @@
-// src/features/chargedAbilities/abilities/thundercharger.ts
 // Thunder Wolf — Thundercharger. Replaces Thunderstruck (5×) with Thundercharged (7×).
 
 import type { AbilityProjection, PlantSlotMinimal } from './types';

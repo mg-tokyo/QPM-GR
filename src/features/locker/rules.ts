@@ -1,4 +1,3 @@
-// src/features/locker/rules.ts
 // Pure rule engine for the Locker. No side effects, no store/UI imports.
 
 import type { LockerConfig, GuardResult } from './types';
@@ -21,11 +20,33 @@ export interface InventorySnapshot {
 /** Resolved from garden tile data at the guard layer. */
 export interface TileContext {
   objectType?: string; // 'plant' | 'egg' | 'decor' | etc
-  species?: string;    // plant species (same across all slots)
+  species?: string;    // species of the TARGETED grow slot — rare variants (SnowdropDouble,
+                       // PurpleDaisy, FourLeafClover, VariegatedCattail) and override slots
+                       // differ from tile.species, so this is NOT the same across all slots
+  baseSpecies?: string;    // tile-level species (the base plant of the patch)
+  allSpecies?: string[];   // distinct species across the tile (tile.species + every slot)
+  allMutations?: string[]; // union of mutations across every slot (for whole-tile actions)
   eggId?: string;      // egg ID from tile.eggId
   decorId?: string;    // decor type ID (objectType value for decor tiles)
   mutations?: string[]; // mutations on the targeted grow slot (matched via slotsIndex)
   sizePercent?: number; // crop size percentage (50–100), computed from targetScale + maxScale
+}
+
+/**
+ * First locked species relevant to the action, or undefined.
+ * 'harvest' checks the targeted slot + the tile's base species (locking the base
+ * protects the whole patch including variant slots; locking a variant protects
+ * only that slot). 'tile' (shovel/removal) checks every species on the tile.
+ */
+function findLockedSpecies(
+  tile: TileContext,
+  locks: Record<string, boolean>,
+  scope: 'harvest' | 'tile',
+): string | undefined {
+  if (tile.species && locks[tile.species]) return tile.species;
+  if (tile.baseSpecies && locks[tile.baseSpecies]) return tile.baseSpecies;
+  if (scope === 'tile') return tile.allSpecies?.find(sp => locks[sp]);
+  return undefined;
 }
 
 const PASS: GuardResult = { blocked: false };
@@ -73,7 +94,7 @@ function evaluateHarvestFilterBlock(config: LockerConfig, tile?: TileContext): G
   return PASS;
 }
 
-// ── Main evaluator ────────────────────────────────────────────────────────
+// Main evaluator
 
 export function evaluateAction(
   actionType: string,
@@ -90,9 +111,10 @@ export function evaluateAction(
       if (config.harvestLock) {
         return { blocked: true, reason: 'Harvest lock is active', rule: 'harvest_lock' };
       }
-      // Per-plant lock: resolve species from tile context
-      if (tile?.species && config.plantLocks[tile.species]) {
-        return { blocked: true, reason: `Plant locked: ${tile.species}`, rule: 'plant_lock' };
+      // Per-plant lock: targeted slot species or the patch's base species
+      const lockedSpecies = tile ? findLockedSpecies(tile, config.plantLocks, 'harvest') : undefined;
+      if (lockedSpecies) {
+        return { blocked: true, reason: `Plant locked: ${lockedSpecies}`, rule: 'plant_lock' };
       }
       // Per-mutation lock: check if any active mutation is locked
       if (tile?.mutations && tile.mutations.length > 0) {
@@ -110,15 +132,17 @@ export function evaluateAction(
     }
 
     case 'RemoveGardenObject': {
-      // Reuse plant locks: if a plant is locked for harvest, also protect from shoveling
-      if (tile?.species && config.plantLocks[tile.species]) {
-        return { blocked: true, reason: `Plant locked (shovel): ${tile.species}`, rule: 'shovel_plant_lock' };
+      // Shoveling destroys the whole tile — protect if ANY slot's species is locked
+      const shovelLockedSpecies = tile ? findLockedSpecies(tile, config.plantLocks, 'tile') : undefined;
+      if (shovelLockedSpecies) {
+        return { blocked: true, reason: `Plant locked (shovel): ${shovelLockedSpecies}`, rule: 'shovel_plant_lock' };
       }
-      // Reuse mutation locks: protect plants with locked mutations from shoveling
-      if (tile?.mutations && tile.mutations.length > 0) {
-        const lockedMut = hasAnyLockedMutation(tile.mutations, config.mutationLocks);
+      // Mutation locks: check the union of mutations across all slots, not just slot 0
+      const shovelMutations = tile?.allMutations ?? tile?.mutations;
+      if (shovelMutations && shovelMutations.length > 0) {
+        const lockedMut = hasAnyLockedMutation(shovelMutations, config.mutationLocks);
         if (lockedMut) {
-          const label = tile.species ? `${tile.species} (${lockedMut})` : lockedMut;
+          const label = tile?.species ? `${tile.species} (${lockedMut})` : lockedMut;
           return { blocked: true, reason: `Mutation locked (shovel): ${label}`, rule: 'shovel_mutation_lock' };
         }
       }

@@ -1,6 +1,4 @@
-// src/features/chargedAbilities/storage.ts
-// Persists which "Others" pet cards the user has expanded across sessions,
-// plus the auto-open-overlay preference.
+// Persists which "Others" pet cards the user has expanded across sessions, plus the auto-open-overlay preference.
 
 import { storage } from '../../utils/storage';
 import { PANEL_EXPANDED_STORAGE_KEY, AUTO_OPEN_OVERLAY_STORAGE_KEY } from './constants';

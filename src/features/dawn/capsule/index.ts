@@ -1,7 +1,3 @@
-// src/features/dawnCapsule/index.ts
-// Tracks Dawn Capsule opens via activity log atom.
-// Records pull history to local storage and computes rate statistics.
-
 import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
@@ -11,10 +7,6 @@ import {
   MAX_PULL_RECORDS,
   DAWN_CAPSULE_RATES,
 } from './constants';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface CapsulePullRecord {
   timestamp: number;
@@ -33,10 +25,6 @@ export interface CapsuleStats {
   sessionSpecies: string[];
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
 let pullHistory: CapsulePullRecord[] = [];
 let sessionPulls: CapsulePullRecord[] = [];
 let myDataUnsubscribe: (() => void) | null = null;
@@ -44,10 +32,6 @@ let lastSeenLogLength = 0;
 let initialized = false;
 
 const listeners = new Set<(stats: CapsuleStats) => void>();
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
 
 function loadHistory(): void {
   const stored = storage.get<CapsulePullRecord[] | null>(CAPSULE_PULLS_STORAGE_KEY, null);
@@ -64,10 +48,6 @@ function saveHistory(): void {
   }
   storage.set(CAPSULE_PULLS_STORAGE_KEY, pullHistory);
 }
-
-// ---------------------------------------------------------------------------
-// Stats computation
-// ---------------------------------------------------------------------------
 
 function computeStats(): CapsuleStats {
   const speciesDistribution: Record<string, number> = {};
@@ -87,7 +67,6 @@ function computeStats(): CapsuleStats {
     }
   }
 
-  // Compute "pulls since last" for rare species
   const pullsSinceLast: Record<string, number> = {};
   const rareSpecies = ['Ube', 'Dawnbreaker'];
   for (const rare of rareSpecies) {
@@ -134,19 +113,13 @@ function emit(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Activity log processing
-// ---------------------------------------------------------------------------
-
 function processActivityLogs(rawValue: unknown): void {
   if (!rawValue || typeof rawValue !== 'object') return;
 
-  // myDataAtom contains activityLog as an array
   const data = rawValue as Record<string, unknown>;
   const activityLog = data.activityLog;
   if (!Array.isArray(activityLog)) return;
 
-  // Only process new entries since last seen
   if (activityLog.length <= lastSeenLogLength) {
     lastSeenLogLength = activityLog.length;
     return;
@@ -197,10 +170,6 @@ function processActivityLogs(rawValue: unknown): void {
     emit();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export function startCapsuleTracker(): void {
   if (initialized) return;

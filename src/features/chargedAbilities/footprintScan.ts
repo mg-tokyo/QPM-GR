@@ -1,8 +1,6 @@
-// src/features/chargedAbilities/footprintScan.ts
-// Resolve crop slots inside the player's 3×3 footprint and find the best 3×3
-// patch in the garden for a given ability. Uses the canonical position →
-// global tile idx → dirt/boardwalk → tileObjects lookup (mirrors
-// src/features/garden/filters.ts:341-368).
+// Resolve crop slots inside the player's footprint and find the best patch
+// for a given ability. Position→tileIdx→dirt/boardwalk lookup mirrors
+// getGardenTileData in src/features/garden/filters/tileData.ts.
 
 import { getGardenSnapshot, getMapSnapshot } from '../garden/bridge';
 import { getTilesInChebyshevRadius, type TilePosition } from '../garden/tileRadius';
@@ -90,13 +88,7 @@ export function getQualifyingCropsInFootprint(
   return { slots, totalGain: { coin, capsule } };
 }
 
-/**
- * Walk every plant in the garden once and total qualifying slots + projected
- * gain for a single ability. Iterates `tileObjects` entries directly rather
- * than (x, y) coordinates so multi-tile plants (e.g. clover patches that
- * occupy several grid cells but share a single tileObject) are only counted
- * once.
- */
+/** Totals qualifying slots + gain across the garden. Iterates tileObjects directly (not x,y) so multi-tile plants are only counted once. */
 export function scanGardenForAbility(ability: AbilityProjection): FootprintResult {
   const garden = getGardenSnapshot();
   const slots: PlantSlotMinimal[] = [];
@@ -130,12 +122,8 @@ export function findBestPatchForAbility(
   const map = getMapSnapshot();
   if (!map || typeof map.cols !== 'number' || typeof map.rows !== 'number') return null;
 
-  // Hard gate on the player's own garden slot. Every tile in
-  // `globalTileIdxToDirtTile`/Boardwalk carries `userSlotIdx`; only ours
-  // belong to OUR garden. Without this constraint the search can pick a
-  // centre in another player's plot ("go 22 tiles NE" pointing outside the
-  // navigable area). If `myUserSlotIdx` hasn't resolved yet we return null
-  // so callers hide the direction/optimality UI rather than show wrong data.
+  // IMPORTANT: gate on the player's own userSlotIdx, or the search can pick a
+  // centre in another player's plot. Return null if unresolved yet.
   const mySlot = readAtomValueSync('myUserSlotIdx');
   if (mySlot == null) return null;
 

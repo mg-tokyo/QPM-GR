@@ -1,5 +1,3 @@
-// sprite-v2/settings.ts - Configuration and constants
-
 import type { SpriteConfig, MutationMeta, MutationName } from './types';
 
 export const DEFAULT_CFG: SpriteConfig = {

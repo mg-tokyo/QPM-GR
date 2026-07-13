@@ -1,15 +1,5 @@
-// src/features/chargedAbilities/abilities/dawnCapture.ts
-// Hedgehog / Ostrich — DawnCapture. Removes Dawn mutations from nearby crops
-// and converts them into Dawn Capsules.
-//
-// Per-mutation capsule reward (confirmed beta source
-// AbilityTooltipContent.ts:299-304):
-//   Dawnlit     → 1 capsule
-//   Dawncharged → 2 capsules  (display name "Dawnbound")
-//
-// Catalog key for Dawnbound is 'Dawncharged' (see mutationsDex.ts:52-57);
-// 'dawnbound' is the lowercase display name. Slots may carry either form in
-// `mutations`, so both lowercased aliases map to the 2-capsule payout.
+// Hedgehog/Ostrich DawnCapture: converts Dawn mutations to capsules. Reward per scraped-data/BetaGameSourceFiles/.../AbilityTooltipContent.ts:299-304.
+// Catalog key for Dawnbound is 'Dawncharged' (mutationsDex.ts:52-57); slots may carry either lowercased alias.
 
 import type { AbilityProjection, PlantSlotMinimal } from './types';
 import { getCooldownRemainingMs as dawnCD } from '../../dawn/capture';

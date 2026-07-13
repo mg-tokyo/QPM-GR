@@ -2,6 +2,16 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.14",
+    date: "2026-07-13",
+    notes: [
+      "Fixed rare plant variants (Four Leaf Clover, Purple Daisy, double Snowdrop, Variegated Cattail, Thunder Celestial Shroom) not being recognized by garden species filters, crop lock, and Stats Hub garden values, QPM now reads the species stored on each grow slot instead of only the tile's base plant",
+      "Fixed crop lock on multi-harvest plants checking the first fruit instead of the one being harvested, per-species and per-mutation lock rules now target the exact grow slot, and shovel protection checks every slot on the tile",
+      "Improved Stats Hub garden values to price each grow slot by its actual species, so tiles carrying a rare variant fruit are valued correctly",
+      "Improved internal code structure: the ten largest source files were split into focused modules and redundant comments were removed, with no behavior changes",
+    ],
+  },
+  {
     version: "3.3.13",
     date: "2026-07-09",
     notes: [

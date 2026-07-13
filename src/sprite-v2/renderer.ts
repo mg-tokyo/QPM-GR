@@ -1,5 +1,3 @@
-// sprite-v2/renderer.ts - Mutation rendering engine with advanced layering
-
 import type { MutationName, SpriteFilterConfig, VariantInfo, SpriteState, SpriteConfig, RenderJob } from './types';
 import {
   MUT_META,
@@ -15,7 +13,6 @@ import {
 import { baseNameOf, isTallKey } from './utils';
 import { cacheSet, entryCost } from './cache';
 
-// Mutation filter definitions
 const FILTERS: Record<string, SpriteFilterConfig> = {
   Gold: { op: 'source-atop', colors: ['rgb(235,200,0)'], a: 0.7 },
   Rainbow: {
@@ -75,8 +72,7 @@ export function sortMutations(list: string[]): MutationName[] {
 }
 
 function mutationAliases(mut: MutationName): MutationName[] {
-  // Return all known aliases for a mutation name for backwards compatibility
-  // This ensures old sprite keys (Amberlit, Dawnbound, etc) still work
+  // Backwards-compat aliases — old sprite keys (Amberlit, Dawnbound, etc) still resolve
   switch (mut) {
     case 'Ambershine':
       return ['Ambershine', 'Amberlit' as MutationName];
@@ -486,7 +482,6 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
     const octx = out.getContext('2d')!;
     octx.imageSmoothingEnabled = false;
 
-    // Draw base sprite
     octx.drawImage(baseCanvas, 0, 0);
 
     // Color layers
@@ -549,7 +544,6 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
       octx.drawImage(iconCanvas, drawX, drawY, iconW, iconH);
     }
 
-    // Wrap the final canvas as a PIXI Texture for the sprite system
     const outTex = Texture.from(out);
 
     // Store the composited canvas so textureToCanvas can extract it later
@@ -563,7 +557,6 @@ export function renderMutatedTexture(tex: any, itKey: string, V: VariantInfo, st
       (outTex as any).__mg_gen = true;
       outTex.label = `${itKey}|${V.sig}`;
     } catch (e) {
-      // Ignore
     }
 
     return outTex;

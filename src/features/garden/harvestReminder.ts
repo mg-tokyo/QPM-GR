@@ -1,6 +1,3 @@
-// src/features/harvestReminder.ts
-// Harvest reminder tuned for Quinoa garden state snapshots.
-
 import { pageWindow, shareGlobal } from '../../core/pageContext';
 import { log } from '../../utils/logger';
 import { GardenSnapshot, getGardenSnapshot, onGardenSnapshot } from './bridge';

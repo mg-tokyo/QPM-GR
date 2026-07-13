@@ -1,4 +1,3 @@
-// src/data/cropMultipliers.ts
 // Crop multiplier data from the game (mutationsDex.ts + sell.ts)
 //
 // Game formula: growthMult × (1 + SUM(envCoinMultipliers) - count(envMutations))
@@ -121,15 +120,10 @@ export function calculateMultiplier(
   return growthMult * (1 + envSum - envCount);
 }
 
-/**
- * Get the most valuable weather mutation for a crop
- * Returns the weather condition and resulting multiplier
- */
 export function getMostValuableWeatherMutation(
   currentMutation: MutationType | null,
   currentWeather: WeatherCondition[],
 ): { weather: WeatherCondition; multiplier: number; weatherEventName: string } | null {
-  // All possible weather mutations that can be added
   const possibleWeather: Array<{ weather: WeatherCondition; event: string }> = [
     { weather: 'wet', event: 'Rain' },
     { weather: 'chilled', event: 'Frost' },
@@ -142,7 +136,6 @@ export function getMostValuableWeatherMutation(
   let best: { weather: WeatherCondition; multiplier: number; weatherEventName: string } | null = null;
 
   for (const { weather, event } of possibleWeather) {
-    // Skip if crop already has this weather condition
     if (currentWeather.includes(weather)) continue;
 
     // Skip incompatible combinations

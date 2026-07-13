@@ -1,5 +1,3 @@
-// sprite-v2/compat.ts - Compatibility layer for old sprite API (canvas-first)
-
 import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
 import { log, isVerboseLogsEnabled } from '../utils/logger';
 import { getFloraBlueprint } from '../catalogs/gameCatalogs';
@@ -13,7 +11,6 @@ export const serviceReady: Promise<SpriteService | null> = new Promise((resolve)
   serviceReadyResolve = resolve;
 });
 
-// Callbacks waiting for sprites to be ready
 const spritesReadyCallbacks: Array<() => void> = [];
 let spritesReady = false;
 
@@ -24,7 +21,6 @@ let spritesReady = false;
  */
 export function onSpritesReady(callback: () => void): () => void {
   if (spritesReady) {
-    // Already ready, call immediately
     try {
       callback();
     } catch (e) {
@@ -35,7 +31,6 @@ export function onSpritesReady(callback: () => void): () => void {
     return () => {}; // No-op unsubscribe since already called
   } else {
     spritesReadyCallbacks.push(callback);
-    // Return unsubscribe function
     return () => {
       const idx = spritesReadyCallbacks.indexOf(callback);
       if (idx !== -1) {
@@ -45,9 +40,6 @@ export function onSpritesReady(callback: () => void): () => void {
   }
 }
 
-/**
- * Check if sprites are ready for use.
- */
 export function isSpritesReady(): boolean {
   return spritesReady;
 }
@@ -63,7 +55,7 @@ function notifySpritesReady(): void {
       });
     }
   }
-  spritesReadyCallbacks.length = 0; // Clear callbacks
+  spritesReadyCallbacks.length = 0;
 }
 
 /**
@@ -132,7 +124,6 @@ export function invalidateSpriteKeyCache(key?: string): void {
       // srcCan is keyed by PIXI.Texture object; full clear is safe since we just replaced a texture
       state.srcCan.clear();
     } else {
-      // Full clear
       state.lru.clear();
       state.cost = 0;
       state.srcCan.clear();
@@ -246,9 +237,6 @@ export function setSpriteService(svc: SpriteService): void {
   notifySpritesReady();
 }
 
-/**
- * Normalize species names for consistent sprite lookup
- */
 function normalizeSpeciesName(species: string | number): string {
   const str = String(species).trim();
   const lower = str.toLowerCase();
@@ -276,7 +264,6 @@ function normalizeSpeciesName(species: string | number): string {
   // Display names are "Cacao Bean" (seed), "Cacao Plant" (plant), "Cacao Fruit" (fruit)
   if (lower === 'cacaobean' || lower === 'cacaobeans' || lower === 'cacaofruit' || lower === 'cacao' || lower === 'cacao bean' || lower === 'cocoa bean' || lower === 'cocoabean' || lower === 'cacao plant' || lower === 'cacao fruit') return 'Cacao';
 
-  // Starweaver variations
   if (lower === 'starweaver') return 'Starweaver';
 
   // Handle names with spaces - remove spaces and capitalize properly
@@ -290,12 +277,10 @@ function normalizeSpeciesName(species: string | number): string {
     return normalized.replace(/'/g, '');
   }
 
-  // If already proper case (first letter uppercase), return as-is
   if (str.charAt(0) === str.charAt(0).toUpperCase()) {
     return str;
   }
 
-  // Otherwise capitalize first letter
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
@@ -321,7 +306,7 @@ const PLANT_SPRITE_ALIASES: Record<string, string> = {
 };
 
 function getIdVariations(category: string, id: string): string[] {
-  const variations = [id]; // Try original display name first
+  const variations = [id];
 
   // Celestial crops: manifest uses suffixes
   // - plant category: "DawnCelestialCrop", "MoonCelestialCrop"
@@ -406,9 +391,6 @@ export function getCropSpriteCanvas(speciesOrTile: string | number | null | unde
   return null;
 }
 
-/**
- * Gets crop sprite canvas with mutations applied
- */
 export function getCropSpriteWithMutations(
   speciesOrTile: string | number | null | undefined,
   mutations: string[] = []
@@ -446,18 +428,12 @@ export function getCropSpriteDataUrlWithMutations(speciesOrTile: string | number
   return cacheDataUrl(key, canvasToDataUrl(getCropSpriteWithMutations(speciesOrTile, mutations)));
 }
 
-/**
- * Gets pet sprite canvas
- */
 export function getPetSpriteCanvas(species: string): HTMLCanvasElement | null {
   if (!species) return null;
   const normalized = normalizeSpeciesName(species);
   return tryRenderCanvas('pet', normalized, []);
 }
 
-/**
- * Gets pet sprite canvas with mutations applied
- */
 export function getPetSpriteWithMutations(species: string, mutations: string[] = []): HTMLCanvasElement | null {
   if (!species) return null;
   const normalized = normalizeSpeciesName(species);
@@ -582,7 +558,6 @@ export function stitchMultiHarvestCanvas(
   const ctx = out.getContext('2d');
   if (!ctx) return null;
 
-  // Draw base centered
   ctx.drawImage(
     baseCanvas,
     SIZE / 2 - baseCanvas.width / 2,
@@ -651,18 +626,12 @@ export function getProduceSpriteDataUrlWithMutations(
   return cacheDataUrl(key, canvasToDataUrl(getProduceSpriteWithMutations(speciesOrTile, mutations)));
 }
 
-/**
- * Gets crop sprite canvas by tile ID
- */
 export function getCropSpriteByTileId(tileId: string | number | null | undefined): HTMLCanvasElement | null {
   if (tileId == null) return null;
   const id = normalizeSpeciesName(tileId);
   return renderAcrossCategories(['plant', 'tallplant'], id, [], true);
 }
 
-/**
- * Gets mutation overlay data URL
- */
 export function getMutationOverlayDataUrl(mutation: string): string {
   if (!mutation) return '';
   return canvasToDataUrl(tryRenderCanvas('mutation-overlay', mutation, []));
@@ -740,9 +709,6 @@ export function renderPlantSprite(
   return canvasToDataUrl(renderAcrossCategories(['plant', 'tallplant'], normalized, normalizedMutations, true));
 }
 
-/**
- * Legacy sprite extractor object for compatibility
- */
 export const spriteExtractor = {
   getTile: (sheet: string, index: number): HTMLCanvasElement | null => {
     if (!service) return null;
@@ -781,9 +747,6 @@ export const spriteExtractor = {
   },
 };
 
-/**
- * Exposes the Sprites object for global access
- */
 export const Sprites = {
   init: () => {
     spriteLog('info', 'compat-deprecated-sprites-init', 'Sprites.init() is deprecated');
@@ -803,9 +766,6 @@ export const Sprites = {
   },
 };
 
-/**
- * Initialize function
- */
 export function initSprites(): void {
   spriteLog('info', 'compat-deprecated-init-sprites', 'initSprites() is deprecated; sprite system initializes automatically');
 }

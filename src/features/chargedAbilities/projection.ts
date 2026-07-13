@@ -1,5 +1,3 @@
-// src/features/chargedAbilities/projection.ts
-// Sell-value math used by every ability projection plugin.
 // Mirrors the canonical formula in src/features/economy/valueCalculator.ts:70-81:
 //   baseSellPrice × scale × mutationMultiplier
 
@@ -14,10 +12,7 @@ export function computeSlotSellValue(slot: PlantSlotMinimal): number {
   return Math.round(stats.baseSellPrice * slot.targetScale * totalMultiplier);
 }
 
-/**
- * Compute the sell value of a slot AS IF a mutation were replaced.
- * Used by Thundercharger to project the post-fire value (Thunderstruck → Thundercharged).
- */
+/** Sell value if mutation `from` were replaced by `to` — used by Thundercharger's post-fire projection. */
 export function valueIfMutationReplaced(
   slot: PlantSlotMinimal,
   from: string,

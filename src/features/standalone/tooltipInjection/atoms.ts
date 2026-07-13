@@ -107,12 +107,17 @@ export function resolveCurrentTile(): TileLockContext | null {
   if (objectType === 'plant') {
     const slot = resolveCurrentSlot();
     if (!slot) return null;
-    return {
+    const ctx: Extract<TileLockContext, { kind: 'plant' }> = {
       kind: 'plant',
       species: slot.species,
       mutations: slot.mutations,
       sizePercent: computeSizePercent(slot.species, slot.targetScale),
     };
+    // Tile-level base species — differs from slot.species on rare-variant slots
+    if (typeof obj.species === 'string' && obj.species.length > 0 && obj.species !== slot.species) {
+      ctx.baseSpecies = obj.species;
+    }
+    return ctx;
   }
 
   if (objectType === 'egg') {

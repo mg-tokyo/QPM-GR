@@ -1,7 +1,5 @@
-// src/features/gardenQol/instaHarvest.ts
-// Capture-phase keydown interception to bypass the client-side hold-to-harvest
-// delay for Rainbow and Gold mutation plants. Sends HarvestCrop through the
-// centralised sendRoomAction facade (Locker guard rules still apply).
+// Capture-phase keydown interception bypasses the client-side hold-to-harvest
+// delay for Rainbow and Gold mutation plants (Locker guard rules still apply).
 
 import { readAtomValueSync } from '../../core/atomRegistry';
 import { healthBus } from '../../diagnostics/healthBus';
@@ -29,12 +27,7 @@ const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenInstaHarvest';
 const FEATURE_NAME = 'gardenInstaHarvest';
 const log = createNamedLogger(FEATURE_SUBSYSTEM);
 
-/**
- * Re-attribute a FEATURE-* code emission to this feature's bus row. The
- * registered placeholder subsystem on FEATURE-001 is `'feature'`; without this
- * override the bus would degrade a generic `feature` entry instead of
- * `feature:gardenInstaHarvest`.
- */
+/** Re-attributes a FEATURE-* code emission to this feature's bus row instead of the generic `feature` placeholder. */
 function warnFeature(code: Parameters<typeof buildError>[0], ctx: Record<string, unknown>, cause?: unknown): void {
   const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
   log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
@@ -54,10 +47,6 @@ function getSelectedSlotIdSync(): number | null {
   return readAtomValueSync('selectedSlotId');
 }
 
-/**
- * Read the grow slots for a given dirt tile index from the garden snapshot.
- * Returns the parsed slots array, or null if unavailable.
- */
 function getGrowSlotsForTile(dirtTileIndex: number): GrowSlotLike[] | null {
   const garden = getGardenSnapshot();
   if (!garden) return null;
@@ -96,12 +85,7 @@ function checkSlot(
   return null;
 }
 
-/**
- * Find the user-selected mature slot that qualifies for insta-harvest.
- * On multi-harvest plants, only checks the slot the user has selected
- * (via mySelectedSlotIdAtom which stores the slotId). Falls back to
- * first qualifying slot if selection is unknown.
- */
+/** Checks the user-selected slot (multi-harvest plants) first, falling back to the first qualifying slot. */
 function findInstaHarvestSlot(
   slots: GrowSlotLike[],
   instaRainbow: boolean,

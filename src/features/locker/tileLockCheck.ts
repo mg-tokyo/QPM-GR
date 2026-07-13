@@ -9,7 +9,7 @@ import {
 } from './rules-primitives';
 
 export type TileLockContext =
-  | { kind: 'plant'; species: string; mutations: string[]; sizePercent: number }
+  | { kind: 'plant'; species: string; baseSpecies?: string; mutations: string[]; sizePercent: number }
   | { kind: 'egg'; eggId: string }
   | { kind: 'decor'; decorId: string };
 
@@ -18,7 +18,10 @@ function isPlantLocked(
   config: LockerConfig,
 ): boolean {
   if (config.harvestLock) return true;
+  // species = selected slot (may be a rare variant); baseSpecies = tile-level plant.
+  // A lock on either protects this slot — mirrors the guard's harvest semantics.
   if (config.plantLocks[tile.species]) return true;
+  if (tile.baseSpecies && config.plantLocks[tile.baseSpecies]) return true;
   if (hasAnyLockedMutation(tile.mutations, config.mutationLocks)) return true;
 
   const settings = resolveEffectiveFilter(config, tile.species);
@@ -39,6 +42,7 @@ function isPlantLocked(
   }
 
   if (config.cropSellLocks[tile.species]) return true;
+  if (tile.baseSpecies && config.cropSellLocks[tile.baseSpecies]) return true;
   return false;
 }
 

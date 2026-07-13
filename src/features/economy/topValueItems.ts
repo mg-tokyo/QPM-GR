@@ -1,6 +1,4 @@
-// src/features/topValueItems.ts
-// Pure computation module — returns top-N most valuable items across sources.
-// No DOM, no side effects.
+// Pure computation module — returns top-N most valuable items across sources. No DOM, no side effects.
 
 import type { GardenSnapshot } from '../garden/bridge';
 import type { InventoryItem } from '../../store/inventory';
@@ -8,10 +6,6 @@ import type { ActivePetInfo } from '../../store/pets';
 import { getPlantSpecies, getPetSpecies, getSeedPrice, getDecor, getEggType } from '../../catalogs/gameCatalogs';
 import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { computePetSellPrice } from './storageValue';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface TopValueItem {
   species: string;
@@ -25,10 +19,6 @@ export interface TopValueItem {
   isEgg?: boolean;
   quantity?: number;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /** Clamp non-finite catalog prices (Infinity for dust-only items, NaN) to 0. */
 function finiteOr0(v: number | null | undefined): number {
@@ -64,10 +54,6 @@ function aggregateItems(items: TopValueItem[]): TopValueItem[] {
 
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// Garden items
-// ---------------------------------------------------------------------------
 
 export function getTopGardenItems(
   snapshot: GardenSnapshot,
@@ -123,10 +109,6 @@ export function getTopGardenItems(
   return items.slice(0, limit);
 }
 
-// ---------------------------------------------------------------------------
-// Inventory items (produce + pets only)
-// ---------------------------------------------------------------------------
-
 export function getTopInventoryItems(
   inventoryItems: InventoryItem[],
   friendBonus: number,
@@ -165,10 +147,6 @@ export function getTopInventoryItems(
   return items.slice(0, limit);
 }
 
-// ---------------------------------------------------------------------------
-// Net worth items (across all sources)
-// ---------------------------------------------------------------------------
-
 export function getTopNetWorthItems(
   snapshot: GardenSnapshot,
   inventoryItems: InventoryItem[],
@@ -179,11 +157,9 @@ export function getTopNetWorthItems(
 ): TopValueItem[] {
   const items: TopValueItem[] = [];
 
-  // Garden crops
   const gardenItems = getTopGardenItems(snapshot, friendBonus, limit);
   items.push(...gardenItems);
 
-  // Inventory produce + pets
   for (const item of inventoryItems) {
     const raw = item.raw as Record<string, unknown>;
     const itemType = ((item.itemType as string | null) ?? (raw.itemType as string | undefined) ?? '').toLowerCase();
@@ -211,7 +187,6 @@ export function getTopNetWorthItems(
     }
   }
 
-  // Storage items (pets, produce, seeds, decor)
   for (const s of storages) {
     if (!s || typeof s !== 'object') continue;
     const storageItems = Array.isArray((s as Record<string, unknown>).items)
@@ -253,7 +228,7 @@ export function getTopNetWorthItems(
         const value = unitPrice * quantity;
         items.push({ species: raw.decorId, mutations: [], scale: 1, value, source: 'storage', isPet: false, isDecor: true, quantity });
       } else {
-        // Seeds
+        // No decorId — a seed entry
         const species =
           (typeof raw.species === 'string' ? raw.species : null) ??
           (typeof raw.seedName === 'string' ? raw.seedName : null) ??
@@ -271,7 +246,6 @@ export function getTopNetWorthItems(
     }
   }
 
-  // Active pets
   for (const pet of activePets) {
     if (!pet.raw || typeof pet.raw !== 'object') continue;
     const value = computePetSellPrice(pet.raw as Record<string, unknown>, friendBonus);
@@ -286,7 +260,6 @@ export function getTopNetWorthItems(
     });
   }
 
-  // Placed decor + eggs on garden tiles
   if (snapshot) {
     const tileSets = [snapshot.tileObjects, snapshot.boardwalkTileObjects];
     for (const tileMap of tileSets) {

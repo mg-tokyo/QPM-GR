@@ -1,5 +1,3 @@
-// sprite-v2/api.ts - Public API for sprite retrieval
-
 import type { GetSpriteParams, SpriteState, SpriteConfig, SpriteCategory, SpriteItem } from './types';
 import { normalizeKey, baseNameOf } from './utils';
 import { buildVariantFromMutations, renderMutatedTexture } from './renderer';
@@ -143,17 +141,14 @@ export function getSpriteWithMutations(params: GetSpriteParams, state: SpriteSta
     return tex;
   }
 
-  // Check cache first to avoid re-rendering
   const cacheKey = `${it.key}|${V.sig}`;
   const cached = cacheGet(state, cacheKey);
   if (cached) {
     return cached.isAnim ? (cached.frames?.[0] ?? null) : (cached.tex ?? null);
   }
 
-  // Not cached - render it
   const rendered = renderMutatedTexture(tex, it.key, V, state, cfg);
 
-  // Cache the result for future requests
   if (rendered) {
     cacheSet(state, cfg, cacheKey, {
       isAnim: false,

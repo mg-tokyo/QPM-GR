@@ -1,5 +1,3 @@
-// src/features/roomPlayerEconomy.ts
-// Data layer for comparing economy stats across room players.
 // Reads stateAtom (userSlots + players) to extract coins, garden value,
 // inventory value, and pet count for every player in the room.
 
@@ -15,10 +13,6 @@ import { isRecord } from '../../utils/typeGuards';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
 
 const log = createLogger('QPM:RoomPlayerEcon');
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface RoomPlayerEconomy {
   playerId: string;
@@ -40,10 +34,6 @@ export interface RoomPlayersSnapshot {
   updatedAt: number;
 }
 
-// ---------------------------------------------------------------------------
-// Module state
-// ---------------------------------------------------------------------------
-
 let started = false;
 let stateAtomUnsub: (() => void) | null = null;
 let debouncedUpdate: ((() => void) & { cancel: () => void }) | null = null;
@@ -53,10 +43,6 @@ let currentSnapshot: RoomPlayersSnapshot = { self: null, others: [], updatedAt: 
 const listeners = new Set<(snap: RoomPlayersSnapshot) => void>();
 
 let slotEconomyCache = new WeakMap<object, RoomPlayerEconomy>();
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function readPath(obj: unknown, path: string[]): unknown {
   let cur: unknown = obj;
@@ -73,12 +59,10 @@ function notifyListeners(): void {
   }
 }
 
-/** Resolve the local player's ID from playerAtom. */
 async function resolveSelfPlayerId(): Promise<string | null> {
   return getPlayerId();
 }
 
-/** Extract economy data from a single userSlot. */
 function extractSlotEconomy(
   slot: Record<string, unknown>,
   slotIndex: number,
@@ -90,44 +74,36 @@ function extractSlotEconomy(
   const data = isRecord(slot.data) ? slot.data as Record<string, unknown> : null;
   if (!data) return null;
 
-  // Coins
   const coins = typeof data.coinsCount === 'number' ? data.coinsCount : 0;
   const fb = getFriendBonusMultiplier();
 
-  // Garden value — data.garden has { tileObjects, boardwalkTileObjects }
   const garden = isRecord(data.garden) ? data.garden : null;
   const gardenSnap = garden as { tileObjects?: Record<string, unknown>; boardwalkTileObjects?: Record<string, unknown> } | null;
   const gardenValue = gardenSnap
     ? computeGardenValueFromCatalog(gardenSnap, fb)
     : 0;
 
-  // Placed decor/egg value + growing crops value (from garden tiles)
   const placedDecorValue = gardenSnap ? computePlacedDecorAndEggValue(gardenSnap) : 0;
   const growingCropsValue = gardenSnap ? computeGrowingCropsValue(gardenSnap) : 0;
 
-  // Inventory value — data.inventory.items
   const inventory = isRecord(data.inventory) ? data.inventory : null;
   const invItems = Array.isArray(inventory?.items) ? (inventory!.items as unknown[]) : [];
   const inventoryValue = computeStorageItemsValue(invItems, fb);
 
-  // Storage buildings value (Seed Silo, Pet Hutch, Decor Shed) — building price + contents
   const storages = Array.isArray(inventory?.storages) ? (inventory!.storages as unknown[]) : [];
   let storageValueTotal = 0;
   for (const s of storages) {
     if (!s || typeof s !== 'object') continue;
     const rec = s as Record<string, unknown>;
-    // Building's own purchase price
     const decorId = typeof rec.decorId === 'string' ? rec.decorId : '';
     if (decorId) {
       const entry = getDecor(decorId);
       if (entry) storageValueTotal += Number.isFinite(entry.coinPrice) ? entry.coinPrice : 0;
     }
-    // Items inside
     const storageItems = Array.isArray(rec.items) ? (rec.items as unknown[]) : [];
     storageValueTotal += computeStorageItemsValue(storageItems, fb);
   }
 
-  // Active pets — count + sell value
   const petSlots = Array.isArray(data.petSlots) ? data.petSlots : [];
   const activePets = petSlots.filter((s) => s != null).length;
   let activePetsValueTotal = 0;
@@ -160,7 +136,6 @@ function extractSlotEconomy(
 
   const petCount = activePets + inventoryPets + hutchPets;
 
-  // Display name
   const displayName = playerNameMap.get(playerId) ?? `Player ${playerId.slice(0, 6)}`;
 
   return {
@@ -170,12 +145,10 @@ function extractSlotEconomy(
   };
 }
 
-/** Rebuild snapshot from stateAtom value. */
 function rebuildSnapshot(stateValue: unknown): void {
   const userSlots = readPath(stateValue, ['child', 'data', 'userSlots']);
   const players = readPath(stateValue, ['data', 'players']);
 
-  // Build player name map
   const nameMap = new Map<string, string>();
   if (Array.isArray(players)) {
     for (const p of players) {
@@ -222,10 +195,6 @@ function rebuildSnapshot(stateValue: unknown): void {
   notifyListeners();
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 export function getRoomPlayersSnapshot(): RoomPlayersSnapshot {
   return currentSnapshot;
 }
@@ -239,7 +208,6 @@ export async function startRoomPlayerEconomy(): Promise<() => void> {
   if (started) return stopRoomPlayerEconomy;
   started = true;
 
-  // Resolve self player ID
   selfPlayerId = await resolveSelfPlayerId();
 
   const stateAtom = getAtomByLabel('stateAtom');
@@ -267,7 +235,6 @@ export async function startRoomPlayerEconomy(): Promise<() => void> {
     return () => {};
   }
 
-  // Initial read
   debouncedUpdate();
 
   return stopRoomPlayerEconomy;

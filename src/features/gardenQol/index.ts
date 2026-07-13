@@ -1,6 +1,3 @@
-// src/features/gardenQol/index.ts
-// Public API for garden QOL features (insta-harvest, aries hold).
-
 import { startAriesHold, stopAriesHold } from './ariesHold';
 import { startInstaAction, stopInstaAction } from './instaAction';
 import { startInstaHarvest, stopInstaHarvest } from './instaHarvest';

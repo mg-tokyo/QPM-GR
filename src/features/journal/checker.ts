@@ -1,7 +1,3 @@
-// src/features/journalChecker.ts
-// Journal Checker: Shows what's missing from the player's journal
-// Organized by categories (produce variants, pet variants, pet abilities)
-
 import { readAtomValue } from '../../core/atomRegistry';
 import { getPlayerId } from '../../core/playerContext';
 import { log } from '../../utils/logger';
@@ -57,10 +53,6 @@ const resolveVariantKey = (raw: string): string => {
   return aliases[key] ?? key;
 };
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export type ProduceVariantLog = { variant: string; createdAt?: number };
 export type PetVariantLog = { variant: string; createdAt?: number };
 export type PetAbilityLog = { ability: string; createdAt?: number };
@@ -95,23 +87,13 @@ export type JournalSummary = {
   }[];
 };
 
-// ============================================================================
-// Game Data Catalog
-// ============================================================================
-
-/**
- * Dynamically generate produce catalog from game catalogs
- * Automatically supports new plant species without code changes
- */
 function getProduceCatalog(): Record<string, string[]> {
   const catalog: Record<string, string[]> = {};
 
-  // Check the catalogs this function actually needs
   const mutCatalog = getMutationCatalog();
   const species = getAllPlantSpecies(); // returns [] if plantCatalog is null
   if (!mutCatalog || species.length === 0) return catalog;
 
-  // Build variant list dynamically using display names from mutation catalog
   const variants: string[] = ['Normal'];
 
   for (const [key, entry] of Object.entries(mutCatalog)) {
@@ -123,7 +105,6 @@ function getProduceCatalog(): Record<string, string[]> {
   // Add max weight (always present in journal system)
   variants.push('Max Weight');
 
-  // Assign variants to all species
   for (const speciesName of species) {
     catalog[speciesName] = variants.slice();
   }
@@ -134,10 +115,6 @@ function getProduceCatalog(): Record<string, string[]> {
 // Pet journal only tracks these four. Unlike produce, plant mutations don't apply to pets.
 const PET_JOURNAL_VARIANTS = ['Normal', 'Gold', 'Rainbow', 'Max Weight'] as const;
 
-/**
- * Dynamically generate pet catalog from game catalogs.
- * Pets only have 4 journal variants (Normal, Gold, Rainbow, Max Weight).
- */
 function getPetCatalog(): Record<string, string[]> {
   const catalog: Record<string, string[]> = {};
   const species = getAllPetSpecies(); // returns [] if petCatalog is null
@@ -148,21 +125,10 @@ function getPetCatalog(): Record<string, string[]> {
   return catalog;
 }
 
-// ============================================================================
-// State
-// ============================================================================
-
 let cachedJournal: Journal | null = null;
 let lastFetchTime = 0;
-const CACHE_DURATION_MS = 5000; // Cache for 5 seconds
+const CACHE_DURATION_MS = 5000;
 
-// ============================================================================
-// Core Functions
-// ============================================================================
-
-/**
- * Extract journal from state atom
- */
 async function fetchJournalFromState(): Promise<Journal | null> {
   try {
     const state = await readAtomValue('state') as any;
@@ -179,7 +145,6 @@ async function fetchJournalFromState(): Promise<Journal | null> {
 
     jdbg(`[JOURNAL-DEBUG] Current player ID: ${playerId}`);
 
-    // Find slot for current player
     const slots = state?.child?.data?.userSlots || [];
     jdbg(`[JOURNAL-DEBUG] Found ${Array.isArray(slots) ? slots.length : Object.keys(slots || {}).length} slots (isArray: ${Array.isArray(slots)})`);
 
@@ -205,7 +170,6 @@ async function fetchJournalFromState(): Promise<Journal | null> {
       return null;
     }
 
-    // Extract journal
     const journal = playerSlot?.data?.journal || playerSlot?.journal;
     if (!journal || typeof journal !== 'object') {
       log('ℹ️ No journal data found for player');
@@ -229,9 +193,6 @@ async function fetchJournalFromState(): Promise<Journal | null> {
   }
 }
 
-/**
- * Normalize journal data
- */
 function normalizeJournal(raw: any): Journal {
   const journal: Journal = {};
 
@@ -283,9 +244,6 @@ function normalizeJournal(raw: any): Journal {
   return journal;
 }
 
-/**
- * Get journal with caching
- */
 export async function getJournal(): Promise<Journal | null> {
   const now = Date.now();
   if (cachedJournal && now - lastFetchTime < CACHE_DURATION_MS) {
@@ -301,9 +259,6 @@ export async function getJournal(): Promise<Journal | null> {
   return journal;
 }
 
-/**
- * Generate journal summary with missing items
- */
 export async function getJournalSummary(): Promise<JournalSummary | null> {
   const journal = await getJournal();
   if (!journal) return null;
@@ -323,7 +278,6 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
     petLogByKey.set(normalizeKey(species), data);
   });
 
-  // Process produce
   const produceCatalog = getProduceCatalog();
   for (const [species, possibleVariants] of Object.entries(produceCatalog)) {
     const speciesLog = produceLogByKey.get(resolveProduceKey(species));
@@ -335,9 +289,8 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
       }
     }
 
-    // Ensure possibleVariants is actually an array of strings
     if (!Array.isArray(possibleVariants)) {
-      continue; // Skip if not an array
+      continue;
     }
 
     summary.produce.push({
@@ -362,9 +315,8 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
       }
     }
 
-    // Ensure possibleVariants is actually an array of strings
     if (!Array.isArray(possibleVariants)) {
-      continue; // Skip if not an array
+      continue;
     }
 
     summary.pets.push({
@@ -380,9 +332,6 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
   return summary;
 }
 
-/**
- * Get statistics about journal completion
- */
 export async function getJournalStats(): Promise<{
   produce: { collected: number; total: number; percentage: number; typesCollected: number; typesTotal: number };
   petVariants: { collected: number; total: number; percentage: number };
@@ -398,7 +347,6 @@ export async function getJournalStats(): Promise<{
   let cropTypesCollected = 0;
   const cropTypesTotal = summary.produce.length;
 
-  // Count produce
   for (const species of summary.produce) {
     let speciesHasVariant = false;
     for (const variant of species.variants) {
@@ -444,9 +392,6 @@ export async function getJournalStats(): Promise<{
   };
 }
 
-/**
- * Refresh journal cache
- */
 export function refreshJournalCache(): void {
   cachedJournal = null;
   lastFetchTime = 0;

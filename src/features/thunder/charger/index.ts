@@ -1,9 +1,6 @@
-// src/features/thunder/charger/index.ts
-// Tracks Thundercharger ability cooldowns per ThunderWolf.
-// Listens for 'thundercharge' activity log entries and maintains per-pet
-// cooldown timers. Prefers live PetSlot.abilityCooldowns['Thundercharger'] when
-// present (server-authoritative remaining ms); falls back to derived timestamp
-// math otherwise. Mirrors the DawnCapture pattern in src/features/dawn/capture/.
+// Tracks Thundercharger ability cooldowns per ThunderWolf, preferring live
+// PetSlot.abilityCooldowns over derived timestamp math. Mirrors DawnCapture
+// (src/features/dawn/capture/).
 
 import { log } from '../../../utils/logger';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
@@ -15,9 +12,7 @@ import {
   THUNDERCHARGER_COOLDOWN_MS,
 } from './constants';
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export interface ThunderchargerPetState {
   petSlotId: string;
@@ -37,9 +32,7 @@ export interface ThunderchargerSnapshot {
   sessionAffectedCrops: number;
 }
 
-// ---------------------------------------------------------------------------
 // State
-// ---------------------------------------------------------------------------
 
 const perPet = new Map<string, ThunderchargerPetState>();
 let isThunderstormActive = false;
@@ -54,9 +47,7 @@ let initialized = false;
 
 const listeners = new Set<(snapshot: ThunderchargerSnapshot) => void>();
 
-// ---------------------------------------------------------------------------
 // Snapshot
-// ---------------------------------------------------------------------------
 
 function buildSnapshot(): ThunderchargerSnapshot {
   return {
@@ -78,9 +69,7 @@ function emit(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Activity log processing
-// ---------------------------------------------------------------------------
 
 function processActivityLogs(rawValue: unknown): void {
   if (!rawValue || typeof rawValue !== 'object') return;
@@ -143,9 +132,7 @@ function processActivityLogs(rawValue: unknown): void {
   if (changed) emit();
 }
 
-// ---------------------------------------------------------------------------
 // Live cooldown sync (prefer server-authoritative value from PetSlot atom)
-// ---------------------------------------------------------------------------
 
 function syncLiveCooldownsFromPets(): void {
   let changed = false;
@@ -178,9 +165,7 @@ function syncLiveCooldownsFromPets(): void {
   if (changed) emit();
 }
 
-// ---------------------------------------------------------------------------
 // Weather tracking
-// ---------------------------------------------------------------------------
 
 function handleWeather(snapshot: WeatherSnapshot): void {
   const nowThunder = snapshot.kind === 'thunderstorm';
@@ -190,9 +175,7 @@ function handleWeather(snapshot: WeatherSnapshot): void {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 export function startThunderchargerTracker(): void {
   if (initialized) return;
@@ -255,12 +238,7 @@ export function getThunderchargerSnapshot(): ThunderchargerSnapshot {
   return buildSnapshot();
 }
 
-/**
- * Get remaining cooldown in ms for a specific pet.
- * Prefers live PetSlot.abilityCooldowns value when present (server-authoritative);
- * falls back to derived `cooldownMs - (now - lastActivation)`.
- * Returns 0 if ready or no record.
- */
+/** Remaining cooldown ms; prefers live PetSlot.abilityCooldowns over derived math. */
 export function getCooldownRemainingMs(petSlotId: string): number {
   const pet = perPet.get(petSlotId);
   if (!pet) return 0;

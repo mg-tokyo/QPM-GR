@@ -1,9 +1,4 @@
-// src/features/chargedAbilities/grouping.ts
-// Collapse identical pet snapshots into groups for display.
-//
-// Two Ostriches both ready with the same DawnCapture footprint render once
-// as "Ostrich × 2" instead of two identical cards. The mount button on a
-// grouped card mounts the first unmounted member.
+// Collapses identical pet snapshots into groups (e.g. "Ostrich × 2") so duplicate cards aren't shown.
 
 import type { PetAbilityTargetSnapshot } from './types';
 

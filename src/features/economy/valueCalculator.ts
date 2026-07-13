@@ -1,6 +1,3 @@
-// src/features/valueCalculator.ts
-// Utility helpers for computing garden-related values derived from live tile data.
-
 import type { GardenSnapshot } from '../garden/bridge';
 import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { getCropBaseSellPrice, getPlantSpecies } from '../../catalogs/gameCatalogs';

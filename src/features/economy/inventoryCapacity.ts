@@ -1,7 +1,3 @@
-// src/features/inventoryCapacity.ts
-// Tracks inventory slot usage and emits state changes for the overlay.
-// Optionally plays sound alerts when the warning or full threshold is crossed.
-
 import { getInventoryItems, onInventoryChange } from '../../store/inventory';
 import { storage } from '../../utils/storage';
 import { log } from '../../utils/logger';
@@ -13,10 +9,6 @@ import {
   isBuiltinSound,
 } from '../../ui/shop/restockAlerts/soundEngine';
 
-// ---------------------------------------------------------------------------
-// Sound alert config types
-// ---------------------------------------------------------------------------
-
 export interface SoundAlertConfig {
   soundId: string;
   mode: 'once' | 'loop';
@@ -24,10 +16,7 @@ export interface SoundAlertConfig {
   intervalMs: number;    // loop repeat interval in ms, default 3000
 }
 
-// ---------------------------------------------------------------------------
-// Custom sounds CRUD (separate key — base64 can be large)
-// ---------------------------------------------------------------------------
-
+// Custom sounds use a separate storage key — base64 can be large.
 export interface CustomSoundEntry {
   name: string;
   dataUrl: string;
@@ -65,10 +54,6 @@ export function removeInvCapacityCustomSound(id: string): void {
   delete all[id];
   writeCustomSounds(all);
 }
-
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
 
 export interface InventoryCapacityConfig {
   enabled: boolean;
@@ -166,10 +151,6 @@ export function subscribeToInventoryCapacityConfig(listener: ConfigListener): ()
   return () => { configListeners.delete(listener); };
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
 export type InventoryCapacityLevel = 'ok' | 'warning' | 'full';
 
 export interface InventoryCapacityState {
@@ -190,10 +171,6 @@ function computeLevel(count: number, cfg: InventoryCapacityConfig): InventoryCap
   return 'ok';
 }
 
-// ---------------------------------------------------------------------------
-// Sound triggers
-// ---------------------------------------------------------------------------
-
 const LOOP_KEY_WARNING = 'inv-capacity-warning';
 const LOOP_KEY_FULL = 'inv-capacity-full';
 
@@ -207,21 +184,18 @@ function triggerSound(soundCfg: SoundAlertConfig, loopKey: string): void {
   const customs = getInvCapacityCustomSounds();
   const dataUrl = custom ? customs[soundCfg.soundId]?.dataUrl : undefined;
 
-  // Play once immediately
   if (custom && dataUrl) {
     void playCustomSound(dataUrl, soundCfg.volume);
   } else if (!custom) {
     void playSound(soundCfg.soundId, soundCfg.volume);
   }
 
-  // Start loop if configured
   if (soundCfg.mode === 'loop') {
     startLoop(loopKey, soundCfg.soundId, soundCfg.volume, custom, dataUrl, soundCfg.intervalMs);
   }
 }
 
 function handleSoundOnLevelChange(prevLevel: InventoryCapacityLevel, newLevel: InventoryCapacityLevel): void {
-  // Always stop existing loops when level changes
   stopAllCapacitySounds();
 
   if (newLevel === 'ok') return;
@@ -232,10 +206,6 @@ function handleSoundOnLevelChange(prevLevel: InventoryCapacityLevel, newLevel: I
   const loopKey = newLevel === 'full' ? LOOP_KEY_FULL : LOOP_KEY_WARNING;
   triggerSound(soundCfg, loopKey);
 }
-
-// ---------------------------------------------------------------------------
-// Recompute
-// ---------------------------------------------------------------------------
 
 function recompute(): void {
   const count = getInventoryItems().length;
@@ -267,10 +237,6 @@ export function onInventoryCapacityChange(listener: StateListener): () => void {
   try { listener(getInventoryCapacityState()); } catch (err) { log('[InventoryCapacity] state listener error', err); }
   return () => { stateListeners.delete(listener); };
 }
-
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 
 let unsubInventory: (() => void) | null = null;
 

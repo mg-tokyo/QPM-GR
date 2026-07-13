@@ -1,11 +1,7 @@
-// KTX2 decoder pool — reuses the game's own compiled worker + wasm.
-//
-// At runtime we discover the hashed asset URLs on the game origin
-// (`ktx2.worker-<hash>.js`, `libktx-<hash>.wasm`), fetch the wasm bytes on the
-// main thread, spawn the game's worker file ourselves, and drive it with the
-// game's own message protocol requesting `rgba8unorm` output. See
-// `.claude/plans/2026-07-08-ktx2-libktx-port.md` for the protocol contract and
-// the live-probe evidence that established it.
+// KTX2 decoder pool — discovers the game's hashed worker/wasm URLs (`ktx2.worker-<hash>.js`,
+// `libktx-<hash>.wasm`), fetches wasm on the main thread, spawns the game's worker, and drives
+// it with the game's own message protocol requesting `rgba8unorm` output. Protocol contract +
+// live-probe evidence: `.claude/plans/2026-07-08-ktx2-libktx-port.md`.
 
 import { discoverGameAssets, type GameAssetHit } from '../../utils/gameAssetDiscovery';
 import type {

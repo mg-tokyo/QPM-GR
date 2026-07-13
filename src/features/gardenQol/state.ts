@@ -1,6 +1,4 @@
-// src/features/gardenQol/state.ts
-// Persisted config for garden QOL features (insta-harvest, aries hold).
-// Migrates QOL fields from the old locker config on first read.
+// Persisted config for garden QOL features; migrates QOL fields from the old locker config on first read.
 
 import { storage } from '../../utils/storage';
 import type { GardenQolConfig, HoldContexts } from './types';
@@ -64,7 +62,6 @@ function migrateFromLocker(): GardenQolConfig | null {
   const lockerRaw = storage.get<unknown>(LOCKER_KEY, null);
   if (!isRecord(lockerRaw)) return null;
 
-  // Only migrate if old config has QOL fields
   const hasQol = 'instaHarvestRainbow' in lockerRaw
     || 'instaHarvestGold' in lockerRaw
     || 'ariesHold' in lockerRaw

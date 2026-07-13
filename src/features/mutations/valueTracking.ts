@@ -1,4 +1,3 @@
-// src/features/mutationValueTracking.ts
 // Tracks gold/rainbow/crop boost generation rates per hour and session value.
 
 import { getAbilityHistorySnapshot } from '../../store/abilityLogs';
@@ -26,18 +25,13 @@ const KNOWN_GRANTER_IDS = new Set([
   'ProduceMutationBoostII',
 ]);
 
-/**
- * Get mutation value dynamically from catalog (FUTUREPROOF!)
- * Falls back to conservative estimate based on multiplier
- */
+/** Mutation value from catalog; falls back to a 5000×multiplier estimate. */
 function getMutationValue(mutationId: string): number {
-  // Try catalog first
   const catalogValue = calculateMutationValue(mutationId);
   if (catalogValue !== null) return catalogValue;
 
-  // Fallback to conservative estimate based on multiplier
   const multiplier = getMutationMultiplier(mutationId);
-  return Math.floor(5000 * multiplier); // 5000 * multiplier as fallback
+  return Math.floor(5000 * multiplier);
 }
 
 export interface DiscoveredAbilityStats {
@@ -50,29 +44,24 @@ export interface DiscoveredAbilityStats {
 }
 
 export interface MutationValueStats {
-  // Gold mutations
   goldProcs: number;
   goldPerHour: number;
   goldTotalValue: number;
   goldLastProcAt: number | null;
 
-  // Rainbow mutations
   rainbowProcs: number;
   rainbowPerHour: number;
   rainbowTotalValue: number;
   rainbowLastProcAt: number | null;
 
-  // Crop size boosts
   cropBoostProcs: number;
   cropBoostPerHour: number;
   cropBoostTotalValue: number;
   cropBoostLastProcAt: number | null;
 
-  // Session totals
-  sessionValue: number; // Total value generated this session
+  sessionValue: number;
   sessionStart: number;
 
-  // Best sessions
   bestHourValue: number;
   bestHourTime: number | null;
   bestSessionValue: number;
@@ -94,7 +83,7 @@ export interface SessionHistory {
 export interface MutationValueSnapshot {
   stats: MutationValueStats;
   sessions: SessionHistory[];
-  hourlyBreakdown: Map<number, number>; // Hour of day (0-23) -> avg value
+  hourlyBreakdown: Map<number, number>; // hour of day (0-23) -> avg value
   updatedAt: number;
 }
 
@@ -221,34 +210,30 @@ function recalculateStats(): void {
   const duration = Math.max(1, now - sessionStart);
   const hours = duration / HOUR_MS;
 
-  // Get dynamic ability valuations based on current garden state
   const context = buildAbilityValuationContext();
   const goldEffect = resolveDynamicAbilityEffect('GoldGranter', context, null);
   const rainbowEffect = resolveDynamicAbilityEffect('RainbowGranter', context, null);
   const cropBoostEffect1 = resolveDynamicAbilityEffect('ProduceScaleBoost', context, null);
   const cropBoostEffect2 = resolveDynamicAbilityEffect('ProduceScaleBoostII', context, null);
 
-  // Use dynamic values or fallback to catalog-based estimates
   const goldValue = goldEffect?.effectPerProc || getMutationValue('Gold');
   const rainbowValue = rainbowEffect?.effectPerProc || getMutationValue('Rainbow');
-  const cropBoost1Value = cropBoostEffect1?.effectPerProc || getMutationValue('Rainbow'); // Crop boost uses similar multiplier
-  const cropBoost2Value = cropBoostEffect2?.effectPerProc || getMutationValue('Rainbow'); // Crop boost uses similar multiplier
+  // Crop boost uses the Rainbow multiplier as its value basis
+  const cropBoost1Value = cropBoostEffect1?.effectPerProc || getMutationValue('Rainbow');
+  const cropBoost2Value = cropBoostEffect2?.effectPerProc || getMutationValue('Rainbow');
 
-  // Count gold granters
   const goldData = countAbilityProcs('GoldGranter', sessionStart);
   snapshot.stats.goldProcs = goldData.count;
   snapshot.stats.goldLastProcAt = goldData.lastProcAt;
   snapshot.stats.goldTotalValue = goldData.count * goldValue;
   snapshot.stats.goldPerHour = hours > 0 ? goldData.count / hours : 0;
 
-  // Count rainbow granters
   const rainbowData = countAbilityProcs('RainbowGranter', sessionStart);
   snapshot.stats.rainbowProcs = rainbowData.count;
   snapshot.stats.rainbowLastProcAt = rainbowData.lastProcAt;
   snapshot.stats.rainbowTotalValue = rainbowData.count * rainbowValue;
   snapshot.stats.rainbowPerHour = hours > 0 ? rainbowData.count / hours : 0;
 
-  // Count crop boosts
   const cropBoostData1 = countAbilityProcs('ProduceScaleBoost', sessionStart);
   const cropBoostData2 = countAbilityProcs('ProduceScaleBoostII', sessionStart);
   const totalCropBoosts = cropBoostData1.count + cropBoostData2.count;
@@ -256,7 +241,6 @@ function recalculateStats(): void {
     ? Math.max(cropBoostData1.lastProcAt, cropBoostData2.lastProcAt)
     : (cropBoostData1.lastProcAt || cropBoostData2.lastProcAt);
 
-  // Calculate weighted average for crop boost (ProduceScaleBoost vs II)
   const cropBoostTotalValue =
     (cropBoostData1.count * cropBoost1Value) +
     (cropBoostData2.count * cropBoost2Value);
@@ -266,7 +250,6 @@ function recalculateStats(): void {
   snapshot.stats.cropBoostTotalValue = cropBoostTotalValue;
   snapshot.stats.cropBoostPerHour = hours > 0 ? totalCropBoosts / hours : 0;
 
-  // Auto-discover and count extra granter abilities (SnowGranter, AmberGranter, etc.)
   const extraGranterIds = discoverExtraGranterAbilities();
   const extraGranterValues = buildExtraGranterValues(extraGranterIds, context);
   const newDiscovered: Record<string, DiscoveredAbilityStats> = {};
@@ -287,17 +270,14 @@ function recalculateStats(): void {
   }
   snapshot.stats.discoveredAbilityStats = newDiscovered;
 
-  // Calculate session value (includes all discovered granters)
   snapshot.stats.sessionValue =
     snapshot.stats.goldTotalValue +
     snapshot.stats.rainbowTotalValue +
     snapshot.stats.cropBoostTotalValue +
     extraTotalValue;
 
-  // Calculate hourly breakdown
   calculateHourlyBreakdown(context, extraGranterIds, extraGranterValues);
 
-  // Update best hour/session
   const currentHourValue = calculateCurrentHourValue(now, context, extraGranterIds, extraGranterValues);
   if (currentHourValue > snapshot.stats.bestHourValue) {
     snapshot.stats.bestHourValue = currentHourValue;
@@ -326,7 +306,6 @@ function calculateCurrentHourValue(
   const cropBoostData1 = countAbilityProcs('ProduceScaleBoost', oneHourAgo);
   const cropBoostData2 = countAbilityProcs('ProduceScaleBoostII', oneHourAgo);
 
-  // Get dynamic values
   const goldEffect = resolveDynamicAbilityEffect('GoldGranter', context, null);
   const rainbowEffect = resolveDynamicAbilityEffect('RainbowGranter', context, null);
   const cropBoostEffect1 = resolveDynamicAbilityEffect('ProduceScaleBoost', context, null);
@@ -359,7 +338,6 @@ function calculateHourlyBreakdown(
 ): void {
   const hourlyTotals = new Map<number, {value: number, count: number}>();
 
-  // Get dynamic ability values based on current garden state
   const goldEffect = resolveDynamicAbilityEffect('GoldGranter', context, null);
   const rainbowEffect = resolveDynamicAbilityEffect('RainbowGranter', context, null);
   const cropBoostEffect1 = resolveDynamicAbilityEffect('ProduceScaleBoost', context, null);
@@ -398,7 +376,6 @@ function calculateHourlyBreakdown(
     }
   }
 
-  // Calculate averages
   snapshot.hourlyBreakdown = new Map();
   for (const [hour, data] of hourlyTotals) {
     snapshot.hourlyBreakdown.set(hour, data.value / Math.max(1, data.count));
@@ -409,7 +386,6 @@ function endCurrentSession(): void {
   const now = Date.now();
   const today = new Date(now).toISOString().split('T')[0]!;
 
-  // Save current session
   if (snapshot.stats.sessionValue > 0 || snapshot.stats.goldProcs + snapshot.stats.rainbowProcs + snapshot.stats.cropBoostProcs > 0) {
     snapshot.sessions.push({
       date: today,
@@ -420,7 +396,6 @@ function endCurrentSession(): void {
       duration: now - snapshot.stats.sessionStart,
     });
 
-    // Keep only last 30 sessions
     if (snapshot.sessions.length > 30) {
       snapshot.sessions = snapshot.sessions.slice(-30);
     }
@@ -466,16 +441,14 @@ function serializeSnapshot(): PersistedSnapshot {
 function restoreSnapshot(persisted: PersistedSnapshot | null): void {
   if (!persisted || persisted.version !== 1) return;
 
-  // Only restore best records - all session data starts fresh
+  // Only restore best records and session history; current-session stats start fresh
   snapshot.stats.bestHourValue = persisted.stats.bestHourValue || 0;
   snapshot.stats.bestHourTime = persisted.stats.bestHourTime || null;
   snapshot.stats.bestSessionValue = persisted.stats.bestSessionValue || 0;
   snapshot.stats.bestSessionTime = persisted.stats.bestSessionTime || null;
 
-  // Keep session history for trends
   snapshot.sessions = persisted.sessions || [];
 
-  // Reset session start to now (current session only)
   snapshot.stats.sessionStart = Date.now();
   snapshot.updatedAt = Date.now();
 }
@@ -502,22 +475,19 @@ export function initializeMutationValueTracking(): void {
     console.error('[mutationValueTracking] Failed to restore:', error);
   }
 
-  // Recalculate on init (prime the event count baseline)
   lastAbilityEventCount = getTotalAbilityEventCount();
   recalculateStats();
 
-  // Recalculate periodically — only when new ability events have been logged.
-  // Skips the full history scan, catalog lookups, and notifyListeners() on idle ticks.
+  // Skips the full history scan/catalog lookups/notifyListeners() when no new procs occurred
   visibleInterval('mutation-value-recalc', () => {
     const currentCount = getTotalAbilityEventCount();
-    if (currentCount === lastAbilityEventCount) return; // No new procs — skip
+    if (currentCount === lastAbilityEventCount) return;
     lastAbilityEventCount = currentCount;
     recalculateStats();
   }, 10000);
 }
 
 export function clearAllMutationValueHistory(): void {
-  // Completely wipe all stored data
   try {
     storage.remove(STORAGE_KEY);
     log('🗑️ [MUTATION-VALUE] All history cleared from storage');
@@ -525,7 +495,6 @@ export function clearAllMutationValueHistory(): void {
     console.error('[mutationValueTracking] Failed to clear storage:', error);
   }
 
-  // Reset in-memory snapshot to defaults
   snapshot = {
     stats: {
       goldProcs: 0,
@@ -572,17 +541,14 @@ export function subscribeToMutationValueTracking(
   listener: (snapshot: MutationValueSnapshot) => void
 ): () => void {
   listeners.add(listener);
-  listener(getMutationValueSnapshot()); // Immediate callback
+  listener(getMutationValueSnapshot());
   return () => listeners.delete(listener);
 }
 
 export function resetMutationValueTracking(): void {
-  endCurrentSession(); // Save current session before reset
-
-  // Reset weather mutation tracking too
+  endCurrentSession();
   resetWeatherMutationTracking();
 
-  // Create new snapshot with fresh session start
   const newSessionStart = Date.now();
 
   snapshot = {
@@ -612,14 +578,13 @@ export function resetMutationValueTracking(): void {
     updatedAt: Date.now(),
   };
 
-  // Immediately save (don't wait for debounce)
+  // Skip debounce — save immediately after reset
   try {
     storage.set(STORAGE_KEY, serializeSnapshot());
   } catch (error) {
     console.error('[mutationValueTracking] Failed to save after reset:', error);
   }
 
-  // Notify listeners with reset state
   notifyListeners();
 
   log('✅ [MUTATION-VALUE] Reset complete - session stats cleared');
