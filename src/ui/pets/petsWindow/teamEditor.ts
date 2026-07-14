@@ -403,7 +403,7 @@ export function renderEditor(ctx: ManagerContext): void {
           usedPetIds: usedIds,
           onSelect: (petId) => {
             setTeamSlot(team.id, i as 0 | 1 | 2, petId);
-            getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => {});
+            getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => { /* decorative refresh — score uses last-known pool until next open */ });
             ctx.renderTeamList();
             ctx.renderEditor();
           },
@@ -520,7 +520,7 @@ export function renderEditor(ctx: ManagerContext): void {
           usedPetIds: usedIds,
           onSelect: (petId) => {
             setTeamSlot(team.id, i as 0 | 1 | 2, petId);
-            getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => {});
+            getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => { /* decorative refresh — score uses last-known pool until next open */ });
             ctx.renderTeamList();
             ctx.renderEditor();
           },

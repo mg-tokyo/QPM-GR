@@ -1,9 +1,9 @@
 import { pageWindow } from '../../../core/pageContext';
-import { createLogger } from '../../../utils/logger';
+import { createNamedLogger } from '../../../diagnostics/logger';
 import { getInMemoryState, onStateChange } from './store';
 import { findActiveSkin, type CustomSkinsState } from './types';
 
-const log = createLogger('QPM:CustomSkins', false);
+const log = createNamedLogger('feature:bloblingCustomiser');
 
 const COSMETIC_PATH_RE = /\/assets\/cosmetic\/([^?#]+)/;
 
@@ -53,10 +53,10 @@ async function dataUrlToResponse(
       headers: { 'Content-Type': blob.type || 'image/png' },
     });
   } catch (e) {
-    log(`decode failed for ${filename}`, e);
     const key = `${filename}::${dataUrl.slice(0, 32)}`;
     if (!decodeFailureWarned.has(key)) {
       decodeFailureWarned.add(key);
+      log.warn('QPM-BLOBLING-004', { feature: 'bloblingCustomiser', what: 'custom_skin:decode', filename }, e);
       try {
         // Dynamic import to avoid any potential init-order cycle with the
         // notifications hub — customSkins installs early in main.ts.
@@ -103,7 +103,7 @@ export function initCustomSkinsInterceptor(): () => void {
   refreshActiveMap();
   unsubscribeStateChange = onStateChange(refreshActiveMap);
 
-  log('fetch interceptor installed');
+  log.debug('fetch interceptor installed');
 
   return () => {
     if (originalFetch) {
@@ -117,6 +117,6 @@ export function initCustomSkinsInterceptor(): () => void {
     activeMap.clear();
     decodeFailureWarned.clear();
     installed = false;
-    log('fetch interceptor removed');
+    log.debug('fetch interceptor removed');
   };
 }

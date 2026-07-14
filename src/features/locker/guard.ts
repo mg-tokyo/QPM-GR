@@ -11,6 +11,14 @@ import { evaluateAction, type InventorySnapshot, type TileContext } from './rule
 import { isRecord } from '../../utils/typeGuards';
 import type { GuardResult } from './types';
 import { criticalInterval } from '../../utils/scheduling/timerManager';
+import { healthBus } from '../../diagnostics/healthBus';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { Subsystem } from '../../diagnostics/types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:lockerGuard';
+const log = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -461,16 +469,23 @@ function ensureNativeHookPatched(): void {
     patchedConnection = room;
     originalSendMessage = originalSend;
     originalTrySendMessageNow = originalTry;
-  } catch {
+    healthBus.publish({ subsystem: FEATURE_SUBSYSTEM, category: 'feature', status: 'ok' });
+  } catch (err) {
     patchedConnection = null;
     originalSendMessage = null;
     originalTrySendMessageNow = null;
+    const built = buildError('QPM-FEATURE-003', { feature: 'lockerGuard', what: 'patch' }, err);
+    log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
   }
 }
 
 // ── Public lifecycle ───────────────────────────────────────────────────────
 
 export function startNativeHook(): void {
+  if (!busRegistered) {
+    healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+    busRegistered = true;
+  }
   ensureNativeHookPatched();
   if (stopReconnectTimer) return;
   stopReconnectTimer = criticalInterval('locker-reconnect', ensureNativeHookPatched, RECONNECT_POLL_MS);

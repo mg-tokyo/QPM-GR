@@ -81,7 +81,7 @@ async function ensureAudioContext(): Promise<AudioContext | null> {
  */
 function getAudioContextSync(): AudioContext | null {
   if (audioCtx && audioCtx.state === 'suspended') {
-    void audioCtx.resume().catch(() => {});
+    void audioCtx.resume().catch(() => { /* no user gesture yet — context stays suspended */ });
   }
   return audioCtx;
 }
@@ -200,7 +200,7 @@ export async function playCustomSound(dataUrl: string, volume = 0.7): Promise<vo
     audio.volume = Math.max(0, Math.min(1, volume));
     audio.crossOrigin = 'anonymous';
     const playPromise = audio.play();
-    if (playPromise) await playPromise.catch(() => {});
+    if (playPromise) await playPromise.catch(() => { /* autoplay blocked — expected without user gesture */ });
   } catch {
     // Autoplay blocked or invalid audio data
   }

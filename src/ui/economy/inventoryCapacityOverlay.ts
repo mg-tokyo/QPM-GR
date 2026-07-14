@@ -22,6 +22,9 @@ import {
 } from '../../features/economy/inventoryCapacity';
 import { pageWindow } from '../../core/pageContext';
 import { subscribeAtomValue } from '../../core/atomRegistry';
+import { createNamedLogger } from '../../diagnostics/logger';
+
+const log = createNamedLogger('ui.inventoryCapacityOverlay');
 
 const OVERLAY_ID = 'qpm-inv-capacity-overlay';
 const FLASH_STYLE_ID = 'qpm-inv-capacity-flash-style';
@@ -240,7 +243,7 @@ function trySubscribeModal(retriesLeft = 15): void {
       }
       modalUnsub = unsub;
     })
-    .catch(() => {});
+    .catch(err => log.warn('QPM-ATOM-002', { atom: 'activeModal', op: 'subscribe' }, err));
 }
 
 function cleanupModalSubscription(): void {

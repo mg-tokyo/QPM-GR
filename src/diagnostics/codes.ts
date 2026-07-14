@@ -513,6 +513,76 @@ register({
   sinceVersion: CURRENT_VERSION,
 });
 
+// Feature: Blobling Customiser Rive preview + cosmetic pipeline (SYM-1 driver).
+// Rive preview is opaque — no user-visible error surfaces when it goes blank;
+// this cluster codes the discovery / fetch / load / asset-override steps so
+// the next URL-shape change degrades the bus row instead of going dark.
+register({
+  code: 'QPM-BLOBLING-001',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Avatar .riv URL discovery failed',
+  description: 'Neither the local player\'s avatar instance nor the seen-URL log yielded a value passing isRivUrl(). SYM-1 root cause: game v710 reshaped inst.raw.riveFileSrc from a full URL to a bare cache key; the predicate stopped matching.',
+  devNotes: 'src/features/bloblingCustomiser/avatarPreview.ts discoverAvatarRivUrl — context.hasPlayerId, context.instFound, context.seenCount surface what the discovery pass observed. If this fires after a game build, inspect the avatar instance\'s raw fields for the new URL shape and widen isRivUrl.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-BLOBLING-002',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Avatar .riv fetch failed',
+  description: 'The discovered .riv URL returned non-ok or the fetch threw. Preview cannot render; canvas stays blank.',
+  devNotes: 'src/features/bloblingCustomiser/avatarPreview.ts createPreviewAvatar — context.status (HTTP status when available) and context.what (fetch:response | fetch:exception) identify the failure mode.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-BLOBLING-003',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Rive load / artboard / renderer step failed',
+  description: 'A step in the Rive preview construction (rive.load, artboard resolution, state machine, or renderer creation) failed. Preview cannot render.',
+  devNotes: 'src/features/bloblingCustomiser/avatarPreview.ts createPreviewAvatar — context.what identifies the failing step (rive:runtime_missing | rive:load_exception | rive:load_null | artboard:default | artboard:by_index | artboard:missing | statemachine:create | renderer:make | renderer:null).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-BLOBLING-004',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Image override / asset fetch failed',
+  description: 'A cosmetic image override could not be applied — asset not captured on the file, or the CDN fetch failed. Individual slot silently falls back to the base cosmetic; other slots still render.',
+  devNotes: 'src/features/bloblingCustomiser/avatarPreview.ts setImageOnAsset — context.what identifies the failing step (asset:missing | image:fetch_response | image:fetch_exception). The image-fetch response path previously logged nothing at all; SYM-1-adjacent silent bail.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-BLOBLING-005',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Cosmetic claim failed',
+  description: 'A POST to /me/cosmetics/claim/{filename} returned non-ok or the request threw. The unowned cosmetic remains locked; user-visible via the buy/claim flow returning ok:false.',
+  devNotes: 'src/features/bloblingCustomiser/cosmeticApi.ts claimCosmetic — context.what identifies the failure (claim:no_room | claim:response | claim:exception), context.status carries HTTP status on response failure.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-BLOBLING-006',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Preset listener threw',
+  description: 'A listener registered via onPresetsChange() threw during snapshot fan-out. The presets store stays subscribed; the misbehaving subscriber\'s UI may be stale until the next update.',
+  devNotes: 'src/features/bloblingCustomiser/presets/store.ts notifyListeners — subscriber bug in the presets bar or grid picker.',
+  sinceVersion: CURRENT_VERSION,
+});
+
 register({
   code: 'QPM-BUNDLE-001',
   subsystem: 'bundle',

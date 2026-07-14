@@ -200,7 +200,7 @@ function runInjectors(container: HTMLElement): void {
   for (const fn of injectors.values()) {
     try {
       const result = fn(container);
-      if (result instanceof Promise) result.catch(() => {});
+      if (result instanceof Promise) result.catch(() => { /* per-frame rAF path; injectors own async error surfacing */ });
     } catch {
       // Isolate injector failures — never let one break the rest.
     }

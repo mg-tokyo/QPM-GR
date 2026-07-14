@@ -1,7 +1,18 @@
 import { toggleWindow } from '../core/modalWindow';
 import { t } from '../../i18n';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { watchDetach } from '../../utils/dom/dom';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:bloblingCustomiser';
+const FEATURE_NAME = 'bloblingCustomiser';
+const windowLog = createNamedLogger(FEATURE_SUBSYSTEM);
+
+function warnBlobling(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  windowLog.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 import {
   initSession, destroySession, onSessionChange,
   selectColor, cycleSlot, selectSlotByFilename, getSession,
@@ -73,7 +84,7 @@ export function openBloblingCustomiserWindow(): void {
 
       createPreviewAvatar(previewBox.canvas).then((handle) => {
         if (!handle) {
-          log('[BloblingCustomiser] Rive preview unavailable — canvas will remain empty');
+          windowLog.debug('Rive preview unavailable — canvas will remain empty');
           return;
         }
         // Inject session getter so the customSkins preview bridge can revert
@@ -92,7 +103,7 @@ export function openBloblingCustomiserWindow(): void {
           if (filename) handle.applySlot(slot, filename);
         }
       }).catch((e) => {
-        log('[BloblingCustomiser] Preview init failed:', e);
+        warnBlobling('QPM-BLOBLING-003', { what: 'preview:init_outer' }, e);
       });
 
       const unsub = onSessionChange(() => {

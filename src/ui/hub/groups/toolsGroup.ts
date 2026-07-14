@@ -13,7 +13,17 @@ export function openExternalUrl(url: string): void {
   const gmOpen = (globalThis as Record<string, unknown>).GM_openInTab as
     ((url: string, opts?: Record<string, unknown>) => unknown) | undefined;
   if (typeof gmOpen === 'function') {
-    try { gmOpen(url, { active: true }); return; } catch { /* fallback */ }
+    try {
+      const result = gmOpen(url, { active: true });
+      // Sandboxed environments (Discord Activity) return a Promise that
+      // rejects with "GM request timed out"; sync try/catch misses that.
+      if (result && typeof (result as { then?: unknown }).then === 'function') {
+        (result as Promise<unknown>).catch(() => {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        });
+      }
+      return;
+    } catch { /* fallback */ }
   }
   window.open(url, '_blank', 'noopener,noreferrer');
 }

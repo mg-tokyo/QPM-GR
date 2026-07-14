@@ -4,6 +4,12 @@ import type {
   HarvestFilterSettings, CropOverride, ScaleLockMode, FilterMode, WeatherFilterMode,
 } from './types';
 import { isRecord } from '../../utils/typeGuards';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { Subsystem } from '../../diagnostics/types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:lockerGuard';
+const log = createNamedLogger(FEATURE_SUBSYSTEM);
 
 const STORAGE_KEY = 'qpm.locker.config.v1';
 
@@ -160,7 +166,12 @@ export function subscribeLockerConfig(fn: () => void): () => void {
 
 function notifyListeners(): void {
   for (const fn of listeners) {
-    try { fn(); } catch { /* isolate listener failures */ }
+    try {
+      fn();
+    } catch (err) {
+      const built = buildError('QPM-FEATURE-004', { feature: 'lockerGuard', what: 'notify' }, err);
+      log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+    }
   }
 }
 

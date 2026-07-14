@@ -4,11 +4,45 @@
 
 import { storage, registerDynamicKey } from '../../../utils/storage';
 import { getPlayerId } from '../../../core/playerContext';
-import { log } from '../../../utils/logger';
+import { createNamedLogger } from '../../../diagnostics/logger';
+import { healthBus } from '../../../diagnostics/healthBus';
+import { buildError } from '../../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
 import {
   PRESETS_STORAGE_KEY, PRESETS_SOFT_CAP, createDefaultPresetsConfig,
   type BloblingPreset, type BloblingPresetsConfig,
 } from './types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:bloblingCustomiser';
+const FEATURE_NAME = 'bloblingCustomiser';
+const presetsLog = createNamedLogger(FEATURE_SUBSYSTEM);
+
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, {
+    category: 'feature',
+    status: 'starting',
+    message: 'Loading presets',
+  });
+}
+
+function publishReady(): void {
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message: 'Ready',
+    metrics: { presets: state.config.presets.length },
+  });
+}
+
+function warnBlobling(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  presetsLog.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 const state = {
   config: createDefaultPresetsConfig(),
@@ -23,7 +57,7 @@ function notifyListeners(): void {
     slots: { ...p.slots },
   }));
   for (const cb of state.listeners) {
-    try { cb(snapshot); } catch (e) { log('[bloblingPresets] listener threw', e); }
+    try { cb(snapshot); } catch (e) { warnBlobling('QPM-BLOBLING-006', { what: 'presets:listener' }, e); }
   }
 }
 
@@ -37,7 +71,8 @@ function saveConfig(): void {
 }
 
 export async function initBloblingPresets(): Promise<void> {
-  if (state.initialized) return;
+  ensureBusRegistered();
+  if (state.initialized) { publishReady(); return; }
   state.initialized = true;
 
   const unscoped = storage.get<BloblingPresetsConfig | null>(PRESETS_STORAGE_KEY, null);
@@ -45,7 +80,8 @@ export async function initBloblingPresets(): Promise<void> {
 
   const playerId = await getPlayerId();
   if (!playerId) {
-    log('[bloblingPresets] No playerId — using unscoped key');
+    presetsLog.debug('No playerId — using unscoped key');
+    publishReady();
     return;
   }
 
@@ -55,7 +91,7 @@ export async function initBloblingPresets(): Promise<void> {
   if (existingScoped === null) {
     if (state.config.presets.length > 0) {
       storage.set(scopedKey, state.config);
-      log(`[bloblingPresets] Migrated ${state.config.presets.length} preset(s) to scoped key`);
+      presetsLog.debug(`Migrated ${state.config.presets.length} preset(s) to scoped key`);
     }
   } else {
     if (state.config.presets.length > existingScoped.presets.length) {
@@ -68,6 +104,7 @@ export async function initBloblingPresets(): Promise<void> {
 
   state.resolvedKey = scopedKey;
   registerDynamicKey(scopedKey);
+  publishReady();
 }
 
 export function stopBloblingPresets(): void {

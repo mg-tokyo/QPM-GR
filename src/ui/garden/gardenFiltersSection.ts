@@ -89,7 +89,8 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
   // Get mutations from catalog — wait for catalogs first since the mutation catalog
   // may arrive slightly after the pet catalog (separate Object.keys() call from the game).
-  await waitForCatalogs(8000).catch(() => {});
+  // Timeout swallowed: catalogs subsystem owns CATALOG-001 on watchdog; retry loop below covers late arrivals.
+  await waitForCatalogs(8000).catch(() => { /* handled by catalogs subsystem + local retry */ });
   let mutCatalog = getMutationCatalog();
   if (!mutCatalog) {
     for (let i = 0; i < 10 && !mutCatalog; i++) {

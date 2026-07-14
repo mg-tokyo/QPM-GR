@@ -1,5 +1,3 @@
-// src/ui/trackerWindow.ts - Ability Tracker (renders inside modalWindow or hub card)
-
 import { onActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import { getAbilityDefinition, computeAbilityStats, type AbilityDefinition } from '../../features/pets/data/petAbilities';
@@ -154,10 +152,10 @@ function buildAbilityRow(
     'display:flex',
     'align-items:center',
     'gap:8px',
-    'padding:5px 0',
-    'border-top:1px solid rgba(255,255,255,0.05)',
+    'padding:6px 0',
+    'border-top:1px solid var(--qpm-divider)',
     'cursor:pointer',
-    'border-radius:3px',
+    'border-radius:4px',
     'transition:background 0.1s',
   ].join(';');
 
@@ -187,7 +185,7 @@ function buildAbilityRow(
   // Ability name
   const name = document.createElement('span');
   name.textContent = ability.def.name;
-  name.style.cssText = 'flex:1;font-size:11px;color:var(--qpm-text,#fff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  name.style.cssText = 'flex:1;font-size:12px;color:var(--qpm-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   row.appendChild(name);
 
   // Fixed-width stat columns — widths match the card column header for alignment.
@@ -195,11 +193,11 @@ function buildAbilityRow(
   if (ability.suppressRateDisplay) {
     procsChip.textContent = '—';
     procsChip.title = t('feature.abilityTracker.rateUnavailable');
-    procsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-text-muted,rgba(232,224,255,0.4));flex-shrink:0;width:52px;text-align:right;';
+    procsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-text-muted);flex-shrink:0;width:52px;text-align:right;';
   } else {
     procsChip.textContent = `${ability.procsPerHour.toFixed(1)}/hr`;
     procsChip.title = t('feature.abilityTracker.expectedProcs');
-    procsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-accent,#4CAF50);flex-shrink:0;width:52px;text-align:right;';
+    procsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-accent);flex-shrink:0;width:52px;text-align:right;';
   }
   row.appendChild(procsChip);
 
@@ -209,7 +207,7 @@ function buildAbilityRow(
   } else if (ability.coinsPerHour != null && ability.coinsPerHour > 0) {
     coinsChip.textContent = `${formatCoinsAbbreviated(ability.coinsPerHour)}/hr`;
     coinsChip.title = t('feature.abilityTracker.estimatedCoins');
-    coinsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-warning,#ffa500);flex-shrink:0;width:62px;text-align:right;';
+    coinsChip.style.cssText = 'font-size:10px;font-family:monospace;color:var(--qpm-warning);flex-shrink:0;width:62px;text-align:right;';
   } else {
     coinsChip.style.cssText = 'flex-shrink:0;width:62px;';
   }
@@ -227,7 +225,7 @@ function buildAbilityRow(
   timerEl.style.cssText = 'font-size:10px;white-space:nowrap;flex-shrink:0;width:76px;text-align:right;';
   if (ability.suppressRateDisplay) {
     timerEl.textContent = '—';
-    timerEl.style.color = 'rgba(232,224,255,0.3)';
+    timerEl.style.color = 'var(--qpm-text-muted)';
   } else {
     timerEl.dataset.timerCell = '1';
     timerEl.dataset.lastProc = lastProcAt ? String(lastProcAt) : '';
@@ -249,7 +247,7 @@ function buildAbilityRow(
 
   applyStatsVisibility();
 
-  row.addEventListener('mouseenter', () => { row.style.background = 'rgba(255,255,255,0.04)'; });
+  row.addEventListener('mouseenter', () => { row.style.background = 'var(--qpm-accent-tint)'; });
   row.addEventListener('mouseleave', () => { row.style.background = ''; });
   row.addEventListener('click', () => {
     const nowHidden = !(abilityStatsHidden.get(statsKey) ?? false);
@@ -268,20 +266,20 @@ function updateTimerCell(el: HTMLElement): void {
     const { text, isOverdue } = calculateLiveETA(lastProc, null, procsPerHour);
     if (isOverdue) {
       el.textContent = t('feature.abilityTracker.late', { time: text });
-      el.style.color = '#ef5350';
+      el.style.color = 'var(--qpm-danger)';
     } else {
       el.textContent = t('feature.abilityTracker.next', { time: text });
-      el.style.color = 'var(--qpm-accent,#4CAF50)';
+      el.style.color = 'var(--qpm-accent)';
     }
   } else if (lastProc) {
     el.textContent = formatAgo(lastProc);
-    el.style.color = 'var(--qpm-text-muted,#666)';
+    el.style.color = 'var(--qpm-text-muted)';
   } else if (procsPerHour > 0) {
     el.textContent = formatAvgInterval(procsPerHour);
-    el.style.color = 'var(--qpm-text-muted,#555)';
+    el.style.color = 'var(--qpm-text-muted)';
   } else {
     el.textContent = '—';
-    el.style.color = 'var(--qpm-text-muted,#555)';
+    el.style.color = 'var(--qpm-text-muted)';
   }
 }
 
@@ -295,10 +293,10 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
 
   const card = document.createElement('div');
   card.style.cssText = [
-    'background:var(--qpm-surface-2,#1a1a1a)',
-    'border:1px solid var(--qpm-border,#2a2a2a)',
-    'border-radius:6px',
-    'padding:10px 12px',
+    'background:var(--qpm-surface-2)',
+    'border:1px solid var(--qpm-border)',
+    'border-radius:8px',
+    'padding:12px',
     'display:flex',
     'flex-direction:column',
     'gap:4px',
@@ -324,17 +322,17 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
 
   // Pet name + strength
   const nameWrap = document.createElement('div');
-  nameWrap.style.cssText = 'display:flex;flex-direction:column;gap:1px;overflow:hidden;flex:1;';
+  nameWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px;overflow:hidden;flex:1;';
 
   const petName = document.createElement('span');
   petName.textContent = pet.name ?? pet.species ?? t('feature.abilityTracker.slot', { n: String(pet.slotIndex + 1) });
-  petName.style.cssText = 'font-size:13px;font-weight:600;color:var(--qpm-text,#fff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  petName.style.cssText = 'font-size:14px;font-weight:600;color:var(--qpm-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   nameWrap.appendChild(petName);
 
   const petMeta = document.createElement('span');
   const strText = pet.strength != null ? t('feature.abilityTracker.strValue', { value: String(pet.strength) }) : t('feature.abilityTracker.strUnknown');
   const speciesText = pet.species ? ` · ${pet.species}` : '';
-  petMeta.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#888);';
+  petMeta.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);';
   nameWrap.appendChild(petMeta);
 
   header.appendChild(nameWrap);
@@ -350,7 +348,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
           'background:rgba(255,255,255,0.07)',
           'border:1px solid rgba(255,255,255,0.12)',
           'border-radius:4px',
-          'color:var(--qpm-text-muted,#888)',
+          'color:var(--qpm-text-muted)',
           'font-size:9px',
           'cursor:pointer',
           'padding:1px 5px',
@@ -378,7 +376,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
   collapseBtn.style.cssText = [
     'background:none',
     'border:none',
-    'color:var(--qpm-text-muted,#666)',
+    'color:var(--qpm-text-muted)',
     'cursor:pointer',
     'font-size:12px',
     'padding:2px 4px',
@@ -404,17 +402,17 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
 
   const colHeaderProcs = document.createElement('span');
   colHeaderProcs.textContent = t('feature.abilityTracker.colProcs');
-  colHeaderProcs.style.cssText = 'font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;width:52px;text-align:right;';
+  colHeaderProcs.style.cssText = 'font-size:9px;color:var(--qpm-text-muted);flex-shrink:0;width:52px;text-align:right;';
   colHeader.appendChild(colHeaderProcs);
 
   const colHeaderCoins = document.createElement('span');
   colHeaderCoins.textContent = t('feature.abilityTracker.colCoins');
-  colHeaderCoins.style.cssText = 'font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;width:62px;text-align:right;';
+  colHeaderCoins.style.cssText = 'font-size:9px;color:var(--qpm-text-muted);flex-shrink:0;width:62px;text-align:right;';
   colHeader.appendChild(colHeaderCoins);
 
   const colHeaderTimer = document.createElement('span');
   colHeaderTimer.textContent = t('feature.abilityTracker.colNext');
-  colHeaderTimer.style.cssText = 'font-size:9px;color:var(--qpm-text-muted,#555);flex-shrink:0;width:76px;text-align:right;';
+  colHeaderTimer.style.cssText = 'font-size:9px;color:var(--qpm-text-muted);flex-shrink:0;width:76px;text-align:right;';
   colHeader.appendChild(colHeaderTimer);
 
   card.appendChild(colHeader);
@@ -431,7 +429,7 @@ function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): 
     if (currentVisible.length === 0) {
       const msg = document.createElement('div');
       msg.textContent = t('feature.abilityTracker.allHidden');
-      msg.style.cssText = 'font-size:10px;color:var(--qpm-text-muted,#555);font-style:italic;padding:4px 0;';
+      msg.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);font-style:italic;padding:4px 0;';
       abilitiesContainer.appendChild(msg);
     } else {
       for (const ability of currentVisible) {
@@ -523,10 +521,10 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   // Summary strip
   const summaryStrip = document.createElement('div');
   summaryStrip.style.cssText = [
-    'padding:6px 14px',
-    'font-size:11px',
-    'color:var(--qpm-text-muted,#888)',
-    'border-bottom:1px solid var(--qpm-border,#2a2a2a)',
+    'padding:6px 12px',
+    'font-size:12px',
+    'color:var(--qpm-text-muted)',
+    'border-bottom:1px solid var(--qpm-border)',
     'flex-shrink:0',
     'white-space:nowrap',
     'overflow:hidden',
@@ -541,7 +539,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   scrollContent.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;';
 
   const contentWrap = document.createElement('div');
-  contentWrap.style.cssText = 'padding:10px;display:flex;flex-direction:column;gap:8px;';
+  contentWrap.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:8px;';
 
   const cardsContainer = document.createElement('div');
   cardsContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
@@ -556,9 +554,9 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   footerHint.style.cssText = [
     'padding:4px 12px',
     'font-size:10px',
-    'color:var(--qpm-text-muted,#555)',
+    'color:var(--qpm-text-muted)',
     'text-align:center',
-    'border-top:1px solid var(--qpm-border,#1e1e1e)',
+    'border-top:1px solid var(--qpm-border)',
     'flex-shrink:0',
     'user-select:none',
   ].join(';');
@@ -616,7 +614,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
 
     if (!activePets.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted,#666);font-size:12px;';
+      empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted);font-size:12px;';
       empty.textContent = t('feature.abilityTracker.noPets');
       cardsContainer.appendChild(empty);
       return;
@@ -633,7 +631,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
 
     if (!hasCards) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted,#666);font-size:12px;';
+      empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted);font-size:12px;';
       empty.textContent = t('feature.abilityTracker.noAbilities');
       cardsContainer.appendChild(empty);
     }

@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.15",
+    date: "2026-07-14",
+    notes: [
+      "Fixed the heart and Ko-Fi buttons in the About window not opening a new tab on Discord Activity, the underlying tab-open call returns a promise that quietly times out inside the Discord iframe so the click did nothing, QPM now catches the timeout and falls back to a normal window.open",
+      "Fixed the Blobling Customiser preview canvas staying blank after the game's v710 update, the game changed its avatar file reference from a full URL to a short cache key which broke the discovery step, the preview now recognizes the new shape",
+      "Improved diagnostics coverage for the Blobling Customiser, previously silent Rive load, cosmetic claim, and image override failures now surface as coded warnings (QPM-BLOBLING-001 through 006) so a future blank preview shows up in the diagnostics window instead of going dark",
+      "Improved locker guard reporting, native hook patch failures and listener errors now flow through the diagnostics health bus with proper codes instead of being swallowed",
+      "Improved ability tracker row styling to use the shared divider and radius tokens for a slightly cleaner separator look",
+      "Improved several async catch handlers across garden filters, team editor, restock alerts, and the inventory capacity overlay so silent bail-outs either log a real diagnostic or carry an inline note explaining why the swallow is safe",
+    ],
+  },
+  {
     version: "3.3.14",
     date: "2026-07-13",
     notes: [

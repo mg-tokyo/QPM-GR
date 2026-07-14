@@ -8,10 +8,21 @@ import { listSeenRivUrls } from '../../rive-engine/fetchInterceptor';
 import type { LowLevelRive } from '../../rive-engine';
 import { readAtomValueSync } from '../../core/atomRegistry';
 import { pageWindow } from '../../core/pageContext';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { getCosmeticCdnUrl } from './cosmeticApi';
 import { SLOT_CONFIG, type SlotType, type CosmeticColor } from './types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:bloblingCustomiser';
+const FEATURE_NAME = 'bloblingCustomiser';
+const previewLog = createNamedLogger(FEATURE_SUBSYSTEM);
+
+function warnBlobling(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  previewLog.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 // Rive state machine expression index — order must match the artboard's
 // expression input (sourced from avatarRiveConstants.ts in game source).
@@ -88,17 +99,27 @@ function getLocalPlayerId(): string | null {
   return null;
 }
 
+// Game v710 changed inst.raw.riveFileSrc from a full URL to a bare cache key
+// (e.g. "quinoa-rive/avatar"). Fetching that resolves to the SPA fallback HTML,
+// which rive.load silently rejects — canvas stays blank. Only accept values
+// that look like a real .riv URL/path.
+function isRivUrl(value: unknown): value is string {
+  return typeof value === 'string' && value.endsWith('.riv');
+}
+
 function discoverAvatarRivUrl(): string | null {
   const playerId = getLocalPlayerId();
+  let instFound = false;
   if (playerId) {
     const inst = findAvatarInstanceByPlayerId(playerId);
     if (inst) {
+      instFound = true;
       const raw = inst.raw as Record<string, unknown>;
-      if (typeof raw.riveFileSrc === 'string') return raw.riveFileSrc;
+      if (isRivUrl(raw.riveFileSrc)) return raw.riveFileSrc;
       for (const key of Object.getOwnPropertyNames(raw)) {
         try {
           const val = raw[key];
-          if (typeof val === 'string' && val.includes('.riv')) return val;
+          if (isRivUrl(val)) return val;
         } catch { /* skip */ }
       }
     }
@@ -108,7 +129,11 @@ function discoverAvatarRivUrl(): string | null {
   const avatarUrl = urls.find(u => /avatar/i.test(u) && u.endsWith('.riv'));
   if (avatarUrl) return avatarUrl;
 
-  log('[BloblingCustomiser] Could not discover avatar .riv URL');
+  warnBlobling('QPM-BLOBLING-001', {
+    hasPlayerId: playerId !== null,
+    instFound,
+    seenCount: urls.length,
+  });
   return null;
 }
 
@@ -171,7 +196,7 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
     }) => unknown;
   };
   if (!rive) {
-    log('[BloblingCustomiser] Rive runtime not available');
+    warnBlobling('QPM-BLOBLING-003', { what: 'rive:runtime_missing' });
     return null;
   }
 
@@ -186,12 +211,12 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
   try {
     const res = await fetchFn(rivUrl);
     if (!res.ok) {
-      log(`[BloblingCustomiser] Failed to fetch .riv: ${res.status}`);
+      warnBlobling('QPM-BLOBLING-002', { what: 'fetch:response', status: res.status });
       return null;
     }
     bytes = new Uint8Array(await res.arrayBuffer());
   } catch (e) {
-    log('[BloblingCustomiser] .riv fetch error:', e);
+    warnBlobling('QPM-BLOBLING-002', { what: 'fetch:exception' }, e);
     return null;
   }
 
@@ -216,29 +241,29 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
   try {
     file = await rive.load(bytes, customAssetLoader) as unknown as RiveFile;
   } catch (e) {
-    log('[BloblingCustomiser] rive.load() failed:', e);
+    warnBlobling('QPM-BLOBLING-003', { what: 'rive:load_exception' }, e);
     return null;
   }
 
   if (!file) {
-    log('[BloblingCustomiser] rive.load() returned null');
+    warnBlobling('QPM-BLOBLING-003', { what: 'rive:load_null' });
     return null;
   }
 
   let artboard: RiveArtboard;
   try {
     artboard = file.defaultArtboard();
-  } catch {
+  } catch (defaultErr) {
     try {
       artboard = file.artboardByIndex(0) as RiveArtboard;
     } catch (e) {
-      log('[BloblingCustomiser] Failed to get artboard:', e);
+      warnBlobling('QPM-BLOBLING-003', { what: 'artboard:by_index', defaultErr: String(defaultErr) }, e);
       return null;
     }
   }
 
   if (!artboard) {
-    log('[BloblingCustomiser] No artboard available');
+    warnBlobling('QPM-BLOBLING-003', { what: 'artboard:missing' });
     return null;
   }
 
@@ -251,19 +276,19 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
       }).StateMachineInstance(smDef, artboard) as RiveStateMachine;
     }
   } catch (e) {
-    log('[BloblingCustomiser] State machine creation failed:', e);
+    warnBlobling('QPM-BLOBLING-003', { what: 'statemachine:create' }, e);
   }
 
   let renderer: RiveRenderer | null = null;
   try {
     renderer = rive.makeRenderer(canvas) as unknown as RiveRenderer;
   } catch (e) {
-    log('[BloblingCustomiser] makeRenderer failed:', e);
+    warnBlobling('QPM-BLOBLING-003', { what: 'renderer:make' }, e);
     return null;
   }
 
   if (!renderer) {
-    log('[BloblingCustomiser] Renderer not available');
+    warnBlobling('QPM-BLOBLING-003', { what: 'renderer:null' });
     return null;
   }
 
@@ -338,13 +363,16 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
   async function setImageOnAsset(assetName: string, imageUrl: string): Promise<void> {
     const asset = capturedAssets.get(assetName.toLowerCase());
     if (!asset?.setRenderImage) {
-      log(`[BloblingCustomiser] Asset '${assetName}' not found for image override`);
+      warnBlobling('QPM-BLOBLING-004', { what: 'asset:missing', assetName });
       return;
     }
 
     try {
       const res = await fetchFn(imageUrl);
-      if (!res.ok) return;
+      if (!res.ok) {
+        warnBlobling('QPM-BLOBLING-004', { what: 'image:fetch_response', assetName, status: res.status });
+        return;
+      }
       const imgBytes = new Uint8Array(await res.arrayBuffer());
 
       await new Promise<void>((resolve) => {
@@ -357,7 +385,7 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
         });
       });
     } catch (e) {
-      log(`[BloblingCustomiser] Image override failed for ${assetName}:`, e);
+      warnBlobling('QPM-BLOBLING-004', { what: 'image:fetch_exception', assetName }, e);
     }
   }
 
@@ -416,7 +444,7 @@ export async function createPreviewAvatar(canvas: HTMLCanvasElement): Promise<Pr
       try { renderer?.delete?.(); } catch { /* */ }
       try { (file as { delete?(): void })?.delete?.(); } catch { /* */ }
       capturedAssets.clear();
-      log('[BloblingCustomiser] Preview avatar disposed');
+      previewLog.debug('Preview avatar disposed');
     },
   };
 
@@ -467,7 +495,7 @@ export function startInWorldPreview(
 
   const inst = findAvatarInstanceByPlayerId(playerId);
   if (!inst) {
-    log('[BloblingCustomiser] In-world preview: no avatar instance');
+    previewLog.debug('In-world preview: no avatar instance');
     onEnd();
     return () => {};
   }

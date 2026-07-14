@@ -200,7 +200,7 @@ async function attemptSubscribe(): Promise<void> {
       retryCount++;
       retryTimer = window.setTimeout(() => {
         retryTimer = null;
-        attemptSubscribe().catch(() => {});
+        attemptSubscribe().catch(() => { /* retry-timer safety net; attemptSubscribe handles its own inner errors */ });
       }, RETRY_DELAY_MS);
     } else {
       log('[TooltipAtoms] Garden object atom not found after retries');

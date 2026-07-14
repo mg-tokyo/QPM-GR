@@ -60,7 +60,7 @@ const de: Dictionary = {
   // ── About window ───────────────────────────────────────────────────────────
   'about.title': 'QPM',
   'about.author': 'by tokyo.#6464',
-  'about.sponsorText': 'Support QPM on GitHub Sponsors (if u want)',
+  'about.sponsorText': 'Support QPM on Github Sponsors or Ko-Fi (if you want)',
   'about.sponsorTooltip': 'Open GitHub Sponsors',
   'about.kofiTooltip': 'Tip on Ko-fi',
 
