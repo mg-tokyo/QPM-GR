@@ -1761,6 +1761,9 @@ const fr: Dictionary = {
   'feature.chargedAbilities.window.autoOpenOverlay': '[VERIFY] Auto-open overlay',
   'feature.chargedAbilities.close': '[VERIFY] Close',
   'feature.chargedAbilities.noActivePets': '[VERIFY] No charged-ability pets active. Mount a Thunder Wolf, Hedgehog, or Ostrich to use this panel.',
+
+  // ── Sprite Customiser promo (Blobling Customiser + Garden Painter footer) ──
+  'feature.spriteCustomiserPromo.prefix': '[VERIFY] Download and edit assets further with',
 };
 
 export default fr;

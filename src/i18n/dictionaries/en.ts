@@ -1799,6 +1799,9 @@ const en: Dictionary = {
   'feature.chargedAbilities.window.autoOpenOverlay': 'Auto-open overlay',
   'feature.chargedAbilities.close': 'Close',
   'feature.chargedAbilities.noActivePets': 'No charged-ability pets active. Mount a Thunder Wolf, Hedgehog, or Ostrich to use this panel.',
+
+  // ── Sprite Customiser promo (Blobling Customiser + Garden Painter footer) ──
+  'feature.spriteCustomiserPromo.prefix': 'Download and edit assets further with',
 };
 
 export default en;

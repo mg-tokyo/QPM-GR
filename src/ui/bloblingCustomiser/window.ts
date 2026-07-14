@@ -24,6 +24,7 @@ import { renderCarouselArrows } from './carouselArrows';
 import { renderOutfitPanel } from './outfitPanel';
 import { createGridPicker } from './gridPicker';
 import { renderPresetsBar } from './presetsBar';
+import { createSpriteCustomiserPromo } from '../components/spriteCustomiserPromo';
 
 const WINDOW_ID = 'blobling-customiser';
 
@@ -63,6 +64,8 @@ export function openBloblingCustomiserWindow(): void {
       topRow.appendChild(rightCol);
 
       root.appendChild(topRow);
+
+      root.appendChild(createSpriteCustomiserPromo());
 
       // Presets bar (attached to window edge — same pattern as grid picker)
       const windowEl = root.parentElement!;

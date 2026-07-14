@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.16",
+    date: "2026-07-14",
+    notes: [
+      "Added a small footer link in the Blobling Customiser and Garden Painter windows pointing to tokyo's Sprite Customiser, so you can jump straight to the external tool to download and edit assets further",
+    ],
+  },
+  {
     version: "3.3.15",
     date: "2026-07-14",
     notes: [

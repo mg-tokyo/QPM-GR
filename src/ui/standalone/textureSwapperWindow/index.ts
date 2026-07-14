@@ -24,6 +24,7 @@ import { createButton } from '../../components/button';
 import { createToggle } from '../../components/toggle';
 import { showConfirmDialog } from '../../components/confirmDialog';
 import { renderGardenPainterPresetsBar } from './presetsBar';
+import { createSpriteCustomiserPromo } from '../../components/spriteCustomiserPromo';
 
 const GRID_OPEN_STORAGE_KEY = 'qpm.gardenPainter.gridOpen.v1';
 
@@ -144,6 +145,8 @@ function renderWindow(root: HTMLElement): void {
   resetAllBtn.title = t('feature.gardenPainter.resetAllRules');
   footerRow.append(settingsBtn, spacer, resetAllBtn);
   root.appendChild(footerRow);
+
+  root.appendChild(createSpriteCustomiserPromo());
 
   // Build slide-out asset grid.
   const browserCallbacks = {
