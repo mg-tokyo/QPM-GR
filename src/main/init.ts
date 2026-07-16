@@ -1,7 +1,8 @@
 import { ready, sleep, getGameHudRoot, getSharedDomObserverStats, initDomObserverDebugBridge } from '../utils/dom/dom';
 import { healthBus } from '../diagnostics/healthBus';
 import { waitForAriesDetection, getAriesDetectionInfo } from '../integrations/ariesDetection';
-import { log, importantLog, isVerboseLogsEnabled } from '../utils/logger';
+import { isVerboseLogsEnabled } from '../diagnostics/logger';
+import { diag, publishOk as publishInitOk, warnCore } from './_diagnostics';
 import { yieldToBrowser } from '../utils/scheduling/scheduling';
 import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from '../ui/core/originalPanel';
 import { shareGlobal } from '../core/pageContext';
@@ -34,15 +35,18 @@ import { registerPersistedItemRestockDetailOpeners } from '../ui/shop/itemRestoc
 import { startJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { runAtomHealthCheck, startAtomRegistryDiagnostics } from '../core/atomRegistry';
 import { initStateTree, startStateTreeDiagnostics } from '../core/stateTree';
-import { initializeStorage, storage } from '../utils/storage';
+import { initializeStorage, storage, startStorageDiagnostics } from '../utils/storage';
+import { startPixiSceneDiagnostics } from '../core/pixiScene';
+import { isDevModeEnabled } from '../core/devMode';
 import { isDebugGlobalsEnabled } from '../utils/debugGlobals';
 import { registerDebugBootstrap } from '../debug/debugBootstrap';
-import { visibleInterval } from '../utils/scheduling/timerManager';
+import { visibleInterval, startTimerManagerDiagnostics } from '../utils/scheduling/timerManager';
 import { TEXTURE_MANIPULATOR_ENABLED } from '../features/standalone/textureSwapper';
 import { initCustomSkins } from '../features/bloblingCustomiser/customSkins';
 import { initBloblingPresets } from '../features/bloblingCustomiser/presets/store';
 import { initGardenPainterPresets } from '../features/standalone/textureSwapper/presets/store';
 import { initRiveEngine, initRivFetchInterceptor, initCanvasRuntimeTrap } from '../rive-engine';
+import { initRiveControl } from '../features/standalone/riveControl';
 import { openTextureSwapperWindow } from '../ui/standalone/textureSwapperWindow';
 import { startShopRestockAlerts } from '../ui/shop/restockAlerts';
 import { fetchWeatherPredictions, startRestockDataDiagnostics } from '../utils/restock/dataService';
@@ -52,6 +56,7 @@ import { startCapsuleTracker } from '../features/dawn/capsule';
 import { startDawnCaptureTracker } from '../features/dawn/capture';
 import { startThunderchargerTracker } from '../features/thunder/charger';
 import { startChargedAbilities } from '../features/chargedAbilities';
+import { startSuperCleanser } from '../features/superCleanser';
 import { initDawnEconomy } from '../store/dawnEconomy';
 import { initGmExportBridge } from '../utils/gmExportBridge';
 import { startWebsocketDiagnostics } from '../websocket/api';
@@ -72,7 +77,7 @@ import { runFeaturePhases } from './phases';
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
 async function waitForGame(): Promise<void> {
-  log('Waiting for game to load...');
+  diag.debug('Waiting for game to load');
 
   await ready;
 
@@ -85,25 +90,25 @@ async function waitForGame(): Promise<void> {
     if (hudRoot) {
       const hudContent = hudRoot.querySelector('canvas, button, [data-tm-main-interface], [data-tm-hud-root], [data-tm-player-id]');
       if (hudContent) {
-        log('Game UI detected');
+        diag.debug('Game UI detected');
         return;
       }
     }
 
     const anyCanvas = document.querySelector('#App canvas');
     if (anyCanvas) {
-      log('Game UI detected');
+      diag.debug('Game UI detected');
       return;
     }
 
     await sleep(interval);
   }
 
-  log('Game UI not detected within timeout, proceeding anyway');
+  diag.debug('Game UI not detected within timeout, proceeding anyway');
 }
 
 async function initialize(): Promise<void> {
-  importantLog('Quinoa Pet Manager initializing...');
+  diag.debug('Quinoa Pet Manager initializing');
 
   // Install the canvas-runtime trap FIRST. It must be in place before the
   // game's first RiveFile constructor runs (otherwise we miss the only
@@ -112,7 +117,7 @@ async function initialize(): Promise<void> {
   try {
     disposers.canvasRuntimeTrap = initCanvasRuntimeTrap();
   } catch (error) {
-    log('[Main] canvas-runtime trap install failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'canvasRuntimeTrap' }, error);
   }
 
   // Install the .riv fetch hook next — must be in place before the game's
@@ -122,7 +127,7 @@ async function initialize(): Promise<void> {
   try {
     disposers.rivFetchInterceptor = initRivFetchInterceptor();
   } catch (error) {
-    log('[Main] .riv fetch interceptor install failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'rivFetchInterceptor' }, error);
   }
 
   registerDebugBootstrap();
@@ -141,13 +146,15 @@ async function initialize(): Promise<void> {
   startSpriteV2Diagnostics();
   startRestockDataDiagnostics();
   startBundleInfoDiagnostics();
+  startTimerManagerDiagnostics();
+  startPixiSceneDiagnostics();
 
   const cfg = buildCfg();
 
   // Initialize catalog loader (hooks Object.* methods to capture game data)
   // MUST be called early, before game code runs
   initCatalogLoader();
-  log('[Main] Catalog loader initialized');
+  diag.debug('Catalog loader initialized');
 
   // RiveEngine — start it as soon as the catalog loader is running so the
   // load wrapper has a chance to install before the game's first
@@ -159,7 +166,13 @@ async function initialize(): Promise<void> {
   try {
     disposers.riveEngine = initRiveEngine();
   } catch (error) {
-    log('[Main] RiveEngine init failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'riveEngine' }, error);
+  }
+
+  try {
+    disposers.riveControl = initRiveControl();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'riveControl' }, error);
   }
 
   // Blobling custom skins — fetch interceptor must install before the game
@@ -170,14 +183,14 @@ async function initialize(): Promise<void> {
   try {
     disposers.customSkins = initCustomSkins();
   } catch (error) {
-    log('[Main] customSkins init failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'customSkins' }, error);
   }
 
   void initBloblingPresets().catch((error) => {
-    log('[Main] bloblingPresets init failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'bloblingPresets' }, error);
   });
   void initGardenPainterPresets().catch((error) => {
-    log('[Main] gardenPainterPresets init failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'gardenPainterPresets' }, error);
   });
   // Auto reconnect disabled — no longer permitted by the game.
   // Force-disable only when a legacy user still has it flipped on; skip the
@@ -189,7 +202,7 @@ async function initialize(): Promise<void> {
   // Log when catalogs become ready (for timing analysis)
   onCatalogsReady(() => {
     const timeMs = performance.now();
-    log(`[Catalog] Catalogs ready at ${(timeMs / 1000).toFixed(1)}s after page load`);
+    diag.debug('Catalogs ready', { atSeconds: Number((timeMs / 1000).toFixed(1)) });
     if (isVerboseLogsEnabled()) {
       logCatalogStatus();
     }
@@ -205,13 +218,13 @@ async function initialize(): Promise<void> {
     if (debugGlobalsEnabled) {
       shareGlobal('Sprites', service);
     }
-    log('Sprite system v2 initialized');
+    diag.debug('Sprite system v2 initialized');
 
     // Export sprite inspector after sprites are ready
     if (debugGlobalsEnabled && typeof window !== 'undefined') {
       const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
       (targetWindow as any).inspectPetSprites = inspectPetSprites;
-      log('inspectPetSprites() available in console');
+      diag.debug('inspectPetSprites() available in console');
     }
   }).catch((err) => {
     reportSpriteV2InitFailed(err);
@@ -226,7 +239,7 @@ async function initialize(): Promise<void> {
   // features/shop/enhancer for the gate that consumes this.
   void waitForAriesDetection(3000).then((detected) => {
     const info = getAriesDetectionInfo();
-    log(`[Main] Aries detection resolved: detected=${detected} via=${info.detectedVia ?? 'n/a'}`);
+    diag.debug('Aries detection resolved', { detected: detected ? 1 : 0, via: info.detectedVia ?? 'n/a' });
   });
 
   // Install the __QPM_DOM_OBSERVER__ debug bridge for console-driven inspection
@@ -264,14 +277,14 @@ async function initialize(): Promise<void> {
     ? (cb: () => void) => requestIdleCallback(cb, { timeout: 5000 })
     : (cb: () => void) => setTimeout(cb, 2000);
   scheduleIdleHealthCheck(() => {
-    try { runAtomHealthCheck(); } catch (e) { log('Atom health check failed', e); }
+    try { runAtomHealthCheck(); } catch (e) { warnCore('QPM-INIT-001', { what: 'atomHealthCheck' }, e); }
   });
 
   // State-tree init: subscribe once to stateAtom so shop/weather/userSlots
   // reads and hutch subscribe through a memoizing fan-out. Non-fatal — if this
   // fails, atomRegistry reads fall through to the legacy label/atom paths.
   await initStateTree().catch((error) => {
-    log('State tree init failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'stateTree' }, error);
   });
 
   // Reactive subscription manager: attaches to stateTree.subscribeToPatches
@@ -292,7 +305,7 @@ async function initialize(): Promise<void> {
       subscribe: reactiveManager.subscribe.bind(reactiveManager),
     });
   } catch (error) {
-    log('Reactive manager init failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'reactiveManager' }, error);
   }
 
   // Store/feature init phases 1–9 (see phases.ts)
@@ -309,7 +322,7 @@ async function initialize(): Promise<void> {
   try {
     initLocale();
   } catch (err) {
-    console.error('[QPM][i18n] initLocale failed (non-fatal, defaulting to English):', err);
+    warnCore('QPM-INIT-001', { what: 'initLocale' }, err);
   }
 
   // OPTIMIZATION: Wait for sprite system ONLY before creating UI
@@ -334,7 +347,7 @@ async function initialize(): Promise<void> {
   try {
     startShopRestockAlerts();
   } catch (error) {
-    console.error('[QPM][ShopRestockAlerts] failed to start (non-fatal):', error);
+    warnCore('QPM-INIT-001', { what: 'shopRestockAlerts' }, error);
   }
 
   await yieldToBrowser();
@@ -347,7 +360,7 @@ async function initialize(): Promise<void> {
     startThunderchargerTracker();
     initDawnEconomy();
   } catch (error) {
-    console.error('[QPM][Dawn] Dawn features failed to start (non-fatal):', error);
+    warnCore('QPM-INIT-001', { what: 'dawnFeatures' }, error);
   }
 
   // Phase 11a — Charged Abilities (depends on pets store, garden bridge,
@@ -355,16 +368,24 @@ async function initialize(): Promise<void> {
   try {
     startChargedAbilities();
   } catch (error) {
-    console.error('[QPM][ChargedAbilities] failed to start (non-fatal):', error);
+    warnCore('QPM-INIT-001', { what: 'chargedAbilities' }, error);
+  }
+
+  // Phase 11b — Super Cleanser (reactive selector + capture-phase keydown,
+  // independent of instaAction. Depends on stateTree + atomRegistry ready.)
+  try {
+    startSuperCleanser();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'superCleanser' }, error);
   }
 
   // Phase 11b — Weather predictions (lightweight, non-blocking)
   await yieldToBrowser();
   fetchWeatherPredictions().catch((error) => {
-    log('[Main] Weather predictions fetch failed (non-fatal)', error);
+    warnCore('QPM-INIT-001', { what: 'weatherPredictions' }, error);
   });
   visibleInterval('weather-predictions-poll', () => {
-    fetchWeatherPredictions().catch(() => { /* silent retry */ });
+    fetchWeatherPredictions().catch(() => { /* silent retry — recurring per-tick refresh; next tick will re-attempt */ });
   }, 5 * 60 * 1000);
 
   initPetsWindow();
@@ -382,6 +403,12 @@ async function initialize(): Promise<void> {
   if (TEXTURE_MANIPULATOR_ENABLED) {
     registerWindowOpener('texture-swapper', openTextureSwapperWindow);
   }
+
+  // Rive Control (dev-gated window shell). Registration is unconditional so
+  // the lazy loader is ready when dev mode is enabled; the launcher in the
+  // Garden Painter footer is what dev-gates VISIBILITY.
+  const { registerRiveControlWindow } = await import('../ui/riveControl/window');
+  registerRiveControlWindow();
   registerWindowOpener('pet-hub', () => {
     const render = (root: HTMLElement) => import('../ui/pets/hubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
     toggleWindow('pet-hub', '🐾 Pet Hub', render, '1600px', '92vh');
@@ -412,12 +439,14 @@ async function initialize(): Promise<void> {
     }
   }, 1500);
 
-  importantLog('Quinoa Pet Manager initialized successfully');
+  publishInitOk('Initialized');
 }
 
 export async function bootstrap(): Promise<void> {
   installGlobalHandlers();
   await initializeStorage();
+  startStorageDiagnostics();
+  if (isDevModeEnabled()) diag.debug('Dev mode on');
   initGmExportBridge();
   await initialize();
 }

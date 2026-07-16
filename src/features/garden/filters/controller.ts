@@ -1,6 +1,6 @@
 import { storage } from '../../../utils/storage';
-import { log } from '../../../utils/logger';
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
+import { diag, ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
 import { getMapSnapshot } from '../bridge';
 import { onCatalogsReady } from '../../../catalogs/gameCatalogs';
 import { shareGlobal } from '../../../core/pageContext';
@@ -111,9 +111,9 @@ export function applyFilters(): void {
       for (const { node } of tileNodes) {
         applyFiltersToStage(node, emptySet, statsHubExcludeMutationsSet, emptySet, emptySet, stats, 0, 0);
       }
-      log(`🔍 [GARDEN-FILTERS] Exclude override: ${stats.visible} visible, ${stats.dimmed} dimmed`);
+      diag.debug(`Exclude override: ${stats.visible} visible, ${stats.dimmed} dimmed`);
     } catch (error) {
-      log('⚠️ [GARDEN-FILTERS] Error applying exclude override', error);
+      warnFeature('QPM-FEATURE-004', { what: 'applyFilters:excludeOverride' }, error);
     }
     return;
   }
@@ -154,9 +154,9 @@ export function applyFilters(): void {
           dimmed++;
         }
       }
-      log(`🔍 [GARDEN-FILTERS] Tile key override: ${visible} visible, ${dimmed} dimmed`);
+      diag.debug(`Tile key override: ${visible} visible, ${dimmed} dimmed`);
     } catch (error) {
-      log('⚠️ [GARDEN-FILTERS] Error applying tile key override', error);
+      warnFeature('QPM-FEATURE-004', { what: 'applyFilters:tileKeyOverride' }, error);
     }
     return;
   }
@@ -174,9 +174,9 @@ export function applyFilters(): void {
       for (const { node } of tileNodes) {
         applyFiltersToStage(node, speciesKeysToShow, emptySet, emptySet, emptySet, stats, 0, 0);
       }
-      log(`🔍 [GARDEN-FILTERS] Override: ${stats.visible} visible, ${stats.dimmed} dimmed`);
+      diag.debug(`Species override: ${stats.visible} visible, ${stats.dimmed} dimmed`);
     } catch (error) {
-      log('⚠️ [GARDEN-FILTERS] Error applying stats hub override', error);
+      warnFeature('QPM-FEATURE-004', { what: 'applyFilters:speciesOverride' }, error);
     }
     return;
   }
@@ -190,7 +190,7 @@ export function applyFilters(): void {
   try {
     const app = getPixiApp();
     if (!app || !app.stage) {
-      log('⚠️ [GARDEN-FILTERS] PIXI app/stage not available');
+      diag.debug('PIXI app/stage not available');
       return;
     }
 
@@ -213,12 +213,12 @@ export function applyFilters(): void {
         filterInfo.push(`${growthStatesToShow.size} growth states`);
       }
       const filterDesc = filterInfo.length > 0 ? ` (${filterInfo.join(', ')})` : '';
-      log(`🔍 [GARDEN-FILTERS] Applied${filterDesc}: ${stats.visible} visible, ${stats.dimmed} dimmed`);
+      diag.debug(`Applied${filterDesc}: ${stats.visible} visible, ${stats.dimmed} dimmed`);
     } else {
-      log('🔍 [GARDEN-FILTERS] No tiles found');
+      diag.debug('No tiles found');
     }
   } catch (error) {
-    log('⚠️ [GARDEN-FILTERS] Error applying filters', error);
+    warnFeature('QPM-FEATURE-004', { what: 'applyFilters:main' }, error);
   }
 }
 
@@ -235,9 +235,9 @@ function resetFilters(): void {
     removeAllVisibleGuards();
     tileCache.nodes = null;
     resetFiltersOnStage(app.stage);
-    log('🔍 [GARDEN-FILTERS] All tiles visible');
+    diag.debug('All tiles visible');
   } catch (error) {
-    log('⚠️ [GARDEN-FILTERS] Error resetting filters', error);
+    warnFeature('QPM-FEATURE-004', { what: 'resetFilters' }, error);
   }
 }
 
@@ -259,7 +259,7 @@ function loadConfig(): void {
       cachedFilterSets = null; // Invalidate cached sets after loading new config
     }
   } catch (error) {
-    log('⚠️ Failed to load garden filters config', error);
+    warnFeature('QPM-FEATURE-003', { what: 'loadConfig' }, error);
   }
 }
 
@@ -271,7 +271,7 @@ function saveConfig(): void {
     storage.set(STORAGE_KEY, config);
     notifyListeners();
   } catch (error) {
-    log('⚠️ Failed to save garden filters config', error);
+    warnFeature('QPM-FEATURE-004', { what: 'saveConfig' }, error);
   }
 }
 
@@ -283,7 +283,7 @@ function notifyListeners(): void {
     try {
       listener({ ...config });
     } catch (error) {
-      log('⚠️ Garden filters listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:config' }, error);
     }
   }
 }
@@ -309,7 +309,7 @@ function startFilteringPolling(): void {
     500 // Every 500ms — fast enough to catch tiles created during viewport scrolling
   );
 
-  log('✅ [GARDEN-FILTERS] Polling started (500ms interval, visibility-aware)');
+  diag.debug('Polling started (500ms interval, visibility-aware)');
 }
 
 /**
@@ -325,7 +325,7 @@ function stopFilteringPolling(): void {
     statsHubExcludeMutationsAllMode = false;
     statsHubTileKeySet = null;
     tileCache.nodes = null;
-    log('⏹️ [GARDEN-FILTERS] Polling stopped');
+    diag.debug('Polling stopped');
   }
 }
 
@@ -338,6 +338,7 @@ function stopFilteringPolling(): void {
  * Called once during app startup
  */
 export function initializeGardenFilters(): void {
+  ensureBusRegistered();
   loadConfig();
   startFilteringPolling();
 
@@ -351,7 +352,13 @@ export function initializeGardenFilters(): void {
   shareGlobal('QPM_GARDEN_DIAG', diagnoseGardenFilters);
   shareGlobal('QPM_GARDEN_TEST', testSpeciesFilter);
   shareGlobal('QPM_GARDEN_NODES', watchNodeIdentity);
-  log('✅ [GARDEN-FILTERS] System initialized — console commands: QPM_GARDEN_DIAG() QPM_GARDEN_TEST("species") QPM_GARDEN_NODES()', config);
+  publishOk('Started', {
+    enabled: config.enabled ? 1 : 0,
+    species: config.cropSpecies.length,
+    mutations: config.mutations.length,
+    eggs: config.eggTypes.length,
+    growthStates: config.growthStates.length,
+  });
 }
 
 /**

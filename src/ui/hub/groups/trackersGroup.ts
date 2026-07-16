@@ -1,8 +1,7 @@
 // src/ui/hubWindow/groups/trackersGroup.ts
 
 import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../cards/types';
-import { toggleWindow, openWindow, closeWindow, destroyWindow, isWindowOpen } from '../../core/modalWindow';
-import { log } from '../../../utils/logger';
+import { toggleWindow, openWindow, closeWindow, destroyWindow, isWindowOpen, windowLog } from '../../core/modalWindow';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
 import {
@@ -12,10 +11,9 @@ import {
   startActivityLogStatus,
 } from '../../panel/tileStatusesCore';
 
-/** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
   try { await waitForCatalogs(10000); }
-  catch { log('[Hub] Catalogs not ready yet, rendering with fallbacks'); }
+  catch { /* catalogs subsystem attributes the timeout; hub renders with fallbacks */ }
 }
 
 function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => void) | void {
@@ -80,7 +78,7 @@ function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => vo
         }
         spinner.remove();
       } catch (err) {
-        log('⚠️ Failed to load tracker', err);
+        windowLog.warn('QPM-UI-002', { what: 'lazy:tracker', key }, err);
         spinner.textContent = `❌ ${t('common.loadError')}`;
       }
     })();
@@ -232,7 +230,7 @@ export function getTrackersGroup(): HubGroupDef {
     onOpen: () => {
       import('../../shop/restockWindow').then(({ openShopRestockWindow }) => {
         openShopRestockWindow();
-      }).catch(e => log('⚠️ Failed to open Shop Restock', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:restock' }, e));
     },
   };
 
@@ -258,7 +256,7 @@ export function getTrackersGroup(): HubGroupDef {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
         import('../../sections/activityLogSection').then(({ createActivityLogSection }) => {
           root.appendChild(createActivityLogSection());
-        }).catch(e => log('⚠️ Failed to load Activity Log', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:actLog' }, e));
       }, '580px', '78vh');
     },
   };
@@ -288,7 +286,7 @@ export function getTrackersGroup(): HubGroupDef {
     onOpen: () => {
       import('../../../features/chargedAbilities').then(({ openChargedAbilitiesWindow }) => {
         openChargedAbilitiesWindow();
-      }).catch(e => log('⚠️ Failed to open Charged Abilities', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:charged' }, e));
     },
   };
 

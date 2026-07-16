@@ -4,7 +4,7 @@ import { sendStorePet, sendToggleLockItem } from './teamActions';
 import { waitForInventoryContains } from './swap';
 import { sendRoomAction } from '../../websocket/api';
 import { delay } from '../../utils/scheduling/scheduling';
-import { log } from '../../utils/logger';
+import { warnFeature } from './_diagnostics';
 import type { CollectedPet } from './optimizer';
 import { ensureJournalLogged } from '../journal/guard';
 
@@ -123,7 +123,7 @@ export async function executeSellPipeline(pet: CollectedPet): Promise<SellPipeli
     return { ok: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    log('[petSell] executeSellPipeline failed', { petId: itemId, error });
+    warnFeature('QPM-FEATURE-003', { what: 'executeSellPipeline', petId: itemId }, error);
     return { ok: false, reason: message };
   }
 }

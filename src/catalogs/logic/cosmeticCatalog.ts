@@ -3,7 +3,10 @@
 // Cosmetics live in index-*.js, NOT the main bundle — so we fetch separately.
 
 import { findAllIndices, extractBalancedArray, convertBacktickStrings } from './bundleParser';
-import { pageWindow, readSharedGlobal } from '../../core/pageContext';
+import { pageWindow } from '../../core/pageContext';
+import { createNamedLogger } from '../../diagnostics/logger';
+
+const log = createNamedLogger('catalogs');
 
 export interface RuntimeCosmeticEntry {
   id: string;
@@ -19,17 +22,6 @@ export type RuntimeCosmeticCatalog = RuntimeCosmeticEntry[];
 let cosmeticCatalogCache: RuntimeCosmeticCatalog | null = null;
 let cosmeticCatalogInFlight: Promise<RuntimeCosmeticCatalog | null> | null = null;
 let cosmeticBundleCache: string | null = null;
-
-function shouldDebug(): boolean {
-  try {
-    return (
-      readSharedGlobal('__QPM_DEBUG_CATALOGS') === true ||
-      readSharedGlobal('__QPM_VERBOSE_LOGS') === true
-    );
-  } catch {
-    return false;
-  }
-}
 
 const COSMETIC_ANCHORS = [
   'Bottom_HazmatSuit.png',
@@ -95,9 +87,7 @@ async function fetchCosmeticBundle(): Promise<string | null> {
       const text = await res.text();
       if (text.includes('HazmatSuit')) {
         cosmeticBundleCache = text;
-        if (shouldDebug()) {
-          console.log('[QPM Catalog] [CosmeticCatalog] Found cosmetic bundle:', url);
-        }
+        log.debug('cosmeticCatalog: found cosmetic bundle', { url });
         return text;
       }
     } catch { /* skip */ }
@@ -220,23 +210,17 @@ async function loadFromBundle(): Promise<RuntimeCosmeticCatalog | null> {
 
         const entries = parsed.filter(isValidEntry);
         if (entries.length >= 10) {
-          if (shouldDebug()) {
-            console.log(`[QPM Catalog] [CosmeticCatalog] Extracted ${entries.length} cosmetics from bundle`);
-          }
+          log.debug('cosmeticCatalog: extracted cosmetics from bundle', { count: entries.length });
           return entries;
         }
       } catch (e) {
-        if (shouldDebug()) {
-          console.log('[QPM Catalog] [CosmeticCatalog] JSON parse failed:', e);
-        }
+        log.debug('cosmeticCatalog: JSON parse failed', { cause: String(e) });
         continue;
       }
     }
   }
 
-  if (shouldDebug()) {
-    console.log('[QPM Catalog] [CosmeticCatalog] Failed to extract from bundle');
-  }
+  log.debug('cosmeticCatalog: failed to extract from bundle');
   return null;
 }
 

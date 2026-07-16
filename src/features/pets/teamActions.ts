@@ -1,7 +1,7 @@
 // WebSocket helpers for pet team operations. SwapPet lives in petSwap.ts.
 
-import { log } from '../../utils/logger';
 import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
+import { diag, warnFeature } from './_diagnostics';
 import { getMapSnapshot, getGardenSnapshot } from '../garden/bridge';
 import { getActivePetInfos } from '../../store/pets';
 import { isRecord } from '../../utils/typeGuards';
@@ -10,7 +10,7 @@ import { getMyUserSlotIdx } from '../../core/playerContext';
 function sendAction(type: 'StorePet' | 'PlacePet' | 'ToggleFavoriteItem' | 'ToggleLockItem' | 'SellPet', payload: Record<string, unknown>): WebSocketSendResult {
   const sent = sendRoomAction(type, payload, { throttleMs: 90 });
   if (!sent.ok && sent.reason !== 'throttled') {
-    log(`[PetTeamActions] send failed (${type})`, sent.reason);
+    warnFeature('QPM-FEATURE-001', { type, reason: sent.reason ?? 'unknown' });
   }
   return sent;
 }
@@ -189,6 +189,6 @@ export function findEmptyGardenTile(
     }
   }
 
-  log('[PetTeamActions] No empty garden tile found for PlacePet');
+  diag.debug('no empty garden tile for PlacePet');
   return null;
 }

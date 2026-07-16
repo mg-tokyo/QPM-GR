@@ -8,7 +8,7 @@
 // static, hide the Rive — so the standard Layer A texture-swap pipeline
 // works on the static sprite as it does for non-Rive decor.
 
-import { log } from '../types';
+import { log, warnFeature } from '../types';
 import { staticFallbackToggled } from './state';
 
 /**
@@ -36,6 +36,7 @@ export function setRiveStaticFallback(riveSprite: any, enabled: boolean): void {
     const staticSprite = findStaticSpriteForRive(riveSprite);
     if (!staticSprite) {
       log('setRiveStaticFallback: no static sibling found');
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'staticFallback:noSibling' });
       return;
     }
     riveSprite.visible = false;

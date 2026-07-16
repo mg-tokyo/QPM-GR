@@ -1,7 +1,6 @@
 import { subscribe as stateTreeSubscribe } from '../core/stateTree';
 import { getPlayerIdSync } from '../core/playerContext';
 import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
-import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeDecorShed', 'decorShed');
@@ -154,7 +153,7 @@ export async function startDecorShedStore(): Promise<void> {
       (slice) => updateFromSlice(slice),
       'store:decorShed',
     );
-    log('[DecorShed] Store initialized (state-tree subscription)');
+    diag.log.debug('store initialized (state-tree subscription)');
   } catch (err) {
     diag.warn('QPM-STORE-001', { phase: 'startDecorShedStore' }, err);
     throw err;

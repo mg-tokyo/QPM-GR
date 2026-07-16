@@ -2,8 +2,8 @@
 // to use QPM's inventory-aware food selection. Single document-level capture listener fires
 // synchronously before React's delegated bubble-phase handler — no MutationObserver, no debounce, no WeakSet.
 
-import { log } from '../../utils/logger';
 import { getActivePetInfos } from '../../store/pets';
+import { diag, publishOk, warnFeature } from './_diagnostics';
 import { feedPetInstantly } from './instantFeed';
 
 const SELECTOR_DATA = '[data-instant-feed-btn="1"]';
@@ -49,20 +49,23 @@ async function handleFeed(btn: HTMLElement): Promise<void> {
   const slotIndex = resolvePetSlotIndex(btn);
 
   if (slotIndex < 0) {
-    log('⚠️ [NativeFeedIntercept] Could not resolve pet from button — skipping');
+    warnFeature('QPM-FEATURE-004', {
+      what: 'nativeIntercept:resolvePet',
+      ariaLabel: btn.getAttribute('aria-label') ?? '',
+    });
     return;
   }
 
   const pets = getActivePetInfos();
   const pet = pets.find((entry) => entry.slotIndex === slotIndex);
-  log(`🎯 [NativeFeedIntercept] Intercepted — feeding slot ${slotIndex} (${pet?.species ?? '?'})`);
+  diag.debug('intercepted feed', { slotIndex, species: pet?.species ?? '?' });
 
   const result = await feedPetInstantly(slotIndex);
 
   if (result.success) {
-    log(`✅ [NativeFeedIntercept] Fed ${result.petName ?? result.petSpecies ?? 'pet'} with ${result.foodSpecies}`);
+    diag.debug('fed', { pet: result.petName ?? result.petSpecies ?? 'pet', food: result.foodSpecies });
   } else {
-    log(`⚠️ [NativeFeedIntercept] Feed failed: ${result.error}`);
+    diag.debug('feed failed', { error: result.error ?? 'unknown' });
   }
 }
 
@@ -87,12 +90,13 @@ export function startNativeFeedIntercept(): void {
   captureListener = onDocumentClick;
   document.addEventListener('click', captureListener, { capture: true });
 
-  log('✅ [NativeFeedIntercept] Started (document capture mode)');
+  publishOk('Native feed intercept active');
+  diag.debug('started');
 }
 
 export function stopNativeFeedIntercept(): void {
   if (!captureListener) return;
   document.removeEventListener('click', captureListener, { capture: true });
   captureListener = null;
-  log('🛑 [NativeFeedIntercept] Stopped');
+  diag.debug('stopped');
 }

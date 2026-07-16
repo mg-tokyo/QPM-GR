@@ -81,7 +81,7 @@ export type OverrideScope =
 
 export interface OverrideInfo {
   id: string;
-  kind: 'image' | 'input' | 'text' | 'file' | 'asset';
+  kind: 'image' | 'input' | 'text' | 'file' | 'asset' | 'speed';
   scope: OverrideScope;
   property: string;
   cleanup: () => void;
@@ -136,6 +136,12 @@ export interface AssetInterceptOpts {
   rivFile: string;
   assetName: string | RegExp;
   handler: (assetName: string) => Uint8Array | null;
+}
+
+export interface SpeedOverrideOpts {
+  target: OverrideScope;
+  /** Multiplier applied to RiveSprite.playbackSpeed. 0 freezes; 1 = normal. */
+  speed: number;
 }
 
 // ---------------------------------------------------------------------------

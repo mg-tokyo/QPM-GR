@@ -14,6 +14,7 @@ import { exposeValidationCommands } from '../../utils/validationCommands';
 import { registerUniversalProbe } from '../universalProbe';
 import { createWsMonitor } from '../wsMonitor';
 import { QPM_DEBUG_API } from './apiObject';
+import { isDevModeEnabled, setDevModeEnabled } from '../../core/devMode';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
@@ -125,6 +126,17 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     }
     return out;
   };
+  const { getRiveRules, reapplyAllRiveRules } = await import('../../features/standalone/riveControl');
+  const riveControl = {
+    rules: () => getRiveRules(),
+    reapply: () => reapplyAllRiveRules(),
+  };
+
+  const setDevMode = (enabled: boolean): { enabled: boolean } => {
+    setDevModeEnabled(!!enabled);
+    return { enabled: isDevModeEnabled() };
+  };
+  const isDevMode = (): boolean => isDevModeEnabled();
   const globalTarget = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
   (globalTarget as any).__QPM_INTERNAL__ = {
     ...(globalTarget as any).__QPM_INTERNAL__,
@@ -139,6 +151,9 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     setReactiveKillSwitch,
     getReactiveKillSwitches,
     debugReactiveRouting,
+    riveControl,
+    setDevMode,
+    isDevMode,
   };
 
 

@@ -1,8 +1,7 @@
 // src/ui/hubWindow/groups/toolsGroup.ts
 
 import type { HubGroupDef, LauncherCardConfig } from '../cards/types';
-import { toggleWindow } from '../../core/modalWindow';
-import { log } from '../../../utils/logger';
+import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { TEXTURE_MANIPULATOR_ENABLED } from '../../../features/standalone/textureSwapper';
 import { t } from '../../../i18n';
 import { startTextureManipulatorStatus, startBloblingCustomiserStatus } from '../../panel/tileStatusesNew';
@@ -50,7 +49,7 @@ export function getToolsGroup(): HubGroupDef {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
         import('../../sections/guideSection').then(({ createGuideSection }) => {
           root.appendChild(createGuideSection());
-        }).catch(e => log('⚠️ Failed to load Guide', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:guide' }, e));
       }, '700px', '85vh');
     },
   };
@@ -112,7 +111,7 @@ export function getToolsGroup(): HubGroupDef {
     onOpen: () => {
       import('../../cardImportWindow').then(({ openCardImportWindow }) => {
         openCardImportWindow();
-      }).catch((e) => log('⚠️ Failed to open Custom Cards', e));
+      }).catch((e) => windowLog.warn('QPM-UI-002', { what: 'lazy:cards' }, e));
     },
   };
 
@@ -156,7 +155,7 @@ export function getToolsGroup(): HubGroupDef {
     onOpen: () => {
       import('../../bloblingCustomiser/window').then(({ openBloblingCustomiserWindow }) => {
         openBloblingCustomiserWindow();
-      }).catch(e => log('⚠️ Failed to open Blobling Customiser', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:blobling' }, e));
     },
   };
 
@@ -187,7 +186,7 @@ export function getToolsGroup(): HubGroupDef {
       onOpen: () => {
         import('../../standalone/textureSwapperWindow').then(({ openTextureSwapperWindow }) => {
           openTextureSwapperWindow();
-        }).catch(e => log('⚠️ Failed to open Texture Manipulator', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:texSwap' }, e));
       },
     };
     cards.push(textureCard);

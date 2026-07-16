@@ -2,7 +2,6 @@
 
 import { readAtomValue as readRegistryAtomValue, readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
 import { getAtomByLabel, readAtomValue as readJotaiAtomValue, getCachedStore } from '../core/jotaiBridge';
-import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeShops', 'shops');
@@ -189,7 +188,7 @@ export async function startShopStockStore(): Promise<void> {
         const myDataValue = await readJotaiAtomValue<unknown>(myDataAtomRef);
         myDataPurchasesSnapshot = extractMyDataShopPurchases(myDataValue);
       } catch (error) {
-        log('⚠️ Failed to read myDataAtom shop purchases initially', error);
+        diag.warn('QPM-STORE-002', { atom: MY_DATA_ATOM_LABEL, phase: 'initial-shop-purchases' }, error);
         myDataPurchasesSnapshot = null;
       }
     }
@@ -202,7 +201,7 @@ export async function startShopStockStore(): Promise<void> {
         rebuildState();
       });
     } catch (error) {
-      log('⚠️ Failed to subscribe to shops atom', error);
+      diag.warn('QPM-STORE-002', { atom: 'shops', phase: 'subscribe' }, error);
     }
 
     try {
@@ -212,7 +211,7 @@ export async function startShopStockStore(): Promise<void> {
       });
       if (unsub) myDataPurchasesUnsubscribe = unsub;
     } catch (error) {
-      log('⚠️ Failed to subscribe to myData for shop purchases', error);
+      diag.warn('QPM-STORE-002', { atom: 'myData', phase: 'subscribe-shop-purchases' }, error);
     }
 
     // Keep myUserSlotAtomRef resolved for forceRefreshShopStock's synchronous
@@ -225,7 +224,7 @@ export async function startShopStockStore(): Promise<void> {
       });
       if (unsub) customInventoriesUnsubscribe = unsub;
     } catch (error) {
-      log('⚠️ Failed to subscribe to myUserSlot', error);
+      diag.warn('QPM-STORE-002', { atom: 'myUserSlot', phase: 'subscribe' }, error);
     }
 
     // Newly-discovered shop ids get their bucket created on the next rebuild.
@@ -242,7 +241,7 @@ export async function startShopStockStore(): Promise<void> {
       });
       if (unsub) quinoaDataShopsUnsubscribe = unsub;
     } catch (error) {
-      log('⚠️ Failed to subscribe to quinoaData shops', error);
+      diag.warn('QPM-STORE-002', { atom: 'quinoaData', phase: 'subscribe' }, error);
     }
   })().catch((error) => {
     diag.warn('QPM-STORE-001', { phase: 'startShopStockStore' }, error);
@@ -353,7 +352,7 @@ export function onShopStock(
     try {
       callback(cachedState);
     } catch (error) {
-      log('⚠️ ShopStock immediate listener error', error);
+      diag.warn('QPM-STORE-003', { phase: 'onShopStock.immediate' }, error);
     }
   }
   return () => {

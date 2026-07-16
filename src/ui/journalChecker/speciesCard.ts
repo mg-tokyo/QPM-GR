@@ -55,7 +55,6 @@ export function buildSpeciesCard(params: SpeciesCardParams): HTMLElement {
     card.style.transform = 'translateX(0)';
   });
 
-  // ── Sprite + header row ───────────────────────────────────────────────────
   const topRow = document.createElement('div');
   topRow.style.cssText = 'display:flex;gap:12px;margin-bottom:12px;';
 
@@ -124,7 +123,6 @@ export function buildSpeciesCard(params: SpeciesCardParams): HTMLElement {
   topRow.appendChild(headerArea);
   card.appendChild(topRow);
 
-  // ── Progress bar ──────────────────────────────────────────────────────────
   const pb = createProgressBar({
     value: collectedCount,
     max: totalCount,
@@ -135,7 +133,6 @@ export function buildSpeciesCard(params: SpeciesCardParams): HTMLElement {
 
   card.appendChild(pb.root);
 
-  // ── Variant chips ─────────────────────────────────────────────────────────
   if (variants.length > 0) {
     const chipsContainer = document.createElement('div');
     chipsContainer.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
@@ -147,7 +144,6 @@ export function buildSpeciesCard(params: SpeciesCardParams): HTMLElement {
     card.appendChild(chipsContainer);
   }
 
-  // ── Notes ─────────────────────────────────────────────────────────────────
   const notesContainer = document.createElement('div');
   notesContainer.style.cssText =
     'margin-top:12px;padding-top:12px;border-top:1px solid var(--qpm-border);';

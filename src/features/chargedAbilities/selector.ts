@@ -12,6 +12,38 @@ import { getQualifyingCropsInFootprint, findBestPatchForAbility } from './footpr
 import { ABILITY_FOOTPRINT_RADIUS, SELECTOR_RECOMPUTE_DEBOUNCE_MS } from './constants';
 import type { PetAbilityTargetSnapshot, OptimalityResult } from './types';
 import type { TilePosition } from '../garden/tileRadius';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:chargedAbilities';
+const FEATURE_NAME = 'chargedAbilities';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 type Listener = (snapshots: readonly PetAbilityTargetSnapshot[]) => void;
 
@@ -109,13 +141,14 @@ async function recompute(): Promise<void> {
 
   cached = next;
   for (const cb of listeners) {
-    try { cb(cached); } catch { /* ignore */ }
+    try { cb(cached); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:notify' }, err); }
   }
 }
 
 export function startAbilityTargetingSelector(): void {
   if (initialized) return;
   initialized = true;
+  ensureBusRegistered();
 
   cleanups.push(onActivePetInfos(() => scheduleRecompute()));
   cleanups.push(onGardenSnapshot(() => scheduleRecompute()));
@@ -133,13 +166,14 @@ export function startAbilityTargetingSelector(): void {
   }, 1000));
 
   scheduleRecompute();
+  publishOk('Started', { pets: cached.length });
 }
 
 export function stopAbilityTargetingSelector(): void {
   if (!initialized) return;
   initialized = false;
   if (recomputeTimer != null) { window.clearTimeout(recomputeTimer); recomputeTimer = null; }
-  for (const fn of cleanups) { try { fn(); } catch { /* ignore */ } }
+  for (const fn of cleanups) { try { fn(); } catch { /* teardown best-effort per §4.5 */ } }
   cleanups.length = 0;
   listeners.clear();
   cached = [];
@@ -148,7 +182,7 @@ export function stopAbilityTargetingSelector(): void {
 
 export function subscribeAbilityTargets(cb: Listener): () => void {
   listeners.add(cb);
-  try { cb(cached); } catch { /* ignore */ }
+  try { cb(cached); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'subscribe:initial_notify' }, err); }
   return () => { listeners.delete(cb); };
 }
 

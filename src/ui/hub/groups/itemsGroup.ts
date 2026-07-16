@@ -1,8 +1,7 @@
 // src/ui/hubWindow/groups/itemsGroup.ts
 
 import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../cards/types';
-import { toggleWindow } from '../../core/modalWindow';
-import { log } from '../../../utils/logger';
+import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
 import {
@@ -12,10 +11,9 @@ import {
 } from '../../panel/tileStatusesCore';
 import { startFavoritesStatus } from '../../panel/tileStatusesNew';
 
-/** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
   try { await waitForCatalogs(10000); }
-  catch { log('[Hub] Catalogs not ready yet, rendering with fallbacks'); }
+  catch { /* catalogs subsystem attributes the timeout; hub renders with fallbacks */ }
 }
 
 export function getItemsGroup(): HubGroupDef {
@@ -52,7 +50,7 @@ export function getItemsGroup(): HubGroupDef {
           container.appendChild(result.element);
           cleanup = result.cleanup;
         } catch (err) {
-          log('⚠️ Failed to load Favorites', err);
+          windowLog.warn('QPM-UI-002', { what: 'lazy:favs' }, err);
           spinner.textContent = `❌ ${t('common.loadError')}`;
         }
       })();
@@ -65,7 +63,7 @@ export function getItemsGroup(): HubGroupDef {
         import('../../sections/favoritesSection').then(({ createFavoritesSection }) => {
           const { element } = createFavoritesSection();
           root.appendChild(element);
-        }).catch(e => log('⚠️ Failed to load Favorites', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:favs' }, e));
       }, '580px', '78vh');
     },
   };
@@ -104,7 +102,7 @@ export function getItemsGroup(): HubGroupDef {
           container.appendChild(result.element);
           cleanup = result.cleanup;
         } catch (err) {
-          log('⚠️ Failed to load Protection', err);
+          windowLog.warn('QPM-UI-002', { what: 'lazy:protect' }, err);
           spinner.textContent = `❌ ${t('common.loadError')}`;
         }
       })();
@@ -117,7 +115,7 @@ export function getItemsGroup(): HubGroupDef {
         import('../../sections/protectionSection').then(({ createProtectionSection }) => {
           const { element } = createProtectionSection();
           root.appendChild(element);
-        }).catch(e => log('⚠️ Failed to load Protection', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:protect' }, e));
       }, '580px', '78vh');
     },
   };
@@ -156,7 +154,7 @@ export function getItemsGroup(): HubGroupDef {
           const { renderCalculator } = await import('../../economy/cropCalculatorWindow');
           renderCalculator(wrapper);
         } catch (err) {
-          log('⚠️ Failed to load Calculator', err);
+          windowLog.warn('QPM-UI-002', { what: 'lazy:calc' }, err);
           spinner.textContent = `❌ ${t('common.loadError')}`;
         }
       })();
@@ -165,7 +163,7 @@ export function getItemsGroup(): HubGroupDef {
     onDetach: () => {
       import('../../economy/cropCalculatorWindow').then(({ openCalculatorWindow }) => {
         openCalculatorWindow();
-      }).catch(e => log('⚠️ Failed to open Calculator', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:calc' }, e));
     },
   };
 
@@ -195,7 +193,7 @@ export function getItemsGroup(): HubGroupDef {
     onOpen: () => {
       import('../../pets/petsWindow').then(({ togglePetsWindow }) => {
         togglePetsWindow();
-      }).catch(e => log('⚠️ Failed to open Pet Teams', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:petTeams' }, e));
     },
   };
 
@@ -221,7 +219,7 @@ export function getItemsGroup(): HubGroupDef {
         root.style.cssText = 'overflow-y:auto;';
         import('../../economy/storageValueWindow').then(({ renderStorageValueSettings }) => {
           renderStorageValueSettings(root);
-        }).catch(e => log('⚠️ Failed to load Value Display', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:valDisp' }, e));
       }, '420px', '78vh');
     },
   };

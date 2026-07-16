@@ -1,5 +1,37 @@
 import { storage } from '../../utils/storage';
 import { isEditableTarget, normalizeKeybind } from '../../ui/pets/petsWindow/helpers';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:panelHotkey';
+const FEATURE_NAME = 'panelHotkey';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 const STORAGE_KEY = 'qpm.panelHotkey.v1';
 const DEFAULT_KEYBIND = 'alt+q';
@@ -25,7 +57,7 @@ function saveState(state: PanelHotkeyState): void {
 function notifyListeners(): void {
   const combo = getPanelToggleKeybind();
   for (const listener of listeners) {
-    try { listener(combo); } catch {}
+    try { listener(combo); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:notify' }, err); }
   }
 }
 
@@ -60,6 +92,7 @@ export function onPanelToggleKeybindChange(listener: (combo: string) => void): (
 
 export function startPanelHotkey(togglePanel: () => void): void {
   stopPanelHotkey();
+  ensureBusRegistered();
   handler = (event: KeyboardEvent) => {
     if (event.repeat) return;
     if (isEditableTarget(event.target)) return;
@@ -71,6 +104,7 @@ export function startPanelHotkey(togglePanel: () => void): void {
     togglePanel();
   };
   document.addEventListener('keydown', handler, true);
+  publishOk('Started', { keybind: getPanelToggleKeybind() });
 }
 
 export function stopPanelHotkey(): void {

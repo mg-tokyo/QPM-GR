@@ -1,5 +1,5 @@
-import { log } from '../../../utils/logger';
 import { getAllPlantSpecies as getCatalogPlantSpecies, getEggCatalog } from '../../../catalogs/gameCatalogs';
+import { warnFeature } from './_diagnostics';
 
 // Species name to PIXI View label mapping (used ONLY by getAllPlantSpecies() as
 // a UI fallback when catalogs aren't loaded yet, and by diagnostics).
@@ -92,7 +92,7 @@ export function getAllEggTypes(): string[] {
     const catalog = getEggCatalog();
     return catalog ? Object.keys(catalog) : [];
   } catch (error) {
-    log('⚠️ Failed to load egg types from catalog', error);
+    warnFeature('QPM-FEATURE-004', { what: 'getAllEggTypes' }, error);
     return [];
   }
 }

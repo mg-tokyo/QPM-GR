@@ -3,6 +3,7 @@ import { escapeHtml } from '../../core/panelHelpers';
 import { storage } from '../../../utils/storage';
 import { getState } from '../../../features/standalone/publicRooms';
 import { createEmptyState } from '../../components/emptyState';
+import { windowLog } from '../../core/modalWindow';
 
 export function sanitizeImageUrl(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -163,7 +164,7 @@ export function previewData(data: unknown): string {
 }
 
 export function showToast(message: string, level: 'info' | 'success' | 'error' = 'info'): void {
-  console.log(`[PublicRooms:${level}]`, message);
+  windowLog.debug('Public rooms toast', { what: 'publicRooms:toast', level, message });
 }
 
 export function roomOriginLabel(roomId: string): 'Discord' | 'Web' {

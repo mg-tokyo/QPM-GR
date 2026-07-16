@@ -1,22 +1,22 @@
 import type { PillOption } from './types';
 
-export const ACCENT = '#8f82ff';
-export const BORDER_ACTIVE = 'rgba(143,130,255,0.5)';
-export const BORDER_SUBTLE = 'rgba(143,130,255,0.18)';
-export const TEXT = '#e8e0ff';
-export const MUTED = 'rgba(232,224,255,0.6)';
-export const CARD_BG = 'rgba(255,255,255,0.03)';
-export const HOVER_BG = 'rgba(143,130,255,0.06)';
-export const PRICE_COLOR = '#ffd84d';
-export const DUST_COLOR = '#ab47bc';
+export const ACCENT = 'var(--qpm-accent)';
+export const BORDER_ACTIVE = 'var(--qpm-accent-emphasis)';
+export const BORDER_SUBTLE = 'var(--qpm-accent-subtle)';
+export const TEXT = 'var(--qpm-text)';
+export const MUTED = 'var(--qpm-text-muted)';
+export const CARD_BG = 'var(--qpm-surface-2)';
+export const HOVER_BG = 'var(--qpm-accent-tint)';
+export const PRICE_COLOR = 'var(--qpm-gold)';
+export const DUST_COLOR = 'var(--qpm-dust)';
 
-export const PILL_ACTIVE_BG = 'rgba(143,130,255,0.2)';
-export const PILL_ACTIVE_BORDER = 'rgba(143,130,255,0.5)';
-export const PILL_INACTIVE_BG = 'rgba(143,130,255,0.08)';
-export const PILL_INACTIVE_BORDER = 'rgba(143,130,255,0.18)';
+export const PILL_ACTIVE_BG = 'var(--qpm-accent-subtle)';
+export const PILL_ACTIVE_BORDER = 'var(--qpm-accent-emphasis)';
+export const PILL_INACTIVE_BG = 'var(--qpm-accent-tint)';
+export const PILL_INACTIVE_BORDER = 'var(--qpm-accent-border)';
 
-export const MUT_INACTIVE_BG = 'rgba(255,255,255,0.03)';
-export const MUT_INACTIVE_BORDER = 'rgba(255,255,255,0.08)';
+export const MUT_INACTIVE_BG = 'var(--qpm-surface-2)';
+export const MUT_INACTIVE_BORDER = 'var(--qpm-border)';
 
 /** Map internal mutation key → user-facing display name (hardcoded fallback) */
 export const MUTATION_DISPLAY_NAMES_FALLBACK: Record<string, string> = {

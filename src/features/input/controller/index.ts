@@ -7,6 +7,7 @@ import { storage } from '../../../utils/storage';
 import { initializeController } from './controllerFeature';
 import type { GamepadPoller } from './gamepad';
 import type { Cursor } from './cursor';
+import { ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
 
 const ENABLED_KEY = 'qpm.controller.enabled.v1';
 
@@ -16,14 +17,21 @@ let runningCursor: Cursor | null = null;
 
 export async function startController(): Promise<void> {
   const enabled = storage.get<boolean>(ENABLED_KEY, true);
-  if (!enabled || cleanupFn) return;
+  if (!enabled) {
+    ensureBusRegistered();
+    publishOk('Disabled by config', { enabled: 0 });
+    return;
+  }
+  if (cleanupFn) return;
+  ensureBusRegistered();
   try {
     const { cleanup, poller, cursor } = await initializeController();
     cleanupFn = cleanup;
     runningPoller = poller;
     runningCursor = cursor;
+    publishOk('Started', { enabled: 1 });
   } catch (err) {
-    console.error('[QPM Controller] Failed to start', err);
+    warnFeature('QPM-FEATURE-003', { what: 'start' }, err);
   }
 }
 

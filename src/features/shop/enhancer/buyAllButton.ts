@@ -15,9 +15,7 @@ import { isRoomSocketOpen } from '../../../websocket/api';
 import { sendPurchase, applyInventoryCapToQuantity } from '../../../ui/shop/restockAlerts/purchaseActions';
 import { BUY_SEND_DELAY_MS } from '../../../ui/shop/restockAlerts/types';
 import { CATEGORY_TO_SHOP_TYPE } from './types';
-import { createLogger } from '../../../utils/logger';
-
-const log = createLogger('ShopEnhancer');
+import { diag, warnFeature } from './_diagnostics';
 import type { ShopCategory } from '../../../types/shops';
 import type { ShopRowInfo } from './types';
 
@@ -41,7 +39,7 @@ export function extractCtorsFromRows(rows: ShopRowInfo[]): PixiCtors | null {
 
   const runtime = getPixiRuntime();
   if (!runtime.stage) {
-    log('[ShopEnhancer:BuyAll] extractCtors: no stage available');
+    diag.debug('extractCtors: no stage available');
     return null;
   }
 
@@ -87,12 +85,12 @@ export function extractCtorsFromRows(rows: ShopRowInfo[]): PixiCtors | null {
   }
 
   if (!GraphicsCtor || !TextCtor) {
-    log(`[ShopEnhancer:BuyAll] extractCtors: missing (Graphics=${!!GraphicsCtor}, Text=${!!TextCtor})`);
+    diag.debug(`extractCtors: missing (Graphics=${!!GraphicsCtor}, Text=${!!TextCtor})`);
     return null;
   }
 
   cachedCtors = { Container: ContainerCtor, Graphics: GraphicsCtor, Text: TextCtor };
-  log('[ShopEnhancer:BuyAll] extractCtors: constructors extracted successfully');
+  diag.debug('extractCtors: constructors extracted successfully');
   return cachedCtors;
 }
 
@@ -323,7 +321,7 @@ function wirePurchaseHandler(
     try {
       await executePurchaseLoop(shopType, itemId, cappedQty, itemType, updateText);
     } catch (err) {
-      log('[ShopEnhancer] Purchase loop error', err);
+      warnFeature('QPM-FEATURE-003', { what: 'purchaseLoop', shopType, itemId }, err);
       updateText('Error');
       setTimeout(() => updateText('Buy All'), 1500);
     } finally {
@@ -458,7 +456,7 @@ export function injectPanelBuyAll(
 
   const expandedRow = findExpandedRow(panel, rows);
   if (!expandedRow) {
-    log(`[ShopEnhancer:BuyAll] Panel: could not match panel (y=${typeof panel.y === 'number' ? panel.y : '?'}) to any row`);
+    diag.debug(`Panel: could not match panel (y=${typeof panel.y === 'number' ? panel.y : '?'}) to any row`);
     return;
   }
   if (!expandedRow.isAvailable || !expandedRow.itemId) return;
@@ -502,7 +500,7 @@ export function injectPanelBuyAll(
   }
   const buyAllX = x;
 
-  log(`[ShopEnhancer:BuyAll] Layout: layoutWidth=${layoutWidth} nativeW=${nativeW} (was ${first.width}) buyAllW=${buyAllWidth} buyAllX=${buyAllX}`);
+  diag.debug(`Layout: layoutWidth=${layoutWidth} nativeW=${nativeW} (was ${first.width}) buyAllW=${buyAllWidth} buyAllX=${buyAllX}`);
 
   // Extract text style from native buttons; use fallback if none found
   let nativeTextStyle: Record<string, unknown> = { fontSize: 14, fontWeight: 'bold', fill: 0xffffff, fontFamily: 'Arial, sans-serif' };
@@ -520,7 +518,7 @@ export function injectPanelBuyAll(
     btn = result.btn;
     updateText = result.updateText;
   } catch (err) {
-    log('[ShopEnhancer:BuyAll] Panel button build failed', err);
+    warnFeature('QPM-FEATURE-003', { what: 'panel:build' }, err);
     return;
   }
 
@@ -543,7 +541,7 @@ export function injectPanelBuyAll(
   const shopType = CATEGORY_TO_SHOP_TYPE[category] ?? category;
   wirePurchaseHandler(btn, shopType, expandedRow.itemId, expandedRow.remaining!, expandedRow.itemType, updateText);
   inject(panel, btn, PANEL_BUTTON_TAG);
-  log(`[ShopEnhancer:BuyAll] Panel button injected for ${expandedRow.itemName} (${nativeCount} native btns resized ${first.width}→${nativeW}, buyAll w=${buyAllWidth})`);
+  diag.debug(`Panel button injected for ${expandedRow.itemName} (${nativeCount} native btns resized ${first.width}→${nativeW}, buyAll w=${buyAllWidth})`);
 }
 
 // ---------------------------------------------------------------------------

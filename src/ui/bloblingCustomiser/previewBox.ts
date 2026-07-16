@@ -39,7 +39,6 @@ export function renderPreviewBox(
   const previewArea = document.createElement('div');
   previewArea.style.cssText = 'position:relative;background:linear-gradient(180deg,rgba(143,130,255,0.03) 0%,rgba(143,130,255,0.06) 100%);border:1px solid rgba(143,130,255,0.12);border-radius:14px;width:100%;aspect-ratio:280/340;max-height:340px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
-  // Drop zone overlay
   const dropOverlay = document.createElement('div');
   dropOverlay.style.cssText = 'position:absolute;inset:0;border-radius:var(--qpm-radius-lg);border:2px dashed var(--qpm-accent-emphasis);background:var(--qpm-accent-tint);pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:20;display:flex;align-items:center;justify-content:center;';
   const dropLabel = document.createElement('div');

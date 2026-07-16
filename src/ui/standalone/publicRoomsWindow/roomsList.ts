@@ -15,6 +15,7 @@ import { createEmptyState } from '../../components/emptyState';
 import { t } from '../../../i18n';
 import { isDiscordSurface } from '../../../utils/environment';
 import { closeDiscordActivity } from '../../../core/discordSdk';
+import { windowLog } from '../../core/modalWindow';
 
 export function setRoomStatPills(totalRooms: number, visibleRooms: number, lastUpdatedAt?: string | null): void {
   const totalEl = document.getElementById('pr-total-rooms-pill');
@@ -381,7 +382,7 @@ export function renderRooms(rooms: RoomsMap): void {
           gmOpen(targetUrl, { active: true, insert: true, setParent: true });
           opened = true;
         } catch (err) {
-          console.warn('[QPM] GM_openInTab failed', err);
+          windowLog.warn('QPM-UI-002', { what: 'publicRooms:openRoomTab', tier: 'gmOpenInTab' }, err);
         }
       }
       if (!opened) {

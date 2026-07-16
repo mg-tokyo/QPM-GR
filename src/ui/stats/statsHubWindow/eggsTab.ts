@@ -2,6 +2,7 @@
 // Eggs tab — hatch stats (session/lifetime), species cards, egg catalog.
 
 import { storage } from '../../../utils/storage';
+import { windowLog } from '../../core/modalWindow';
 import { t } from '../../../i18n';
 import {
   subscribeHatchStats,
@@ -262,7 +263,8 @@ export function buildEggsTab(container: HTMLElement): () => void {
       renderAll();
       seedBtn.textContent = added > 0 ? `+${added}` : '✓';
       setTimeout(() => { seedBtn.disabled = false; seedBtn.textContent = `⬆ ${t('feature.statsHub.eggs.seed')}`; }, 2000);
-    } catch {
+    } catch (err) {
+      windowLog.warn('QPM-UI-002', { what: 'statsHub:seedLifetime' }, err);
       seedBtn.disabled = false;
       seedBtn.textContent = `⬆ ${t('feature.statsHub.eggs.seed')}`;
     }

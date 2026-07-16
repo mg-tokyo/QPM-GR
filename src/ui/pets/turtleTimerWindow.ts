@@ -15,7 +15,7 @@ import { createTabBar } from '../components';
 import { throttle } from '../../utils/scheduling/scheduling';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 
 // ============================================================================
 // UTILITY HELPERS
@@ -521,7 +521,7 @@ export function renderTurtleTimerContent(container: HTMLElement): () => void {
   try {
     renderTimerState(getTurtleTimerState());
   } catch (error) {
-    log('⚠️ Failed to render turtle timer state', error);
+    windowLog.warn('QPM-UI-002', { what: 'turtle:initialRender' }, error);
   }
 
   // -- Idempotent cleanup --

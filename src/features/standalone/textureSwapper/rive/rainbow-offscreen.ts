@@ -16,7 +16,7 @@
 // and PIXI's renderer LOW (-25). This is the best approximation of the beta's
 // post-flush callback hook without access to the game's batch renderer.
 
-import { ctx, log } from '../types';
+import { ctx, log, warnFeature } from '../types';
 import { getPixiApp } from '../pixi-walk';
 import { getBasePixiSpriteCtor } from './detection';
 import {
@@ -169,7 +169,7 @@ function installOffscreenTicker(): void {
     offscreenTickerCallbackRef.value = cb;
     log('riveAdapter: installed offscreen rainbow ticker (priority -10)');
   } catch (e) {
-    log('installOffscreenTicker: failed', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'offscreenTicker:install' }, e);
     offscreenTickerCallbackRef.value = null;
   }
 }
@@ -255,7 +255,7 @@ export function tryApplyOffscreenRainbow(sprite: any, ruleId: string): boolean {
     log(`riveAdapter: phase 4c OffscreenFilter active for rule ${ruleId}`);
     return true;
   } catch (e) {
-    log('tryApplyOffscreenRainbow: setup failed', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'offscreenSetup:apply', ruleId }, e);
     return false;
   }
 }

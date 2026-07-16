@@ -3,13 +3,12 @@
 // Position is stored as viewport ratios (0–1) so windows survive any viewport resize.
 
 import { removeStorageKeysByPrefix, storage } from '../../utils/storage';
-import { log } from '../../utils/logger';
 import { createNamedLogger } from '../../diagnostics/logger';
 import { clampPct } from '../../utils/windowPosition';
 import { t } from '../../i18n';
 import { renderWindowRenderError } from './modalWindowErrorBoundary';
 
-const windowLog = createNamedLogger('ui.window');
+export const windowLog = createNamedLogger('ui.window');
 
 /**
  * PanelRender may optionally return a cleanup fn — run on close/destroy/invalidate.
@@ -98,7 +97,7 @@ function runContentCleanup(w: WindowState): void {
   try {
     fn();
   } catch (err) {
-    log(`[Window] Content cleanup failed for "${w.id}"`, err);
+    windowLog.warn('QPM-UI-002', { what: 'cleanup', id: w.id }, err);
   }
 }
 
@@ -679,7 +678,7 @@ export function openWindow(id: string, title: string, render: PanelRender, maxWi
     try {
       renderWindowRenderError(body, id, error);
     } catch (boundaryErr) {
-      log(`[Window] Error boundary failed for "${id}"`, boundaryErr);
+      windowLog.warn('QPM-UI-002', { what: 'errorBoundary', id }, boundaryErr);
     }
   }
 
@@ -833,7 +832,7 @@ export function registerWindowCleanup(id: string, cleanup: () => void): void {
     try {
       cleanup();
     } catch (err) {
-      log(`[Window] Late cleanup failed for "${id}"`, err);
+      windowLog.warn('QPM-UI-002', { what: 'lateCleanup', id }, err);
     }
     return;
   }
@@ -885,8 +884,6 @@ export function resetAllWindowLayouts(): void {
       saveWindowPosition(w.id);
     });
   });
-
-  log('[Window] All window layouts reset to defaults');
 }
 
 // ─── Window persistence ───────────────────────────────────────────────────────
@@ -932,13 +929,13 @@ export function restoreOpenWindows(): void {
           (result as Promise<unknown>)
             .then(applyMinimized)
             .catch((err) => {
-              log(`[Window] Failed to restore window "${id}"`, err);
+              windowLog.warn('QPM-UI-002', { what: 'restoreAsync', id }, err);
             });
         } else {
           applyMinimized();
         }
       } catch (error) {
-        log(`[Window] Failed to restore window "${id}"`, error);
+        windowLog.warn('QPM-UI-002', { what: 'restoreSync', id }, error);
       }
     }
   } finally {

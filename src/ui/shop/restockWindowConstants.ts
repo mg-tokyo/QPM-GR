@@ -48,6 +48,12 @@ export const RARITY_GLOW: Record<string, string> = {
   celestial: '0 0 12px rgba(255,0,255,0.5)',
 };
 
+// Celestial-item row tinting. Derived from --qpm-gold via color-mix so palette
+// changes propagate. Used for celestial pinned/history rows.
+export const CELESTIAL_BG_TINT  = 'color-mix(in srgb, var(--qpm-gold) 4%, transparent)';
+export const CELESTIAL_BG_HOVER = 'color-mix(in srgb, var(--qpm-gold) 9%, transparent)';
+export const CELESTIAL_BORDER   = 'color-mix(in srgb, var(--qpm-gold) 22%, transparent)';
+
 export const SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3, dawn: 4, snow: 5, weather: 6 };
 
 export const SHOP_CYCLE_INTERVALS: Record<string, number> = {

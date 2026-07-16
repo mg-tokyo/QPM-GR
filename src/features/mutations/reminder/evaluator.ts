@@ -1,5 +1,5 @@
-import { log } from '../../../utils/logger';
 import { DEBUG_MUTATION_DECISIONS } from './constants';
+import { reminderDiag } from './_diagnostics';
 import type { PlantData, PlantDebugDetail, PlantMutationEvaluation, PlantSlotState, WeatherType } from './types';
 
 export function generatePlantId(plant: PlantData): string {
@@ -40,8 +40,8 @@ function debugPlantDecision(plant: PlantData, weather: WeatherType, decision: bo
     progress: slot.progress,
   }));
 
-  log(
-    `[Mutations] ${decision ? '✅ highlight' : '⏭️ skip'} ${plant.name} for ${weather}`,
+  reminderDiag.debug(
+    `${decision ? 'highlight' : 'skip'} ${plant.name} for ${weather}`,
     {
       slotSource: plant.slotSource,
       fruitCount: plant.fruitCount,
@@ -141,7 +141,7 @@ function evaluatePlantFromInventory(
   });
 
   if (slotsWithConflicts.length > 0) {
-    log(`⚠️ ${plant.name} has ${slotsWithConflicts.length} fruit(s) with conflicting mutations (same fruit cannot be both amber+dawn or rainbow+gold)`);
+    reminderDiag.debug(`${plant.name} has ${slotsWithConflicts.length} fruit(s) with conflicting mutations (same fruit cannot be both amber+dawn or rainbow+gold)`);
   }
 
   let wetFinished = 0;

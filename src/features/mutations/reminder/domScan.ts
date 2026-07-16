@@ -1,5 +1,5 @@
 import { $, isVisible } from '../../../utils/dom/dom';
-import { log } from '../../../utils/logger';
+import { reminderDiag, warnReminderFeature } from './_diagnostics';
 import {
   INVENTORY_BASE_INDEX_ATTRS,
   INVENTORY_CONTAINER,
@@ -15,7 +15,7 @@ import type { InventoryLookups, MutationBadge, MutationLetter, PlantData, PlantS
 export async function scanInventoryForPlants(): Promise<PlantData[]> {
   const inventory = $(INVENTORY_CONTAINER);
   if (!inventory || !isVisible(inventory)) {
-    log('❌ Inventory not open');
+    reminderDiag.debug('Inventory not open');
     updateStatus('⚠️ Please open your inventory (press E)');
     return [];
   }
@@ -31,7 +31,7 @@ export async function scanInventoryForPlants(): Promise<PlantData[]> {
     }
   });
 
-  log(`📦 Scanned ${plants.length} plants from inventory`);
+  reminderDiag.debug(`Scanned ${plants.length} plants from inventory`);
   return plants;
 }
 
@@ -125,7 +125,7 @@ function extractPlantData(
 
     const fruitCount = parsedFruitCount > 0 ? parsedFruitCount : slotStates.length;
     if (fruitCount === 0) {
-      log(`⏭️ Skipping ungrown plant: ${name} (${slotSource === 'inventory' ? 'no slots yet' : 'no fruit count'})`);
+      reminderDiag.debug(`Skipping ungrown plant: ${name} (${slotSource === 'inventory' ? 'no slots yet' : 'no fruit count'})`);
       return null;
     }
 
@@ -140,7 +140,7 @@ function extractPlantData(
       domBoldCounts,
     };
   } catch (error) {
-    log('❌ Error extracting plant data:', error);
+    warnReminderFeature('QPM-FEATURE-004', { what: 'extractPlantData' }, error);
     return null;
   }
 }

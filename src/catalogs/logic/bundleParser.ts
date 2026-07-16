@@ -1,7 +1,10 @@
 // src/catalogs/logic/bundleParser.ts
 // Shared main-bundle parsing helpers (Gemini-style).
 
-import { pageWindow, readSharedGlobal } from '../../core/pageContext';
+import { pageWindow } from '../../core/pageContext';
+import { createNamedLogger } from '../../diagnostics/logger';
+
+const log = createNamedLogger('catalogs');
 
 export {
   findAllIndices,
@@ -54,14 +57,6 @@ export function markBundleConsumerDone(name: string): void {
 
 export function clearBundleTextCache(): void {
   bundleTextCache.clear();
-}
-
-function shouldDebug(): boolean {
-  try {
-    return readSharedGlobal('__QPM_DEBUG_ABILITY_COLORS') === true;
-  } catch {
-    return false;
-  }
 }
 
 // Any same-origin versioned asset chunk. The game (Rolldown, v679+) renames
@@ -143,17 +138,17 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
     try {
       const res = await fetchFn(url, { credentials: 'include' });
       if (!res.ok) {
-        if (shouldDebug()) console.log('[QPM Catalog] [Bundle] fetch failed', { status: res.status, url });
+        log.debug('bundle: fetch failed', { status: res.status, url });
         return null;
       }
       const text = await res.text();
       if (!text || text.length < 1000) {
-        if (shouldDebug()) console.log('[QPM Catalog] [Bundle] text suspiciously small', { length: text?.length ?? 0, url });
+        log.debug('bundle: text suspiciously small', { length: text?.length ?? 0, url });
         return null;
       }
       return text;
     } catch {
-      if (shouldDebug()) console.log('[QPM Catalog] [Bundle] fetch threw', { url });
+      log.debug('bundle: fetch threw', { url });
       return null;
     }
   })().finally(() => {
@@ -172,14 +167,14 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
 export async function fetchBundleContaining(marker: BundleMarker): Promise<string | null> {
   const urls = findBundleCandidateUrls();
   if (!urls.length) {
-    if (shouldDebug()) console.log('[QPM Catalog] [Bundle] no bundle candidate URLs found');
+    log.debug('bundle: no candidate URLs found');
     return null;
   }
 
   for (const url of urls) {
     const cached = bundleTextCache.get(url);
     if (cached && markerHits(cached, marker)) {
-      if (shouldDebug()) console.log('[QPM Catalog] [Bundle] matched marker (cached)', { marker: String(marker), url });
+      log.debug('bundle: matched marker (cached)', { marker: String(marker), url });
       return cached;
     }
   }
@@ -200,13 +195,13 @@ export async function fetchBundleContaining(marker: BundleMarker): Promise<strin
     }
     if (markerHits(text, marker)) {
       bundleTextCache.set(url, text);
-      if (shouldDebug()) console.log('[QPM Catalog] [Bundle] matched marker', { marker: String(marker), url });
+      log.debug('bundle: matched marker', { marker: String(marker), url });
       return text;
     }
     missed.add(url);
   }
 
-  if (shouldDebug()) console.log('[QPM Catalog] [Bundle] no chunk contains marker', { marker: String(marker), tried: urls.length });
+  log.debug('bundle: no chunk contains marker', { marker: String(marker), tried: urls.length });
   return null;
 }
 

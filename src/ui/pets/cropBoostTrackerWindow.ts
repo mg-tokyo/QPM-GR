@@ -9,17 +9,14 @@ import {
   getCurrentAnalysis,
   getConfig,
   setSelectedSpecies,
-  manualRefresh,
   onAnalysisChange,
   formatTimeEstimate,
   formatTimeRange,
   getAvailableSpecies,
-  type TrackerAnalysis,
-  type CropSizeInfo,
 } from '../../features/pets/cropBoostTracker';
-import { log } from '../../utils/logger';
 import { getCropSpriteCanvas, getCropSpriteWithMutations } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
+import { createButton, createEmptyState } from '../components';
 
 // ============================================================================
 // Helper Functions
@@ -61,30 +58,14 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     overscroll-behavior: contain;
     padding: 20px;
     gap: 16px;
-    font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+    font-family: var(--qpm-font);
   `;
 
   const analysis = getCurrentAnalysis();
   const config = getConfig();
 
   if (!analysis) {
-    const empty = document.createElement('div');
-    empty.style.cssText = `
-      text-align: center;
-      padding: 40px 20px;
-      color: rgba(255, 255, 255, 0.5);
-      font-size: 14px;
-    `;
-    const emptyIcon = document.createElement('div');
-    emptyIcon.style.cssText = 'font-size: 48px; margin-bottom: 12px;';
-    emptyIcon.textContent = '🐾';
-    const emptyTitle = document.createElement('div');
-    emptyTitle.style.cssText = 'font-weight: 500; margin-bottom: 8px;';
-    emptyTitle.textContent = t('feature.cropBoost.emptyTitle');
-    const emptyHint = document.createElement('div');
-    emptyHint.style.cssText = 'font-size: 12px;';
-    emptyHint.textContent = t('feature.cropBoost.emptyHint');
-    empty.append(emptyIcon, emptyTitle, emptyHint);
+    const empty = createEmptyState(`${t('feature.cropBoost.emptyTitle')} — ${t('feature.cropBoost.emptyHint')}`);
     root.appendChild(empty);
     return;
   }
@@ -93,15 +74,15 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   const header = document.createElement('div');
   header.style.cssText = `
     padding: 16px;
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.05));
-    border: 1px solid rgba(76, 175, 80, 0.3);
+    background: linear-gradient(135deg, var(--qpm-accent-tint), transparent);
+    border: 1px solid var(--qpm-accent-border);
     border-radius: 8px;
   `;
 
   header.dataset.tour = 'cropboost-pets';
 
   const petSummary = document.createElement('div');
-  petSummary.style.cssText = 'font-size: 14px; font-weight: 600; color: #4CAF50; margin-bottom: 8px;';
+  petSummary.style.cssText = 'font-size: 14px; font-weight: 600; color: var(--qpm-accent); margin-bottom: 8px;';
   petSummary.textContent = `🐾 ${analysis.totalBoostPets !== 1 ? t('feature.cropBoost.activeBoostPets', { count: String(analysis.totalBoostPets) }) : t('feature.cropBoost.activeBoostPet', { count: String(analysis.totalBoostPets) })}`;
   header.appendChild(petSummary);
 
@@ -109,11 +90,11 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   petsList.style.cssText = 'display: flex; flex-direction: column; gap: 6px; font-size: 12px;';
   analysis.boostPets.forEach(pet => {
     const petRow = document.createElement('div');
-    petRow.style.cssText = 'color: rgba(255, 255, 255, 0.8);';
+    petRow.style.cssText = 'color: var(--qpm-text);';
     const nameStrong = document.createElement('strong');
     nameStrong.textContent = pet.displayName;
     const boostSpan = document.createElement('span');
-    boostSpan.style.cssText = 'color: #4CAF50; font-weight: 600;';
+    boostSpan.style.cssText = 'color: var(--qpm-positive); font-weight: 600;';
     boostSpan.textContent = ` (+${formatNumber(pet.effectiveBoostPercent)}% ${t('feature.cropBoost.perProc')})`;
     petRow.append(`• `, nameStrong, `: ${pet.abilityName} `, boostSpan);
     petsList.appendChild(petRow);
@@ -122,9 +103,9 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
 
   // Add disclaimer
   const disclaimer = document.createElement('div');
-  disclaimer.style.cssText = 'margin-top: 12px; padding: 8px; background: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); border-radius: 4px; font-size: 11px; color: rgba(255, 255, 255, 0.7);';
+  disclaimer.style.cssText = 'margin-top: 12px; padding: 8px; background: color-mix(in srgb, var(--qpm-warning) 10%, transparent); border: 1px solid color-mix(in srgb, var(--qpm-warning) 30%, transparent); border-radius: 4px; font-size: 12px; color: var(--qpm-text-muted);';
   const disclaimerTitle = document.createElement('div');
-  disclaimerTitle.style.cssText = 'font-weight: 600; color: #FF9800; margin-bottom: 4px;';
+  disclaimerTitle.style.cssText = 'font-weight: 600; color: var(--qpm-warning); margin-bottom: 4px;';
   disclaimerTitle.textContent = `⚠️ ${t('feature.cropBoost.importantNotes')}`;
   const note1 = document.createElement('div');
   note1.textContent = `• ${t('feature.cropBoost.noStackNote')}`;
@@ -138,16 +119,15 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   // Legend Section
   const legendCard = document.createElement('div');
   legendCard.style.cssText = `
-    padding: 14px 18px;
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(76, 175, 80, 0.05));
-    border: 2px solid rgba(76, 175, 80, 0.4);
+    padding: 16px;
+    background: linear-gradient(135deg, var(--qpm-accent-tint), transparent);
+    border: 1px solid var(--qpm-accent-focus);
     border-radius: 8px;
     margin-bottom: 16px;
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
   `;
 
   const legendTitle = document.createElement('div');
-  legendTitle.style.cssText = 'font-size: 12px; font-weight: 700; color: #4CAF50; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 6px;';
+  legendTitle.style.cssText = 'font-size: 12px; font-weight: 700; color: var(--qpm-accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 6px;';
   const legendIcon = document.createTextNode('📖 ');
   const legendSpan = document.createElement('span');
   legendSpan.textContent = t('feature.cropBoost.legendTitle');
@@ -155,12 +135,12 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   legendCard.appendChild(legendTitle);
 
   const legendContent = document.createElement('div');
-  legendContent.style.cssText = 'display: flex; gap: 24px; font-size: 13px; color: rgba(255, 255, 255, 0.9);';
+  legendContent.style.cssText = 'display: flex; gap: 24px; font-size: 12px; color: var(--qpm-text);';
   for (const [emoji, label] of [['🌱', t('feature.cropBoost.stillGrowing')], ['🌾', t('feature.cropBoost.fullyGrown')]] as const) {
     const item = document.createElement('div');
-    item.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(255, 255, 255, 0.08); border-radius: 6px;';
+    item.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--qpm-surface-3); border-radius: 8px;';
     const emojiSpan = document.createElement('span');
-    emojiSpan.style.fontSize = '20px';
+    emojiSpan.style.fontSize = '24px';
     emojiSpan.textContent = emoji;
     const labelSpan = document.createElement('span');
     labelSpan.style.fontWeight = '600';
@@ -179,32 +159,20 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     gap: 8px;
   `;
 
-  const toggleBtn = document.createElement('button');
-  toggleBtn.style.cssText = `
-    padding: 6px 12px;
-    background: rgba(100, 181, 246, 0.2);
-    border: 1px solid #64B5F6;
-    border-radius: 4px;
-    color: #64B5F6;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  `;
+  const toggleBtn = createButton(
+    showDetailedView ? `📊 ${t('feature.cropBoost.simpleView')}` : `📈 ${t('feature.cropBoost.detailedView')}`,
+    {
+      variant: 'secondary',
+      size: 'sm',
+      onClick: () => {
+        showDetailedView = !showDetailedView;
+        if (windowRoot) {
+          renderCropBoostSection(windowRoot, { preserveScroll: true });
+        }
+      },
+    },
+  );
   toggleBtn.dataset.tour = 'cropboost-toggle';
-  toggleBtn.textContent = showDetailedView ? `📊 ${t('feature.cropBoost.simpleView')}` : `📈 ${t('feature.cropBoost.detailedView')}`;
-  toggleBtn.addEventListener('click', () => {
-    showDetailedView = !showDetailedView;
-    if (windowRoot) {
-      renderCropBoostSection(windowRoot, { preserveScroll: true });
-    }
-  });
-  toggleBtn.addEventListener('mouseenter', () => {
-    toggleBtn.style.background = 'rgba(100, 181, 246, 0.3)';
-  });
-  toggleBtn.addEventListener('mouseleave', () => {
-    toggleBtn.style.background = 'rgba(100, 181, 246, 0.2)';
-  });
 
   toggleCard.appendChild(toggleBtn);
   root.appendChild(toggleCard);
@@ -213,15 +181,15 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   const statsCard = document.createElement('div');
   statsCard.style.cssText = `
     padding: 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--qpm-surface-2);
+    border: 1px solid var(--qpm-border);
     border-radius: 8px;
   `;
 
   statsCard.dataset.tour = 'cropboost-stats';
 
   const statsTitle = document.createElement('div');
-  statsTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
+  statsTitle.style.cssText = 'font-size: 14px; font-weight: 600; color: var(--qpm-text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
   statsTitle.textContent = `📊 ${t('feature.cropBoost.overallProgress')}`;
   statsCard.appendChild(statsTitle);
 
@@ -233,19 +201,19 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   `;
 
   const stats = [
-    { label: t('feature.cropBoost.totalCrops'), value: analysis.crops.length, color: '#fff' },
-    { label: t('feature.cropBoost.atMaxSize'), value: analysis.totalCropsAtMax, color: '#4CAF50' },
-    { label: t('feature.cropBoost.cropsNeedingBoost'), value: analysis.totalCropsNeedingBoost, color: '#FF9800' },
-    { label: t('feature.cropBoost.progress'), value: `${analysis.crops.length > 0 ? Math.round((analysis.totalCropsAtMax / analysis.crops.length) * 100) : 0}%`, color: '#64B5F6' },
+    { label: t('feature.cropBoost.totalCrops'), value: analysis.crops.length, color: 'var(--qpm-text)' },
+    { label: t('feature.cropBoost.atMaxSize'), value: analysis.totalCropsAtMax, color: 'var(--qpm-positive)' },
+    { label: t('feature.cropBoost.cropsNeedingBoost'), value: analysis.totalCropsNeedingBoost, color: 'var(--qpm-warning)' },
+    { label: t('feature.cropBoost.progress'), value: `${analysis.crops.length > 0 ? Math.round((analysis.totalCropsAtMax / analysis.crops.length) * 100) : 0}%`, color: 'var(--qpm-info)' },
   ];
 
   stats.forEach(({ label, value, color }) => {
     const statDiv = document.createElement('div');
     const labelDiv = document.createElement('div');
-    labelDiv.style.cssText = 'font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-bottom: 4px;';
+    labelDiv.style.cssText = 'font-size: 12px; color: var(--qpm-text-muted); margin-bottom: 4px;';
     labelDiv.textContent = label;
     const valueDiv = document.createElement('div');
-    valueDiv.style.cssText = `font-size: 20px; font-weight: 600; color: ${color};`;
+    valueDiv.style.cssText = `font-size: 24px; font-weight: 600; color: ${color};`;
     valueDiv.textContent = String(value);
     statDiv.append(labelDiv, valueDiv);
     statsGrid.appendChild(statDiv);
@@ -259,20 +227,20 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     const allCropsCard = document.createElement('div');
     allCropsCard.style.cssText = `
       padding: 16px;
-      background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 193, 7, 0.05));
-      border: 2px solid rgba(255, 193, 7, 0.4);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--qpm-gold) 15%, transparent), transparent);
+      border: 1px solid color-mix(in srgb, var(--qpm-gold) 40%, transparent);
       border-radius: 8px;
     `;
     allCropsCard.setAttribute('data-countdown-section', 'overall');
     allCropsCard.dataset.tour = 'cropboost-estimate';
 
     const allCropsTitle = document.createElement('div');
-    allCropsTitle.style.cssText = 'font-size: 14px; font-weight: 600; color: #FFC107; margin-bottom: 12px;';
+    allCropsTitle.style.cssText = 'font-size: 14px; font-weight: 600; color: var(--qpm-gold); margin-bottom: 12px;';
     allCropsTitle.textContent = `🎯 ${t('feature.cropBoost.timeUntilMax')}`;
     allCropsCard.appendChild(allCropsTitle);
 
     const boostsRow = document.createElement('div');
-    boostsRow.style.cssText = 'font-size: 13px; color: rgba(255, 255, 255, 0.9); margin-bottom: 8px;';
+    boostsRow.style.cssText = 'font-size: 12px; color: var(--qpm-text); margin-bottom: 8px;';
     const boostsLabel = document.createElement('strong');
     boostsLabel.textContent = t('feature.cropBoost.boostsNeeded');
     boostsRow.append(boostsLabel, ` ${analysis.overallEstimate.boostsNeeded}`);
@@ -281,7 +249,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     // Simple view: Show next boost time range
     if (!showDetailedView) {
       const nextBoostRow = document.createElement('div');
-      nextBoostRow.style.cssText = 'font-size: 16px; font-weight: 600; color: #FFC107;';
+      nextBoostRow.style.cssText = 'font-size: 18px; font-weight: 600; color: var(--qpm-gold);';
       nextBoostRow.setAttribute('data-next-boost-range', 'true');
 
       // Show time range for next expected boost across all crops
@@ -300,13 +268,13 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
           const minTime = formatTimeEstimate(secondsP10 / 60);
           const maxTime = formatTimeEstimate(secondsP90 / 60);
           const rangeSpan = document.createElement('span');
-          rangeSpan.style.color = '#FFC107';
+          rangeSpan.style.color = 'var(--qpm-gold)';
           rangeSpan.textContent = `${minTime} - ${maxTime}`;
           nextBoostRow.append(`⏰ ${t('feature.cropBoost.nextBoost')} `, rangeSpan);
         }
       } else {
         const noPetsSpan = document.createElement('span');
-        noPetsSpan.style.color = '#999';
+        noPetsSpan.style.color = 'var(--qpm-text-muted)';
         noPetsSpan.textContent = t('feature.cropBoost.noBoostPets');
         nextBoostRow.append(`⏰ ${t('feature.cropBoost.nextBoost')} `, noPetsSpan);
       }
@@ -315,7 +283,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     } else {
       // Detailed view: Show full time range with percentiles
       const timeRow = document.createElement('div');
-      timeRow.style.cssText = 'font-size: 16px; font-weight: 600; color: #FFC107; margin-bottom: 8px;';
+      timeRow.style.cssText = 'font-size: 18px; font-weight: 600; color: var(--qpm-gold); margin-bottom: 8px;';
       const timeRangeStr = formatTimeRange(
         analysis.overallEstimate.timeEstimateP10,
         analysis.overallEstimate.timeEstimateP50,
@@ -325,7 +293,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
       allCropsCard.appendChild(timeRow);
 
       const note = document.createElement('div');
-      note.style.cssText = 'font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 4px; font-style: italic;';
+      note.style.cssText = 'font-size: 12px; color: var(--qpm-text-muted); margin-top: 4px; font-style: italic;';
       note.textContent = t('feature.cropBoost.timeEstimateNote');
       allCropsCard.appendChild(note);
     }
@@ -337,15 +305,15 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   const selectionCard = document.createElement('div');
   selectionCard.style.cssText = `
     padding: 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--qpm-surface-2);
+    border: 1px solid var(--qpm-border);
     border-radius: 8px;
   `;
 
   selectionCard.dataset.tour = 'cropboost-filter';
 
   const selectionTitle = document.createElement('div');
-  selectionTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
+  selectionTitle.style.cssText = 'font-size: 14px; font-weight: 600; color: var(--qpm-text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
   selectionTitle.textContent = `🌱 ${t('feature.cropBoost.viewSpecificCrop')}`;
   selectionCard.appendChild(selectionTitle);
 
@@ -353,16 +321,8 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   selectRow.style.cssText = 'display: flex; gap: 12px; align-items: center;';
 
   const speciesSelect = document.createElement('select');
-  speciesSelect.style.cssText = `
-    flex: 1;
-    padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: #fff;
-    font-size: 14px;
-    cursor: pointer;
-  `;
+  speciesSelect.className = 'qpm-select';
+  speciesSelect.style.flex = '1';
 
   // Add "All Crops" option
   const allOption = document.createElement('option');
@@ -417,13 +377,13 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     const tableCard = document.createElement('div');
     tableCard.style.cssText = `
       padding: 16px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--qpm-surface-2);
+      border: 1px solid var(--qpm-border);
       border-radius: 8px;
     `;
 
     const tableTitle = document.createElement('div');
-    tableTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
+    tableTitle.style.cssText = 'font-size: 14px; font-weight: 600; color: var(--qpm-text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;';
     tableTitle.textContent = selectedSpecies
       ? `🌾 ${t('feature.cropBoost.speciesCrops', { species: capitalize(selectedSpecies), count: String(cropsNeedingBoost.length) })}`
       : `🌾 ${t('feature.cropBoost.allCropsNeedingBoosts', { count: String(cropsNeedingBoost.length) })}`;
@@ -433,12 +393,12 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     table.style.cssText = `
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
+      font-size: 12px;
     `;
 
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    const thStyle = 'padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.6); font-weight: 600; text-transform: uppercase; font-size: 11px;';
+    const thStyle = 'padding: 8px; border-bottom: 1px solid var(--qpm-divider); color: var(--qpm-text-muted); font-weight: 600; text-transform: uppercase; font-size: 12px;';
     for (const [text, align] of [
       [t('feature.cropBoost.colCrop'), 'left'],
       [t('feature.cropBoost.colSize'), 'right'],
@@ -454,30 +414,30 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    cropsNeedingBoost.forEach((crop, index) => {
+    cropsNeedingBoost.forEach((crop) => {
       const key = `${crop.tileKey}-${crop.slotIndex}`;
       const estimate = analysis.cropEstimates.get(key);
 
       const row = document.createElement('tr');
       row.style.cssText = `
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        transition: background 0.2s;
+        border-bottom: 1px solid var(--qpm-divider);
+        transition: background 0.15s ease;
       `;
       row.addEventListener('mouseenter', () => {
-        row.style.background = 'rgba(76, 175, 80, 0.1)';
+        row.style.background = 'var(--qpm-accent-tint)';
       });
       row.addEventListener('mouseleave', () => {
         row.style.background = 'transparent';
       });
 
       const nameCell = document.createElement('td');
-      nameCell.style.cssText = 'padding: 12px 10px; display: flex; align-items: center; gap: 8px;';
-      
+      nameCell.style.cssText = 'padding: 12px 8px; display: flex; align-items: center; gap: 8px;';
+
       // Status emoji
       const statusEmoji = document.createElement('span');
       statusEmoji.textContent = crop.isMature ? '🌾' : '🌱';
-      statusEmoji.style.cssText = 'font-size: 16px; flex-shrink: 0;';
-      
+      statusEmoji.style.cssText = 'font-size: 14px; flex-shrink: 0;';
+
       // Crop image sprite (if available from game)
       const cropImage = document.createElement('div');
       cropImage.style.cssText = `
@@ -489,9 +449,11 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
         flex-shrink: 0;
         image-rendering: pixelated;
       `;
-      
+
       // Get BASE species by removing mutation prefixes (Rainbow, Gold, Frozen, etc.)
       // E.g., "Rainbow Sunflower" -> "Sunflower"
+      // FIXME: hardcoded mutation prefix list violates architecture "no hardcoded game data".
+      //        Missing Thunderstruck/Dawncharged/Ambercharged/Ambershine. Fix upstream or use normalizer.
       let baseSpecies = crop.species;
       const detectedMutations: string[] = [...(crop.mutations || [])];
       const mutationPrefixes = ['Rainbow', 'Gold', 'Golden', 'Frozen', 'Amber', 'Wet', 'Chilled', 'Dawnlit'];
@@ -505,9 +467,8 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
           break;
         }
       }
-      // Capitalize first letter for proper sprite lookup (sprite service expects "Wheat", "Sunflower", etc.)
       const speciesKey = baseSpecies.charAt(0).toUpperCase() + baseSpecies.slice(1).toLowerCase();
-      
+
       // Try to get sprite with mutations applied, fallback to base sprite
       let spriteDataUrl: string | null = null;
       if (detectedMutations.length > 0) {
@@ -516,51 +477,54 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
       if (!spriteDataUrl) {
         spriteDataUrl = canvasToDataUrl(getCropSpriteCanvas(speciesKey));
       }
-      
+
       if (spriteDataUrl) {
         cropImage.style.backgroundImage = `url(${spriteDataUrl})`;
-        // Add data attribute for auto-refresh when sprites become ready
         cropImage.setAttribute('data-qpm-sprite', `crop:${speciesKey}${detectedMutations.length > 0 ? ':' + detectedMutations.join(',') : ''}`);
       } else {
-        // Fallback: try to use a simple colored square as placeholder
-        cropImage.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
+        cropImage.style.background = 'linear-gradient(135deg, var(--qpm-positive), var(--qpm-accent))';
         cropImage.setAttribute('data-qpm-sprite', `crop:${speciesKey}`);
       }
-      
+
       // Text content
       const textSpan = document.createElement('span');
       textSpan.textContent = capitalize(crop.species);
       if (crop.mutations.length > 0) {
         const mutSpan = document.createElement('span');
-        mutSpan.style.color = '#FFD700';
+        mutSpan.style.color = 'var(--qpm-gold)';
         mutSpan.textContent = ` (${crop.mutations.join(', ')})`;
         textSpan.appendChild(mutSpan);
       }
-      
+
       nameCell.appendChild(statusEmoji);
       nameCell.appendChild(cropImage);
       nameCell.appendChild(textSpan);
       row.appendChild(nameCell);
 
       const sizeCell = document.createElement('td');
-      sizeCell.style.cssText = 'padding: 12px 10px; text-align: right;';
+      sizeCell.style.cssText = 'padding: 12px 8px; text-align: right;';
       const sizePercent = crop.currentSizePercent.toFixed(1);
       const sizeSpan = document.createElement('span');
-      sizeSpan.style.cssText = `color: ${crop.currentSizePercent >= 90 ? '#4CAF50' : crop.currentSizePercent >= 70 ? '#FF9800' : '#fff'}; font-weight: 600;`;
+      const sizeColor = crop.currentSizePercent >= 90
+        ? 'var(--qpm-positive)'
+        : crop.currentSizePercent >= 70
+          ? 'var(--qpm-warning)'
+          : 'var(--qpm-text)';
+      sizeSpan.style.cssText = `color: ${sizeColor}; font-weight: 600;`;
       sizeSpan.textContent = `${sizePercent}%`;
       sizeCell.appendChild(sizeSpan);
       row.appendChild(sizeCell);
 
       const boostsCell = document.createElement('td');
-      boostsCell.style.cssText = 'padding: 12px 10px; text-align: right;';
+      boostsCell.style.cssText = 'padding: 12px 8px; text-align: right;';
       if (estimate && showDetailedView) {
         const bSpan = document.createElement('span');
-        bSpan.style.cssText = 'color: #64B5F6; font-weight: 600;';
+        bSpan.style.cssText = 'color: var(--qpm-info); font-weight: 600;';
         bSpan.textContent = `${estimate.boostsReceived}/${estimate.boostsNeeded}`;
         boostsCell.appendChild(bSpan);
       } else if (estimate) {
         const bSpan = document.createElement('span');
-        bSpan.style.cssText = 'color: #64B5F6; font-weight: 600;';
+        bSpan.style.cssText = 'color: var(--qpm-info); font-weight: 600;';
         bSpan.textContent = String(estimate.boostsNeeded);
         boostsCell.appendChild(bSpan);
       } else {
@@ -569,7 +533,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
       row.appendChild(boostsCell);
 
       const timeCell = document.createElement('td');
-      timeCell.style.cssText = 'padding: 12px 10px; text-align: right; color: #FFC107; font-weight: 500;';
+      timeCell.style.cssText = 'padding: 12px 8px; text-align: right; color: var(--qpm-gold); font-weight: 500;';
 
       if (estimate) {
         if (!showDetailedView) {
@@ -577,7 +541,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
           const minTime = formatTimeEstimate(estimate.timeEstimateP10);
           const maxTime = formatTimeEstimate(estimate.timeEstimateP90);
           const timeSpan = document.createElement('span');
-          timeSpan.style.color = '#FFC107';
+          timeSpan.style.color = 'var(--qpm-gold)';
           timeSpan.textContent = `${minTime} - ${maxTime}`;
           timeCell.appendChild(timeSpan);
         } else {
@@ -597,27 +561,11 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     tableCard.appendChild(table);
     root.appendChild(tableCard);
   } else {
-    const allMaxCard = document.createElement('div');
-    allMaxCard.style.cssText = `
-      padding: 24px;
-      text-align: center;
-      background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.05));
-      border: 2px solid rgba(76, 175, 80, 0.4);
-      border-radius: 8px;
-      color: #4CAF50;
-    `;
-    const sparkle = document.createElement('div');
-    sparkle.style.cssText = 'font-size: 48px; margin-bottom: 12px;';
-    sparkle.textContent = '✨';
-    const maxMsg = document.createElement('div');
-    maxMsg.style.cssText = 'font-size: 16px; font-weight: 600; margin-bottom: 8px;';
-    maxMsg.textContent = selectedSpecies
-      ? t('feature.cropBoost.allAtMaxSpecies', { species: capitalize(selectedSpecies) })
-      : t('feature.cropBoost.allAtMax');
-    const greatMsg = document.createElement('div');
-    greatMsg.style.cssText = 'font-size: 13px; color: rgba(255, 255, 255, 0.6);';
-    greatMsg.textContent = `${t('feature.cropBoost.doingGreat')} 🎉`;
-    allMaxCard.append(sparkle, maxMsg, greatMsg);
+    const allMaxCard = createEmptyState(
+      selectedSpecies
+        ? `${t('feature.cropBoost.allAtMaxSpecies', { species: capitalize(selectedSpecies) })} — ${t('feature.cropBoost.doingGreat')} 🎉`
+        : `${t('feature.cropBoost.allAtMax')} — ${t('feature.cropBoost.doingGreat')} 🎉`
+    );
     root.appendChild(allMaxCard);
   }
 

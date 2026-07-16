@@ -1,7 +1,7 @@
 // src/ui/petPickerModal/mainModal.ts
 // Core modal logic: openPetPicker and closePickerModal.
 
-import { log } from '../../../utils/logger';
+import { windowLog } from '../../core/modalWindow';
 import { getAllPooledPets } from '../../../store/petTeams';
 import { isSpritesReady, onSpritesReady } from '../../../sprite-v2/compat';
 import { buildAbilityValuationContext } from '../../../features/pets/abilityValuation';
@@ -280,6 +280,7 @@ export async function openPetPicker(options: OpenPickerOptions): Promise<void> {
     try {
       valuationContext = buildAbilityValuationContext();
     } catch {
+      /* valuation context is best-effort — compare verdict renders without it */
       valuationContext = null;
     }
 
@@ -526,7 +527,7 @@ export async function openPetPicker(options: OpenPickerOptions): Promise<void> {
     updateSpeciesSummaryLabel();
     renderSpeciesPopover();
   } catch (error) {
-    log('⚠️ petPickerModal: failed to load pets', error);
+    windowLog.warn('QPM-UI-002', { what: 'petPicker:loadPets' }, error);
   }
 
   if (Array.isArray(options.preselectedCompareItemIds) && options.preselectedCompareItemIds.length > 0) {

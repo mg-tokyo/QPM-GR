@@ -11,7 +11,7 @@
 // `startObserver`, `stopObserver`) preserves the old surface so index.ts
 // and the config wrappers don't need signature changes.
 
-import { log } from '../../../utils/logger';
+import { diag, warnFeature } from './_diagnostics';
 import { getCardBounds, getObjectCardBounds, resetAnchor, installAnchorDebugBridge, uninstallAnchorDebugBridge } from './pixiAnchor';
 import type { CardBounds } from './pixiAnchor';
 import {
@@ -197,12 +197,13 @@ function positionOverlay(el: HTMLDivElement, bounds: CardBounds): void {
 
 function runInjectors(container: HTMLElement): void {
   if (injectors.size === 0) return;
-  for (const fn of injectors.values()) {
+  for (const [id, fn] of injectors) {
     try {
       const result = fn(container);
       if (result instanceof Promise) result.catch(() => { /* per-frame rAF path; injectors own async error surfacing */ });
-    } catch {
+    } catch (err) {
       // Isolate injector failures — never let one break the rest.
+      warnFeature('QPM-FEATURE-004', { what: 'injector:run', injector: id }, err);
     }
   }
 }
@@ -300,7 +301,7 @@ export function startObserver(): void {
   installAnchorDebugBridge();
   cardWasVisible = false;
   dirtyContent = true;
-  log('[TooltipOverlay] Tracking PIXI GardenInfoCardSystem (debug: window.__QPM_TOOLTIP_ANCHOR_DEBUG__())');
+  diag.debug('Tracking PIXI GardenInfoCardSystem (debug: window.__QPM_TOOLTIP_ANCHOR_DEBUG__())');
   rafHandle = window.requestAnimationFrame(tick);
 
   // Invalidate the PIXI anchor on canvas resize — layout may have shifted.

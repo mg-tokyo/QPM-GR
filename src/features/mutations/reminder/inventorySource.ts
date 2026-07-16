@@ -1,4 +1,4 @@
-import { log } from '../../../utils/logger';
+import { reminderDiag, warnReminderFeature } from './_diagnostics';
 import { ensureJotaiStore, getAtomByLabel, readAtomValue } from '../../../core/jotaiBridge';
 import { readUserSlotsInventorySnapshot } from '../../../store/userSlots';
 import { CROP_INVENTORY_ATOM_LABEL } from './constants';
@@ -13,7 +13,7 @@ export async function buildInventoryLookups(): Promise<InventoryLookups | null> 
   const items = await fetchCropInventoryItems();
   if (items.length === 0) {
     if (!reminderState.inventoryLookupStatsLogged) {
-      log('[Mutations] Inventory lookup unavailable (no items)');
+      reminderDiag.debug('Inventory lookup unavailable (no items)');
       reminderState.inventoryLookupStatsLogged = true;
     }
     return null;
@@ -39,14 +39,14 @@ export async function buildInventoryLookups(): Promise<InventoryLookups | null> 
 
   if (byIndex.size === 0) {
     if (!reminderState.inventoryLookupStatsLogged) {
-      log('[Mutations] Inventory lookup construction produced zero entries');
+      reminderDiag.debug('Inventory lookup construction produced zero entries');
       reminderState.inventoryLookupStatsLogged = true;
     }
     return null;
   }
 
   if (!reminderState.inventoryLookupStatsLogged) {
-    log('[Mutations] Inventory lookup ready', {
+    reminderDiag.debug('Inventory lookup ready', {
       items: items.length,
       byIndex: byIndex.size,
       byId: byId.size,
@@ -63,7 +63,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     const sharedAtoms = await readInventoryFromSharedAtoms();
     if (sharedAtoms) {
       if (!reminderState.inventoryLookupStatsLogged) {
-        log('[Mutations] Using shared atoms inventory source', {
+        reminderDiag.debug('Using shared atoms inventory source', {
           source: sharedAtoms.source,
           items: sharedAtoms.items.length,
           hasSlotData: sharedAtoms.hasSlotData,
@@ -76,7 +76,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     const globalInventory = readGlobalInventoryItems();
     if (globalInventory) {
       if (!reminderState.inventoryLookupStatsLogged) {
-        log('[Mutations] Using global inventory source', {
+        reminderDiag.debug('Using global inventory source', {
           source: globalInventory.source,
           items: globalInventory.items.length,
           hasSlotData: globalInventory.hasSlotData,
@@ -97,7 +97,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     const hasSlotData = items.some((item) => extractSlotsFromInventoryItem(item).length > 0);
     if (hasSlotData) {
       if (!reminderState.inventoryLookupStatsLogged) {
-        log(`[Mutations] Read crop inventory atom (${source})`, { count: items.length, hasSlotData: true });
+        reminderDiag.debug(`Read crop inventory atom (${source})`, { count: items.length, hasSlotData: true });
         reminderState.inventoryLookupStatsLogged = true;
       }
       return items;
@@ -105,7 +105,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
 
     if (!reminderState.inventoryLookupStatsLogged) {
       const samples = items.slice(0, 3).map((item, index) => ({ index, summary: summarizeInventoryItem(item) }));
-      log('[Mutations] Crop inventory atom lacks slot data, trying fallback', { source, count: items.length, samples });
+      reminderDiag.debug('Crop inventory atom lacks slot data, trying fallback', { source, count: items.length, samples });
     }
 
     const fallbackItems = await fallback();
@@ -114,7 +114,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     }
 
     if (!reminderState.inventoryLookupStatsLogged) {
-      log('[Mutations] Crop inventory atom fallback unavailable, proceeding without slot data', { source, count: items.length });
+      reminderDiag.debug('Crop inventory atom fallback unavailable, proceeding without slot data', { source, count: items.length });
       reminderState.inventoryLookupStatsLogged = true;
     }
 
@@ -125,7 +125,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     await ensureJotaiStore();
   } catch (error) {
     if (!reminderState.inventoryAccessFailureLogged) {
-      log('⚠️ Unable to capture jotai store for crop inventory', error);
+      warnReminderFeature('QPM-FEATURE-004', { what: 'jotai:capture' }, error);
       reminderState.inventoryAccessFailureLogged = true;
     }
     return await fallback();
@@ -134,7 +134,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
   const userSlotsSnapshot = await readUserSlotsInventorySnapshot();
   if (userSlotsSnapshot && userSlotsSnapshot.items.length > 0) {
     if (!reminderState.inventoryLookupStatsLogged) {
-      log('[Mutations] Using userSlotsAtom inventory source', {
+      reminderDiag.debug('Using userSlotsAtom inventory source', {
         source: userSlotsSnapshot.source,
         items: userSlotsSnapshot.items.length,
         hasSlotData: userSlotsSnapshot.hasSlotData,
@@ -152,7 +152,7 @@ async function fetchCropInventoryItems(): Promise<any[]> {
   const atom = getAtomByLabel(CROP_INVENTORY_ATOM_LABEL);
   if (!atom) {
     if (!reminderState.inventoryAccessFailureLogged) {
-      log('⚠️ Could not locate myCropInventoryAtom in jotai cache');
+      warnReminderFeature('QPM-FEATURE-004', { what: 'atom:missing', atom: CROP_INVENTORY_ATOM_LABEL });
       reminderState.inventoryAccessFailureLogged = true;
     }
     return await fallback();
@@ -168,12 +168,12 @@ async function fetchCropInventoryItems(): Promise<any[]> {
       return await ensureSlotDataOrFallback((value as Record<string, any>).items as any[], 'items array');
     }
     if (!reminderState.inventoryLookupStatsLogged) {
-      log('[Mutations] Crop inventory atom value not array-like', { sample: value });
+      reminderDiag.debug('Crop inventory atom value not array-like', { sample: value });
     }
     return await fallback();
   } catch (error) {
     if (!reminderState.inventoryAccessFailureLogged) {
-      log('⚠️ Failed reading myCropInventoryAtom', error);
+      warnReminderFeature('QPM-FEATURE-004', { what: 'atom:read', atom: CROP_INVENTORY_ATOM_LABEL }, error);
       reminderState.inventoryAccessFailureLogged = true;
     }
     return await fallback();
@@ -312,7 +312,7 @@ async function readInventoryFromSharedAtoms(): Promise<GlobalInventoryResult | n
       }
     } catch (error) {
       if (!reminderState.sharedAtomsFailureLogged) {
-        log('⚠️ Unable to read shared atoms inventory source', { source: candidate.source, error });
+        reminderDiag.debug('Unable to read shared atoms inventory source', { source: candidate.source, error: String(error) });
         reminderState.sharedAtomsFailureLogged = true;
       }
     }
@@ -327,7 +327,7 @@ function mapInventoryItem(rawItem: any, index: number): InventoryPlantEntry | nu
   const itemType = readInventoryItemType(rawItem);
   if (itemType !== 'plant') {
     if (reminderState.inventoryDebugSamples < 5) {
-      log('[Mutations] Inventory item skipped (type mismatch)', {
+      reminderDiag.debug('Inventory item skipped (type mismatch)', {
         index,
         itemType,
         keys: Object.keys(rawItem).slice(0, 10),

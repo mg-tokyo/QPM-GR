@@ -2,6 +2,24 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.18",
+    date: "2026-07-16",
+    notes: [
+      "Added Super Cleanser, a new Garden hub feature that turns Crop Cleanser into a one-press multi-slot cleanse: hold the cleanser on a tile and pressing Space cleanses every grow slot whose weather mutations match the current rule (by default matches the hovered slot's mutation set, so you don't accidentally cleanse patches you didn't mean to), Rainbow and Gold are always left untouched",
+      "Added a Super Cleanser mini floating panel that auto-opens whenever you hold the cleanser, with a big on/off button and a live preview row showing the exact crops that will be cleansed, plus a full window with ANY/ALL matching modes and per-mutation filter chips so you can whitelist specific weather types (e.g. only strip Frozen, or only cleanse slots that have both Frozen and Dawnlit)",
+    ],
+  },
+  {
+    version: "3.3.17",
+    date: "2026-07-15",
+    notes: [
+      "Added Rive Control (dev-mode only), a new window launched from the Garden Painter footer that gives persistent animation control over pets, all players' avatars in the room, and Rive decor - playback speed, state-machine inputs, image slots, and text runs, with live avatar preview cards per player and a schema-driven editor that adapts to what each target actually exposes; saved rules survive reloads and re-apply when pets are stored/retrieved, decor is placed, or other players' avatars come on-screen",
+      "Improved the Rive engine tag inference so pets, decor, and avatars are labeled correctly, previously every avatar-shaped instance (including decor with data bindings) was tagged as 'avatar' and pet species artboards went untagged entirely",
+      "Improved rive engine with a new playbackSpeed override kind that captures and restores the previous speed on cleanup, so temporary freezes don't lose the game's own baseline speed",
+      "Improved the Blobling Customiser preview to share its offline Rive rendering core with the new Rive Control avatar cards, no behavior change to Blobling",
+    ],
+  },
+  {
     version: "3.3.16",
     date: "2026-07-14",
     notes: [

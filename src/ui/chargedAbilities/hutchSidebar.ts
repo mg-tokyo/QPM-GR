@@ -1,7 +1,3 @@
-// src/ui/chargedAbilities/hutchSidebar.ts
-// Sidebar showing other charged-ability pets sitting in the hutch — informs
-// swap decisions from the Charged Abilities window.
-
 import { t } from '../../i18n';
 import { getAllAbilityProjections, getAbilityProjection } from '../../features/chargedAbilities/abilities';
 import { readAtomValueSync } from '../../core/atomRegistry';

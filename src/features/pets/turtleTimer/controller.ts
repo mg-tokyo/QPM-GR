@@ -1,4 +1,3 @@
-import { log } from '../../../utils/logger';
 import { pageWindow } from '../../../core/pageContext';
 import { type GardenSnapshot, onGardenSnapshot } from '../../garden/bridge';
 import { type ActivePetInfo, onActivePetInfos, startPetInfoStore } from '../../../store/pets';
@@ -6,6 +5,7 @@ import { debugEggDetection } from './debug';
 import { loadManualOverrides } from './overrides';
 import { recompute } from './recompute';
 import { config, getState, latest, listeners, resetState } from './state';
+import { diag, ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
 import type { DebugEggDetectionOptions, TurtleTimerConfig, TurtleTimerState } from './types';
 
 let initialized = false;
@@ -103,8 +103,8 @@ export function initializeTurtleTimer(initialConfig?: TurtleTimerConfig): void {
     return;
   }
   initialized = true;
+  ensureBusRegistered();
 
-  // Load manual overrides from storage
   loadManualOverrides();
 
   mergeConfig(initialConfig);
@@ -116,7 +116,7 @@ export function initializeTurtleTimer(initialConfig?: TurtleTimerConfig): void {
       (window as Window & { debugEggDetection?: (options?: DebugEggDetectionOptions) => void }).debugEggDetection = attach;
     }
   } catch (error) {
-    log('⚠️ Unable to attach debugEggDetection helper', error);
+    warnFeature('QPM-FEATURE-003', { what: 'attach:debugEggDetection' }, error);
   }
 
   void startPetInfoStore();
@@ -138,7 +138,14 @@ export function initializeTurtleTimer(initialConfig?: TurtleTimerConfig): void {
   });
 
   recompute();
-  log('🐢 Turtle timer ready');
+  diag.debug('Turtle timer ready');
+  publishOk('Started', {
+    enabled: config.enabled ? 1 : 0,
+    includeBoardwalk: config.includeBoardwalk ? 1 : 0,
+    focus: config.focus,
+    eggFocus: config.eggFocus,
+    minActiveHungerPct: config.minActiveHungerPct,
+  });
 }
 
 export function disposeTurtleTimer(): void {
@@ -177,7 +184,7 @@ export function onTurtleTimerState(
     try {
       listener(getState());
     } catch (error) {
-      log('⚠️ Turtle timer immediate listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:immediate' }, error);
     }
   }
   return () => {

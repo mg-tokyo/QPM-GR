@@ -1,5 +1,8 @@
 import { pageWindow, shareGlobal } from '../../core/pageContext';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { GardenSnapshot, getGardenSnapshot, onGardenSnapshot } from './bridge';
 import { calculatePlantValue, formatCoins } from '../economy/valueCalculator';
 import { computeMutationMultiplier, normalizeMutationName } from '../../utils/game/cropMultipliers';
@@ -13,6 +16,33 @@ import { normalizeSpeciesKey } from '../../utils/helpers';
 import { onWeatherSnapshot, startWeatherHub, WeatherSnapshot } from '../../store/weatherHub';
 import { isDebugGlobalsEnabled } from '../../utils/debugGlobals';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:harvestReminder';
+const FEATURE_NAME = 'harvestReminder';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 declare global {
   interface Window {
@@ -176,7 +206,12 @@ export function initializeHarvestReminder(config?: HarvestReminderConfig): void 
 
   ensureWeatherSubscription();
   evaluateSnapshot();
-  log('🌾 Harvest reminder ready');
+  ensureBusRegistered();
+  publishOk('Started', {
+    enabled: state.enabled ? 1 : 0,
+    minSize: state.minSize,
+    selectedMutations: activeMutationKeys().length,
+  });
 }
 
 export function disposeHarvestReminder(): void {
@@ -246,7 +281,7 @@ export function onHarvestSummary(cb: (summary: HarvestSummary) => void, fireImme
     try {
       cb(summary);
     } catch (error) {
-      log('⚠️ Harvest summary listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:summaryImmediate' }, error);
     }
   }
   return () => {
@@ -267,7 +302,7 @@ export function getHarvestSummary(): HarvestSummary {
 
 export function runHarvestHighlightDebug(): void {
   if (!state.enabled) {
-    log('🧪 Harvest highlight test skipped (reminder disabled)');
+    diag.debug('Highlight test skipped (reminder disabled)');
     return;
   }
 
@@ -275,7 +310,7 @@ export function runHarvestHighlightDebug(): void {
   if (!snapshot || !snapshot.tileObjects) {
     setSummary([]);
     resetHighlights();
-    log('🧪 Harvest highlight test found no tiles to evaluate');
+    diag.debug('Highlight test found no tiles to evaluate');
     return;
   }
 
@@ -289,14 +324,14 @@ export function runHarvestHighlightDebug(): void {
       mutations: [...match.mutations],
       size: match.size,
     }));
-    log('🧪 Harvest debug sample', preview);
+    diag.debug('Harvest debug sample', { preview });
   } else {
-    log('🧪 Harvest debug found no matching crops');
+    diag.debug('Harvest debug found no matching crops');
   }
   setSummary(matches);
   activeHighlightSignature = null;
   applyHighlights(matches);
-  log(`🧪 Harvest highlight test applied (${matches.length} matches)`);
+  diag.debug(`Highlight test applied (${matches.length} matches)`);
 }
 
 function notifySummaryListeners(): void {
@@ -304,7 +339,7 @@ function notifySummaryListeners(): void {
     try {
       listener(summary);
     } catch (error) {
-      log('⚠️ Harvest summary listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:summary' }, error);
     }
   }
 }
@@ -532,7 +567,7 @@ function applyHighlights(matches: HarvestMatch[]): void {
         removeFn.call(pageWindow);
       }
     } catch (error) {
-      log('⚠️ Failed to clear previous highlights', error);
+      warnFeature('QPM-FEATURE-004', { what: 'highlight:clearPrevious' }, error);
     }
 
     const species = Array.from(new Set(matches.map((match) => match.species)));
@@ -560,11 +595,11 @@ function applyHighlights(matches: HarvestMatch[]): void {
       try {
         (pageWindow as typeof window).dispatchEvent?.(new Event('visibilitychange'));
       } catch (error) {
-        log('⚠️ Failed to nudge render after highlight', error);
+        warnFeature('QPM-FEATURE-004', { what: 'highlight:nudgeRender' }, error);
       }
     }, 120);
   } catch (error) {
-    log('⚠️ Failed to apply harvest highlight', error);
+    warnFeature('QPM-FEATURE-004', { what: 'highlight:apply' }, error);
   }
 }
 
@@ -588,7 +623,7 @@ function clearHighlights(): void {
       removeFn.call(pageWindow);
     }
   } catch (error) {
-    log('⚠️ Unable to clear harvest highlights', error);
+    warnFeature('QPM-FEATURE-004', { what: 'highlight:clear' }, error);
   }
   clearGardenHighlightOverlay();
 }
@@ -611,14 +646,14 @@ function announceNewMatches(matches: HarvestMatch[]): void {
     try {
       listener(message);
     } catch (error) {
-      log('⚠️ Harvest toast listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:toast' }, error);
     }
   }
 
   try {
     window.queueNotification?.(message, false);
   } catch (error) {
-    log('⚠️ Failed to queue harvest notification', error);
+    warnFeature('QPM-FEATURE-004', { what: 'queueNotification' }, error);
   }
 }
 

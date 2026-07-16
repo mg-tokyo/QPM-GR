@@ -20,7 +20,6 @@ export async function renderRecommendationsTab(container: HTMLElement): Promise<
     return;
   }
 
-  // ── Recommended Focus ─────────────────────────────────────────────────────
   if (strategy.recommendedFocus.length > 0) {
     const section = document.createElement('div');
     section.style.cssText = 'margin-bottom:24px;';
@@ -110,7 +109,6 @@ export async function renderRecommendationsTab(container: HTMLElement): Promise<
     container.appendChild(section);
   }
 
-  // ── Low-Hanging Fruit ─────────────────────────────────────────────────────
   if (strategy.lowHangingFruit.length > 0) {
     const section = document.createElement('div');
     section.style.cssText = 'margin-bottom:24px;';
@@ -161,7 +159,6 @@ export async function renderRecommendationsTab(container: HTMLElement): Promise<
     container.appendChild(section);
   }
 
-  // ── Fastest Path ──────────────────────────────────────────────────────────
   if (strategy.fastestPath.steps.length > 0) {
     const section = document.createElement('div');
     section.style.cssText = 'margin-bottom:24px;';
@@ -211,7 +208,6 @@ export async function renderRecommendationsTab(container: HTMLElement): Promise<
     container.appendChild(section);
   }
 
-  // ── Long-Term Goals ───────────────────────────────────────────────────────
   if (strategy.longTermGoals.length > 0) {
     const section = document.createElement('div');
     section.style.cssText = 'margin-bottom:24px;';

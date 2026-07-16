@@ -2,9 +2,9 @@
 
 import { readAtomValue, subscribeAtomValue } from '../core/atomRegistry';
 import { criticalInterval, timerManager } from '../utils/scheduling/timerManager';
-import { createLogger } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
 
-const log = createLogger('QPM:FriendBonus');
+const diag = createStoreDiagnostics('storeFriendBonus', 'friendBonus');
 
 const RETRY_TIMER_ID = 'friendBonus:atomRetry';
 const RETRY_MAX = 30;
@@ -44,7 +44,7 @@ function applySlotData(value: unknown): void {
   if (next !== multiplier) {
     multiplier = next;
     for (const cb of listeners) {
-      try { cb(multiplier); } catch { /* ignore */ }
+      try { cb(multiplier); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notify' }, error); }
     }
   }
 }
@@ -64,10 +64,11 @@ async function trySubscribe(): Promise<boolean> {
     timerManager.unregister(RETRY_TIMER_ID);
     stopRetryTimer = null;
 
-    log(`Subscribed (bonus = ${multiplier.toFixed(1)}x)`);
+    diag.log.debug('Subscribed to userSlotsAtom', { multiplier });
+    diag.publishOk('Friend bonus subscribed', { multiplier });
     return true;
   } catch (err) {
-    log('Failed to subscribe to userSlotsAtom', err);
+    diag.warn('QPM-STORE-002', { atom: 'userSlots', phase: 'subscribe' }, err);
     return false;
   }
 }
@@ -86,6 +87,7 @@ export function onFriendBonusChange(cb: (multiplier: number) => void): () => voi
 export function startFriendBonusStore(): void {
   if (started) return;
   started = true;
+  diag.register('Starting friend bonus store');
 
   void trySubscribe();
 
@@ -99,13 +101,13 @@ export function startFriendBonusStore(): void {
     if (retryCount >= RETRY_MAX) {
       timerManager.unregister(RETRY_TIMER_ID);
       stopRetryTimer = null;
-      log('Gave up finding userSlotsAtom');
+      diag.warn('QPM-STORE-002', { atom: 'userSlots', gaveUp: true, retries: retryCount });
       return;
     }
     void trySubscribe();
   }, 1000);
 
-  log('Started');
+  diag.log.debug('Friend bonus store started');
 }
 
 export function stopFriendBonusStore(): void {
@@ -122,5 +124,5 @@ export function stopFriendBonusStore(): void {
   multiplier = 1.0;
   retryCount = 0;
 
-  log('Stopped');
+  diag.log.debug('Friend bonus store stopped');
 }

@@ -1,6 +1,6 @@
 // src/ui/sections/favoritesSection.ts — Unified Favorites (Auto + Bulk) with tab switching
 
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { t } from '../../i18n';
 
 type TabKey = 'rules' | 'bulk';
@@ -87,7 +87,7 @@ export function createFavoritesSection(): { element: HTMLElement; cleanup: () =>
           content.appendChild(createBulkFavoriteSection({ startExpanded: true }));
         }
       } catch (err) {
-        log('⚠️ Failed to load favorites tab', err);
+        windowLog.warn('QPM-UI-002', { what: 'favorites:tabLoad', tab: activeTab }, err);
         spinner.textContent = `❌ ${t('common.loadError')}`;
       }
     })();

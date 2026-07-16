@@ -1,11 +1,10 @@
-import { log } from '../../utils/logger';
 import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
 import { logTeamEvent } from '../petTeamsLogs';
 import { sendRoomAction } from '../../websocket/api';
 import { findEmptyGardenTile, PLACE_PET_DEFAULTS, resolveMyUserSlotIdx } from '../../features/pets/teamActions';
 import { getHutchCapacity, INVENTORY_MAX } from '../hutch';
-import { store, saveConfig } from './state';
+import { store, saveConfig, diag } from './state';
 import type { ApplyErrorReason, ApplyTeamResult } from './types';
 import { mapSendReason, incrementReasonCount, buildErrorSummary } from './types';
 import {
@@ -67,11 +66,11 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
   const currentSet = new Set(getActiveSlotIds());
   const targetSet = new Set(targetIds);
-  log(`[PetTeams:Apply] "${team.name}" targets=${targetIds.length} currentActive=${currentSet.size}`);
-  log(`[PetTeams:Apply]   targetIds: [${targetIds.join(', ')}]`);
-  log(`[PetTeams:Apply]   activeIds: [${[...currentSet].join(', ')}]`);
+  diag.log.debug(`apply "${team.name}" targets=${targetIds.length} currentActive=${currentSet.size}`);
+  diag.log.debug(`apply targetIds: [${targetIds.join(', ')}]`);
+  diag.log.debug(`apply activeIds: [${[...currentSet].join(', ')}]`);
   if (targetIds.every((id) => currentSet.has(id)) && currentSet.size <= targetIds.length) {
-    log('[PetTeams:Apply] Already matched — no-op');
+    diag.log.debug('apply already matched — no-op');
     return { applied: 0, errors: [] };
   }
 
@@ -100,12 +99,12 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       validTargetIds.push(targetId);
     } else {
       pushError('not_found', `Pet ${targetId} could not be located — skipping`);
-      log(`[PetTeams] Could not locate pet ${targetId} in "${team.name}" — skipping (not removing)`);
+      diag.log.debug(`could not locate pet ${targetId} in "${team.name}" — skipping (not removing)`);
     }
   }
 
-  log(`[PetTeams:Apply] Pre-validation: ${validTargetIds.length}/${targetIds.length} valid, ${errors.length} error(s)`);
-  for (const err of errors) log(`[PetTeams:Apply]   pre-err: ${err}`);
+  diag.log.debug(`apply pre-validation: ${validTargetIds.length}/${targetIds.length} valid, ${errors.length} error(s)`);
+  for (const err of errors) diag.log.debug(`apply pre-err: ${err}`);
 
   if (validTargetIds.length === 0) {
     const errorSummary = buildErrorSummary(reasonCounts);
@@ -493,12 +492,12 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     let fastStoresSent = 0;
     for (const displacedId of displacedPets) {
       if (modeledHutchCount >= hutch.hutchMax && modeledHutchIndex == null) {
-        log(`[PetTeams:Fast] Store skipped (hutch modelled full): ${displacedId} (count=${modeledHutchCount}/${hutch.hutchMax})`);
+        diag.log.debug(`fast store skipped (hutch modelled full): ${displacedId} (count=${modeledHutchCount}/${hutch.hutchMax})`);
         continue;
       }
       const storeResult = sendPutItemInStorage(displacedId, modeledHutchIndex, true);
       if (!storeResult.ok) {
-        log(`[PetTeams:Fast] Store failed: ${displacedId} reason=${storeResult.reason ?? 'unknown'} (payload storageId=PetHutch toStorageIndex=${modeledHutchIndex})`);
+        diag.log.debug(`fast store failed: ${displacedId} reason=${storeResult.reason ?? 'unknown'} (payload storageId=PetHutch toStorageIndex=${modeledHutchIndex})`);
         continue;
       }
       fastOpsSent++;
@@ -512,14 +511,14 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       }
     }
 
-    log(`[PetTeams:Fast] sent=${fastOpsSent} (retrieves=${retrievesSent}, swapFromStorage=${swapFromStorageSent}, swapPet=${swapPetSent}, places=${placesSent}, storesAttempted=${displacedPets.length} storesSent=${fastStoresSent})`);
+    diag.log.debug(`fast sent=${fastOpsSent} (retrieves=${retrievesSent}, swapFromStorage=${swapFromStorageSent}, swapPet=${swapPetSent}, places=${placesSent}, storesAttempted=${displacedPets.length} storesSent=${fastStoresSent})`);
     if (fastOpsSent === 0) {
-      log('[PetTeams:Fast] Nothing sent — falling through to repair');
+      diag.log.debug('fast nothing sent — falling through to repair');
       return false;
     }
 
     const settled = await waitForActiveTeamMatch(validTargetIds, FAST_PATH_SETTLE_TIMEOUT_MS, FAST_SETTLE_POLL_INTERVAL_MS);
-    log(`[PetTeams:Fast] settled=${settled} activeNow=[${getActiveSlotIds().join(', ')}]`);
+    diag.log.debug(`fast settled=${settled} activeNow=[${getActiveSlotIds().join(', ')}]`);
     if (settled) {
       applied += fastApplied;
     }
@@ -534,7 +533,7 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
     let activeNow = getActiveSlotIds();
     const pendingTargets = validTargetIds.filter((id) => !activeNow.includes(id));
-    log(`[PetTeams:Repair] pendingTargets=${pendingTargets.length} activeNow=[${activeNow.join(', ')}]`);
+    diag.log.debug(`repair pendingTargets=${pendingTargets.length} activeNow=[${activeNow.join(', ')}]`);
 
     for (const targetId of pendingTargets) {
       activeNow = getActiveSlotIds();
@@ -638,10 +637,10 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
 
   const fastSettled = await applyTeamFastHutchPath();
   if (!fastSettled) {
-    log('[PetTeams:Apply] Fast path did not settle — running repair pass');
+    diag.log.debug('apply fast path did not settle — running repair pass');
     await applyTeamRepairPass();
   } else {
-    log('[PetTeams:Apply] Fast path settled successfully');
+    diag.log.debug('apply fast path settled successfully');
   }
 
   // Final cleanup: store any previously-active pets that ended up in inventory
@@ -655,8 +654,8 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     await delay(APPLY_STEP_DELAY_MS);
   }
 
-  log(`[PetTeams:Apply] Done — applied=${applied} errors=${errors.length} finalActive=[${getActiveSlotIds().join(', ')}]`);
-  for (const err of errors) log(`[PetTeams:Apply]   error: ${err}`);
+  diag.log.debug(`apply done — applied=${applied} errors=${errors.length} finalActive=[${getActiveSlotIds().join(', ')}]`);
+  for (const err of errors) diag.log.debug(`apply error: ${err}`);
   return finishApply();
 }
 

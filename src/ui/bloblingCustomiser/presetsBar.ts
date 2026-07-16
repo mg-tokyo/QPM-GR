@@ -1,4 +1,3 @@
-// src/ui/bloblingCustomiser/presetsBar.ts
 import { t } from '../../i18n';
 import { applyPresetToSession, getSession } from '../../features/bloblingCustomiser';
 import {
@@ -72,8 +71,6 @@ export function renderPresetsBar(
     refresh();
   }
 
-  // ── Tab button ────────────────────────────────────────────────────────
-  // Horizontal pill that sticks out from the bottom edge of the window.
   const tabBtn = document.createElement('button');
   tabBtn.type = 'button';
   tabBtn.title = t('feature.bloblingCustomiser.presets.title');
@@ -83,13 +80,11 @@ export function renderPresetsBar(
   tabBtn.addEventListener('mouseleave', () => { tabBtn.style.background = isOpen ? 'var(--qpm-accent-hover)' : 'var(--qpm-accent)'; });
   document.body.appendChild(tabBtn);
 
-  // ── Panel ─────────────────────────────────────────────────────────────
-  // Drops down below the window (or rises above if no room below).
+  // Drops down below the window, or rises above if no room below.
   const panel = document.createElement('div');
   panel.style.cssText = `position:fixed;display:none;flex-direction:column;background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-emphasis);border-top:none;border-radius:0 0 var(--qpm-radius-lg) var(--qpm-radius-lg);box-shadow:0 4px 20px rgba(0,0,0,0.4);font-family:inherit;font-size:var(--qpm-font-body);color:var(--qpm-text);transition:opacity 0.15s,transform 0.15s;overflow:hidden;`;
   document.body.appendChild(panel);
 
-  // Header
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:var(--qpm-space-4) var(--qpm-space-5);flex-shrink:0;border-bottom:1px solid var(--qpm-divider);';
   const headerTitle = document.createElement('span');
@@ -107,7 +102,6 @@ export function renderPresetsBar(
   header.appendChild(closeBtn);
   panel.appendChild(header);
 
-  // Scrollable grid container
   const scroll = document.createElement('div');
   scroll.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;padding:var(--qpm-space-4);';
   panel.appendChild(scroll);
@@ -257,7 +251,6 @@ export function renderPresetsBar(
     grid.appendChild(isAtCap() ? makeCapTile() : makeAddTile());
   }
 
-  // ── Toggle ────────────────────────────────────────────────────────────
   function togglePanel(open: boolean): void {
     isOpen = open;
     tabBtn.textContent = isOpen ? '×' : '+';
@@ -292,13 +285,10 @@ export function renderPresetsBar(
   document.addEventListener('keydown', onKeyDown);
   cleanups.push(() => document.removeEventListener('keydown', onKeyDown));
 
-  // ── Positioning ───────────────────────────────────────────────────────
   function reposition(): void {
     const rect = windowEl.getBoundingClientRect();
     const z = windowEl.style.zIndex || '1000';
 
-    // Prefer below; flip above if no room. The grid picker lives on the
-    // left/right edges, so the bottom is free regardless of its state.
     const fitsBelow = rect.bottom + PANEL_HEIGHT + TAB_HEIGHT < window.innerHeight - 8;
 
     if (fitsBelow) {
@@ -323,7 +313,6 @@ export function renderPresetsBar(
       panel.style.borderTop = '1px solid var(--qpm-accent-emphasis)';
     }
 
-    // Horizontal: tab centered on window; panel spans window width.
     tabBtn.style.left = `${Math.round(rect.left + (rect.width - TAB_WIDTH) / 2)}px`;
     tabBtn.style.zIndex = z;
 

@@ -24,17 +24,19 @@ export function formatETA(ts: number | null | undefined): string {
 }
 
 export function etaColor(ts: number | null | undefined): string {
-  if (!ts) return 'rgba(224,224,224,0.4)';
+  if (!ts) return 'var(--qpm-text-muted)';
   const diff = ts - Date.now();
-  if (diff <= 0)  return '#10b981';  // overdue
+  if (diff <= 0)  return 'var(--qpm-positive)';  // overdue
   const h = diff / 3_600_000;
-  if (h < 1)  return '#22c55e';
+  if (h < 1)  return 'var(--qpm-positive)';
+  // Mid-ramp stops are feature-local urgency shades — precedent in xpTracker /
+  // turtleTimer / trackerWindow. No canonical token maps to these transitions.
   if (h < 6)  return '#84cc16';
   if (h < 24) return '#eab308';
   const d = diff / 86_400_000;
   if (d < 7)  return '#f97316';
-  if (d < 14) return '#f87171';
-  return '#ef4444';
+  if (d < 14) return 'var(--qpm-danger)';
+  return 'var(--qpm-danger)';
 }
 
 export function ratePercent(rate: number | null): string {
@@ -58,11 +60,11 @@ export function ratePercent(rate: number | null): string {
 }
 
 export function rateColor(rate: number | null): string {
-  if (rate === null || rate === undefined) return '#f87171';
+  if (rate === null || rate === undefined) return 'var(--qpm-danger)';
   const pct = rate * 100;
-  if (pct >= 80) return '#4ade80';
-  if (pct >= 40) return '#fbbf24';
-  return '#f87171';
+  if (pct >= 80) return 'var(--qpm-positive)';
+  if (pct >= 40) return 'var(--qpm-warning)';
+  return 'var(--qpm-danger)';
 }
 
 export function formatFrequency(rate: number | null, shopType: string): string {

@@ -9,10 +9,12 @@ import {
   isCanvasDrawn,
   normalizeWeatherLabel,
 } from '../utils/game/weatherDetection';
-import { log } from '../utils/logger';
 import { readAtomValue as readRegistryAtomValue, subscribeAtomValue } from '../core/atomRegistry';
 import { visibleInterval } from '../utils/scheduling/timerManager';
 import type { WeatherAtomValue } from '../types/gameAtoms';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeWeatherHub', 'weatherHub');
 
 export type WeatherSnapshot = {
   kind: DetailedWeather;
@@ -73,7 +75,7 @@ function emit(next: WeatherSnapshot): void {
     try {
       listener(current);
     } catch (error) {
-      log('⚠️ Weather hub listener failed', error);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
   }
 }
@@ -236,7 +238,7 @@ async function ensureAtomBridge(): Promise<void> {
     } catch (error) {
       atomBridgeReady = false;
       atomValueSeen = false;
-      log('⚠️ Weather hub atom bridge error', error);
+      diag.warn('QPM-STORE-002', { atom: 'weather', phase: 'bridge' }, error);
       atomUnsubscribe = null;
     } finally {
       atomInitPromise = null;
@@ -251,10 +253,12 @@ async function ensureAtomBridge(): Promise<void> {
 
 export function startWeatherHub(): void {
   if (pollTimerCleanup != null) return;
+  diag.register('Starting weather hub');
   lastBridgeAttemptAt = Date.now();
   void ensureAtomBridge();
   pollWeather(true);
   pollTimerCleanup = visibleInterval('weather-hub-poll', () => pollWeather(false), POLL_INTERVAL_MS);
+  diag.publishOk('Weather hub started', { source: current.source });
 }
 
 export function stopWeatherHub(): void {
@@ -286,7 +290,7 @@ export function onWeatherSnapshot(callback: (snapshot: WeatherSnapshot) => void,
     try {
       callback(current);
     } catch (error) {
-      log('⚠️ Weather hub immediate listener failed', error);
+      diag.warn('QPM-STORE-003', { phase: 'notifyImmediate' }, error);
     }
   }
   return () => {

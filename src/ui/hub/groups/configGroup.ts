@@ -1,8 +1,7 @@
 // src/ui/hubWindow/groups/configGroup.ts
 
 import type { HubGroupDef, ExpandableCardConfig } from '../cards/types';
-import { toggleWindow } from '../../core/modalWindow';
-import { log } from '../../../utils/logger';
+import { toggleWindow, windowLog } from '../../core/modalWindow';
 import {
   isShopKeybindsEnabled,
   setShopKeybindsEnabled,
@@ -286,7 +285,7 @@ export function getConfigGroup(): HubGroupDef {
       // overflow left to parent hub scroll container
       import('../../sections/controllerSection').then(({ createControllerSection }) => {
         container.appendChild(createControllerSection(null, null));
-      }).catch(e => log('⚠️ Failed to load Controller', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:ctrl' }, e));
     },
     detachWindowId: 'utility-feature-controller',
     onDetach: () => {
@@ -294,7 +293,7 @@ export function getConfigGroup(): HubGroupDef {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
         import('../../sections/controllerSection').then(({ createControllerSection }) => {
           root.appendChild(createControllerSection(null, null));
-        }).catch(e => log('⚠️ Failed to load Controller', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:ctrl' }, e));
       }, '580px', '78vh');
     },
   };
@@ -342,7 +341,7 @@ export function getConfigGroup(): HubGroupDef {
     renderExpanded: (container) => {
       import('../../sections/shopEnhancerSection').then(({ createShopEnhancerSection }) => {
         container.appendChild(createShopEnhancerSection());
-      }).catch((e) => log('⚠️ Failed to load Shop Enhancer section', e));
+      }).catch((e) => windowLog.warn('QPM-UI-002', { what: 'lazy:shopEnh' }, e));
     },
   };
 

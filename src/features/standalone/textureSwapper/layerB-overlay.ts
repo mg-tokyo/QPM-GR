@@ -1,4 +1,4 @@
-import { ctx, log, type LayerBOriginalSnapshot, type TextureOverrideRule } from './types';
+import { ctx, warnFeature, type LayerBOriginalSnapshot, type TextureOverrideRule } from './types';
 import { getFallbackTexture, getPixiApp, isTextureRenderable } from './pixi-walk';
 import { clearRiveMutations } from './riveAdapter';
 import { getBasePixiSpriteCtor } from './rive/detection';
@@ -123,7 +123,7 @@ function installScaleAsserter(): void {
     app.ticker.add(cb, null, -10);
     ctx.scaleAsserterCallback = cb;
   } catch (e) {
-    log('installScaleAsserter: failed', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'scaleAsserter:install' }, e);
     ctx.scaleAsserterCallback = null;
   }
 }
@@ -218,7 +218,7 @@ export function getOrCreateSpriteOverlay(sprite: any, rule: TextureOverrideRule)
       sprite.addChild?.(overlay);
       ctx.layerBOverlaySprites.set(sprite, overlay);
     } catch (e) {
-      log('Failed to create overlay child sprite', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'overlay:createSprite', ruleId: rule.id }, e);
       return null;
     }
   }

@@ -1,7 +1,6 @@
 // src/ui/shopRestockAlerts/index.ts
 // Public lifecycle entry — startShopRestockAlerts / stopShopRestockAlerts.
 
-import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
 import { onSpritesReady } from '../../../sprite-v2/compat';
@@ -40,6 +39,7 @@ import { processShopStock, loadDismissedCycles } from './stockProcessor';
 import { applyAlertSprite, removeAlert } from './alertDom';
 import { stopAllLoops } from './soundEngine';
 import { startWeatherAlertProcessor, stopWeatherAlertProcessor } from './weatherAlertProcessor';
+import { ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
 
 // ---------------------------------------------------------------------------
 // Socket close detection
@@ -127,6 +127,7 @@ function ensureAlertSocketPollRunning(): void {
 
 export function startShopRestockAlerts(): void {
   if (alertState.started) return;
+  ensureBusRegistered();
   try {
     alertState.started = true;
     debugLog('Starting shop restock alerts');
@@ -152,7 +153,7 @@ export function startShopRestockAlerts(): void {
     alertState.hasToolInventoryBaseline  = false;
 
     void startShopRegistry().catch((error) => {
-      log('[ShopRestockAlerts] Failed to start shop registry', error);
+      warnFeature('QPM-FEATURE-003', { what: 'start:registry' }, error);
     });
 
     void startShopStockStore().then(() => {
@@ -161,7 +162,7 @@ export function startShopRestockAlerts(): void {
         processShopStock(state);
       }, true);
     }).catch((error) => {
-      log('[ShopRestockAlerts] Failed to start shop stock store', error);
+      warnFeature('QPM-FEATURE-003', { what: 'start:stockStore' }, error);
     });
 
     void startInventoryStore().then(() => {
@@ -170,7 +171,7 @@ export function startShopRestockAlerts(): void {
         handleInventorySnapshot(data);
       }, true);
     }).catch((error) => {
-      log('[ShopRestockAlerts] Failed to start inventory store', error);
+      warnFeature('QPM-FEATURE-003', { what: 'start:invStore' }, error);
     });
 
     void subscribeAtomValue('myData', (value) => {
@@ -183,7 +184,7 @@ export function startShopRestockAlerts(): void {
       }
       alertState.stopMyDataListener = unsubscribe;
     }).catch((error) => {
-      log('[ShopRestockAlerts] Failed to subscribe to myData', error);
+      warnFeature('QPM-FEATURE-003', { what: 'sub:myData' }, error);
     });
 
     void subscribeAtomValue('toolInventory', (value) => {
@@ -196,7 +197,7 @@ export function startShopRestockAlerts(): void {
       }
       alertState.stopToolInventoryListener = unsubscribe;
     }).catch((error) => {
-      log('[ShopRestockAlerts] Failed to subscribe to toolInventory', error);
+      warnFeature('QPM-FEATURE-003', { what: 'sub:toolInv' }, error);
     });
 
     alertState.stopSpritesReadyListener = onSpritesReady(() => {
@@ -215,9 +216,10 @@ export function startShopRestockAlerts(): void {
     ensureAlertSocketPollRunning();
 
     startWeatherAlertProcessor();
+    publishOk('Started');
   } catch (error) {
     alertState.started = false;
-    log('[ShopRestockAlerts] start failed', error);
+    warnFeature('QPM-FEATURE-003', { what: 'start' }, error);
   }
 }
 

@@ -1,7 +1,37 @@
 import { ensureJotaiStore, getAtomByLabel, readAtomValue, getCachedStore } from '../../core/jotaiBridge';
 import { subscribeAtomValue } from '../../core/atomRegistry';
 import { shareGlobal, readSharedGlobal } from '../../core/pageContext';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenBridge';
+const FEATURE_NAME = 'gardenBridge';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 const MY_DATA_ATOM_LABEL = 'myDataAtom';
 const MAP_ATOM_LABEL = 'mapAtom';
@@ -41,7 +71,7 @@ function notifyListeners() {
     try {
       listener(cachedGarden);
     } catch (error) {
-      log('⚠️ Garden listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:snapshot' }, error);
     }
   }
 }
@@ -63,22 +93,22 @@ function extractGarden(value: Record<string, unknown> | null | undefined): Garde
 async function resolveGardenSnapshot(): Promise<GardenSnapshot> {
   const myDataAtom = getAtomByLabel(MY_DATA_ATOM_LABEL);
   if (!myDataAtom) {
-    log('⚠️ [GardenBridge] myDataAtom not found (labels may be unavailable, trying structure-based fallback)');
+    diag.debug('myDataAtom not found (labels may be unavailable)');
     throw new Error('Unable to locate myDataAtom in jotaiAtomCache');
   }
 
-  log('[GardenBridge] ✅ Found myDataAtom');
+  diag.debug('Found myDataAtom');
 
   const myData = await readAtomValue<Record<string, unknown> | null>(myDataAtom).catch((error) => {
-    log('⚠️ [GardenBridge] Failed to read myDataAtom', error);
+    warnFeature('QPM-FEATURE-004', { what: 'bridge:readMyData' }, error);
     return null;
   });
   const garden = extractGarden(myData ?? undefined);
 
   if (garden?.tileObjects) {
-    log(`[GardenBridge] ✅ Garden data loaded (${Object.keys(garden.tileObjects).length} tiles)`);
+    diag.debug(`Garden data loaded (${Object.keys(garden.tileObjects).length} tiles)`);
   } else {
-    log('[GardenBridge] ⚠️ Garden data empty or invalid');
+    diag.debug('Garden data empty or invalid');
   }
 
   return garden;
@@ -87,21 +117,21 @@ async function resolveGardenSnapshot(): Promise<GardenSnapshot> {
 async function resolveMapSnapshot(): Promise<MapSnapshot | null> {
   const mapAtom = getAtomByLabel(MAP_ATOM_LABEL);
   if (!mapAtom) {
-    log('⚠️ [GardenBridge] mapAtom not found');
+    diag.debug('mapAtom not found');
     return null;
   }
 
-  log('[GardenBridge] ✅ Found mapAtom');
+  diag.debug('Found mapAtom');
 
   const map = await readAtomValue<MapSnapshot | null>(mapAtom).catch((error) => {
-    log('⚠️ [GardenBridge] Failed to read mapAtom', error);
+    warnFeature('QPM-FEATURE-004', { what: 'bridge:readMap' }, error);
     return null;
   });
 
   if (map && map.cols && map.rows) {
-    log(`[GardenBridge] ✅ Map data loaded (${map.cols}x${map.rows} grid)`);
+    diag.debug(`Map data loaded (${map.cols}x${map.rows} grid)`);
   } else {
-    log('[GardenBridge] ⚠️ Map data empty or invalid');
+    diag.debug('Map data empty or invalid');
   }
 
   return map;
@@ -110,6 +140,7 @@ async function resolveMapSnapshot(): Promise<MapSnapshot | null> {
 export async function startGardenBridge(): Promise<void> {
   if (initialized) return;
   initialized = true;
+  ensureBusRegistered();
 
   if (retryTimer) {
     clearTimeout(retryTimer);
@@ -119,7 +150,7 @@ export async function startGardenBridge(): Promise<void> {
   try {
     await ensureJotaiStore();
   } catch (error) {
-    log('⚠️ Jotai store unavailable, garden bridge deferred', error);
+    warnFeature('QPM-FEATURE-003', { what: 'startBridge:jotai' }, error);
     initialized = false;
     if (!retryTimer) {
       retryTimer = window.setTimeout(() => {
@@ -141,7 +172,7 @@ export async function startGardenBridge(): Promise<void> {
       shareGlobal(GLOBAL_MAP_CACHE_KEY, cachedMap);
     }
   } catch (error) {
-    log('⚠️ Unable to prime garden snapshot', error);
+    warnFeature('QPM-FEATURE-003', { what: 'startBridge:primeSnapshot' }, error);
     if (!retryTimer) {
       retryTimer = window.setTimeout(() => {
         retryTimer = null;
@@ -153,7 +184,7 @@ export async function startGardenBridge(): Promise<void> {
 
   myDataAtomRef = getAtomByLabel(MY_DATA_ATOM_LABEL);
   if (!myDataAtomRef) {
-    log('⚠️ myDataAtom missing after initialization');
+    warnFeature('QPM-FEATURE-003', { what: 'startBridge:postInitMyDataMissing' });
     initialized = false;
     if (!retryTimer) {
       retryTimer = window.setTimeout(() => {
@@ -170,7 +201,11 @@ export async function startGardenBridge(): Promise<void> {
   });
   if (unsub) unsubscribe = unsub;
 
-  log('✅ [GardenBridge] Garden bridge started successfully');
+  publishOk('Started', {
+    hasSnapshot: cachedGarden ? 1 : 0,
+    hasMap: cachedMap ? 1 : 0,
+    tiles: cachedGarden?.tileObjects ? Object.keys(cachedGarden.tileObjects).length : 0,
+  });
 }
 
 export function stopGardenBridge(): void {
@@ -218,7 +253,7 @@ export function onGardenSnapshot(cb: (state: GardenSnapshot) => void, fireImmedi
     try {
       cb(cachedGarden);
     } catch (error) {
-      log('⚠️ Garden listener immediate call failed', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:immediate' }, error);
     }
   }
   return () => {

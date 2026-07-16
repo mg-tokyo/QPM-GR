@@ -2,7 +2,6 @@
 // Prediction and history row builders for the Shop Restock window.
 // Row builders receive callbacks instead of closing over render state.
 
-import { openItemRestockDetail } from './itemRestockDetailWindow';
 import { getItemName, getItemRarity, getItemPrice, getItemMeta, getSpriteUrl, getCoinSpriteUrl } from './restockWindowMeta';
 import {
   rarityColor,
@@ -23,7 +22,7 @@ import { isCelestial } from './restockWindowMeta';
 import { t } from '../../i18n';
 import { getSoundConfig } from './restockAlerts/soundConfig';
 import { showSoundPopover } from './restockAlerts/soundPopover';
-import { getRequiredWeather } from './restockWindowConstants';
+import { getRequiredWeather, CELESTIAL_BG_TINT, CELESTIAL_BG_HOVER, CELESTIAL_BORDER } from './restockWindowConstants';
 import { getWeatherSnapshot, onWeatherSnapshot } from '../../store/weatherHub';
 import type { RestockItem } from '../../utils/restock/dataService';
 
@@ -43,9 +42,9 @@ export function makeWeatherBadge(itemId: string): { el: HTMLElement; cleanup: ()
   const update = (snapshot: { kind: string }): void => {
     const active = snapshot.kind === required;
     badge.textContent = active ? t('feature.shopRestock.weatherActive', { weather: required }) : t('feature.shopRestock.weatherOnly', { weather: required });
-    badge.style.color = active ? '#4ade80' : 'rgba(232,224,255,0.4)';
-    badge.style.background = active ? 'rgba(74,222,128,0.12)' : 'rgba(143,130,255,0.06)';
-    badge.style.border = `1px solid ${active ? 'rgba(74,222,128,0.3)' : 'rgba(143,130,255,0.15)'}`;
+    badge.style.color = active ? 'var(--qpm-positive)' : 'var(--qpm-text-muted)';
+    badge.style.background = active ? 'color-mix(in srgb, var(--qpm-positive) 12%, transparent)' : 'var(--qpm-accent-tint)';
+    badge.style.border = `1px solid ${active ? 'color-mix(in srgb, var(--qpm-positive) 30%, transparent)' : 'var(--qpm-accent-subtle)'}`;
   };
 
   update(getWeatherSnapshot());
@@ -62,8 +61,8 @@ export function makeIconWrap(item: RestockItem, size = 42): HTMLElement {
   const wrap    = document.createElement('div');
   const spriteSize = Math.round(size * 0.76);
   wrap.style.cssText = [
-    `width:${size}px`, `height:${size}px`, 'border-radius:10px',
-    'background:rgba(229,231,235,0.05)',
+    `width:${size}px`, `height:${size}px`, 'border-radius:8px',
+    'background:var(--qpm-accent-tint)',
     rarityBorderStyle(rarity),
     'display:flex', 'align-items:center', 'justify-content:center',
     'flex-shrink:0', 'transition:border-color 0.2s',
@@ -101,20 +100,20 @@ export function buildPredRow(
   const row = document.createElement('div');
   row.style.cssText = [
     'display:flex', 'align-items:center', 'justify-content:space-between', 'gap:12px',
-    'padding:10px 12px', 'min-height:52px',
-    `border:1px solid ${cel ? 'rgba(255,215,0,0.22)' : 'transparent'}`,
-    `background:${cel ? 'rgba(255,215,0,0.04)' : 'color-mix(in srgb, rgba(30,30,40,0.5) 50%, transparent)'}`,
-    'border-radius:10px', 'cursor:pointer',
+    'padding:12px', 'min-height:52px',
+    `border:1px solid ${cel ? CELESTIAL_BORDER : 'transparent'}`,
+    `background:${cel ? CELESTIAL_BG_TINT : 'color-mix(in srgb, var(--qpm-surface-2) 50%, transparent)'}`,
+    'border-radius:8px', 'cursor:pointer',
     'transition:transform 0.15s, background 0.15s',
   ].join(';');
   row.title = t('feature.shopRestock.clickToUnpin');
   row.addEventListener('mouseenter', () => {
     row.style.transform  = 'scale(1.01)';
-    row.style.background = cel ? 'rgba(255,215,0,0.09)' : 'rgba(255,255,255,0.06)';
+    row.style.background = cel ? CELESTIAL_BG_HOVER : 'var(--qpm-accent-tint)';
   });
   row.addEventListener('mouseleave', () => {
     row.style.transform  = '';
-    row.style.background = cel ? 'rgba(255,215,0,0.04)' : '';
+    row.style.background = cel ? CELESTIAL_BG_TINT : 'color-mix(in srgb, var(--qpm-surface-2) 50%, transparent)';
   });
 
   // Left: icon-wrap + text
@@ -201,7 +200,7 @@ export function buildPredRow(
 
   if (!hasData) {
     const dash = document.createElement('div');
-    dash.style.cssText = 'font-size:20px;color:#f87171;';
+    dash.style.cssText = 'font-size:18px;color:var(--qpm-danger);';
     dash.textContent = '--';
     metrics.appendChild(dash);
     row.addEventListener('click', () => { opts.onUnpin(key); });
@@ -211,12 +210,12 @@ export function buildPredRow(
 
   // Dormant items: seasonal/removed — suppress ETA and rate.
   if (item.is_dormant === true) {
-    row.style.background = cel ? 'rgba(255,215,0,0.04)' : 'rgba(255,165,0,0.04)';
+    row.style.background = cel ? CELESTIAL_BG_TINT : 'color-mix(in srgb, var(--qpm-warning) 4%, transparent)';
 
     const dormantEtaWrap = document.createElement('div');
     dormantEtaWrap.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;min-width:68px;width:68px;';
     const dormantLabel = document.createElement('div');
-    dormantLabel.style.cssText = 'font-size:14px;font-weight:700;color:rgba(255,165,0,0.6);white-space:nowrap;line-height:1.15;';
+    dormantLabel.style.cssText = 'font-size:14px;font-weight:700;color:var(--qpm-warning);white-space:nowrap;line-height:1.15;';
     dormantLabel.textContent = t('feature.shopRestock.seasonal');
     const dormantSub = document.createElement('div');
     dormantSub.style.cssText = 'font-size:10px;opacity:0.5;text-transform:uppercase;letter-spacing:0.5px;';
@@ -227,7 +226,7 @@ export function buildPredRow(
     const dormantRateWrap = document.createElement('div');
     dormantRateWrap.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;min-width:70px;width:70px;';
     const dormantDash = document.createElement('div');
-    dormantDash.style.cssText = 'font-size:19px;font-weight:700;color:rgba(232,224,255,0.3);font-variant-numeric:tabular-nums;line-height:1.15;';
+    dormantDash.style.cssText = 'font-size:18px;font-weight:700;color:var(--qpm-text-muted);font-variant-numeric:tabular-nums;line-height:1.15;';
     dormantDash.textContent = '\u2014';
     const dormantRateLbl = document.createElement('div');
     dormantRateLbl.style.cssText = 'font-size:10px;opacity:0.5;text-transform:uppercase;letter-spacing:0.5px;';
@@ -246,7 +245,7 @@ export function buildPredRow(
   const etaWrap = document.createElement('div');
   etaWrap.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;min-width:68px;width:68px;position:relative;';
   const etaEl = document.createElement('div');
-  etaEl.style.cssText = `font-size:19px;font-weight:700;color:${etaCol};font-variant-numeric:tabular-nums;letter-spacing:-0.3px;line-height:1.15;white-space:nowrap;`;
+  etaEl.style.cssText = `font-size:18px;font-weight:700;color:${etaCol};font-variant-numeric:tabular-nums;letter-spacing:-0.3px;line-height:1.15;white-space:nowrap;`;
   etaEl.textContent = etaLabel;
   const etaLbl = document.createElement('div');
   etaLbl.style.cssText = 'font-size:10px;opacity:0.5;text-transform:uppercase;letter-spacing:0.5px;';
@@ -263,7 +262,7 @@ export function buildPredRow(
   rateWrap.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;min-width:70px;width:70px;position:relative;cursor:help;';
   if (tooltipTx) rateWrap.dataset.tooltip = tooltipTx;
   const rateEl = document.createElement('div');
-  rateEl.style.cssText = `font-size:19px;font-weight:700;color:${rateColor(rate)};font-variant-numeric:tabular-nums;letter-spacing:-0.3px;line-height:1.15;white-space:nowrap;`;
+  rateEl.style.cssText = `font-size:18px;font-weight:700;color:${rateColor(rate)};font-variant-numeric:tabular-nums;letter-spacing:-0.3px;line-height:1.15;white-space:nowrap;`;
   rateEl.textContent = ratePercent(rate);
   const rateLbl = document.createElement('div');
   rateLbl.style.cssText = 'font-size:10px;opacity:0.5;text-transform:uppercase;letter-spacing:0.5px;';
@@ -296,7 +295,7 @@ export function buildHistRow(
   const tr = document.createElement('tr');
   tr.className = 'qpm-sr-tr';
   tr.title = t('feature.shopRestock.clickToPinPredictions');
-  if (cel) tr.style.background = 'rgba(255,215,0,0.025)';
+  if (cel) tr.style.background = 'color-mix(in srgb, var(--qpm-gold) 2.5%, transparent)';
 
   // Item cell: icon-wrap (42px) + name (rarity color) + price
   const itemTd = document.createElement('td');
@@ -335,11 +334,11 @@ export function buildHistRow(
         coinSpan.alt = 'Coin';
         coinSpan.style.cssText = 'width:11px;height:11px;object-fit:contain;image-rendering:auto;opacity:0.95;';
       } else {
-        coinSpan.style.cssText = 'color:#FFC734;font-weight:700;font-size:11px;';
+        coinSpan.style.cssText = 'color:var(--qpm-gold);font-weight:700;font-size:12px;';
         coinSpan.textContent = 'C';
       }
       const priceSpan = document.createElement('span');
-      priceSpan.style.cssText = 'color:#FFC734;font-weight:700;';
+      priceSpan.style.cssText = 'color:var(--qpm-gold);font-weight:700;';
       priceSpan.textContent = formatPrice(price);
       coinWrap.append(coinSpan, priceSpan);
       priceRow.appendChild(coinWrap);
@@ -351,7 +350,7 @@ export function buildHistRow(
       dustIcon.style.cssText = 'font-size:10px;';
       dustIcon.textContent = '\u2728'; // ✨
       const dustSpan = document.createElement('span');
-      dustSpan.style.cssText = 'color:#CE93D8;font-weight:700;';
+      dustSpan.style.cssText = 'color:var(--qpm-dust);font-weight:700;';
       dustSpan.textContent = formatPrice(dustPrice);
       dustWrap.append(dustIcon, dustSpan);
       priceRow.appendChild(dustWrap);
@@ -377,7 +376,7 @@ export function buildHistRow(
   timeCell.appendChild(clockEl);
   if (relDay) {
     const relEl = document.createElement('div');
-    relEl.style.cssText = 'opacity:0.7;font-size:11px;';
+    relEl.style.cssText = 'opacity:0.7;font-size:12px;';
     relEl.textContent = relDay;
     timeCell.appendChild(relEl);
   }
@@ -403,90 +402,3 @@ export function buildHistRow(
   return { row: tr, cleanups: histCleanups };
 }
 
-// ---------------------------------------------------------------------------
-// Hot row (compact prediction row for "Hot Right Now")
-// ---------------------------------------------------------------------------
-
-export function buildHotRow(
-  item: RestockItem,
-  score: number,
-  opts: {
-    onPin(key: string): void;
-    openDetail(item: RestockItem, name: string): void;
-  },
-): { row: HTMLElement; etaRef: EtaRef; cleanups: Array<() => void> } {
-  const ts       = item.estimated_next_timestamp ?? 0;
-  const rate     = getItemProbability(item);
-  const rarity   = getItemRarity(item.item_id, item.shop_type);
-  const key      = `${item.shop_type}:${item.item_id}`;
-  const hotCleanups: Array<() => void> = [];
-
-  const row = document.createElement('div');
-  row.style.cssText = [
-    'display:flex', 'align-items:center', 'gap:10px',
-    'padding:6px 10px', 'min-height:40px',
-    'background:rgba(255,165,0,0.03)',
-    'border:1px solid rgba(255,165,0,0.10)',
-    'border-radius:8px', 'cursor:pointer',
-    'transition:transform 0.12s, background 0.12s',
-  ].join(';');
-  row.title = t('feature.shopRestock.clickToPin');
-  row.addEventListener('mouseenter', () => {
-    row.style.transform  = 'scale(1.01)';
-    row.style.background = 'rgba(255,165,0,0.07)';
-  });
-  row.addEventListener('mouseleave', () => {
-    row.style.transform  = '';
-    row.style.background = 'rgba(255,165,0,0.03)';
-  });
-
-  // Icon (36px)
-  row.appendChild(makeIconWrap(item, 36));
-
-  // Name + rate inline
-  const textBlock = document.createElement('div');
-  textBlock.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
-
-  const hotNameEl = document.createElement('div');
-  hotNameEl.style.cssText = `font-size:13px;font-weight:700;color:${rarityColor(rarity)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-  hotNameEl.textContent = getItemName(item.item_id, item.shop_type);
-  textBlock.appendChild(hotNameEl);
-
-  const hotWeatherBadge = makeWeatherBadge(item.item_id);
-  if (hotWeatherBadge) {
-    textBlock.appendChild(hotWeatherBadge.el);
-    hotCleanups.push(hotWeatherBadge.cleanup);
-  }
-
-  if (rate != null) {
-    const ratePill = document.createElement('span');
-    ratePill.style.cssText = `font-size:10px;padding:1px 5px;border-radius:6px;font-weight:700;color:${rateColor(rate)};background:rgba(143,130,255,0.08);white-space:nowrap;flex-shrink:0;`;
-    ratePill.textContent = ratePercent(rate);
-    textBlock.appendChild(ratePill);
-  }
-  row.appendChild(textBlock);
-
-  // ETA
-  const etaEl = document.createElement('div');
-  etaEl.style.cssText = `font-size:15px;font-weight:700;color:${etaColor(ts)};font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;min-width:54px;text-align:right;`;
-  etaEl.textContent = ts > 0 ? formatETA(ts) : '--';
-  row.appendChild(etaEl);
-
-  // Detail button
-  const detailBtn = document.createElement('button');
-  detailBtn.type = 'button';
-  detailBtn.textContent = '\uD83D\uDCCA';
-  detailBtn.title = t('feature.shopRestock.viewHistory');
-  detailBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;padding:2px 3px;opacity:0.6;border-radius:4px;line-height:1;flex-shrink:0;';
-  detailBtn.addEventListener('mouseenter', () => { detailBtn.style.opacity = '1'; });
-  detailBtn.addEventListener('mouseleave', () => { detailBtn.style.opacity = '0.6'; });
-  detailBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    opts.openDetail(item, getItemName(item.item_id, item.shop_type));
-  });
-  row.appendChild(detailBtn);
-
-  row.addEventListener('click', () => { opts.onPin(key); });
-
-  return { row, etaRef: { el: etaEl, ts }, cleanups: hotCleanups };
-}

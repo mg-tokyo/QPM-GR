@@ -14,6 +14,7 @@ import {
   isCosmeticOwned,
   isCosmeticAvailable,
 } from './catalogLoader';
+import { writeShimConsole } from '../diagnostics/logger';
 import type {
   GameCatalogs,
   PetCatalog,
@@ -656,8 +657,10 @@ export function getCatalogLoadStatus(): Record<string, { loaded: boolean; count:
  */
 export function logCatalogStatus(): void {
   const status = getCatalogLoadStatus();
-  console.log('[QPM Catalogs] Load Status:');
+  writeShimConsole('QPM Catalogs', ['Load Status:']);
   for (const [name, info] of Object.entries(status)) {
-    console.log(`  ${name}: ${info.loaded ? `✅ (${info.count} entries)` : '❌ not loaded'}`);
+    writeShimConsole('QPM Catalogs', [
+      `  ${name}: ${info.loaded ? `✅ (${info.count} entries)` : '❌ not loaded'}`,
+    ]);
   }
 }

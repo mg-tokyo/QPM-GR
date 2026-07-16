@@ -16,9 +16,9 @@ export function getItemSpriteUrl(shopType: string, itemId: string): string | nul
 
   const tryResolve = (candidateId: string): string | null => {
     let url: string | null = null;
-    try { url = canvasToDataUrl(getPetSpriteCanvas(candidateId)) || null; } catch { /* */ }
+    try { url = canvasToDataUrl(getPetSpriteCanvas(candidateId)) || null; } catch { /* try crop sprite next */ }
     if (!url) {
-      try { url = canvasToDataUrl(getCropSpriteCanvas(candidateId)) || null; } catch { /* */ }
+      try { url = canvasToDataUrl(getCropSpriteCanvas(candidateId)) || null; } catch { /* falls through to variant iteration */ }
     }
     return url;
   };

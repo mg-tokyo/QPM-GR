@@ -1,8 +1,4 @@
-// src/ui/chargedAbilities/windowCard.ts
-// Larger per-pet card used in the Charged Abilities full window.
-// Renders one SnapshotGroup at a time — multiple pets of the same species +
-// ability + state collapse into a single "Ostrich × N" card with one mount
-// button that mounts the first unmounted member.
+// Larger per-pet card for the full window — pets of the same species+ability+state collapse into one "Ostrich × N" card.
 
 import { t } from '../../i18n';
 import { formatCoins } from '../../utils/formatters';

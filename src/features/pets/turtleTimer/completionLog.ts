@@ -1,6 +1,6 @@
-import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
 import { COMPLETION_LOG_KEY, MAX_LOG_ENTRIES } from './constants';
+import { warnFeature } from './_diagnostics';
 import type { CompletionLogEntry } from './types';
 
 let completionLog: CompletionLogEntry[] = [];
@@ -13,7 +13,7 @@ function loadCompletionLog(): void {
       completionLog = stored.slice(-MAX_LOG_ENTRIES);
     }
   } catch (error) {
-    log('⚠️ Failed to load completion log', error);
+    warnFeature('QPM-FEATURE-004', { what: 'completionLog:load' }, error);
   }
 }
 
@@ -21,7 +21,7 @@ function saveCompletionLog(): void {
   try {
     storage.set(COMPLETION_LOG_KEY, completionLog.slice(-MAX_LOG_ENTRIES));
   } catch (error) {
-    log('⚠️ Failed to save completion log', error);
+    warnFeature('QPM-FEATURE-004', { what: 'completionLog:save' }, error);
   }
 }
 

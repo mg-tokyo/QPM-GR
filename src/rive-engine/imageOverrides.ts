@@ -69,8 +69,7 @@ async function applyImageToInstance(
 
   const imageProp = instance.viewModel.image(property);
   if (!imageProp) {
-    riveLog(`Image property "${property}" not found on ${instance.id}`);
-    console.warn(`[QPM:RiveEngine] Image property "${property}" not found on instance ${instance.id}`);
+    riveLog(`Image property "${property}" not found on instance ${instance.id}`);
     return;
   }
 
@@ -179,7 +178,6 @@ export function setImageOverride(
       eventBus.emit('overrideApplied', info);
     } catch (e) {
       riveLog('Image override apply failed:', e);
-      console.warn('[QPM:RiveEngine] Image override failed:', e);
     }
   })();
 

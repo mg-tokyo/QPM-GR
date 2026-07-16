@@ -1,6 +1,5 @@
 import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
 import { subscribeAtomValue } from '../core/atomRegistry';
-import { log } from '../utils/logger';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeInventory', 'inventory');
@@ -181,7 +180,7 @@ export async function startInventoryStore(): Promise<void> {
 
     if (unsub) {
       unsubscribe = unsub;
-      log('✅ Inventory store initialized');
+      diag.log.debug('store initialized');
     } else {
       diag.warn('QPM-STORE-002', { atom: 'inventory (registry)' });
     }
@@ -244,14 +243,17 @@ export async function readInventoryDirect(): Promise<InventoryData | null> {
     }
 
     if (!atom) {
-      log('⚠️ Inventory atom not found');
+      diag.warn('QPM-STORE-002', {
+        atom: `${INVENTORY_ATOM_LABEL} | ${CROP_INVENTORY_ATOM_LABEL}`,
+        phase: 'readInventoryDirect',
+      });
       return null;
     }
 
     const raw = await readAtomValue(atom);
     return normalizeInventoryData(raw);
   } catch (error) {
-    log('❌ Failed to read inventory atom', error);
+    diag.warn('QPM-STORE-002', { phase: 'readInventoryDirect' }, error);
     return null;
   }
 }

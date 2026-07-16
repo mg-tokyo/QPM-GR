@@ -1,8 +1,10 @@
 // Rich per-hatch stats tracking: species + abilities + session/lifetime counts.
 
 import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
 import { areCatalogsReady, getAllPetSpecies, onCatalogsReady } from '../catalogs/gameCatalogs';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeHatchStats', 'hatchStats');
 
 const STORAGE_KEY = 'qpm.hatchStats.v1';
 const MAX_EVENTS = 100;
@@ -70,7 +72,8 @@ function notify(): void {
   for (const cb of listeners) {
     try {
       cb(state);
-    } catch {
+    } catch (error) {
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
   }
 }
@@ -79,7 +82,7 @@ function persist(): void {
   try {
     storage.set(STORAGE_KEY, state);
   } catch (error) {
-    log('[HatchStats] Failed to persist', error);
+    diag.warn('QPM-STORE-004', { what: 'stats', key: STORAGE_KEY }, error);
   }
 }
 
@@ -141,13 +144,14 @@ function runCleanup(): void {
   const speciesRemoved = originalSpeciesCount - Object.keys(cleanedSpecies).length;
 
   if (removed > 0 || speciesRemoved > 0) {
-    log(`[HatchStats] Cleanup: removed ${removed} inflated hatches across ${speciesRemoved} invalid species entries`);
+    diag.log.debug(`Cleanup: removed ${removed} inflated hatches across ${speciesRemoved} invalid species entries`);
   }
 
   persist();
 }
 
 export function initHatchStatsStore(): void {
+  diag.register('Loading hatch stats from storage');
   try {
     const saved = storage.get<HatchStatsState | null>(STORAGE_KEY, null);
     if (saved && saved.meta?.version === CURRENT_VERSION) {
@@ -176,12 +180,16 @@ export function initHatchStatsStore(): void {
         runCleanup();
       }
     }
-
-    log('[HatchStats] Store initialized');
   } catch (error) {
-    log('[HatchStats] Failed to load saved stats', error);
+    diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
     state = defaultState();
   }
+
+  diag.publishOk('Hatch stats initialised', {
+    lifetimeHatched: state.lifetime.totalHatched,
+    events: state.recentEvents.length,
+    seededIds: state.seededPetIds.length,
+  });
 }
 
 function incrementBucket(
@@ -231,8 +239,8 @@ export function subscribeHatchStats(listener: (s: HatchStatsState) => void): () 
   listeners.add(listener);
   try {
     listener(state);
-  } catch {
-    // ignore
+  } catch (error) {
+    diag.warn('QPM-STORE-003', { phase: 'subscribeInitial' }, error);
   }
   return () => listeners.delete(listener);
 }
@@ -249,7 +257,7 @@ export function resetHatchStats(): void {
   state = defaultState();
   persist();
   notify();
-  log('[HatchStats] Full reset');
+  diag.log.debug('Full reset');
 }
 
 function extractSeedMutations(pet: PetSeedInput): string[] {

@@ -1,7 +1,7 @@
 // src/ui/petHubWindow.ts
 // Pet Hub - compact team selector with QPM priority and Aries fallback.
 
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { readTeamsFromLocalStorage, type AriesBridgeTeam } from '../../integrations/ariesBridge';
 import { importAriesTeams } from '../../utils/ariesTeamImport';
 import { applyTeam, getTeamsConfig } from '../../store/petTeams';
@@ -264,7 +264,7 @@ export function renderPetHubWindow(root: HTMLElement): void {
         await applyAriesPreset(selected.ariesTeam, setStatus);
       }
     } catch (err) {
-      log('⚠️ Apply team failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'petHub:apply' }, err);
       setStatus(t('feature.petHub.applyFailed'), 'error');
     } finally {
       applyBtn.disabled = false;

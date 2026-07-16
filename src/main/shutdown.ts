@@ -47,6 +47,9 @@ import { teardownDiagnostics } from '../diagnostics/init';
 export const disposers = {
   // RiveEngine is started during init() and stopped in beforeunload.
   riveEngine: null as (() => void) | null,
+  // Rive Control bridge — persistent rules → engine overrides. Torn down
+  // BEFORE riveEngine so bridge cleanups run against a live engine.
+  riveControl: null as (() => void) | null,
   // Blobling custom skins — installed early in init so the fetch interceptor
   // catches startup cosmetic requests; torn down near riveEngine.
   customSkins: null as (() => void) | null,
@@ -114,6 +117,8 @@ export function installGlobalHandlers(): void {
     stopSpriteV2Diagnostics();
     stopRestockDataDiagnostics();
     stopVersionChecker();
+    try { disposers.riveControl?.(); } catch { /* best effort */ }
+    disposers.riveControl = null;
     try { disposers.riveEngine?.(); } catch { /* best effort */ }
     disposers.riveEngine = null;
     // Custom skins interceptor tears down before the rive fetch interceptor

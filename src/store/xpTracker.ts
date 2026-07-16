@@ -1,5 +1,4 @@
 import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
 import { debounce } from '../utils/scheduling/debounce';
 import type { ActivePetInfo } from './pets';
 import { getAllPetXpEstimates, inferXpPerLevel } from '../utils/xpInference';
@@ -88,7 +87,7 @@ const scheduleSaveProcs = debounce(() => {
       savedAt: Date.now(),
     });
   } catch (error) {
-    log('⚠️ Failed to persist XP proc history', error);
+    diag.warn('QPM-STORE-004', { what: 'procs', key: STORAGE_KEY_PROCS }, error);
   }
 }, SAVE_DEBOUNCE_MS);
 
@@ -96,7 +95,7 @@ const scheduleSaveConfig = debounce(() => {
   try {
     storage.set(STORAGE_KEY_CONFIG, configData);
   } catch (error) {
-    log('⚠️ Failed to persist XP tracker config', error);
+    diag.warn('QPM-STORE-004', { what: 'config', key: STORAGE_KEY_CONFIG }, error);
   }
 }, SAVE_DEBOUNCE_MS);
 
@@ -312,7 +311,7 @@ function notifyListeners(): void {
     try {
       cb();
     } catch (error) {
-      log('⚠️ XP tracker callback error', error);
+      diag.warn('QPM-STORE-003', { phase: 'notifyListeners' }, error);
     }
   });
 }

@@ -2,7 +2,7 @@
 // Single-color mutation overlays for Rive sprites (Phase 3 of the original).
 // Extracted from riveAdapter.ts during PR #1.
 
-import { log } from '../types';
+import { warnFeature } from '../types';
 import { getMutationColor } from '../mutationColors';
 import { hexToPixiTint } from '../layerB-overlay';
 import { getBasePixiSpriteCtor } from './detection';
@@ -60,7 +60,7 @@ export function applyRiveColorMutation(sprite: any, mutationName: string, _ruleI
       sprite.addChild?.(overlay);
       overlays.set(mutationName, overlay);
     } catch (e) {
-      log('applyRiveColorMutation: failed to create overlay', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'mutationOverlay:create', mutation: mutationName }, e);
       return;
     }
   }

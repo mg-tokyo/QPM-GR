@@ -2,7 +2,7 @@
 // Detached, draggable floating cards for economy values (balances + asset values).
 
 import { storage } from '../../utils/storage';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { pctToPixels, pixelsToPct, clampPct } from '../../utils/windowPosition';
 import { onGardenSnapshot, getGardenSnapshot } from '../../features/garden/bridge';
 import { onInventoryChange } from '../../store/inventory';
@@ -739,7 +739,7 @@ function openCardInternal(type: ValueCardType, initialPct?: { xPct: number; yPct
   const entry = createValueCard(type, initialPct ?? getDefaultPct(type));
   registry.set(type, entry);
   persistRegistryState();
-  log(`[ValueFloatingCard] Opened ${type} card`);
+  windowLog.debug('Opened value card', { what: 'valueCard:opened', type });
 }
 
 function restorePersistedCards(): void {

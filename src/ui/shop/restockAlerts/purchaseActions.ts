@@ -1,8 +1,8 @@
 // src/ui/shopRestockAlerts/purchaseActions.ts
 // WS purchase workflow, inventory cap logic, auto-store, and coins confirm modal.
 
-import { log } from '../../../utils/logger';
 import { formatCoins } from '../../../utils/formatters';
+import { warnFeature } from './_diagnostics';
 import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { isRoomSocketOpen, sendRoomAction, type WebSocketSendResult } from '../../../websocket/api';
 import { getShopStockState } from '../../../store/shopStock';
@@ -361,7 +361,7 @@ function showCoinsConfirmModal(
     const close = (accepted: boolean): void => {
       if (settled) return;
       settled = true;
-      try { overlay.remove(); } catch { /* ignore */ }
+      try { overlay.remove(); } catch { /* teardown — modal may already be detached */ }
       document.removeEventListener('keydown', onKeyDown, true);
       resolve({ confirmed: accepted, affordableQty });
     };
@@ -587,7 +587,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
 
     processPendingOwnershipConfirmations();
   } catch (error) {
-    log('[ShopRestockAlerts] Buy-all failed', error);
+    warnFeature('QPM-FEATURE-004', { what: 'buyAll', key: buyModel.key, requested }, error);
     debugLogError('Buy-all threw exception', error, { key: buyModel.key, requested });
     setAlertPendingConfirmation(active, false);
     active.statusEl.style.color = '#fca5a5';

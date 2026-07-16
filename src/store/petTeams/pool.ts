@@ -1,10 +1,9 @@
-import { log } from '../../utils/logger';
 import { getActivePetInfos } from '../pets';
 import { readAtomValue } from '../../core/atomRegistry';
 import { getSpeciesXpPerLevel, calculateMaxStrength } from '../xpTracker';
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../../features/pets/data/petHungerCaps';
 import type { PooledPet } from '../../types/petTeams';
-import { store } from './state';
+import { store, diag } from './state';
 
 export interface PooledPetsResult {
   pool: PooledPet[];
@@ -114,7 +113,7 @@ export async function getAllPooledPetsWithStatus(): Promise<PooledPetsResult> {
       }
     }
   } catch (error) {
-    log('[petTeams] failed to read hutch', error);
+    diag.warn('QPM-STORE-002', { atom: 'hutchPets', phase: 'getAllPooledPetsWithStatus' }, error);
     complete = false;
   }
 
@@ -151,7 +150,7 @@ export async function getAllPooledPetsWithStatus(): Promise<PooledPetsResult> {
       }
     }
   } catch (error) {
-    log('[petTeams] failed to read inventory', error);
+    diag.warn('QPM-STORE-002', { atom: 'inventory', phase: 'getAllPooledPetsWithStatus' }, error);
     complete = false;
   }
 

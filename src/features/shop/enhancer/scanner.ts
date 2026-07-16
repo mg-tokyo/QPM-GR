@@ -4,9 +4,7 @@
 
 import { getPixiRuntime, findByLabel, getLabel, walkScene } from '../../../core/pixiScene';
 import { getShopStockState } from '../../../store/shopStock';
-import { createLogger } from '../../../utils/logger';
-
-const log = createLogger('ShopEnhancer');
+import { diag } from './_diagnostics';
 import type { ShopStockItem } from '../../../store/shopStockParsers';
 import type { ShopCategory } from '../../../types/shops';
 import type { ShopRowInfo } from './types';
@@ -45,7 +43,7 @@ export function findShopContentContainer(): PixiNode | null {
   if (!scrollableView) {
     if (!_treeDumped) {
       _treeDumped = true;
-      log('[ShopEnhancer:Scanner] ScrollableView not found in modal subtree — dumping tree:');
+      diag.debug('[ShopEnhancer:Scanner] ScrollableView not found in modal subtree — dumping tree:');
       dumpModalTree(modal);
     }
     return null;
@@ -63,7 +61,7 @@ export function findShopContentContainer(): PixiNode | null {
 
   if (content && !_treeDumped) {
     const contentChildren = Array.isArray(content.children) ? content.children as unknown[] : [];
-    log(`[ShopEnhancer:Scanner] Content container found with ${contentChildren.length} children`);
+    diag.debug(`[ShopEnhancer:Scanner] Content container found with ${contentChildren.length} children`);
   }
 
   return content;
@@ -84,9 +82,9 @@ function dumpTopLabels(stage: unknown): void {
   }, { maxDepth: 4, maxNodes: 200 });
 
   if (labels.length > 0) {
-    log(`[ShopEnhancer:Scanner] Top scene labels:\n${labels.slice(0, 30).join('\n')}`);
+    diag.debug(`[ShopEnhancer:Scanner] Top scene labels:\n${labels.slice(0, 30).join('\n')}`);
   } else {
-    log('[ShopEnhancer:Scanner] No labeled nodes found in top 3 levels');
+    diag.debug('[ShopEnhancer:Scanner] No labeled nodes found in top 3 levels');
   }
 }
 
@@ -116,7 +114,7 @@ function dumpModalTree(modal: PixiNode): void {
     lines.push(info);
   }, { maxDepth: 6, maxNodes: 300 });
 
-  log(`[ShopEnhancer:Scanner] Modal tree (${lines.length} nodes):\n${lines.join('\n')}`);
+  diag.debug(`[ShopEnhancer:Scanner] Modal tree (${lines.length} nodes):\n${lines.join('\n')}`);
 }
 
 /**
@@ -226,14 +224,14 @@ export function scanShopRows(category: ShopCategory): ShopRowInfo[] {
   const stockState = getShopStockState();
   const categoryState = stockState.categories[category];
   if (!categoryState) {
-    log(`[ShopEnhancer:Scanner] No stock state for category: ${category}`);
+    diag.debug(`[ShopEnhancer:Scanner] No stock state for category: ${category}`);
     return [];
   }
 
   const stockItems = categoryState.items;
-  log(`[ShopEnhancer:Scanner] Stock has ${stockItems.length} items for ${category}`);
+  diag.debug(`[ShopEnhancer:Scanner] Stock has ${stockItems.length} items for ${category}`);
   if (stockItems.length > 0) {
-    log(`[ShopEnhancer:Scanner] First 3 stock labels: ${stockItems.slice(0, 3).map((i) => `"${i.label}"`).join(', ')}`);
+    diag.debug(`[ShopEnhancer:Scanner] First 3 stock labels: ${stockItems.slice(0, 3).map((i) => `"${i.label}"`).join(', ')}`);
   }
 
   // Build multiple lookup maps for flexible matching.
@@ -254,7 +252,7 @@ export function scanShopRows(category: ShopCategory): ShopRowInfo[] {
 
     const itemName = extractItemName(child);
     if (!itemName) {
-      log(`[ShopEnhancer:Scanner] Row ${rowCount}: no item name extracted (${(child.children as unknown[]).length} children)`);
+      diag.debug(`[ShopEnhancer:Scanner] Row ${rowCount}: no item name extracted (${(child.children as unknown[]).length} children)`);
       continue;
     }
 
@@ -281,9 +279,9 @@ export function scanShopRows(category: ShopCategory): ShopRowInfo[] {
     }
   }
 
-  log(`[ShopEnhancer:Scanner] Found ${rowCount} item rows, matched ${results.filter((r) => r.itemId).length}/${results.length} to stock`);
+  diag.debug(`[ShopEnhancer:Scanner] Found ${rowCount} item rows, matched ${results.filter((r) => r.itemId).length}/${results.length} to stock`);
   if (results.length > 0) {
-    log(`[ShopEnhancer:Scanner] First 3 rows: ${results.slice(0, 3).map((r) => `"${r.itemName}" (id=${r.itemId}, avail=${r.isAvailable}, remaining=${r.remaining})`).join(', ')}`);
+    diag.debug(`[ShopEnhancer:Scanner] First 3 rows: ${results.slice(0, 3).map((r) => `"${r.itemName}" (id=${r.itemId}, avail=${r.isAvailable}, remaining=${r.remaining})`).join(', ')}`);
   }
 
   // One-time diagnostic: dump content children structure when no rows found
@@ -333,7 +331,7 @@ function dumpContentChildren(children: PixiNode[]): void {
     }
   }
 
-  log(`[ShopEnhancer:Scanner] Content children dump (first ${limit} of ${children.length}):\n${lines.join('\n')}`);
+  diag.debug(`[ShopEnhancer:Scanner] Content children dump (first ${limit} of ${children.length}):\n${lines.join('\n')}`);
 }
 
 /** Reset diagnostic state (call on shop close). */

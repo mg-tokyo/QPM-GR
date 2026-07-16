@@ -1,8 +1,4 @@
-// src/ui/chargedAbilities/petCard.ts
-// Per-pet card renderer for the Charged Abilities floating overlay.
-// Renders one SnapshotGroup at a time — multiple pets that share species +
-// ability + state collapse into a single "Ostrich × N" card.
-// Two modes: collapsed (compact row) and expanded (full card with mount button).
+// Renders one SnapshotGroup at a time — pets sharing species + ability + state collapse into a single "Ostrich × N" card.
 
 import { t } from '../../i18n';
 import { renderOptimalityIndicator } from './optimalityIndicator';

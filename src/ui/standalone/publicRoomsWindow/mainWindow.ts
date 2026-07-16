@@ -9,6 +9,7 @@ import {
   setSortBy,
 } from '../../../features/standalone/publicRooms';
 import { t } from '../../../i18n';
+import { windowLog } from '../../core/modalWindow';
 import { showToast } from './helpers';
 import { openInspectorDirect } from './inspectorShell';
 import { PR_STYLES } from './styles';
@@ -73,8 +74,8 @@ export function renderPublicRoomsWindow(root: HTMLElement): void {
   setErrorCallback(showRoomsError);
 
   initPublicRooms().catch(err => {
+    windowLog.warn('QPM-UI-002', { what: 'publicRooms:init' }, err);
     showToast(t('feature.publicRooms.initFailed'), 'error');
-    console.error('[PublicRooms] init failed', err);
   });
 
   // Debug hook: open inspector by playerId directly (no room required)

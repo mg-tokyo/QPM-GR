@@ -18,10 +18,39 @@ import {
 import { computeMutationMultiplier } from '../../utils/game/cropMultipliers';
 import { debounceCancelable } from '../../utils/scheduling/debounce';
 import { storage } from '../../utils/storage';
-import { createLogger } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { criticalInterval, timerManager } from '../../utils/scheduling/timerManager';
 
-const log = createLogger('QPM:StorageValue');
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:storageValue';
+const FEATURE_NAME = 'storageValue';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 /** Clamp non-finite catalog prices (Infinity for dust-only items, NaN) to 0. */
 function finiteOr0(v: number | null | undefined): number {
@@ -387,7 +416,7 @@ let debouncedRecompute: ((() => void) & { cancel: () => void }) | null = null;
 function notifyListeners(state: StorageValueState): void {
   currentState = state;
   for (const listener of stateListeners) {
-    try { listener(state); } catch {}
+    try { listener(state); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:state' }, err); }
   }
 }
 
@@ -457,10 +486,10 @@ async function trySubscribeModalAtom(): Promise<boolean> {
     modalAtomUnsub = unsub;
     timerManager.unregister(MODAL_RETRY_TIMER_ID);
     stopRetryTimer = null;
-    log('Subscribed to activeModalAtom');
+    diag.debug('Subscribed to activeModalAtom');
     return true;
   } catch (err) {
-    log('Failed to subscribe to activeModalAtom', err);
+    warnFeature('QPM-FEATURE-003', { what: 'subscribe:activeModal' }, err);
     return false;
   }
 }
@@ -476,17 +505,17 @@ async function initDataAtomSubscription(): Promise<void> {
         debouncedRecompute?.();
       }
       for (const cb of storageDataListeners) {
-        try { cb(); } catch { /* ignore */ }
+        try { cb(); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:storageData' }, err); }
       }
     });
     if (!unsub) {
-      log('myDataAtom not found — storage detection unavailable');
+      warnFeature('QPM-FEATURE-003', { what: 'subscribe:myData_missing' }, null);
       return;
     }
     dataAtomUnsub = unsub;
-    log('Subscribed to myDataAtom');
+    diag.debug('Subscribed to myDataAtom');
   } catch (err) {
-    log('Failed to subscribe to myDataAtom', err);
+    warnFeature('QPM-FEATURE-003', { what: 'subscribe:myData' }, err);
   }
 }
 
@@ -522,6 +551,7 @@ export function getDetectedStorageIds(): Set<string> {
 export function startStorageValue(): void {
   if (started) return;
   started = true;
+  ensureBusRegistered();
 
   currentConfig = {
     ...DEFAULT_CONFIG,
@@ -561,7 +591,12 @@ export function startStorageValue(): void {
     debouncedRecompute?.();
   });
 
-  log('Started');
+  publishOk('Started', {
+    seedSilo: currentConfig.seedSilo ? 1 : 0,
+    petHutch: currentConfig.petHutch ? 1 : 0,
+    decorShed: currentConfig.decorShed ? 1 : 0,
+    inventory: currentConfig.inventory ? 1 : 0,
+  });
 }
 
 export function stopStorageValue(): void {
@@ -593,5 +628,5 @@ export function stopStorageValue(): void {
   modalAtomRetryCount = 0;
   currentState = { activeModal: null, value: 0, status: 'hidden' };
 
-  log('Stopped');
+  diag.debug('Stopped');
 }

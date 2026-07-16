@@ -2,7 +2,7 @@
 
 import { type UIState } from "../core/panelState";
 import { createToggle } from "../components";
-import { log } from "../../utils/logger";
+import { windowLog } from "../core/modalWindow";
 import { storage } from "../../utils/storage";
 import { t } from "../../i18n";
 import { watchDetach } from "../../utils/dom/dom";
@@ -376,7 +376,7 @@ function buildActivePetsModule(
         await import("../../features/pets/instantFeed");
       await feedAllPetsInstantly(100);
     } catch (err) {
-      log("⚠️ Feed all failed", err);
+      windowLog.warn('QPM-UI-002', { what: 'dashboard:feedAll' }, err);
     } finally {
       feedAllBtn.disabled = false;
       feedAllBtn.textContent = `🍖 ${t("feature.dashboard.feedAll")}`;
@@ -429,7 +429,7 @@ function buildActivePetsModule(
           await import("../../features/pets/instantFeed");
         await feedPetInstantly(idx);
       } catch (err) {
-        log("⚠️ Feed failed", err);
+        windowLog.warn('QPM-UI-002', { what: 'dashboard:feed', slotIndex: idx }, err);
       } finally {
         feedBtn.disabled = false;
         feedBtn.textContent = "🍖";
@@ -667,7 +667,7 @@ function buildNextRestockModule(
       if (items) buildRows(items);
     })
     .catch(() => {
-      /* no-op */
+      /* async restock fetch failed — getRestockDataSync fallback (line above) is authoritative */
     });
 
   reg(

@@ -1,7 +1,38 @@
 import { pageWindow } from '../../core/pageContext';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { storage } from '../../utils/storage';
 import { criticalInterval, visibleInterval } from '../../utils/scheduling/timerManager';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:autoReconnect';
+const FEATURE_NAME = 'autoReconnect';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 export interface AutoReconnectConfig {
   enabled: boolean;
@@ -104,7 +135,7 @@ function notifyConfigListeners(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      log('[AutoReconnect] listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:config' }, error);
     }
   }
 }
@@ -171,12 +202,13 @@ function handleVersionExpiredClose(): void {
   clearReconnectSchedule();
 
   try {
-    log('[AutoReconnect] version expired, reloading page');
+    diag.debug('version expired, reloading page');
     pageWindow.location.reload();
   } catch {
+    // defensive fallback — pageWindow.location may be cross-origin-restricted in some iframes
     try {
       window.location.reload();
-    } catch {}
+    } catch { /* last resort — page reload not possible */ }
   }
 }
 
@@ -245,7 +277,7 @@ function destroyOverlayOnly(): void {
   if (!overlay) return;
   try {
     overlay.destroy();
-  } catch {}
+  } catch { /* teardown best-effort — DOM may already be gone */ }
   overlay = null;
 }
 
@@ -337,13 +369,11 @@ function tryClickGameReconnectButton(): boolean {
       const text = (btn.textContent ?? '').trim().toLowerCase();
       if (text.includes('play here') || text === 'reconnect') {
         btn.click();
-        log('[AutoReconnect] clicked game reconnect button');
+        diag.debug('clicked game reconnect button');
         return true;
       }
     }
-  } catch (error) {
-    log('[AutoReconnect] game button click failed', error);
-  }
+  } catch { /* defensive — DOM traversal may throw; falls through to direct connect() path */ }
   return false;
 }
 
@@ -366,15 +396,15 @@ function tryConnect(attempt: number): void {
   if (typeof connect === 'function') {
     try {
       connect.call(connection);
-      log('[AutoReconnect] called connect() directly');
+      diag.debug('called connect() directly');
       return;
     } catch (error) {
-      log('[AutoReconnect] reconnect call failed', error);
+      warnFeature('QPM-FEATURE-004', { what: 'connect:direct', attempt }, error);
     }
   }
 
   if (attempt >= CONNECT_RETRY_MAX) {
-    log('[AutoReconnect] reconnect unavailable after retries');
+    warnFeature('QPM-FEATURE-004', { what: 'connect:retriesExhausted', attempt }, null);
     return;
   }
 
@@ -423,7 +453,7 @@ function detachSocketListener(): void {
   if (!activeSocket) return;
   try {
     activeSocket.removeEventListener('close', handleSocketClose);
-  } catch {}
+  } catch { /* teardown best-effort — socket may already be gone */ }
   activeSocket = null;
 }
 
@@ -464,7 +494,7 @@ function bindSocketListenerIfNeeded(): void {
     stopSocketPoll();
   } catch (error) {
     activeSocket = null;
-    log('[AutoReconnect] failed to bind room socket close listener', error);
+    warnFeature('QPM-FEATURE-003', { what: 'bindSocketListener' }, error);
   }
 }
 
@@ -497,13 +527,14 @@ function handleSocketClose(event: CloseEvent): void {
 export function initializeAutoReconnect(): void {
   if (started) return;
   started = true;
+  ensureBusRegistered();
   versionReloadScheduled = false;
   config = loadConfig();
 
   bindSocketListenerIfNeeded();
   ensureSocketPollRunning();
 
-  log('[AutoReconnect] initialized');
+  publishOk('Started', { enabled: config.enabled ? 1 : 0, delayMs: config.delayMs });
 }
 
 export function stopAutoReconnect(): void {
@@ -514,7 +545,7 @@ export function stopAutoReconnect(): void {
   stopSocketPoll();
   clearReconnectSchedule();
   detachSocketListener();
-  log('[AutoReconnect] stopped');
+  diag.debug('stopped');
 }
 
 export function getAutoReconnectConfig(): AutoReconnectConfig {
@@ -545,7 +576,7 @@ export function subscribeToAutoReconnectConfig(listener: ConfigListener): () => 
   try {
     listener(getAutoReconnectConfig());
   } catch (error) {
-    log('[AutoReconnect] listener error', error);
+    warnFeature('QPM-FEATURE-004', { what: 'listener:config:initial' }, error);
   }
   return () => {
     listeners.delete(listener);

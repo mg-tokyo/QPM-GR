@@ -1,5 +1,5 @@
 import { isCompareGroupId } from '../data/petCompareRules';
-import { log } from '../../../utils/logger';
+import { warnFeature } from './_diagnostics';
 import { storage } from '../../../utils/storage';
 import { DEFAULT_CONFIG } from './constants';
 import type {
@@ -140,7 +140,7 @@ export function notifyAnalysisUpdateListeners(analysis: OptimizerAnalysis): void
     try {
       listener(analysis);
     } catch (error) {
-      log('⚠️ Pet Optimizer listener error:', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:analysisUpdate' }, error);
     }
   }
 }

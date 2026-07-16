@@ -19,7 +19,7 @@
 // overlay via the SPRITE width/height setters so the gradient texture itself
 // never needs to be rebuilt — fixing the zoom jump bug.
 
-import { ctx, log } from '../types';
+import { ctx, warnFeature } from '../types';
 import { getPixiApp } from '../pixi-walk';
 import {
   RAINBOW_COLORS,
@@ -144,7 +144,7 @@ function installRainbowTicker(): void {
     app.ticker.add(cb);
     rainbowTickerCallbackRef.value = cb;
   } catch (e) {
-    log('installRainbowTicker: failed', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'rainbow:ticker' }, e);
     rainbowTickerCallbackRef.value = null;
   }
 }
@@ -201,7 +201,7 @@ export function applyRiveRainbowLite(sprite: any, ruleId: string): void {
       parent.addChild(wrapper);
       state.wrapper = wrapper;
     } catch (e) {
-      log('applyRiveRainbowLite: failed to create wrapper', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'rainbow:wrapper', ruleId }, e);
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -219,7 +219,7 @@ export function applyRiveRainbowLite(sprite: any, ruleId: string): void {
       (state.wrapper as any).addChild(mask);
       state.mask = mask;
     } catch (e) {
-      log('applyRiveRainbowLite: failed to create mask', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'rainbow:mask', ruleId }, e);
       return;
     }
   }
@@ -236,7 +236,7 @@ export function applyRiveRainbowLite(sprite: any, ruleId: string): void {
       overlay.mask = state.mask;
       state.overlay = overlay;
     } catch (e) {
-      log('applyRiveRainbowLite: failed to create overlay', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'rainbow:overlay', ruleId }, e);
       return;
     }
   }

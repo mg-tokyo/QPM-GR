@@ -1,11 +1,3 @@
-// src/ui/chargedAbilities/gardenTotals.ts
-// Garden-wide ability totals banner — answers "how much capsule/coin value
-// is sitting in the garden right now, and on which crops". Rendered above
-// the per-pet roster in the full window.
-//
-// When the player has no equipped pet that natively carries the ability, the
-// row dims and shows a "NEED: <species sprite>" tag.
-
 import { t } from '../../i18n';
 import { formatCoins } from '../../utils/formatters';
 import { getAnySpriteDataUrl } from '../../sprite-v2/compat';
@@ -117,7 +109,6 @@ function buildRow(
 
   row.appendChild(top);
 
-  // Species breakdown — which crops the qualifying mutations sit on.
   row.appendChild(
     buildSpeciesCountList(
       slots,

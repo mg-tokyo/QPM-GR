@@ -1,6 +1,7 @@
 // Debug utilities — manual refresh + console diagnostics.
 
 import { pageWindow } from '../../core/pageContext';
+import { writeShimConsole } from '../../diagnostics/logger';
 import {
   enrichWeatherCatalog,
   pollAttempts,
@@ -8,6 +9,10 @@ import {
 } from './enrichment';
 import { maybeCapture } from './scan';
 import { capturedCatalogs, NativeObject, originalKeys, readiness } from './state';
+
+function dump(...args: unknown[]): void {
+  writeShimConsole('QPM Catalog Diagnostics', args);
+}
 
 /**
  * Force a weather-catalog enrichment attempt on demand (debug utility).
@@ -43,45 +48,44 @@ export async function forceWeatherCatalogRefresh(): Promise<{ success: boolean; 
  * Useful for debugging catalog loading issues
  */
 export function diagnoseCatalogs(): void {
-  console.log('[QPM Catalog Diagnostics]');
-  console.log('Catalogs Ready:', readiness.catalogsReady);
-  console.log('Hooks Active:', NativeObject.keys !== originalKeys);
+  dump('Catalogs Ready:', readiness.catalogsReady);
+  dump('Hooks Active:', NativeObject.keys !== originalKeys);
 
   const catalogs = capturedCatalogs;
 
-  console.log('\nPlant Catalog:',
+  dump('\nPlant Catalog:',
     catalogs.plantCatalog ? `OK ${Object.keys(catalogs.plantCatalog).length} species` : 'NOT CAPTURED'
   );
   if (catalogs.plantCatalog) {
-    console.log('  Species:', Object.keys(catalogs.plantCatalog).join(', '));
+    dump('  Species:', Object.keys(catalogs.plantCatalog).join(', '));
   }
 
-  console.log('\nPet Catalog:',
+  dump('\nPet Catalog:',
     catalogs.petCatalog ? `OK ${Object.keys(catalogs.petCatalog).length} species` : 'NOT CAPTURED'
   );
   if (catalogs.petCatalog) {
-    console.log('  Species:', Object.keys(catalogs.petCatalog).join(', '));
+    dump('  Species:', Object.keys(catalogs.petCatalog).join(', '));
   }
 
-  console.log('\nPet Abilities:',
+  dump('\nPet Abilities:',
     catalogs.petAbilities ? `OK ${Object.keys(catalogs.petAbilities).length} abilities` : 'NOT CAPTURED'
   );
   if (catalogs.petAbilities) {
-    console.log('  Abilities:', Object.keys(catalogs.petAbilities).slice(0, 20).join(', '), '...');
+    dump('  Abilities:', Object.keys(catalogs.petAbilities).slice(0, 20).join(', '), '...');
   }
 
-  console.log('\nMutation Catalog:',
+  dump('\nMutation Catalog:',
     catalogs.mutationCatalog ? `OK ${Object.keys(catalogs.mutationCatalog).length} mutations` : 'NOT CAPTURED'
   );
 
-  console.log('\nWeather Catalog:',
+  dump('\nWeather Catalog:',
     catalogs.weatherCatalog ? `OK ${Object.keys(catalogs.weatherCatalog).length} entries` : 'NOT CAPTURED'
   );
 
-  console.log('\nTip: Access catalogs directly via window.__QPM_CATALOGS');
-  console.log('To check if specific species exist:');
-  console.log('   window.__QPM_CATALOGS.plantCatalog["PineTree"]');
-  console.log('   Object.keys(window.__QPM_CATALOGS.plantCatalog)');
+  dump('\nTip: Access catalogs directly via window.__QPM_CATALOGS');
+  dump('To check if specific species exist:');
+  dump('   window.__QPM_CATALOGS.plantCatalog["PineTree"]');
+  dump('   Object.keys(window.__QPM_CATALOGS.plantCatalog)');
 }
 
 // Expose diagnostic function globally for debugging

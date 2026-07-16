@@ -1,11 +1,10 @@
 // src/ui/originalPanel.ts - Main panel orchestrator
-import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
 
 import { startVersionChecker, onVersionChange, getCurrentVersion, type VersionInfo, type VersionStatus } from '../../utils/versionChecker';
 import { ensurePanelStyles } from './panelStyles';
-import { toggleWindow } from './modalWindow';
+import { toggleWindow, windowLog } from './modalWindow';
 import { UIState, createInitialUIState } from './panelState';
 import { createMutationSection } from '../mutations/mutationValueSection';
 import { startPanelHotkey } from '../../features/input/panelHotkey';
@@ -100,9 +99,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
       try {
         gmOpen(freshUrl, { active: true, insert: true, setParent: true });
         return;
-      } catch (error) {
-        console.warn('[QPM] GM_openInTab failed, falling back', error);
-      }
+      } catch { /* defensive multi-tier fallback — window.open() below */ }
     }
 
     const win = window.open(freshUrl, '_blank', 'noopener,noreferrer');
@@ -174,7 +171,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
       };
       document.addEventListener('qpm:panel-view-change', onHubTour);
     } catch (e) {
-      log('⚠️ Failed to load panel view switcher', e);
+      windowLog.warn('QPM-UI-002', { what: 'lazy:viewSwitcher' }, e);
       content.textContent = `❌ ${t('panel.loadError')}`;
     }
   })();
@@ -365,7 +362,7 @@ export async function createOriginalUI(): Promise<HTMLElement> {
     } else {
       try {
         panel.releasePointerCapture(event.pointerId);
-      } catch {}
+      } catch { /* defensive multi-tier fallback — hasPointerCapture unavailable, best-effort release */ }
     }
     titleBar.style.touchAction = '';
     panel.style.willChange = '';
@@ -525,7 +522,7 @@ export function openPublicRoomsWindow(): void {
   const renderFn = (root: HTMLElement) => {
     import('../standalone/publicRoomsWindow')
       .then(({ renderPublicRoomsWindow }) => renderPublicRoomsWindow(root))
-      .catch(e => log('⚠️ Failed to load Public Rooms', e));
+      .catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:publicRooms', id: 'public-rooms' }, e));
   };
   toggleWindow('public-rooms', '🌐 Public Rooms', renderFn, '950px', '85vh');
 }
@@ -536,7 +533,7 @@ export function openJournalCheckerWindow(): void {
     import('../journalChecker/index').then(({ createJournalCheckerSection }) => {
       windowRoot.appendChild(createJournalCheckerSection());
     }).catch(e => {
-      log('⚠️ Failed to load Journal Checker', e);
+      windowLog.warn('QPM-UI-002', { what: 'lazy:journalChecker', id: 'journal-checker-window' }, e);
       windowRoot.textContent = `❌ ${t('panel.windowLoadError')}`;
     });
   }, '900px', '90vh');

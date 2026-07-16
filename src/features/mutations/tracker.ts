@@ -20,7 +20,11 @@ import {
 } from '../../store/mutationSummary';
 import { getWeatherSnapshot, onWeatherSnapshot, startWeatherHub, type WeatherSnapshot } from '../../store/weatherHub';
 import type { DetailedWeather } from '../../utils/game/weatherDetection';
-import { log } from '../../utils/logger';
+import {
+  ensureReminderBusRegistered,
+  publishReminderOk,
+  reminderDiag,
+} from './reminder/_diagnostics';
 
 let initialized = false;
 let gardenUnsubscribe: (() => void) | null = null;
@@ -37,7 +41,8 @@ export function startMutationTracker(): void {
   if (initialized) return;
   initialized = true;
 
-  log('🌿 Garden mutation tracker starting...');
+  ensureReminderBusRegistered();
+  reminderDiag.debug('Garden mutation tracker starting');
 
   startWeatherHub();
   latestWeatherSnapshot = getWeatherSnapshot();
@@ -69,7 +74,8 @@ export function startMutationTracker(): void {
   }, true);
 
   scheduleEvaluation();
-  log('🌿 Garden mutation tracker ready');
+  reminderDiag.debug('Garden mutation tracker ready');
+  publishReminderOk('Started', { weather: currentWeather });
 }
 
 export function stopMutationTracker(): void {
@@ -85,7 +91,7 @@ export function stopMutationTracker(): void {
     evaluationTimer = null;
   }
   initialized = false;
-  log('🌿 Garden mutation tracker stopped');
+  reminderDiag.debug('Garden mutation tracker stopped');
 }
 
 function scheduleEvaluation(): void {

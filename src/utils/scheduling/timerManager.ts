@@ -1,6 +1,13 @@
 // Unified timer management using requestAnimationFrame
 // Replaces scattered setInterval calls with a single efficient loop
 
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import type { Subsystem } from '../../diagnostics/types';
+
+const TIMER_SUBSYSTEM: Subsystem = 'timerManager';
+const timerLog = createNamedLogger(TIMER_SUBSYSTEM);
+
 type TimerCallback = () => void;
 type TimerPriority = 'critical' | 'normal' | 'low';
 
@@ -156,7 +163,7 @@ class TimerManager {
           try {
             timer.callback();
           } catch (error) {
-            console.error(`[TimerManager] Timer "${timer.id}" error:`, error);
+            timerLog.warn('QPM-TIMER-001', { id: timer.id }, error);
           }
           timer.lastRun = now;
         }
@@ -195,6 +202,27 @@ export function managedInterval(
   options?: { priority?: TimerPriority; runWhenHidden?: boolean }
 ): () => void {
   return timerManager.register(id, callback, intervalMs, options);
+}
+
+// Row 6.23 — register the timerManager subsystem on the health bus so the
+// singleton's health surfaces in Diagnostics. Idempotent; safe to call more
+// than once. Publishes `ok` with the live timer count as a metric.
+let timerBusRegistered = false;
+export function startTimerManagerDiagnostics(): void {
+  if (timerBusRegistered) return;
+  timerBusRegistered = true;
+  healthBus.register(TIMER_SUBSYSTEM, {
+    category: 'core',
+    status: 'ok',
+    message: `${timerManager.count} timers`,
+  });
+  healthBus.publish({
+    subsystem: TIMER_SUBSYSTEM,
+    category: 'core',
+    status: 'ok',
+    message: `${timerManager.count} timers`,
+    metrics: { timers: timerManager.count },
+  });
 }
 
 // For timers that should only run when visible (most UI timers)

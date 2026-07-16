@@ -90,7 +90,7 @@ export function renderCropTab(container: HTMLElement): () => void {
       formulaEl.appendChild(
         el(
           'span',
-          `color:${MUTED};font-size:11px;font-family:monospace;`,
+          `color:${MUTED};font-size:12px;font-family:monospace;`,
           `${basePart} × ${scalePart} × ${mutPart} × ${friendPart} = ${fullFmt.format(sellPrice)}`,
         ),
       );
@@ -122,7 +122,7 @@ export function renderCropTab(container: HTMLElement): () => void {
     [
       `border:1px solid ${BORDER_SUBTLE}`,
       `background:${CARD_BG}`,
-      'border-radius:10px',
+      'border-radius:12px',
       'padding:16px',
       'text-align:center',
       'overflow:visible',
@@ -135,11 +135,11 @@ export function renderCropTab(container: HTMLElement): () => void {
 
   const priceRow = el('div', 'display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:4px;');
   priceCoinEl = el('span', '');
-  priceEl = el('span', `font-size:28px;font-weight:700;color:${PRICE_COLOR};`);
+  priceEl = el('span', `font-size:24px;font-weight:700;color:${PRICE_COLOR};`);
   priceRow.append(priceCoinEl, priceEl);
   resultCard.appendChild(priceRow);
 
-  rangeEl = el('div', `font-size:13px;color:${MUTED};`);
+  rangeEl = el('div', `font-size:12px;color:${MUTED};`);
   resultCard.appendChild(rangeEl);
 
   container.appendChild(resultCard);
@@ -147,7 +147,7 @@ export function renderCropTab(container: HTMLElement): () => void {
   // --- Size slider ---
   const sizeSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
   const sizeHeader = el('div', 'display:flex;align-items:center;gap:8px;');
-  sizeHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.size')));
+  sizeHeader.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.size')));
 
   sliderInput = document.createElement('input');
   sliderInput.type = 'range';
@@ -157,7 +157,7 @@ export function renderCropTab(container: HTMLElement): () => void {
   sliderInput.value = String(state.sizePercent);
   sliderInput.style.cssText = `flex:1;accent-color:${ACCENT};cursor:pointer;`;
 
-  sliderValueEl = el('span', `font-size:13px;color:${TEXT};min-width:36px;text-align:right;`);
+  sliderValueEl = el('span', `font-size:12px;color:${TEXT};min-width:36px;text-align:right;`);
 
   sizeHeader.append(sliderInput, sliderValueEl);
   sizeSection.appendChild(sizeHeader);
@@ -184,7 +184,7 @@ export function renderCropTab(container: HTMLElement): () => void {
     if (defs.length === 0) continue;
 
     const section = el('div', 'display:flex;flex-direction:column;gap:4px;');
-    section.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, sec.label));
+    section.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, sec.label));
 
     const tileOptions: MutationTileOption[] = defs.map((d) => {
       const vb = findVariantBadge(d.name);
@@ -193,7 +193,7 @@ export function renderCropTab(container: HTMLElement): () => void {
         value: d.name,
         displayName,
         multiplier: d.multiplier,
-        color: vb?.color ?? '#888',
+        color: vb?.color ?? 'var(--qpm-text-muted)',
         gradient: vb?.gradient,
       };
     });
@@ -208,7 +208,7 @@ export function renderCropTab(container: HTMLElement): () => void {
 
   // --- Friends ---
   const friendSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
-  friendSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.friends')));
+  friendSection.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.friends')));
 
   const { container: friendContainer } = buildPillRow(FRIEND_OPTIONS, '1', (value) => {
     state.playerCount = parseInt(value ?? '1', 10);

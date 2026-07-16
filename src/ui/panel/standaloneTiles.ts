@@ -3,7 +3,7 @@
 
 import { registerTile } from './tileRegistry';
 import { startPublicRoomsStatus, startJournalStatus } from './tileStatusesCore';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { t } from '../../i18n';
 
 export function registerStandaloneTiles(): void {
@@ -17,7 +17,7 @@ export function registerStandaloneTiles(): void {
         toggleWindow('public-rooms', `🌐 ${t('tile.publicRooms.label')}`, (root) => {
           import('../standalone/publicRoomsWindow')
             .then(({ renderPublicRoomsWindow }) => renderPublicRoomsWindow(root))
-            .catch(e => log('⚠️ Failed to load Public Rooms', e));
+            .catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:publicRooms', id: 'public-rooms' }, e));
         }, '950px', '85vh');
       });
     },
@@ -36,7 +36,7 @@ export function registerStandaloneTiles(): void {
           root.style.padding = '0';
           import('../journalChecker/index').then(({ createJournalCheckerSection }) => {
             root.appendChild(createJournalCheckerSection());
-          }).catch(e => log('⚠️ Failed to load Journal Checker', e));
+          }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:journalChecker', id: 'journal-checker-window' }, e));
         }, '900px', '90vh');
       });
     },

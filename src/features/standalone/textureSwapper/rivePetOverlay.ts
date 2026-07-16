@@ -1,4 +1,4 @@
-import { log, ctx } from './types';
+import { log, ctx, warnFeature } from './types';
 import { getPixiApp } from './pixi-walk';
 
 // ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ export function applyRivePetSwap(
         + `prevRenderable=${state.prevRenderable}`,
       );
     } catch (e) {
-      log('applyRivePetSwap: setup failed', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'petSwap:setup', ruleId }, e);
       return;
     }
   } else if (state.texture !== customTex) {
@@ -102,7 +102,7 @@ export function applyRivePetSwap(
       state.sprite.texture = customTex;
       state.texture = customTex;
     } catch (e) {
-      log('applyRivePetSwap: texture update failed', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'petSwap:textureUpdate', ruleId }, e);
     }
   } else if (state.wrapper && state.wrapper.parent !== parent) {
     // Parent changed (rare — game re-parents pets on container swap).
@@ -139,7 +139,7 @@ export function clearRivePetSwap(rivePet: any, ruleId: string): void {
       rivePet.renderable = state.prevRenderable;
     }
   } catch (e) {
-    log('clearRivePetSwap: teardown error', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'petSwap:teardown', ruleId }, e);
   }
   bySprite.delete(ruleId);
   if (bySprite.size === 0) {
@@ -248,7 +248,7 @@ function installPetOverlayTicker(): void {
   if (!app?.ticker) return;
   petOverlayTickerCallback = () => syncRivePetOverlays();
   try { app.ticker.add(petOverlayTickerCallback); } catch (e) {
-    log('installPetOverlayTicker: failed', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'petSwap:ticker' }, e);
     petOverlayTickerCallback = null;
   }
 }

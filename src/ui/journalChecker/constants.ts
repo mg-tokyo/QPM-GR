@@ -1,7 +1,5 @@
 import { storage } from '../../utils/storage';
 
-// ── Species name normalization ──────────────────────────────────────────────
-
 const SPECIES_NAME_MAP: Record<string, string> = {
   orangetulip: 'Tulip',
   tulip: 'Tulip',
@@ -18,8 +16,6 @@ export function normalizeSpeciesName(species: string): string {
   const key = species.toLowerCase().replace(/[^a-z0-9]/g, '');
   return SPECIES_NAME_MAP[key] || species;
 }
-
-// ── Display name overrides ──────────────────────────────────────────────────
 
 const DISPLAY_NAME_OVERRIDES: Record<string, string> = {
   Cacao: 'Cacao Bean',
@@ -44,14 +40,10 @@ export function formatSpeciesDisplayName(key: string): string {
   return key.replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
-// ── Mutation prefixes ───────────────────────────────────────────────────────
-
 export const CROP_MUTATION_PREFIXES = [
   'Gold', 'Rainbow', 'Frozen', 'Wet', 'Amber', 'Chilled',
   'Dawnlit', 'Amberlit', 'Dawnbound', 'Amberbound',
 ];
-
-// ── Layout orders (rarity-tier sorting) ─────────────────────────────────────
 
 export const SHOP_LAYOUT_ORDER = [
   'Carrot', 'Cabbage', 'Strawberry', 'Aloe',
@@ -81,8 +73,6 @@ export const PET_LAYOUT_INDEX = new Map(
 
 export const TALL_SPECIES = new Set(['cactus', 'bamboo']);
 
-// ── Feature palette ─────────────────────────────────────────────────────────
-
 export const COLOR_PRODUCE = '#8BC34A';
 export const COLOR_PETS = '#42A5F5';
 export const COLOR_TIPS = '#9C27B0';
@@ -91,8 +81,6 @@ export const COLOR_MISSING = '#FF9800';
 export const GRADIENT_PRODUCE = 'linear-gradient(90deg, #8BC34A, #66BB6A)';
 export const GRADIENT_PETS = 'linear-gradient(90deg, #42A5F5, #64B5F6)';
 export const GRADIENT_RAINBOW = 'linear-gradient(90deg, #FF1744, #FF9100, #FFEA00, #00E676, #2979FF, #D500F9, #FF1744)';
-
-// ── Notes storage ───────────────────────────────────────────────────────────
 
 export function getSpeciesNotes(species: string): string {
   const notes = storage.get<Record<string, string>>('journal:notes', {});

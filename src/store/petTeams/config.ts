@@ -1,5 +1,4 @@
 import { storage, getStorageRuntime } from '../../utils/storage';
-import { log } from '../../utils/logger';
 import { getActivePetInfos, onActivePetInfos } from '../pets';
 import { onInventoryChange } from '../inventory';
 import type { PetTeam, PetTeamsConfig, PetFeedPolicy } from '../../types/petTeams';
@@ -13,13 +12,16 @@ import {
   notifyConfigListeners,
   resolveCurrentPlayerId,
   resolvePlayerKeyAndMigrate,
+  countFilledSlots,
+  diag,
 } from './state';
 import { getAllPooledPetsWithStatus } from './pool';
 
 export function initPetTeamsStore(): void {
+  diag.register('loading config');
   const rawLoaded = storage.get<PetTeamsConfig | null>(store.resolvedConfigKey, null);
   store.config = rawLoaded ?? createDefaultConfig();
-  log(`[PetTeams:Init] key=${store.resolvedConfigKey} runtime=${getStorageRuntime()} loaded=${rawLoaded ? 'yes' : 'null'} teams=${store.config.teams.length}`);
+  diag.log.debug(`init key=${store.resolvedConfigKey} runtime=${getStorageRuntime()} loaded=${rawLoaded ? 'yes' : 'null'} teams=${store.config.teams.length}`);
   if (!Array.isArray(store.config.teams)) store.config.teams = [];
   if (typeof store.config.keybinds !== 'object' || store.config.keybinds === null) store.config.keybinds = {};
   if (store.config.activeTeamId === undefined) store.config.activeTeamId = null;
@@ -97,23 +99,23 @@ export function initPetTeamsStore(): void {
         return;
       }
       if (store.applyInProgress) {
-        log('[PetTeams] Skipping purge — apply in progress');
+        diag.log.debug('skipping purge — apply in progress');
         return;
       }
       try {
         const { pool, complete } = await getAllPooledPetsWithStatus();
         if (!complete) {
-          log('[PetTeams] Skipping purge — atom data incomplete');
+          diag.log.debug('skipping purge — atom data incomplete');
           return;
         }
         if (!store.hutchEverLoaded) {
-          log('[PetTeams] Skipping purge — hutch data never loaded');
+          diag.log.debug('skipping purge — hutch data never loaded');
           return;
         }
         const validIds = new Set(pool.map(p => p.id));
         const currentId = await resolveCurrentPlayerId();
         if (store.initPlayerId !== null && currentId !== null && currentId !== store.initPlayerId) {
-          log('[PetTeams] Skipping purge — account change detected');
+          diag.log.debug('skipping purge — account change detected');
           return;
         }
         // Allow small purges (1-2 pets) unconditionally; block large purges when pool coverage is low (indicates stale atom data, not real sells).
@@ -130,7 +132,7 @@ export function initPetTeamsStore(): void {
           }
           const wouldPurge = referencedIds.size - matched;
           if (wouldPurge > 2 && matched <= referencedIds.size * 0.5) {
-            log(`[PetTeams] Skipping purge — pool covers ${matched}/${referencedIds.size} referenced pets, ${wouldPurge} would be cleared`);
+            diag.log.debug(`skipping purge — pool covers ${matched}/${referencedIds.size} referenced pets, ${wouldPurge} would be cleared`);
             return;
           }
         }
@@ -141,9 +143,15 @@ export function initPetTeamsStore(): void {
   store.purgeUnsubscribe = onActivePetInfos(() => schedulePurge(), false);
   store.purgeInvUnsubscribe = onInventoryChange(() => schedulePurge(), false);
 
-  log(`[PetTeams] Store initialized - ${store.config.teams.length} teams`);
+  diag.publishOk(
+    `${store.config.teams.length} team(s)`,
+    {
+      teams: store.config.teams.length,
+      filledSlots: countFilledSlots(store.config),
+    },
+  );
   resolvePlayerKeyAndMigrate()
-    .catch(err => log('[PetTeams] Key resolution failed', err))
+    .catch(err => diag.warn('QPM-STORE-001', { phase: 'resolvePlayerKeyAndMigrate' }, err))
     .finally(() => {
       store.purgeReady = true;
       schedulePurge();
@@ -203,7 +211,7 @@ export function createTeam(name: string): PetTeam {
   };
   const countBefore = store.config.teams.length;
   store.config.teams.push(team);
-  log(`[PetTeams:Create] "${team.name}" id=${team.id} teamsBefore=${countBefore} teamsAfter=${store.config.teams.length}`);
+  diag.log.debug(`create "${team.name}" id=${team.id} teamsBefore=${countBefore} teamsAfter=${store.config.teams.length}`);
   saveConfig();
   return team;
 }
@@ -276,7 +284,7 @@ export function purgeGonePets(validIds: Set<string>): number {
     }
   }
   if (cleared > 0) {
-    log(`[PetTeams:Purge] Cleared ${cleared} slot(s): ${details.join(', ')} (pool size=${validIds.size})`);
+    diag.log.debug(`purge cleared ${cleared} slot(s): ${details.join(', ')} (pool size=${validIds.size})`);
     saveConfig();
   }
   return cleared;

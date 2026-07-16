@@ -229,7 +229,7 @@ register({
   severity: 'info',
   title: 'Atlas frame missing',
   description: 'A specific sprite frame could not be resolved; fallback applied.',
-  devNotes: 'src/sprite-v2/compat.ts — check PLANT_SPRITE_ALIASES.',
+  devNotes: 'RETIRED 2026-07-16 (row 6.25) — no emitting path. compat.ts renderAcrossCategories exhausts alias variants silently; frame-miss signal surfaces via SPRITE-002 hydration-coverage metrics + spriteLog compat-render-failed entries. Kept registered for cross-script contract stability (§4.3).',
   sinceVersion: CURRENT_VERSION,
 });
 
@@ -282,7 +282,7 @@ register({
   severity: 'warn',
   title: 'Store init failed',
   description: 'A reactive store could not start. context.store identifies which store.',
-  devNotes: 'src/store/* — see context.store + cause.',
+  devNotes: 'src/store/* — see context.store + cause. Call sites escalate: emit via diag.error (bus → failed) when the failure leaves the store non-functional; diag.warn when a fallback keeps it partially working.',
   sinceVersion: CURRENT_VERSION,
 });
 
@@ -309,6 +309,17 @@ register({
 });
 
 register({
+  code: 'QPM-STORE-004',
+  subsystem: 'store',
+  category: 'store',
+  severity: 'warn',
+  title: 'Store persistence failed',
+  description: 'A reactive store could not persist its slice to the storage wrapper. In-memory state is unaffected; the write will retry on the next debounced save.',
+  devNotes: 'src/store/* — storage.set threw (quota, hostile GM_setValue, or serializer failure). context.store identifies which store; context.what names the slice (e.g. procs, config).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
   code: 'QPM-UI-001',
   subsystem: 'ui.window',
   category: 'ui',
@@ -316,6 +327,17 @@ register({
   title: 'Window render failed',
   description: 'A modal window threw during render. The shell remains intact; the body shows a structured error card via the error boundary.',
   devNotes: 'src/ui/core/modalWindow.ts try/catch around render() — context.id names the failing window; cause carries the original throw. src/ui/core/modalWindowErrorBoundary.ts paints the user-visible card.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-UI-002',
+  subsystem: 'ui.window',
+  category: 'ui',
+  severity: 'warn',
+  title: 'Window/panel helper failed',
+  description: 'A window/panel helper threw. Parent op continues; fallbacks shown where present.',
+  devNotes: 'src/ui/core/{modalWindow,originalPanel}.ts + src/ui/panel/{panelFooter,tileRegistry,standaloneTiles}.ts. context.what names the site; context.id/tile narrows.',
   sinceVersion: CURRENT_VERSION,
 });
 
@@ -581,6 +603,90 @@ register({
   description: 'A listener registered via onPresetsChange() threw during snapshot fan-out. The presets store stays subscribed; the misbehaving subscriber\'s UI may be stale until the next update.',
   devNotes: 'src/features/bloblingCustomiser/presets/store.ts notifyListeners — subscriber bug in the presets bar or grid picker.',
   sinceVersion: CURRENT_VERSION,
+});
+
+// Feature: Texture Swapper (garden painter) — Rive overlays and static-texture
+// swaps for plants/decor/pets. Two codes cover the ~90-empty-catch surface:
+// TEXTURESWAP-001 for rive step failures across rive/*, TEXTURESWAP-002 for
+// lifecycle/persistence/helper failures in index.ts + presets/store.ts.
+register({
+  code: 'QPM-TEXTURESWAP-001',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Texture-swapper Rive step failed',
+  description: 'A Rive overlay step (wrapper/mask/overlay construction, ticker install, filter attach, texture swap) threw. The rule keeps trying on the next Layer B refresh; if the failure is transient the sprite recovers on its own.',
+  devNotes: 'src/features/standalone/textureSwapper/rive/* — context.what identifies the step (rainbow:wrapper | rainbow:mask | rainbow:overlay | rainbow:ticker | ...); per-frame sync and teardown catches stay silent per row rule.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-TEXTURESWAP-002',
+  subsystem: 'feature',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Texture-swapper helper failed',
+  description: 'A texture-swapper lifecycle helper failed — state load/save, debug-flag persistence, preset listener notify, or preset persistence. Rule-application pipeline is unaffected; the specific helper degrades non-fatally.',
+  devNotes: 'src/features/standalone/textureSwapper/{index.ts, presets/store.ts} — context.what identifies the helper (state:load | state:save | debug:save | preset:notify | ...).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+// Core: Boot phases (row 6.22). One code covers the try/catch surface across
+// src/main/{init,phases,globalApis}.ts — each catch swallows a non-fatal init
+// failure so the userscript keeps booting; context.what identifies the step so
+// the enumeration lives inside the buffer instead of one code per phase.
+register({
+  code: 'QPM-INIT-001',
+  subsystem: 'init',
+  category: 'core',
+  severity: 'warn',
+  title: 'Boot phase step failed',
+  description: 'A non-fatal init/boot step threw and was swallowed to keep the userscript loading. Boot continues with reduced functionality — the specific step named by context.what is unavailable.',
+  devNotes: 'src/main/{init,phases,globalApis}.ts — the classic try/catch around a non-critical phase call. context.what enumerates: canvasRuntimeTrap | rivFetchInterceptor | riveEngine | riveControl | customSkins | bloblingPresets | gardenPainterPresets | stateTree | reactiveManager | initLocale | shopRestockAlerts | dawnFeatures | chargedAbilities | weatherPredictions | atomHealthCheck | phase:antiAfk | phase:inventoryStore | phase:hutchStore | phase:seedSiloStore | phase:decorShedStore | phase:petInfoStore | phase:abilityTriggerStore | phase:activityLog | phase:economyTracker | phase:petHatchingTracker | globalApis:exposeActivityLog | inspector:friendShare | inspector:playerShare.',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — boot-time non-fatal failures fire before the user is doing anything
+  // interactive; no clear per-code userAction (refresh helps but many are
+  // transient); the aggregate signal surfaces via the titlebar dot once init
+  // completes with degraded status.
+  notifyUser: false,
+});
+
+// Core: Timer manager (row 6.23). The RAF tick loop catches per-callback throws
+// so one broken timer never breaks the loop; that catch previously logged via
+// raw console.error, now routed through the named logger for buffer + bus
+// attribution. Per-tick recovery expected on the next interval.
+register({
+  code: 'QPM-TIMER-001',
+  subsystem: 'timerManager',
+  category: 'core',
+  severity: 'warn',
+  title: 'Timer callback threw',
+  description: 'A registered timer callback threw inside the RAF tick loop. The timer stays registered and will fire again next interval; the loop keeps ticking for other timers. context.id names the failing timer.',
+  devNotes: 'src/utils/scheduling/timerManager.ts tick() — the try/catch keeps the RAF loop alive after per-timer failures.',
+  sinceVersion: CURRENT_VERSION,
+  notifyUser: false,
+});
+
+// Core: Rive engine (row 6.25). Low-level runtime that features (textureSwapper,
+// bloblingCustomiser previews) sit on top of. One code covers the sole real
+// failure surface — the async runtime-capture chain that resolves the
+// low-level Rive runtime (@rive-app/canvas-advanced) via lowLevelRiveAtom or
+// the canvas trap. If capture never resolves, every downstream override
+// (image/input/text/speed/file/asset) silently no-ops.
+register({
+  code: 'QPM-RIVE-001',
+  subsystem: 'riveEngine',
+  category: 'core',
+  severity: 'warn',
+  title: 'Rive runtime capture failed',
+  description: 'captureRiveRuntime() rejected — the low-level Rive runtime (@rive-app/canvas-advanced) could not be resolved via lowLevelRiveAtom or the canvas trap. Rive overrides silently no-op until reload.',
+  devNotes: 'src/rive-engine/index.ts initRiveEngine() — the void captureRiveRuntime().catch. context.what identifies the step (runtimeCapture).',
+  sinceVersion: CURRENT_VERSION,
+  // §9 — user-visible signal already surfaces via BLOBLING-003 (avatar preview
+  // blank) and TEXTURESWAP-001 (rule refresh no-ops); this row targets the
+  // Diagnostics panel so a developer can distinguish "runtime never captured"
+  // from "override chain broke downstream".
+  notifyUser: false,
 });
 
 register({

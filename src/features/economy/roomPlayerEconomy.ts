@@ -8,11 +8,40 @@ import { computeGardenValueFromCatalog } from './valueCalculator';
 import { computeStorageItemsValue, computePetSellPrice, computePlacedDecorAndEggValue, computeGrowingCropsValue } from './storageValue';
 import { getDecor } from '../../catalogs/gameCatalogs';
 import { debounceCancelable } from '../../utils/scheduling/debounce';
-import { createLogger } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { isRecord } from '../../utils/typeGuards';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
 
-const log = createLogger('QPM:RoomPlayerEcon');
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:roomPlayerEconomy';
+const FEATURE_NAME = 'roomPlayerEconomy';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 export interface RoomPlayerEconomy {
   playerId: string;
@@ -55,7 +84,7 @@ function readPath(obj: unknown, path: string[]): unknown {
 
 function notifyListeners(): void {
   for (const cb of listeners) {
-    try { cb(currentSnapshot); } catch { /* ignore */ }
+    try { cb(currentSnapshot); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:snapshot' }, err); }
   }
 }
 
@@ -207,12 +236,13 @@ export function onRoomPlayersChange(cb: (snap: RoomPlayersSnapshot) => void): ()
 export async function startRoomPlayerEconomy(): Promise<() => void> {
   if (started) return stopRoomPlayerEconomy;
   started = true;
+  ensureBusRegistered();
 
   selfPlayerId = await resolveSelfPlayerId();
 
   const stateAtom = getAtomByLabel('stateAtom');
   if (!stateAtom) {
-    log('stateAtom not found — room player economy unavailable');
+    warnFeature('QPM-FEATURE-003', { what: 'atom:stateAtom_missing' }, null);
     started = false;
     return () => {};
   }
@@ -221,7 +251,7 @@ export async function startRoomPlayerEconomy(): Promise<() => void> {
     try {
       const state = await readAtomValue<unknown>(stateAtom);
       rebuildSnapshot(state);
-    } catch { /* ignore */ }
+    } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'state:read' }, err); }
   }, 1500);
 
   try {
@@ -230,12 +260,14 @@ export async function startRoomPlayerEconomy(): Promise<() => void> {
     });
     if (unsub) stateAtomUnsub = unsub;
   } catch (err) {
-    log('Failed to subscribe to userSlots', err);
+    warnFeature('QPM-FEATURE-003', { what: 'subscribe:userSlots' }, err);
     started = false;
     return () => {};
   }
 
   debouncedUpdate();
+
+  publishOk('Started', { hasSelfId: selfPlayerId ? 1 : 0 });
 
   return stopRoomPlayerEconomy;
 }

@@ -2,15 +2,45 @@
 // PetSlot.abilityCooldowns over derived timestamp math. Mirrors DawnCapture
 // (src/features/dawn/capture/).
 
-import { log } from '../../../utils/logger';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { onActivePetInfos, getActivePetInfos } from '../../../store/pets';
+import { createNamedLogger } from '../../../diagnostics/logger';
+import { healthBus } from '../../../diagnostics/healthBus';
+import { buildError } from '../../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
 import {
   THUNDERCHARGER_ABILITY_ID,
   THUNDERCHARGER_ACTION,
   THUNDERCHARGER_COOLDOWN_MS,
 } from './constants';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:thunderCharger';
+const FEATURE_NAME = 'thunderCharger';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 // Types
 
@@ -64,7 +94,7 @@ function emit(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      log('[Thundercharger] listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:snapshot' }, error);
     }
   }
 }
@@ -126,7 +156,7 @@ function processActivityLogs(rawValue: unknown): void {
     sessionAffectedCrops += affectedCrops;
     changed = true;
 
-    log(`[Thundercharger] ${petName} fired: ${affectedCrops} crops affected`);
+    diag.debug(`${petName} fired: ${affectedCrops} crops affected`);
   }
 
   if (changed) emit();
@@ -184,6 +214,7 @@ export function startThunderchargerTracker(): void {
   perPet.clear();
   sessionActivations = 0;
   sessionAffectedCrops = 0;
+  ensureBusRegistered();
 
   void subscribeAtomValue('myData', (value) => {
     processActivityLogs(value);
@@ -197,7 +228,7 @@ export function startThunderchargerTracker(): void {
       myDataUnsubscribe = unsubscribe;
     })
     .catch((error) => {
-      log('[Thundercharger] Failed to subscribe to myData', error);
+      warnFeature('QPM-FEATURE-003', { what: 'subscribe:myData' }, error);
     });
 
   weatherUnsubscribe = onWeatherSnapshot(handleWeather, true);
@@ -205,7 +236,7 @@ export function startThunderchargerTracker(): void {
     syncLiveCooldownsFromPets();
   });
 
-  log('[Thundercharger] Tracker started');
+  publishOk('Started', { isThunderstormActive: isThunderstormActive ? 1 : 0 });
 }
 
 export function stopThunderchargerTracker(): void {
@@ -228,7 +259,7 @@ export function subscribeThundercharger(listener: (snapshot: ThunderchargerSnaps
     try {
       listener(buildSnapshot());
     } catch (error) {
-      log('[Thundercharger] immediate listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:immediate' }, error);
     }
   }
   return () => { listeners.delete(listener); };

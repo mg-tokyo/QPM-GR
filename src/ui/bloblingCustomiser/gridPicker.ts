@@ -33,7 +33,6 @@ export function createGridPicker(
   const badgeMap = new Map<SlotType, HTMLElement>();
   const cleanups: Array<() => void> = [];
 
-  // ── Scrollbar style ──────────────────────────────────────────────────
   const styleEl = document.createElement('style');
   styleEl.id = 'qpm-grid-picker-scrollbar';
   styleEl.textContent = [
@@ -44,7 +43,6 @@ export function createGridPicker(
   ].join('\n');
   document.head.appendChild(styleEl);
 
-  // ── Tab button ────────────────────────────────────────────────────────
   const tabBtn = document.createElement('button');
   tabBtn.type = 'button';
   tabBtn.title = t('feature.bloblingCustomiser.gridPicker');
@@ -54,12 +52,10 @@ export function createGridPicker(
   tabBtn.addEventListener('mouseleave', () => { tabBtn.style.background = isOpen ? 'var(--qpm-accent-hover)' : 'var(--qpm-accent)'; });
   document.body.appendChild(tabBtn);
 
-  // ── Grid panel ────────────────────────────────────────────────────────
   const panel = document.createElement('div');
   panel.style.cssText = `position:fixed;width:${PANEL_WIDTH}px;display:none;flex-direction:column;background:var(--qpm-surface-window);border:1px solid var(--qpm-accent-emphasis);border-left:none;border-radius:0 var(--qpm-radius-lg) var(--qpm-radius-lg) 0;box-shadow:4px 0 20px rgba(0,0,0,0.4);font-family:inherit;font-size:var(--qpm-font-body);color:var(--qpm-text);transition:opacity 0.15s,transform 0.15s;`;
   document.body.appendChild(panel);
 
-  // Header
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:var(--qpm-space-4) var(--qpm-space-5);flex-shrink:0;border-bottom:1px solid var(--qpm-divider);';
   const headerTitle = document.createElement('span');
@@ -77,16 +73,13 @@ export function createGridPicker(
   header.appendChild(closeBtn);
   panel.appendChild(header);
 
-  // Scroll container
   const scroll = document.createElement('div');
   scroll.className = 'qpm-grid-picker-scroll';
   scroll.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;padding:var(--qpm-space-4) var(--qpm-space-4) var(--qpm-space-5);';
   panel.appendChild(scroll);
 
-  // ── Footer: trim-to-shape toggle ──────────────────────────────────────
-  // Sticky at the bottom of the picker — gates the Level 2 alpha mask when
-  // users upload customs. When on (default), uploads are clipped to the
-  // cosmetic's natural silhouette. When off, uploads render as-is.
+  // Trim-to-shape gates the Level 2 alpha mask on custom uploads: on (default)
+  // clips uploads to the cosmetic's silhouette, off renders them as-is.
   const footer = document.createElement('div');
   footer.style.cssText = 'flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:var(--qpm-space-3) var(--qpm-space-5);border-top:1px solid var(--qpm-divider);font-size:var(--qpm-font-xs);color:var(--qpm-text-muted);';
 
@@ -113,7 +106,6 @@ export function createGridPicker(
 
   panel.appendChild(footer);
 
-  // ── Build sections ────────────────────────────────────────────────────
   function buildSections(): void {
     scroll.innerHTML = '';
     cellMap.clear();
@@ -183,7 +175,6 @@ export function createGridPicker(
         img.addEventListener('error', () => { img.style.display = 'none'; });
         cell.appendChild(img);
 
-        // Owned / price indicator
         if (isOwned) {
           const ownedDot = document.createElement('div');
           ownedDot.style.cssText = 'position:absolute;bottom:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--qpm-positive);box-shadow:0 0 3px rgba(79,209,139,0.55);';
@@ -196,7 +187,6 @@ export function createGridPicker(
           cell.appendChild(price);
         }
 
-        // Hover — strengthen the slot glow on hover, restore on leave
         const hoverGlow = `radial-gradient(circle at center, ${cfg.arrowColor}55 0%, ${cfg.arrowColor}22 55%, rgba(143,130,255,0.10) 100%)`;
         cell.addEventListener('mouseenter', () => {
           if (entry.filename !== (getSessionFn()?.selectedSlots[cfg.type] ?? null)) {
@@ -213,18 +203,14 @@ export function createGridPicker(
           }
         });
 
-        // Click
         cell.addEventListener('click', () => { onSelect(cfg.type, entry.filename); });
 
-        // Drag
         cell.addEventListener('dragstart', (e) => {
           e.dataTransfer?.setData(MIME_TYPE, JSON.stringify({ slot: cfg.type, filename: entry.filename }));
           if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
         });
 
-        // Custom skins — per-tile drop/click affordance + ★ badge when an
-        // active custom exists. Cleanups go on the per-build cleanups array
-        // so a refresh / window close tears them down.
+        // Cleanups go on the per-build cleanups array so refresh/window close tears them down.
         const detachDropZone = mountCustomsDropZone(cell, cfg.type, entry.filename);
         const detachBadge = mountCustomsBadge(cell, entry.filename);
         cleanups.push(detachDropZone, detachBadge);
@@ -238,7 +224,6 @@ export function createGridPicker(
     }
   }
 
-  // ── Toggle ────────────────────────────────────────────────────────────
   function togglePanel(open: boolean): void {
     isOpen = open;
     tabBtn.textContent = isOpen ? '×' : '+';
@@ -267,7 +252,6 @@ export function createGridPicker(
 
   tabBtn.addEventListener('click', () => togglePanel(!isOpen));
 
-  // Escape key
   function onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape' && isOpen) {
       togglePanel(false);
@@ -275,12 +259,10 @@ export function createGridPicker(
   }
   document.addEventListener('keydown', onKeyDown);
 
-  // ── Positioning ───────────────────────────────────────────────────────
   function reposition(): void {
     const rect = windowEl.getBoundingClientRect();
     const z = windowEl.style.zIndex || '1000';
 
-    // Check if panel fits on the right
     const fitsRight = rect.right + PANEL_WIDTH + TAB_WIDTH < window.innerWidth - 8;
 
     if (fitsRight) {
@@ -324,7 +306,6 @@ export function createGridPicker(
     }
   }
 
-  // Track window movement/resize
   const mutObs = new MutationObserver(() => reposition());
   mutObs.observe(windowEl, { attributes: true, attributeFilter: ['style'] });
 
@@ -341,7 +322,6 @@ export function createGridPicker(
   reposition();
   requestAnimationFrame(() => reposition());
 
-  // ── Refresh ───────────────────────────────────────────────────────────
   function refresh(): void {
     if (!isOpen) return;
     const session = getSessionFn();
@@ -370,7 +350,6 @@ export function createGridPicker(
     }
   }
 
-  // ── Destroy ───────────────────────────────────────────────────────────
   function destroy(): void {
     mutObs.disconnect();
     resObs.disconnect();

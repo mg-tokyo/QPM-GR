@@ -1,8 +1,10 @@
 import { startPetInfoStore, onActivePetInfos, type ActivePetInfo } from './pets';
 import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
 import { debounce } from '../utils/scheduling/debounce';
 import { normalizeSpeciesKey } from '../utils/helpers';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storePetXp', 'petXp');
 
 const STORAGE_KEY = 'qpm.petXpObservations.v1';
 const STORAGE_VERSION = 1;
@@ -67,7 +69,7 @@ const scheduleSave = debounce(() => {
   try {
     storage.set(STORAGE_KEY, serializeSnapshot());
   } catch (error) {
-    log('⚠️ Failed to persist pet XP observations', error);
+    diag.warn('QPM-STORE-004', { what: 'observations', key: STORAGE_KEY }, error);
   }
 }, SAVE_DEBOUNCE_MS);
 
@@ -373,15 +375,20 @@ export function initializePetXpTracker(): void {
   }
   initialized = true;
 
+  diag.register('Restoring pet XP observations from storage');
   try {
     const persisted = storage.get<PersistedPayload | null>(STORAGE_KEY, null);
     restoreSnapshot(persisted ?? null);
   } catch (error) {
-    log('⚠️ Failed to restore pet XP observations', error);
+    diag.warn('QPM-STORE-001', { phase: 'restoreFromStorage' }, error);
   }
 
   void startPetInfoStore();
   unsubscribe = onActivePetInfos(handlePetInfoUpdate);
+
+  diag.publishOk('Pet XP tracker initialised', {
+    species: tables.size,
+  });
 }
 
 export function disposePetXpTracker(): void {

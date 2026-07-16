@@ -3,7 +3,7 @@ import { getFavoritedItemIds, getInventoryItems, readInventoryDirect, type Inven
 import { calculateMaxStrength } from '../../store/xpTracker';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
 import { storage } from '../../utils/storage';
-import { log } from '../../utils/logger';
+import { warnFeature } from './_diagnostics';
 import { delay } from '../../utils/scheduling/scheduling';
 import { isRecord } from '../../utils/typeGuards';
 import { sendRoomAction } from '../../websocket/api';
@@ -468,7 +468,11 @@ export async function runSellAllPets(): Promise<SellAllPetsRunResult> {
         soldCount += 1;
       } else {
         failedCount += 1;
-        log(`[SellAllPets] Failed to send SellPet (${pet.id})`, sent.reason);
+        warnFeature('QPM-FEATURE-001', {
+          type: 'SellPet',
+          reason: sent.reason ?? 'unknown',
+          petId: pet.id,
+        });
       }
       await delay(SELL_DELAY_MS);
     }
@@ -489,7 +493,7 @@ export async function runSellAllPets(): Promise<SellAllPetsRunResult> {
       message,
     };
   } catch (error) {
-    log('[SellAllPets] Execution failed', error);
+    warnFeature('QPM-FEATURE-003', { what: 'runSellAllPets' }, error);
     return {
       status: 'failed',
       totalCandidates: 0,

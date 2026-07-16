@@ -12,8 +12,6 @@ import { renderProduceTab } from './tabProduce';
 import { renderPetsTab } from './tabPets';
 import { renderRecommendationsTab } from './tabRecommendations';
 
-// ── Stat box helper ─────────────────────────────────────────────────────────
-
 function createStatBox(
   icon: string,
   label: string,
@@ -61,15 +59,12 @@ function updateStat(box: HTMLElement, text: string): void {
   }
 }
 
-// ── Main section ────────────────────────────────────────────────────────────
-
 export function createJournalCheckerSection(): HTMLElement {
   const cleanups: Array<() => void> = [];
   let catalogRetries = 0;
   let retryTimeoutId: number | undefined;
   cleanups.push(() => { if (retryTimeoutId !== undefined) clearTimeout(retryTimeoutId); });
 
-  // ── Root ────────────────────────────────────────────────────────────────
   const root = document.createElement('div');
   root.dataset.qpmSection = 'journal-checker';
   root.style.cssText =
@@ -79,7 +74,6 @@ export function createJournalCheckerSection(): HTMLElement {
 
   injectJournalStyles(root);
 
-  // ── Header ──────────────────────────────────────────────────────────────
   const header = document.createElement('div');
   header.style.cssText =
     'margin-bottom:12px;border-bottom:2px solid var(--qpm-border);padding-bottom:8px;';
@@ -98,7 +92,6 @@ export function createJournalCheckerSection(): HTMLElement {
   header.appendChild(headerSub);
   root.appendChild(header);
 
-  // ── Stats ───────────────────────────────────────────────────────────────
   const statsGrid = document.createElement('div');
   statsGrid.style.cssText =
     'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px;';
@@ -112,7 +105,6 @@ export function createJournalCheckerSection(): HTMLElement {
   statsGrid.appendChild(overallStatBox);
   root.appendChild(statsGrid);
 
-  // ── Tab bar ─────────────────────────────────────────────────────────────
   const tabBar = createTabBar(
     [
       { id: 'produce', label: `🌾 ${t('feature.journal.produce')}` },
@@ -127,7 +119,6 @@ export function createJournalCheckerSection(): HTMLElement {
   tabBar.root.style.marginBottom = '8px';
   root.appendChild(tabBar.root);
 
-  // ── Missing-only filter ─────────────────────────────────────────────────
   let showMissingOnly = false;
   const missingToggle = createToggle({
     label: `📋 ${t('feature.journal.missing')}`,
@@ -141,7 +132,6 @@ export function createJournalCheckerSection(): HTMLElement {
   missingToggle.root.style.marginBottom = '8px';
   root.appendChild(missingToggle.root);
 
-  // ── Tooltip helper toggle ───────────────────────────────────────────────
   const helperCard = document.createElement('div');
   helperCard.style.cssText =
     'margin:0 0 10px;padding:10px 12px;border-radius:var(--qpm-radius-md);' +
@@ -171,13 +161,11 @@ export function createJournalCheckerSection(): HTMLElement {
   helperCard.appendChild(helperToggle.root);
   root.appendChild(helperCard);
 
-  // ── Results container ───────────────────────────────────────────────────
   const resultsContainer = document.createElement('div');
   resultsContainer.style.cssText =
     'flex:1;min-height:0;max-height:none;overflow-y:auto;padding-right:4px;';
   root.appendChild(resultsContainer);
 
-  // ── Refresh button ──────────────────────────────────────────────────────
   const refreshBtn = createButton(`🔄 ${t('feature.journal.refresh')}`, {
     variant: 'secondary',
     onClick: () => {
@@ -197,7 +185,6 @@ export function createJournalCheckerSection(): HTMLElement {
   refreshBtn.style.marginTop = '10px';
   root.appendChild(refreshBtn);
 
-  // ── Update display ──────────────────────────────────────────────────────
   const updateDisplay = async (): Promise<void> => {
     if (!getPlantCatalog() || !getMutationCatalog() || !getPetCatalog()) {
       if (catalogRetries < 10) {
@@ -240,7 +227,6 @@ export function createJournalCheckerSection(): HTMLElement {
     }
   };
 
-  // ── Cleanup handle ──────────────────────────────────────────────────────
   (root as unknown as { __journalCleanup: () => void }).__journalCleanup = () => {
     cleanups.forEach(fn => fn());
     cleanups.length = 0;

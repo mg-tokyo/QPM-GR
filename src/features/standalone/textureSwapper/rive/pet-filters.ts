@@ -2,7 +2,7 @@
 // Pet mutation filters (sprite.filters via shader port — beta-accurate path).
 // Extracted from riveAdapter.ts during PR #1 of the 2026-06-27 perf refactor.
 
-import { log } from '../types';
+import { log, warnFeature } from '../types';
 import { buildColorOverlayFilter, buildRainbowFilterProper } from '../riveFilters';
 import { petFiltersBySprite, activeRiveSprites } from './state';
 
@@ -79,6 +79,7 @@ export function installPetFilter(sprite: any, ruleId: string, filter: any): void
     sprite.filters = arr;
   } catch (e) {
     log('installPetFilter: failed to set filters', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'petFilter:install', ruleId }, e);
   }
   activeRiveSprites.add(sprite);
 }

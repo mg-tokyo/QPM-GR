@@ -3,7 +3,6 @@
 
 import { getAtomByLabel, getCachedStore } from '../core/jotaiBridge';
 import { subscribeAtomValue } from '../core/atomRegistry';
-import { log } from '../utils/logger';
 import {
   STANDARD_SHOP_IDS,
   INITIALLY_KNOWN_WEATHER_GATED_SHOP_IDS,
@@ -11,6 +10,9 @@ import {
 } from '../types/shops';
 import type { ShopInventoryEntry } from '../types/gameAtoms';
 import { storage } from '../utils/storage';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeShopRegistry', 'shopRegistry');
 
 const STORAGE_KEY = 'qpm.shopRegistry.discovered.v1';
 const QUINOA_DATA_ATOM_LABEL = 'quinoaDataAtom';
@@ -34,13 +36,13 @@ function persistDiscovered(): void {
   try {
     storage.set(STORAGE_KEY, [...discoveredIds]);
   } catch (err) {
-    log('⚠️ shopRegistry: failed to persist discovered ids', err);
+    diag.warn('QPM-STORE-004', { what: 'discovered', key: STORAGE_KEY }, err);
   }
 }
 
 function notifyDiscovered(id: string): void {
   for (const cb of discoveryListeners) {
-    try { cb(id); } catch (err) { log('⚠️ shopRegistry listener error', err); }
+    try { cb(id); } catch (err) { diag.warn('QPM-STORE-003', { phase: 'notifyDiscovered', id }, err); }
   }
 }
 
@@ -62,6 +64,7 @@ function ingestShopsSnapshot(value: unknown): void {
 
 export async function startShopRegistry(): Promise<void> {
   if (startPromise) return startPromise;
+  diag.register('Loading persisted shop registry');
   discoveredIds = loadPersistedDiscovered();
   exposeDebugNamespace();
   startPromise = (async () => {
@@ -70,8 +73,9 @@ export async function startShopRegistry(): Promise<void> {
         ingestShopsSnapshot(value);
       });
       if (unsub) quinoaDataUnsubscribe = unsub;
+      diag.publishOk('Shop registry subscribed', { discovered: discoveredIds.size });
     } catch (err) {
-      log('⚠️ shopRegistry: failed to subscribe to quinoaData', err);
+      diag.warn('QPM-STORE-002', { atom: 'quinoaData', phase: 'subscribe' }, err);
     }
   })();
   return startPromise;
@@ -131,7 +135,7 @@ export function injectShopInventory(
 ): void {
   const store = getCachedStore();
   if (!store || store.__polyfill) {
-    log('⚠️ shopRegistry: injectShopInventory needs a writable jotai store');
+    diag.log.debug('injectShopInventory needs a writable jotai store', { shopId });
     return;
   }
   const quinoaDataAtom = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
@@ -140,7 +144,7 @@ export function injectShopInventory(
   try {
     current = store.get(quinoaDataAtom) as Record<string, unknown> | null;
   } catch (err) {
-    log('⚠️ shopRegistry: injectShopInventory failed to read quinoaDataAtom', err);
+    diag.warn('QPM-STORE-002', { atom: QUINOA_DATA_ATOM_LABEL, phase: 'inject:read' }, err);
     return;
   }
   if (!current || typeof current !== 'object') return;
@@ -152,7 +156,7 @@ export function injectShopInventory(
   try {
     store.set(quinoaDataAtom, { ...current, shops: nextShops });
   } catch (err) {
-    log('⚠️ shopRegistry: injectShopInventory write failed (atom may be read-only)', err);
+    diag.warn('QPM-STORE-002', { atom: QUINOA_DATA_ATOM_LABEL, phase: 'inject:write' }, err);
     return;
   }
   registerDiscovered(shopId);

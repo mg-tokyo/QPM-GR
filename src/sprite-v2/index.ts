@@ -8,7 +8,6 @@ import { clearVariantCache, getCacheStats } from './cache';
 import { clearSpriteDataUrlCache } from './compat';
 import * as api from './api';
 import { yieldToBrowser, delay } from '../utils/scheduling/scheduling';
-import { log } from '../utils/logger';
 import { spriteLog } from './diagnostics';
 import { ctxRef, createInitialState } from './service/state';
 import { notifyWarmup } from './service/warmup';
@@ -467,7 +466,7 @@ async function start(): Promise<SpriteService> {
     (target as any).MGSpriteCatalog = spriteCatalogApi;
   }
 
-  log('[QPM Sprite-v2] Initialized', {
+  spriteLog('debug', 'sprite-v2-initialized', 'Sprite system initialized', {
     version: ctxRef.current.state.version,
     pixi: pixiVersion,
     textures: ctxRef.current.state.tex.size,

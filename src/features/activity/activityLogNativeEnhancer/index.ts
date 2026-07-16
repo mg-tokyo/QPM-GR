@@ -1,4 +1,4 @@
-import { log } from '../../../utils/logger';
+import { diag, ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
 import type { ActionKey, TypeFilter, OrderFilter, ActivityLogEntry } from './types';
 import { S } from './state';
 import {
@@ -205,9 +205,11 @@ export async function setActivityLogEnhancerEnabled(enabled: boolean): Promise<b
 }
 
 export async function startActivityLogEnhancer(): Promise<void> {
+  ensureBusRegistered();
   S.enhancerEnabled = loadEnabledPreference();
   if (!S.enhancerEnabled) {
-    log('[ActivityLogNative] disabled by config');
+    diag.debug('disabled by config');
+    publishOk('Disabled by config', { enabled: 0 });
     return;
   }
   if (S.started) return;
@@ -245,10 +247,16 @@ export async function startActivityLogEnhancer(): Promise<void> {
     await startMyDataActivitySubscription();
 
     if (ariesMerged > 0) {
-      log(`[ActivityLogNative] Imported ${ariesMerged} entries from Aries history`);
+      diag.debug(`Imported ${ariesMerged} entries from Aries history`);
     }
-    log(`[ActivityLogNative] started (${S.history.length} history entries)`);
+    diag.debug(`started (${S.history.length} history entries)`);
+    publishOk('Started', {
+      enabled: 1,
+      historyCount: S.history.length,
+      replayMode: S.replayMode,
+    });
   } catch (error) {
+    warnFeature('QPM-FEATURE-003', { what: 'start' }, error);
     stopActivityLogEnhancer();
     throw error;
   }
@@ -290,5 +298,5 @@ export function stopActivityLogEnhancer(): void {
   persistFilters();
   saveSummaryDebugPreference();
   saveEnabledPreference();
-  log('[ActivityLogNative] stopped');
+  diag.debug('stopped');
 }

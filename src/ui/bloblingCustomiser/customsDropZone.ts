@@ -14,23 +14,14 @@ import {
 const EXPECTED_PX = 640;
 
 /**
- * Mount drop+click+remove handlers on a cosmetic tile so a user can drop or
- * pick a custom PNG that becomes the active skin for that cosmetic.
- * Returns a cleanup that removes every listener. Idempotent across calls
- * because cleanup detaches everything this mount created.
- *
- * UX (spec §3.1, amended):
- *  - Hover a tile → small affordance bottom-left of cell (14×14)
- *  - Click affordance with no custom → OS file picker, image/* only
- *  - Click affordance with custom set → clears it (× becomes the icon)
- *  - Drop file from OS onto tile → consumed, becomes active
+ * Mounts drop/click/remove handlers on a cosmetic tile (UX per spec §3.1).
+ * Returns a cleanup that removes every listener; idempotent across calls.
  */
 export function mountCustomsDropZone(
   cell: HTMLElement,
   _slot: SlotType,
   filename: string,
 ): () => void {
-  // ── Affordance button ──
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.textContent = '+';
@@ -62,7 +53,7 @@ export function mountCustomsDropZone(
     const active = getActiveCustomSkin(filename);
     const has = active !== null;
     btn.style.background = has ? 'rgba(143,130,255,0.85)' : 'rgba(0,0,0,0.55)';
-    btn.textContent = has ? '×' : '+';   // × when custom set, + otherwise
+    btn.textContent = has ? '×' : '+';
 
     if (!has) {
       btn.title = `${t('feature.bloblingCustomiser.customise')} (${EXPECTED_PX}×${EXPECTED_PX})`;
@@ -76,7 +67,7 @@ export function mountCustomsDropZone(
   };
   refreshAffordance();
 
-  // ── Hidden file input (lazy-created on click) ──
+  // Hidden file input, lazy-created on click
   let pendingInput: HTMLInputElement | null = null;
   function openFilePicker(): void {
     if (pendingInput) return;
@@ -108,9 +99,8 @@ export function mountCustomsDropZone(
     if (result) refreshAffordance();
   }
 
-  // ── Template-download button (Level 1) ──
-  // Positioned top-left: bottom-left is the + customise button, top-right
-  // is the ★ active-custom badge, bottom-right has owned-dot / price overlays.
+  // Positioned top-left: bottom-left is + customise, top-right is the ★ badge,
+  // bottom-right has owned-dot / price overlays.
   const dlBtn = document.createElement('button');
   dlBtn.type = 'button';
   dlBtn.textContent = '↓';
@@ -139,13 +129,11 @@ export function mountCustomsDropZone(
   ].join(';');
   cell.appendChild(dlBtn);
 
-  // ── Hover handlers ──
   const onCellEnter = (): void => { btn.style.opacity = '1'; dlBtn.style.opacity = '1'; };
   const onCellLeave = (): void => { btn.style.opacity = '0'; dlBtn.style.opacity = '0'; };
   cell.addEventListener('mouseenter', onCellEnter);
   cell.addEventListener('mouseleave', onCellLeave);
 
-  // ── Click affordance ──
   const onBtnClick = (e: MouseEvent): void => {
     e.stopPropagation();
     if (getActiveCustomSkin(filename)) {
@@ -157,7 +145,6 @@ export function mountCustomsDropZone(
   };
   btn.addEventListener('click', onBtnClick);
 
-  // ── Download template click ──
   const onDlClick = async (e: MouseEvent): Promise<void> => {
     e.stopPropagation();
     const ok = await downloadCosmeticTemplate(filename);
@@ -171,7 +158,6 @@ export function mountCustomsDropZone(
   };
   dlBtn.addEventListener('click', onDlClick);
 
-  // ── Drag-drop on the cell itself ──
   const onDragOver = (e: DragEvent): void => {
     if (!e.dataTransfer?.types.includes('Files')) return;
     e.preventDefault();

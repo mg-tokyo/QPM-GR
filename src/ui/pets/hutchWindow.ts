@@ -1,6 +1,6 @@
 // Pet Hutch Window - displays all pets from hutch and inventory
 
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { readAtomValue } from '../../core/atomRegistry';
 import { getPetSpriteCanvas } from '../../sprite-v2/compat';
 import { getMutationSpriteDataUrl } from '../../utils/rendering/petMutationRenderer';
@@ -114,7 +114,7 @@ async function getAllPets(): Promise<PetItem[]> {
       }
     }
   } catch (error) {
-    log('⚠️ Failed to read hutch pets:', error);
+    windowLog.warn('QPM-UI-002', { what: 'petHutch:readHutch' }, error);
   }
 
   // Get inventory pets
@@ -138,7 +138,7 @@ async function getAllPets(): Promise<PetItem[]> {
       }
     }
   } catch (error) {
-    log('⚠️ Failed to read inventory pets:', error);
+    windowLog.warn('QPM-UI-002', { what: 'petHutch:readInv' }, error);
   }
 
   return pets;
@@ -155,6 +155,7 @@ function renderPetCard(pet: PetItem): HTMLDivElement {
       spriteUrl = canvasToDataUrl(getPetSpriteCanvas(species));
     }
   } catch {
+    /* mutation sprite is best-effort — falls through to base species sprite */
     spriteUrl = canvasToDataUrl(getPetSpriteCanvas(species));
   }
 
@@ -282,7 +283,7 @@ export function openPetHutchWindow(): void {
     return;
   }
 
-  log('🏠 Opening Pet Hutch window');
+  windowLog.debug('Pet Hutch window opened');
 
   ensurePetHutchStyles();
 
@@ -379,12 +380,12 @@ function handleKeyPress(event: KeyboardEvent): void {
 export function initPetHutchWindow(): void {
   loadKeybind();
   document.addEventListener('keydown', handleKeyPress);
-  log(`🏠 Pet Hutch window initialized (keybind: ${currentKeybind.toUpperCase()})`);
+  windowLog.debug('Pet Hutch window initialized', { keybind: currentKeybind });
 }
 
 export function setKeybind(key: string): void {
   saveKeybind(key);
-  log(`🏠 Pet Hutch keybind updated to: ${key.toUpperCase()}`);
+  windowLog.debug('Pet Hutch keybind updated', { keybind: currentKeybind });
 }
 
 export function getKeybind(): string {

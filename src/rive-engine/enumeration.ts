@@ -13,10 +13,16 @@ export function enumerateInputs(instanceId: string): InputDescriptor[] {
 
   const results: InputDescriptor[] = [];
   const sm = instance.stateMachine;
-  const count = sm.inputCount();
+  // WASM-level guard: sm may have been .delete()'d by a game teardown (WebGL
+  // context loss triggers a 45-system reinit). Calling inputCount on a freed
+  // pointer throws "Cannot pass deleted object". Swallow — callers already
+  // handle empty-list as "not enumerable yet".
+  let count = 0;
+  try { count = sm.inputCount(); } catch { return []; }
 
   for (let i = 0; i < count; i++) {
-    const inp = sm.input(i);
+    let inp: ReturnType<typeof sm.input> = null;
+    try { inp = sm.input(i); } catch { continue; }
     if (!inp) continue;
 
     let type: InputDescriptor['type'];
@@ -33,7 +39,7 @@ export function enumerateInputs(instanceId: string): InputDescriptor[] {
       currentValue = null;
     }
 
-    results.push({ name: inp.name, type, currentValue });
+    try { results.push({ name: inp.name, type, currentValue }); } catch { /* deleted */ }
   }
 
   return results;
@@ -116,7 +122,7 @@ export function enumerateImageProperties(instanceId: string): string[] {
     try {
       const prop = instance.viewModel.image(name);
       if (prop) found.push(name);
-    } catch {}
+    } catch { /* deleted VMI or malformed name */ }
   }
   return found;
 }

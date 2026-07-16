@@ -1,12 +1,42 @@
-import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
+import { createNamedLogger } from '../../../diagnostics/logger';
+import { healthBus } from '../../../diagnostics/healthBus';
+import { buildError } from '../../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
 import {
   CAPSULE_OPEN_ACTION,
   CAPSULE_PULLS_STORAGE_KEY,
   MAX_PULL_RECORDS,
   DAWN_CAPSULE_RATES,
 } from './constants';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:dawnCapsule';
+const FEATURE_NAME = 'dawnCapsule';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 export interface CapsulePullRecord {
   timestamp: number;
@@ -108,7 +138,7 @@ function emit(): void {
     try {
       listener(stats);
     } catch (error) {
-      log('[CapsuleTracker] listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:stats' }, error);
     }
   }
 }
@@ -162,7 +192,7 @@ function processActivityLogs(rawValue: unknown): void {
     pullHistory.push(record);
     sessionPulls.push(record);
     changed = true;
-    log(`[CapsuleTracker] Capsule opened: ${validSpecies.join(', ')}`);
+    diag.debug(`Capsule opened: ${validSpecies.join(', ')}`);
   }
 
   if (changed) {
@@ -177,6 +207,7 @@ export function startCapsuleTracker(): void {
   lastSeenLogLength = 0;
   sessionPulls = [];
   loadHistory();
+  ensureBusRegistered();
 
   void subscribeAtomValue('myData', (value) => {
     processActivityLogs(value);
@@ -190,10 +221,10 @@ export function startCapsuleTracker(): void {
       myDataUnsubscribe = unsubscribe;
     })
     .catch((error) => {
-      log('[CapsuleTracker] Failed to subscribe to myData', error);
+      warnFeature('QPM-FEATURE-003', { what: 'subscribe:myData' }, error);
     });
 
-  log('[CapsuleTracker] Started');
+  publishOk('Started', { historyCount: pullHistory.length });
 }
 
 export function stopCapsuleTracker(): void {
@@ -211,7 +242,7 @@ export function subscribeCapsuleStats(listener: (stats: CapsuleStats) => void): 
     try {
       listener(computeStats());
     } catch (error) {
-      log('[CapsuleTracker] immediate listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:immediate' }, error);
     }
   }
   return () => { listeners.delete(listener); };

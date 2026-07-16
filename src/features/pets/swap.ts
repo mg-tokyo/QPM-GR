@@ -1,8 +1,8 @@
 import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { getActivePetInfos } from '../../store/pets';
-import { log } from '../../utils/logger';
 import { delay } from '../../utils/scheduling/scheduling';
 import { hasRoomConnection, sendRoomAction } from '../../websocket/api';
+import { warnFeature } from './_diagnostics';
 import { findEmptyGardenTile, PLACE_PET_DEFAULTS, resolveMyUserSlotIdx } from './teamActions';
 
 export type SwapPetFailureReason =
@@ -46,7 +46,7 @@ function sendAction(
 ): boolean {
   const sent = sendRoomAction(type, payload, { throttleMs: 100 });
   if (!sent.ok && sent.reason !== 'throttled') {
-    log('[petSwap] send failed', { type, payload, reason: sent.reason });
+    warnFeature('QPM-FEATURE-001', { type, reason: sent.reason ?? 'unknown' });
   }
   return sent.ok;
 }
@@ -105,7 +105,7 @@ async function readInventoryIdSet(): Promise<Set<string>> {
       extractCandidateIds(item as Record<string, unknown>).forEach((id) => result.add(id));
     }
   } catch (error) {
-    log('?? petSwap inventory read failed', error);
+    warnFeature('QPM-FEATURE-004', { what: 'inventory:read' }, error);
   }
 
   return result;

@@ -4,7 +4,9 @@
 import { subscribeAtomValue, writeRegistryAtom } from '../core/atomRegistry';
 import { onNativeSend } from '../websocket/nativeSendObserver';
 import { onActionSent, sendRoomAction } from '../websocket/api';
-import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeMountState', 'mountState');
 
 type RiddenPetChangeCallback = (petId: string | null) => void;
 
@@ -18,7 +20,7 @@ function emit(nextId: string | null): void {
   if (currentRiddenPetId === nextId) return;
   currentRiddenPetId = nextId;
   for (const cb of listeners) {
-    try { cb(currentRiddenPetId); } catch { /* ignore listener errors */ }
+    try { cb(currentRiddenPetId); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notify' }, error); }
   }
 }
 
@@ -27,7 +29,7 @@ async function syncRiddenState(petId: string | null): Promise<void> {
   try {
     await writeRegistryAtom('riddenPetId', petId);
   } catch (err) {
-    log('[MountState] Failed to write riddenPetId atom:', err);
+    diag.warn('QPM-STORE-002', { atom: 'riddenPetId', phase: 'write' }, err);
   }
 
   sendRoomAction('SetRiddenPet', { petId }, { throttleMs: 0, skipThrottle: true });
@@ -37,6 +39,7 @@ async function syncRiddenState(petId: string | null): Promise<void> {
 export function startMountStateTracker(): void {
   if (started) return;
   started = true;
+  diag.register('Starting mount state tracker');
 
   subscribeAtomValue('riddenPetId', (value) => {
     emit(value ?? null);
@@ -44,10 +47,10 @@ export function startMountStateTracker(): void {
     if (unsub) {
       cleanups.push(unsub);
     } else {
-      log('[MountState] riddenPetId atom not found — relying on WS fallback');
+      diag.warn('QPM-STORE-002', { atom: 'riddenPetId', fallback: 'ws' });
     }
-  }).catch(() => {
-    log('[MountState] riddenPetId atom subscription failed — relying on WS fallback');
+  }).catch((error) => {
+    diag.warn('QPM-STORE-002', { atom: 'riddenPetId', phase: 'subscribe', fallback: 'ws' }, error);
   });
 
   const unsubNative = onNativeSend((type, payload) => {
@@ -70,7 +73,8 @@ export function startMountStateTracker(): void {
   });
   cleanups.push(unsubAction);
 
-  log('[MountState] Started');
+  diag.log.debug('Mount state tracker started');
+  diag.publishOk('Mount state tracker ready');
 }
 
 export function stopMountStateTracker(): void {
@@ -80,7 +84,7 @@ export function stopMountStateTracker(): void {
   cleanups.length = 0;
   currentRiddenPetId = null;
   listeners.clear();
-  log('[MountState] Stopped');
+  diag.log.debug('Mount state tracker stopped');
 }
 
 /** Get the slotId of the currently ridden pet, or null if not riding. */
@@ -98,7 +102,7 @@ export function onRiddenPetChange(cb: RiddenPetChangeCallback): () => void {
 export function ridePet(petItemId: string): void {
   const result = sendRoomAction('RidePet', { petItemId }, { throttleMs: 500 });
   if (!result.ok) {
-    log(`[MountState] RidePet send failed: ${result.reason}`);
+    diag.log.debug('RidePet send failed', { reason: result.reason });
     return;
   }
 
@@ -110,7 +114,7 @@ export function ridePet(petItemId: string): void {
 export function dismountPet(): void {
   const result = sendRoomAction('DismountPet', {}, { throttleMs: 500 });
   if (!result.ok) {
-    log(`[MountState] DismountPet send failed: ${result.reason}`);
+    diag.log.debug('DismountPet send failed', { reason: result.reason });
     return;
   }
 

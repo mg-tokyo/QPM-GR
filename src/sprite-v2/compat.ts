@@ -1,5 +1,4 @@
 import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
-import { log, isVerboseLogsEnabled } from '../utils/logger';
 import { getFloraBlueprint } from '../catalogs/gameCatalogs';
 import type { SpriteService } from './types';
 import { spriteLog } from './diagnostics';
@@ -222,8 +221,8 @@ function ensureHydrationEventListener(): void {
     if (!service) return;
     clearSpriteDataUrlCache();
     const updated = refreshMarkedSpriteElements();
-    if (updated > 0 && isVerboseLogsEnabled()) {
-      log(`[Sprite Compat] Refreshed ${updated} marked sprite elements after hydration event`);
+    if (updated > 0) {
+      spriteLog('debug', 'compat-hydration-refresh', `Refreshed ${updated} marked sprite elements after hydration event`, { updated });
     }
   });
 }
@@ -799,6 +798,40 @@ export function listTrackedSpriteResources(_category = 'all'): Array<{ url: stri
 export function loadTrackedSpriteSheets(_maxSheets = 3, _category = 'all'): Promise<string[]> {
   spriteLog('warn', 'compat-deprecated-load-tracked-sheets', 'loadTrackedSpriteSheets is deprecated in sprite-v2');
   return Promise.resolve([]);
+}
+
+export type SpriteInventoryEntry = {
+  key: string;
+  category: string;
+  id: string;
+  isAnim: boolean;
+  hasTexture: boolean;
+};
+
+export function getSpriteInventory(): SpriteInventoryEntry[] {
+  if (!service) return [];
+  const tex = service.state.tex;
+  const items = service.list('any');
+  const out: SpriteInventoryEntry[] = [];
+  const seen = new Set<string>();
+  for (const it of items) {
+    const key = it.key;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const parts = key.split('/');
+    const start = parts[0] === 'sprite' ? 1 : 0;
+    const category = parts[start] ?? '';
+    const id = parts.slice(start + 1).join('/');
+    if (!category || !id) continue;
+    out.push({
+      key,
+      category,
+      id,
+      isAnim: !!it.isAnim,
+      hasTexture: tex.has(key),
+    });
+  }
+  return out;
 }
 
 

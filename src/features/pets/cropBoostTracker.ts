@@ -1,10 +1,10 @@
 /** Tracks how many Crop Size Boosts are needed to maximize garden crops based on active ProduceSizeBoost(II) pets. */
 
-import { log } from '../../utils/logger';
 import { storage } from '../../utils/storage';
 import { getActivePetInfos, onActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
 import { lookupMaxScale } from '../../utils/game/plantScales';
+import { diag, publishOk } from './_diagnostics';
 
 export interface CropBoostConfig {
   enabled: boolean;
@@ -487,7 +487,7 @@ function detachGardenSubscription(): void {
 function startTracking(): void {
   if (petsUnsubscribe) return;
 
-  log('🌱 Crop Boost Tracker: Starting');
+  diag.debug('crop boost tracker starting');
   lastHadBoostPets = hasBoostPets();
   if (lastHadBoostPets) attachGardenSubscription();
 
@@ -514,7 +514,7 @@ function stopTracking(): void {
     refreshInterval = null;
   }
   lastHadBoostPets = false;
-  log('🌱 Crop Boost Tracker: Stopped');
+  diag.debug('crop boost tracker stopped');
 }
 
 export function getCurrentAnalysis(): TrackerAnalysis | null {
@@ -532,7 +532,11 @@ export function startCropBoostTracker(): void {
     startTracking();
   }
 
-  log('🌱 Crop Boost Tracker initialized');
+  publishOk('Crop boost tracker ready', {
+    enabled: config.enabled ? 1 : 0,
+    autoRefresh: config.autoRefresh ? 1 : 0,
+  });
+  diag.debug('crop boost tracker initialized', { enabled: config.enabled });
 }
 
 export function stopCropBoostTracker(): void {

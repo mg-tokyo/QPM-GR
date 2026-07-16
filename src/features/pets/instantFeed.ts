@@ -1,4 +1,4 @@
-import { log } from '../../utils/logger';
+import { diag, warnFeature } from './_diagnostics';
 import { getActivePetInfos, type ActivePetInfo } from '../../store/pets';
 import { readInventoryDirect } from '../../store/inventory';
 import { getFeedPolicy } from '../../store/petTeams';
@@ -88,14 +88,16 @@ function resolvePetForFeedBySlotId(
 function sendFeedPetMessage(petItemId: string, cropItemId: string): boolean {
   const sent = sendRoomAction('FeedPet', { petItemId, cropItemId }, { throttleMs: 120 });
   if (!sent.ok && sent.reason !== 'throttled') {
-    log(`Failed to send FeedPet message (${sent.reason ?? 'unknown'})`);
+    warnFeature('QPM-FEATURE-001', { type: 'FeedPet', reason: sent.reason ?? 'unknown' });
     return false;
   }
 
   // Dispatch event so petTeamsLogs can record feed events without direct coupling.
   try {
     window.dispatchEvent(new CustomEvent('qpm:feedPet', { detail: { petItemId, cropItemId } }));
-  } catch {}
+  } catch (e) {
+    warnFeature('QPM-FEATURE-004', { what: 'emit:feedPet' }, e);
+  }
 
   return sent.ok;
 }
@@ -210,9 +212,7 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
 
   // Hunger potion branch: ghost-step + ReplenishPotion instead of FeedPet
   if (isHungerPotionSelection(plan.foodSelection) && plan.slotId) {
-    log(
-      `Attempting to use Replenish Potion on ${plan.petName || plan.petSpecies || 'pet'}`,
-    );
+    diag.debug('attempting hunger potion', { pet: plan.petName ?? plan.petSpecies ?? 'pet' });
 
     const result = await sendUseHungerPotion(plan.slotId);
     if (!result.ok) {
@@ -225,7 +225,7 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
       };
     }
 
-    log(`Used Replenish Potion on ${plan.petName || plan.petSpecies || 'pet'}`);
+    diag.debug('used hunger potion', { pet: plan.petName ?? plan.petSpecies ?? 'pet' });
     return {
       success: true,
       petName: plan.petName,
@@ -245,11 +245,11 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
     };
   }
 
-  log(
-    `Attempting to feed ${plan.petName || plan.petSpecies || 'pet'} ` +
-    `with ${crop.species || crop.name || 'food'} ` +
-    `(available: ${plan.availableCount})`,
-  );
+  diag.debug('attempting feed', {
+    pet: plan.petName ?? plan.petSpecies ?? 'pet',
+    food: crop.species ?? crop.name ?? 'food',
+    available: plan.availableCount,
+  });
 
   const sent = sendFeedPetMessage(plan.petId, crop.id);
   if (!sent) {
@@ -262,7 +262,10 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
     };
   }
 
-  log(`Fed ${plan.petName || plan.petSpecies || 'pet'} with ${crop.species || crop.name || 'food'}`);
+  diag.debug('fed', {
+    pet: plan.petName ?? plan.petSpecies ?? 'pet',
+    food: crop.species ?? crop.name ?? 'food',
+  });
   return {
     success: true,
     petName: plan.petName,
@@ -333,7 +336,7 @@ export async function feedPetInstantly(
     const plan = await getInstantFeedPlan(petSlotOrIndex);
     return await executeFeedPlan(plan);
   } catch (error) {
-    log('Instant feed error', error);
+    warnFeature('QPM-FEATURE-003', { what: 'feedPetInstantly' }, error);
     return {
       success: false,
       petName: null,
@@ -351,7 +354,7 @@ export async function feedPetInstantlyByPetId(
     const plan = await getInstantFeedPlanByPetId(petId);
     return await executeFeedPlan(plan);
   } catch (error) {
-    log('Instant feed error', error);
+    warnFeature('QPM-FEATURE-003', { what: 'feedPetInstantlyByPetId' }, error);
     return {
       success: false,
       petName: null,
@@ -369,7 +372,7 @@ export async function feedPetInstantlyBySlotId(
     const plan = await getInstantFeedPlanBySlotId(slotId);
     return await executeFeedPlan(plan);
   } catch (error) {
-    log('Instant feed error', error);
+    warnFeature('QPM-FEATURE-003', { what: 'feedPetInstantlyBySlotId' }, error);
     return {
       success: false,
       petName: null,
@@ -399,7 +402,7 @@ export async function feedPetByIds(
       };
     }
 
-    log(`Fed pet ${petId} with crop ${cropId}`);
+    diag.debug('fed by ids', { petId, cropId });
     return {
       success: true,
       petName: pet?.name ?? null,
@@ -407,7 +410,7 @@ export async function feedPetByIds(
       foodSpecies: null,
     };
   } catch (error) {
-    log('Feed by IDs error', error);
+    warnFeature('QPM-FEATURE-003', { what: 'feedPetByIds' }, error);
     return {
       success: false,
       petName: null,
@@ -430,11 +433,15 @@ export async function feedAllPetsInstantly(
 
     const hungerPct = pet.hungerPct ?? 100;
     if (hungerPct >= hungerThreshold) {
-      log(`Skipping ${pet.name || pet.species} - hunger ${hungerPct}% >= ${hungerThreshold}%`);
+      diag.debug('skipping — hunger above threshold', {
+        pet: pet.name ?? pet.species ?? '?',
+        hungerPct,
+        threshold: hungerThreshold,
+      });
       continue;
     }
 
-    log(`Feeding ${pet.name || pet.species} - hunger ${hungerPct}%`);
+    diag.debug('feeding', { pet: pet.name ?? pet.species ?? '?', hungerPct });
     const result = await feedPetInstantly(pet.slotIndex);
     results.push(result);
 
@@ -460,8 +467,8 @@ function emitQueueEvent(event: FeedQueueEvent): void {
   for (const listener of queueListeners) {
     try {
       listener(event);
-    } catch {
-      // listener should not throw, but protect the drain loop
+    } catch (e) {
+      warnFeature('QPM-FEATURE-004', { what: 'feedQueue:listener', eventType: event.type }, e);
     }
   }
 }

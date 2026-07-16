@@ -1,9 +1,8 @@
 // src/ui/statsHubWindow/mainWindow.ts
 // Stats Hub window shell — tab bar, tab switching, lifecycle cleanup.
 
-import { toggleWindow } from '../../core/modalWindow';
+import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { storage } from '../../../utils/storage';
-import { log } from '../../../utils/logger';
 import { t } from '../../../i18n';
 import { STATS_HUB_ACTIVE_TAB_KEY } from './constants';
 import { buildGardenTab } from './gardenTab';
@@ -86,7 +85,7 @@ export function renderStatsHub(root: HTMLElement): void {
         economyCleanup = buildEconomyTab(panel);
       }
     } catch (error) {
-      log('[StatsHub] Tab build error', error);
+      windowLog.warn('QPM-UI-002', { what: 'statsHub:tab', tab }, error);
       const errDiv = document.createElement('div');
       errDiv.style.cssText = 'padding:20px;color:rgba(224,224,224,0.4);font-size:14px;';
       errDiv.textContent = t('feature.statsHub.tabLoadError');

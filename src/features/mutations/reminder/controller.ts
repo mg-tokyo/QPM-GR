@@ -1,6 +1,6 @@
 import { onAdded } from '../../../utils/dom/dom';
-import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
+import { ensureReminderBusRegistered, publishReminderOk, reminderDiag } from './_diagnostics';
 import { onWeatherSnapshot, refreshWeatherState, setWeatherOverride, startWeatherHub, WeatherSnapshot } from '../../../store/weatherHub';
 import {
   publishMutationSummary,
@@ -23,14 +23,16 @@ import type { MutationConfig, PlantData, WeatherType } from './types';
 export function startMutationReminder(): void {
   reminderState.config = { ...reminderState.config, ...storage.get(MUTATION_CONFIG_KEY, {}) };
 
-  log('🌱 Plant Mutation Reminder starting...');
+  ensureReminderBusRegistered();
+  reminderDiag.debug('Plant Mutation Reminder starting');
 
   if (reminderState.config.enabled) {
     ensureWeatherSubscription();
     startInventoryObserver();
   }
 
-  log('🌱 Plant Mutation Reminder started');
+  reminderDiag.debug('Plant Mutation Reminder started');
+  publishReminderOk('Started', { enabled: reminderState.config.enabled ? 1 : 0 });
 }
 
 export function setMutationReminderEnabled(enabled: boolean): void {
@@ -62,7 +64,7 @@ export function getCurrentWeather(): WeatherType {
 
 /** Force a weather type for testing, bypassing normal weather detection. */
 export async function simulateWeather(weather: WeatherType): Promise<void> {
-  log(`🧪 [DEBUG] Simulating weather: ${weather}`);
+  reminderDiag.debug(`Simulating weather: ${weather}`);
 
   reminderState.isSimulatingWeather = true;
   ensureWeatherSubscription();
@@ -83,7 +85,7 @@ export async function simulateWeather(weather: WeatherType): Promise<void> {
   if (reminderState.config.enabled && weather !== 'sunny' && weather !== 'unknown') {
     await checkInventoryForMutations();
   } else {
-    log('🌤️ Simulated weather is sunny or unknown - no mutations available');
+    reminderDiag.debug('Simulated weather is sunny or unknown — no mutations available');
     updateStatus(`[DEBUG] Weather: ${getWeatherEmoji(weather)} ${weather} (no mutations)`);
   }
 
@@ -91,7 +93,7 @@ export async function simulateWeather(weather: WeatherType): Promise<void> {
   reminderState._simEndTimer = setTimeout(() => {
     reminderState._simEndTimer = null;
     reminderState.isSimulatingWeather = false;
-    log('🧪 [DEBUG] Simulation mode ended, auto-detection resuming');
+    reminderDiag.debug('Simulation mode ended, auto-detection resuming');
   }, 30000);
 }
 
@@ -102,13 +104,13 @@ export async function checkForMutations(): Promise<void> {
   if (reminderState.config.enabled && reminderState.currentWeather !== 'sunny' && reminderState.currentWeather !== 'unknown') {
     await checkInventoryForMutations();
   } else if (reminderState.config.enabled) {
-    log('🌤️ Current weather is sunny or unknown - no mutations available');
+    reminderDiag.debug('Current weather is sunny or unknown — no mutations available');
     updateStatus(`Weather: ${getWeatherEmoji(reminderState.currentWeather)} ${reminderState.currentWeather} (no mutations)`);
   }
 }
 
 export async function manualCheckMutations(): Promise<void> {
-  log('🔍 Manual mutation check triggered');
+  reminderDiag.debug('Manual mutation check triggered');
   updateStatus('Checking for mutations...');
   await checkInventoryForMutations();
 }
@@ -133,7 +135,7 @@ function startInventoryObserver(): void {
     if (!reminderState.config.enabled) return;
 
     if (reminderState.highlightedPlantIds.size > 0) {
-      log(`🔄 Inventory reopened, reapplying ${reminderState.highlightedPlantIds.size} plant highlights...`);
+      reminderDiag.debug(`Inventory reopened, reapplying ${reminderState.highlightedPlantIds.size} plant highlights`);
 
       if (reminderState._highlightTimer !== null) clearTimeout(reminderState._highlightTimer);
       reminderState._highlightTimer = setTimeout(() => {
@@ -144,7 +146,7 @@ function startInventoryObserver(): void {
 
     if (reminderState.pendingWeatherNotification) {
       const { weather } = reminderState.pendingWeatherNotification;
-      log(`📦 Inventory opened with pending ${weather} notification`);
+      reminderDiag.debug(`Inventory opened with pending ${weather} notification`);
 
       if (reminderState.config.showNotifications) {
         showSimpleNotification(
@@ -160,7 +162,7 @@ function startInventoryObserver(): void {
 
         const inventory = document.querySelector(INVENTORY_CONTAINER);
         if (!inventory) {
-          log('⚠️ Inventory container disappeared');
+          reminderDiag.debug('Inventory container disappeared before poll completed');
           return;
         }
 
@@ -174,13 +176,13 @@ function startInventoryObserver(): void {
         if (plantItems.length > 0 || attempts >= maxAttempts) {
           reminderState._checkTimer = null;
           if (plantItems.length > 0) {
-            log(`✅ Found ${plantItems.length} plant items after ${attempts * delay}ms`);
+            reminderDiag.debug(`Found ${plantItems.length} plant items after ${attempts * delay}ms`);
           } else {
-            log(`⏰ Timeout waiting for plants after ${attempts * delay}ms`);
+            reminderDiag.debug(`Timeout waiting for plants after ${attempts * delay}ms`);
           }
           checkInventoryForMutations();
         } else {
-          log(`⏳ No plants found yet, waiting... (attempt ${attempts + 1}/${maxAttempts})`);
+          reminderDiag.debug(`No plants found yet, waiting (attempt ${attempts + 1}/${maxAttempts})`);
           if (reminderState._checkTimer !== null) clearTimeout(reminderState._checkTimer);
           reminderState._checkTimer = setTimeout(() => attemptCheck(attempts + 1), delay);
         }
@@ -217,7 +219,7 @@ function handleWeatherSnapshot(snapshot: WeatherSnapshot): void {
   reminderState.lastWeather = reminderState.currentWeather;
   reminderState.currentWeather = nextWeather;
 
-  log(`🌤️ Weather changed: ${reminderState.lastWeather} → ${reminderState.currentWeather}`);
+  reminderDiag.debug(`Weather changed: ${reminderState.lastWeather} → ${reminderState.currentWeather}`);
 
   clearHighlights();
   reminderState.currentWeatherForHighlights = 'unknown';
@@ -225,7 +227,7 @@ function handleWeatherSnapshot(snapshot: WeatherSnapshot): void {
   if (reminderState.currentWeather === 'sunny' || reminderState.currentWeather === 'unknown') {
     reminderState.pendingWeatherNotification = null;
     updateStatus(`Weather: ${getWeatherEmoji(reminderState.currentWeather)} ${reminderState.currentWeather} (no mutations)`);
-    log('🌤️ Weather cleared - no mutations available');
+    reminderDiag.debug('Weather cleared — no mutations available');
   } else {
     updateStatus(`Weather: ${getWeatherEmoji(reminderState.currentWeather)} ${reminderState.currentWeather}`);
     void checkInventoryForMutations();
@@ -235,7 +237,7 @@ function handleWeatherSnapshot(snapshot: WeatherSnapshot): void {
 async function checkInventoryForMutations(): Promise<void> {
   if (!reminderState.config.enabled) return;
 
-  log(`🔍 Checking inventory for mutation opportunities (${reminderState.currentWeather})...`);
+  reminderDiag.debug(`Checking inventory for mutation opportunities (${reminderState.currentWeather})`);
 
   const plants = await scanInventoryForPlants();
   const weatherWindow = deriveWeatherWindowFromSnapshot(reminderState.currentWeather, reminderState.latestWeatherSnapshot);
@@ -272,7 +274,7 @@ async function checkInventoryForMutations(): Promise<void> {
         notes: 'Inventory empty',
       }),
     });
-    log('📦 No plants found in inventory');
+    reminderDiag.debug('No plants found in inventory');
 
     if (reminderState.currentWeather !== 'sunny' && reminderState.currentWeather !== 'unknown') {
       reminderState.pendingWeatherNotification = { weather: reminderState.currentWeather, plantCount: 0 };
@@ -309,7 +311,7 @@ async function checkInventoryForMutations(): Promise<void> {
   });
 
   if (plantsToPlace.length > 0) {
-    log(`🌱 Found ${plantsToPlace.length} plants to place for ${reminderState.currentWeather}!`);
+    reminderDiag.debug(`Found ${plantsToPlace.length} plants to place for ${reminderState.currentWeather}`);
 
     if (reminderState.config.highlightPlants) {
       plantsToPlace.forEach(plant => {
@@ -327,7 +329,7 @@ async function checkInventoryForMutations(): Promise<void> {
 
     updateStatus(`🌱 ${plantsToPlace.length} plants ready for ${reminderState.currentWeather}!`);
   } else {
-    log(`✓ No mutation opportunities for ${reminderState.currentWeather}`);
+    reminderDiag.debug(`No mutation opportunities for ${reminderState.currentWeather}`);
     updateStatus(`Weather: ${getWeatherEmoji(reminderState.currentWeather)} ${reminderState.currentWeather} (no actions)`);
   }
 }

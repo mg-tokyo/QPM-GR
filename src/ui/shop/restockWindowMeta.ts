@@ -2,8 +2,8 @@
 // Item meta cache, HTTP helpers, storage, sprite, and UI-state types
 // for the Shop Restock window.
 
-import { log } from '../../utils/logger';
 import { getItemIdVariants } from '../../utils/restock/dataService';
+import { warnFeature } from './restockWindowDiagnostics';
 import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { storage } from '../../utils/storage';
@@ -164,7 +164,7 @@ export async function initGameData(): Promise<void> {
     storage.set(ARIEDAM_KEY, { data: gameData, timestamp: Date.now() });
     buildItemMetaCache(gameData as Record<string, unknown>);
   } catch (err) {
-    log('[ShopRestock] Ariedam /data fetch failed', err);
+    warnFeature('QPM-FEATURE-004', { what: 'window:fetchAriedam' }, err);
     // If we have stale cache, use it rather than nothing
     const stale = storage.get<{ data: unknown; timestamp: number } | null>(ARIEDAM_KEY, null);
     if (stale?.data) buildItemMetaCache(stale.data as Record<string, unknown>);
@@ -476,9 +476,9 @@ export function getSpriteUrl(item: RestockItem): string | null {
 
   const tryResolve = (candidateId: string): string | null => {
     let resolved: string | null = null;
-    try { resolved = canvasToDataUrl(getPetSpriteCanvas(candidateId)) || null; } catch { /* */ }
+    try { resolved = canvasToDataUrl(getPetSpriteCanvas(candidateId)) || null; } catch { /* try crop sprite next */ }
     if (!resolved) {
-      try { resolved = canvasToDataUrl(getCropSpriteCanvas(candidateId)) || null; } catch { /* */ }
+      try { resolved = canvasToDataUrl(getCropSpriteCanvas(candidateId)) || null; } catch { /* falls through to variantId iteration */ }
     }
     return resolved;
   };

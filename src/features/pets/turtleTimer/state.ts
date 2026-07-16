@@ -1,7 +1,7 @@
-import { log } from '../../../utils/logger';
 import { type GardenSnapshot, getGardenSnapshot } from '../../garden/bridge';
 import { type ActivePetInfo, getActivePetInfos } from '../../../store/pets';
 import { DEFAULT_CONFIG } from './constants';
+import { warnFeature } from './_diagnostics';
 import type { TurtleResolvedConfig, TurtleTimerChannel, TurtleTimerState, TurtleTimerStatus } from './types';
 
 // Live holder objects — mutated in place so cross-module reads stay dynamic.
@@ -84,7 +84,7 @@ export function publish(next: TurtleTimerState): void {
     try {
       listener(state);
     } catch (error) {
-      log('⚠️ Turtle timer listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:publish' }, error);
     }
   }
 }

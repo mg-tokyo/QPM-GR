@@ -1,18 +1,6 @@
-// src/ui/chargedAbilities/floatingPanel.ts
-// Composes the Charged Abilities floating panel on top of FloatingCardShell.
-//
-// Lifecycle:
-//   - subscribe to selector
-//   - on each emission: if 0 snapshots → close panel; otherwise open if not
-//     already (unless user closed this session) and rebuild the body in place
-//   - user X close sets a session-only flag; reloading the page clears it,
-//     so auto-open is hardcoded ON in Phase 1
-//
-// Body refresh strategy: we keep a reference to the body element passed to the
-// shell and wipe+repaint its children directly. No shell API change needed —
-// the shell takes ownership of mounting/clamping but the consumer still owns
-// the body's contents (this is documented in shell.ts: "Body element ...
-// Consumer owns its content + cleanup").
+// User X-close sets a session-only flag (cleared on reload); auto-open is hardcoded ON in Phase 1.
+// Body refresh: keep a ref to the body element and wipe+repaint its children directly —
+// shell owns mounting/clamping, consumer owns body content (see shell.ts).
 
 import {
   openFloatingCard,
@@ -196,13 +184,7 @@ export function stopChargedAbilitiesPanel(): void {
   latestSnapshots = [];
 }
 
-/**
- * Force-open the panel from a launch button or hub tile. Clears the session
- * "user closed" flag and opens the panel even when no charged-ability pets are
- * active — `paintBody` renders an empty-state message, and `manuallyOpened`
- * prevents the reactive auto-close from immediately tearing it back down.
- * A transient toast also fires for first-glance discoverability.
- */
+/** Force-open from a launch button; `manuallyOpened` prevents reactive auto-close from tearing it back down when empty. */
 export function openChargedAbilitiesPanel(): void {
   userClosedThisSession = false;
   manuallyOpened = true;

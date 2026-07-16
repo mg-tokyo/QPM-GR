@@ -1,7 +1,4 @@
-/**
- * Scoped styles for the journal checker section.
- * Appended to root (auto-cleaned when root is removed).
- */
+/** Styles are appended to root, so they auto-clean when root is removed. */
 export function injectJournalStyles(root: HTMLElement): HTMLStyleElement {
   const style = document.createElement('style');
   style.textContent = `

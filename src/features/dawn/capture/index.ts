@@ -1,7 +1,37 @@
-import { log } from '../../../utils/logger';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
+import { createNamedLogger } from '../../../diagnostics/logger';
+import { healthBus } from '../../../diagnostics/healthBus';
+import { buildError } from '../../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
 import { DAWN_CAPTURE_ACTION } from '../capsule/constants';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:dawnCapture';
+const FEATURE_NAME = 'dawnCapture';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 export interface DawnCapturePetState {
   petSlotId: string;
@@ -50,7 +80,7 @@ function emit(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      log('[DawnCapture] listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:snapshot' }, error);
     }
   }
 }
@@ -112,8 +142,8 @@ function processActivityLogs(rawValue: unknown): void {
     sessionCapsulesProduced += capsulesAdded;
     changed = true;
 
-    log(
-      `[DawnCapture] ${petName} captured: ${capsulesAdded} capsule(s), ` +
+    diag.debug(
+      `${petName} captured: ${capsulesAdded} capsule(s), ` +
       `removed ${dawnlitRemoved} dawnlit + ${dawnboundRemoved} dawnbound`,
     );
   }
@@ -138,6 +168,7 @@ export function startDawnCaptureTracker(): void {
   perPet.clear();
   sessionCaptures = 0;
   sessionCapsulesProduced = 0;
+  ensureBusRegistered();
 
   void subscribeAtomValue('myData', (value) => {
     processActivityLogs(value);
@@ -151,11 +182,11 @@ export function startDawnCaptureTracker(): void {
       myDataUnsubscribe = unsubscribe;
     })
     .catch((error) => {
-      log('[DawnCapture] Failed to subscribe to myData', error);
+      warnFeature('QPM-FEATURE-003', { what: 'subscribe:myData' }, error);
     });
 
   weatherUnsubscribe = onWeatherSnapshot(handleWeather, true);
-  log('[DawnCapture] Tracker started');
+  publishOk('Started', { isDawnActive: isDawnActive ? 1 : 0 });
 }
 
 export function stopDawnCaptureTracker(): void {
@@ -176,7 +207,7 @@ export function subscribeDawnCapture(listener: (snapshot: DawnCaptureSnapshot) =
     try {
       listener(buildSnapshot());
     } catch (error) {
-      log('[DawnCapture] immediate listener error', error);
+      warnFeature('QPM-FEATURE-004', { what: 'listener:immediate' }, error);
     }
   }
   return () => { listeners.delete(listener); };

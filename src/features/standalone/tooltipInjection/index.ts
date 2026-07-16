@@ -2,7 +2,7 @@
 // Public entry point for the tooltip injection subsystem.
 // Merges cropSizeIndicator + tileValueIndicator into one shared observer.
 
-import { log } from '../../../utils/logger';
+import { diag, ensureBusRegistered, publishOk } from './_diagnostics';
 import { onTileChanged, startTileTracking, stopTileTracking } from './atoms';
 import {
   startObserver,
@@ -54,7 +54,11 @@ export function initTooltipInjection(): void {
   // the lock badge is a third independent feature that shares the same PIXI
   // anchor + rAF loop and should be available whenever Locker is running.
   isActive = true;
-  log('[TooltipInjection] Starting');
+  ensureBusRegistered();
+  diag.debug('Starting', {
+    crop: String(cropCfg.enabled),
+    tileValue: String(tileCfg.enabled),
+  });
 
   // Register injectors based on config
   if (cropCfg.enabled && cropCfg.showJournalIndicators) {
@@ -79,6 +83,12 @@ export function initTooltipInjection(): void {
   // lockBadge subscribes to onTileChanged internally for content updates;
   // observer.rAF only drives position. Config changes still route through here.
   lockBadgeUnsub = initLockBadge(() => reinjectAll());
+
+  publishOk('Started', {
+    injectors: (cropCfg.enabled && cropCfg.showJournalIndicators ? 1 : 0) + (tileCfg.enabled ? 1 : 0),
+    cropSize: String(cropCfg.enabled),
+    tileValue: String(tileCfg.enabled),
+  });
 }
 
 export function stopTooltipInjection(): void {
@@ -95,7 +105,7 @@ export function stopTooltipInjection(): void {
   stopTileTracking();
 
   isActive = false;
-  log('[TooltipInjection] Stopped');
+  diag.debug('Stopped');
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-import { log } from '../../../utils/logger';
 import { pageWindow } from '../../../core/pageContext';
+import { warnFeature } from './_diagnostics';
 import { DIM_ALPHA, TILE_LABEL_CAPTURE_RE, TILE_LABEL_TEST_RE } from './constants';
 import type { TileNode } from './types';
 import { installVisibleGuard, removeVisibleGuard } from './alphaGuard';
@@ -18,7 +18,7 @@ export function getPixiApp(): any {
     }
     return null;
   } catch (error) {
-    log('⚠️ [GARDEN-FILTERS] Error accessing PIXI app', error);
+    warnFeature('QPM-FEATURE-004', { what: 'getPixiApp' }, error);
     return null;
   }
 }

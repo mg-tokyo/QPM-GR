@@ -1,6 +1,6 @@
 // src/ui/panel/panelFooter.ts
-import { log } from '../../utils/logger';
 import { showToast } from '../core/panelHelpers';
+import { windowLog } from '../core/modalWindow';
 import { CHANGELOG } from '../sections/changelog';
 import { IS_MAC } from '../pets/petsWindow/constants';
 import { t } from '../../i18n';
@@ -36,7 +36,7 @@ export function renderPanelFooter(): PanelFooterResult {
       showToast(t('panel.footer.resetToast'));
       window.setTimeout(() => { resetBtn.textContent = previous; }, 1400);
     } catch (err) {
-      log('Reset windows failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'resetLayouts' }, err);
       showToast(t('panel.footer.resetFailed'));
     }
   });
@@ -56,12 +56,12 @@ export function renderPanelFooter(): PanelFooterResult {
         const result = await importFromFile(file);
         if (result.ok) {
           showToast(t('panel.footer.importSuccess', { count: result.keysWritten }));
-          if (result.warnings.length) log('Import warnings:', result.warnings);
+          if (result.warnings.length) windowLog.debug('Import warnings', { warnings: result.warnings });
         } else {
           showToast(t('panel.footer.importError', { reason: result.warnings[0] ?? 'unknown error' }));
         }
       } catch (err) {
-        log('Import failed', err);
+        windowLog.warn('QPM-UI-002', { what: 'importBackup' }, err);
         showToast(t('panel.footer.importFailed'));
       }
     }, { once: true });
@@ -75,7 +75,7 @@ export function renderPanelFooter(): PanelFooterResult {
       downloadBackup();
       showToast(t('panel.footer.exportToast'));
     } catch (err) {
-      log('Export failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'exportBackup' }, err);
       showToast(t('panel.footer.exportFailed'));
     }
   });
@@ -94,7 +94,7 @@ export function renderPanelFooter(): PanelFooterResult {
           renderAboutContent(root);
         }, '320px', '540px');
       } catch (err) {
-        log('About window failed', err);
+        windowLog.warn('QPM-UI-002', { what: 'lazy:about', id: 'about-window' }, err);
       }
     })();
   });

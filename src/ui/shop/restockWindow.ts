@@ -4,7 +4,7 @@
 import { toggleWindow } from '../core/modalWindow';
 import { openItemRestockDetail } from './itemRestockDetailWindow';
 import { hideSoundPopover } from './restockAlerts/soundPopover';
-import { log } from '../../utils/logger';
+import { warnFeature } from './restockWindowDiagnostics';
 import {
   fetchRestockData,
   getRestockDataSync,
@@ -73,24 +73,24 @@ function renderShopRestockWindow(root: HTMLElement): void {
       position: absolute;
       bottom: 100%;
       right: 0;
-      margin-bottom: 10px;
-      padding: 10px 14px;
-      background: rgba(14,16,24,0.97);
-      border: 1px solid rgba(148,163,184,0.25);
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      background: var(--qpm-surface-window);
+      border: 1px solid var(--qpm-border);
       border-radius: 8px;
-      color: #e5e7eb;
-      font-size: 13px;
+      color: var(--qpm-text);
+      font-size: 12px;
       font-weight: 500;
       line-height: 1.5;
       white-space: pre-line;
       z-index: 100;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      box-shadow: var(--qpm-shadow-subtle);
       pointer-events: none;
     }
     .qpm-sr-th { cursor:pointer; user-select:none; }
     .qpm-sr-th:hover { opacity:1 !important; }
     .qpm-sr-tr { cursor:pointer; transition:background 0.12s; }
-    .qpm-sr-tr:hover { background:rgba(143,130,255,0.06); }
+    .qpm-sr-tr:hover { background:var(--qpm-accent-tint); }
   `;
   root.appendChild(styleEl);
   const persistedUi = loadUiState();
@@ -99,8 +99,8 @@ function renderShopRestockWindow(root: HTMLElement): void {
   const toolbar = document.createElement('div');
   toolbar.style.cssText = [
     'display:flex', 'align-items:center', 'gap:6px',
-    'padding:10px 14px 8px',
-    'border-bottom:1px solid rgba(143,130,255,0.2)',
+    'padding:12px 16px 8px',
+    'border-bottom:1px solid var(--qpm-accent-border)',
     'flex-shrink:0', 'flex-wrap:wrap',
   ].join(';');
 
@@ -112,9 +112,9 @@ function renderShopRestockWindow(root: HTMLElement): void {
   const filterBtns: HTMLButtonElement[] = [];
 
   const styleFilter = (btn: HTMLButtonElement, active: boolean): void => {
-    btn.style.background    = active ? 'rgba(143,130,255,0.22)' : 'rgba(255,255,255,0.05)';
-    btn.style.color         = active ? '#c8c0ff' : 'rgba(224,224,224,0.65)';
-    btn.style.borderColor   = active ? 'rgba(143,130,255,0.55)' : 'rgba(143,130,255,0.25)';
+    btn.style.background    = active ? 'var(--qpm-accent-subtle)' : 'var(--qpm-accent-tint)';
+    btn.style.color         = active ? 'var(--qpm-accent-hover)' : 'var(--qpm-text-muted)';
+    btn.style.borderColor   = active ? 'var(--qpm-accent-emphasis)' : 'var(--qpm-accent-border)';
   };
 
   const FILTER_LABEL_KEYS: Record<string, string> = {
@@ -135,9 +135,9 @@ function renderShopRestockWindow(root: HTMLElement): void {
     btn.textContent = t(FILTER_LABEL_KEYS[f.value] ?? '', undefined, f.label);
     btn.dataset.filter = f.value;
     btn.style.cssText = [
-      'padding:3px 8px', 'font-size:11px', 'border-radius:5px', 'cursor:pointer',
-      'border:1px solid rgba(143,130,255,0.25)',
-      'background:rgba(255,255,255,0.05)', 'color:rgba(224,224,224,0.65)', 'transition:all 0.12s',
+      'padding:4px 8px', 'font-size:12px', 'border-radius:4px', 'cursor:pointer',
+      'border:1px solid var(--qpm-accent-border)',
+      'background:var(--qpm-accent-tint)', 'color:var(--qpm-text-muted)', 'transition:all 0.12s',
     ].join(';');
     filterBtns.push(btn);
     filterGroup.appendChild(btn);
@@ -182,9 +182,9 @@ function renderShopRestockWindow(root: HTMLElement): void {
   searchInput.placeholder = t('feature.shopRestock.searchPlaceholder');
   searchInput.dataset.tour = 'restock-search';
   searchInput.style.cssText = [
-    'padding:4px 10px', 'font-size:12px', 'border-radius:5px', 'flex:1', 'min-width:100px',
-    'background:rgba(255,255,255,0.06)', 'border:1px solid rgba(143,130,255,0.25)',
-    'color:#e0e0e0', 'outline:none',
+    'padding:4px 12px', 'font-size:12px', 'border-radius:4px', 'flex:1', 'min-width:100px',
+    'background:var(--qpm-accent-tint)', 'border:1px solid var(--qpm-accent-border)',
+    'color:var(--qpm-text)', 'outline:none',
   ].join(';');
   searchInput.value = persistedUi.search;
   let searchDebounceTimer: number | null = null;
@@ -203,16 +203,16 @@ function renderShopRestockWindow(root: HTMLElement): void {
   refreshBtn.textContent = t('feature.shopRestock.refresh');
   refreshBtn.title = t('feature.shopRestock.refreshData');
   refreshBtn.style.cssText = [
-    'padding:4px 10px', 'font-size:13px',
-    'background:rgba(143,130,255,0.15)', 'border:1px solid rgba(143,130,255,0.35)',
-    'border-radius:5px', 'color:#c8c0ff', 'cursor:pointer', 'flex-shrink:0',
+    'padding:4px 12px', 'font-size:12px',
+    'background:var(--qpm-accent-subtle)', 'border:1px solid var(--qpm-accent-focus)',
+    'border-radius:4px', 'color:var(--qpm-accent-hover)', 'cursor:pointer', 'flex-shrink:0',
   ].join(';');
 
   const refreshBudgetEl = document.createElement('span');
-  refreshBudgetEl.style.cssText = 'font-size:11px;color:rgba(200,192,255,0.72);white-space:nowrap;flex-shrink:0;';
+  refreshBudgetEl.style.cssText = 'font-size:12px;color:var(--qpm-accent-hover);white-space:nowrap;flex-shrink:0;';
 
   const lastUpdatedEl = document.createElement('span');
-  lastUpdatedEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.35);white-space:nowrap;flex-shrink:0;';
+  lastUpdatedEl.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);white-space:nowrap;flex-shrink:0;';
 
   toolbar.append(filterGroup, searchInput, refreshBtn, refreshBudgetEl, lastUpdatedEl);
   root.appendChild(toolbar);
@@ -247,20 +247,20 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   // -- Predictions section --
   const predSection = document.createElement('div');
-  predSection.style.cssText = 'flex-shrink:0;border-bottom:1px solid rgba(143,130,255,0.15);';
+  predSection.style.cssText = 'flex-shrink:0;border-bottom:1px solid var(--qpm-accent-subtle);';
   predSection.dataset.tour = 'restock-pinned';
 
   const predHeaderRow = document.createElement('div');
   predHeaderRow.style.cssText = [
     'display:flex', 'align-items:center', 'justify-content:space-between',
-    'padding:7px 14px', 'cursor:pointer', 'user-select:none',
-    'background:rgba(143,130,255,0.04)',
+    'padding:8px 16px', 'cursor:pointer', 'user-select:none',
+    'background:var(--qpm-accent-tint)',
   ].join(';');
   const predTitle = document.createElement('span');
-  predTitle.style.cssText = 'font-size:12px;font-weight:700;color:rgba(224,224,224,0.75);';
+  predTitle.style.cssText = 'font-size:12px;font-weight:700;color:var(--qpm-text);';
   predTitle.textContent = t('feature.shopRestock.pinned');
   const predChevron = document.createElement('span');
-  predChevron.style.cssText = 'font-size:9px;color:rgba(200,192,255,0.4);';
+  predChevron.style.cssText = 'font-size:9px;color:var(--qpm-text-muted);';
   predChevron.textContent = 'v';
   predHeaderRow.append(predTitle, predChevron);
 
@@ -290,15 +290,15 @@ function renderShopRestockWindow(root: HTMLElement): void {
   divider.style.cssText = [
     'flex-shrink:0', 'height:6px', 'cursor:row-resize', 'user-select:none',
     'display:flex', 'align-items:center', 'justify-content:center',
-    'background:rgba(143,130,255,0.08)', 'transition:background 0.12s',
+    'background:var(--qpm-accent-tint)', 'transition:background 0.12s',
   ].join(';');
   divider.title = t('feature.shopRestock.dragToResize');
   const grip = document.createElement('div');
-  grip.style.cssText = 'width:32px;height:2px;border-radius:1px;background:rgba(143,130,255,0.35);';
+  grip.style.cssText = 'width:32px;height:2px;border-radius:2px;background:var(--qpm-accent-focus);';
   divider.appendChild(grip);
   divider.style.display = predCollapsed ? 'none' : '';
-  divider.addEventListener('mouseenter', () => { divider.style.background = 'rgba(143,130,255,0.18)'; });
-  divider.addEventListener('mouseleave', () => { divider.style.background = 'rgba(143,130,255,0.08)'; });
+  divider.addEventListener('mouseenter', () => { divider.style.background = 'var(--qpm-accent-subtle)'; });
+  divider.addEventListener('mouseleave', () => { divider.style.background = 'var(--qpm-accent-tint)'; });
 
   divider.addEventListener('mousedown', (e: MouseEvent) => {
     e.preventDefault();
@@ -330,24 +330,24 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   const histHeader = document.createElement('div');
   histHeader.style.cssText = [
-    'display:flex', 'align-items:center', 'padding:7px 14px',
-    'border-bottom:1px solid rgba(255,255,255,0.06)',
-    'background:rgba(0,0,0,0.15)', 'flex-shrink:0',
+    'display:flex', 'align-items:center', 'padding:8px 16px',
+    'border-bottom:1px solid var(--qpm-divider)',
+    'background:var(--qpm-surface-1)', 'flex-shrink:0',
   ].join(';');
   const histTitle = document.createElement('span');
-  histTitle.style.cssText = 'font-size:11px;font-weight:700;color:rgba(224,224,224,0.5);text-transform:uppercase;letter-spacing:0.5px;flex:1;';
+  histTitle.style.cssText = 'font-size:12px;font-weight:700;color:var(--qpm-text-muted);text-transform:uppercase;letter-spacing:0.5px;flex:1;';
   histTitle.textContent = t('feature.shopRestock.itemsClickToPin');
   const resetSortBtn = document.createElement('button');
   resetSortBtn.type = 'button';
   resetSortBtn.textContent = t('feature.shopRestock.defaultOrder');
   resetSortBtn.style.cssText = [
     'padding:2px 8px', 'margin-right:8px', 'font-size:10px', 'font-weight:600',
-    'border-radius:999px', 'cursor:pointer',
-    'border:1px solid rgba(143,130,255,0.35)', 'background:rgba(143,130,255,0.12)',
-    'color:rgba(200,192,255,0.85)', 'display:none',
+    'border-radius:9999px', 'cursor:pointer',
+    'border:1px solid var(--qpm-accent-focus)', 'background:var(--qpm-accent-subtle)',
+    'color:var(--qpm-accent-hover)', 'display:none',
   ].join(';');
   const itemCountEl = document.createElement('span');
-  itemCountEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.3);';
+  itemCountEl.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);';
   histHeader.append(histTitle, resetSortBtn, itemCountEl);
 
   const tableWrap = document.createElement('div');
@@ -470,7 +470,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
     if (!pinned.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding:8px 4px;font-size:12px;color:rgba(224,224,224,0.35);font-style:italic;';
+      empty.style.cssText = 'padding:8px 4px;font-size:12px;color:var(--qpm-text-muted);font-style:italic;';
       empty.textContent = t('feature.shopRestock.pinHint');
       frag.appendChild(empty);
       predBody.appendChild(frag);
@@ -489,7 +489,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     }
 
     const hint = document.createElement('div');
-    hint.style.cssText = 'padding:6px 12px 2px;font-size:11px;opacity:0.5;';
+    hint.style.cssText = 'padding:8px 12px 4px;font-size:12px;opacity:0.5;';
     hint.textContent = t('feature.shopRestock.unpinHint');
     frag.appendChild(hint);
     predBody.appendChild(frag);
@@ -596,7 +596,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
     if (!filtered.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding:40px;text-align:center;color:rgba(224,224,224,0.35);font-size:13px;';
+      empty.style.cssText = 'padding:40px;text-align:center;color:var(--qpm-text-muted);font-size:12px;';
       empty.textContent = isLoading ? t('feature.shopRestock.loadingRestock') : t('feature.shopRestock.noItemsFound');
       tableWrap.appendChild(empty);
       historyScrollTop = 0;
@@ -615,7 +615,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
     const thead = document.createElement('thead');
     const hr = document.createElement('tr');
-    const TH_BASE = 'padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(224,224,224,0.6);position:sticky;top:0;background:rgba(12,12,22,0.98);z-index:1;';
+    const TH_BASE = 'padding:8px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--qpm-text-muted);position:sticky;top:0;background:var(--qpm-surface-window);z-index:1;';
 
     const thItem = document.createElement('th');
     thItem.className = 'qpm-sr-th';
@@ -752,8 +752,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
       scheduleRender(true, true);
       updateLastUpdated();
     } catch (err) {
-      console.error('[QPM][ShopRestock] Refresh failed', err);
-      log('[ShopRestock] Fetch failed', err);
+      warnFeature('QPM-FEATURE-004', { what: 'window:fetchRestock', force }, err);
       if (force) {
         const message = err instanceof Error ? err.message : String(err);
         const inline = message.length > 64 ? `${message.slice(0, 64)}…` : message;

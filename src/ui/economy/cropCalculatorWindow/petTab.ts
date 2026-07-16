@@ -24,7 +24,7 @@ export function renderPetTab(container: HTMLElement): () => void {
 
   if (pets.length === 0) {
     container.appendChild(
-      el('div', `text-align:center;color:${MUTED};font-size:13px;padding:40px 20px;`, t('feature.cropCalc.noPetData')),
+      el('div', `text-align:center;color:${MUTED};font-size:12px;padding:24px 16px;`, t('feature.cropCalc.noPetData')),
     );
     return () => {};
   }
@@ -112,7 +112,7 @@ export function renderPetTab(container: HTMLElement): () => void {
       formulaEl.appendChild(
         el(
           'span',
-          `color:${MUTED};font-size:11px;font-family:monospace;`,
+          `color:${MUTED};font-size:12px;font-family:monospace;`,
           `${basePart} × ${scalePart} × ${mutPart} × ${friendPart} = ${fullFmt.format(sellPrice)}`,
         ),
       );
@@ -130,7 +130,7 @@ export function renderPetTab(container: HTMLElement): () => void {
         dustFormulaEl.appendChild(
           el(
             'span',
-            `color:${DUST_COLOR};font-size:11px;font-family:monospace;opacity:0.85;`,
+            `color:${DUST_COLOR};font-size:12px;font-family:monospace;opacity:0.85;`,
             `100 × ${dust.rarityMult} × ${dust.pullRateMult} × ${dust.dustMutMult} × ${dust.scale.toFixed(2)} = ${fullFmt.format(dust.dustValue)}`,
           ),
         );
@@ -169,7 +169,7 @@ export function renderPetTab(container: HTMLElement): () => void {
     [
       `border:1px solid ${BORDER_SUBTLE}`,
       `background:${CARD_BG}`,
-      'border-radius:10px',
+      'border-radius:12px',
       'padding:16px',
       'text-align:center',
       'overflow:visible',
@@ -182,17 +182,17 @@ export function renderPetTab(container: HTMLElement): () => void {
 
   const priceRow = el('div', 'display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:4px;');
   priceCoinEl = el('span', '');
-  priceEl = el('span', `font-size:28px;font-weight:700;color:${PRICE_COLOR};`);
+  priceEl = el('span', `font-size:24px;font-weight:700;color:${PRICE_COLOR};`);
   priceRow.append(priceCoinEl, priceEl);
   resultCard.appendChild(priceRow);
 
   dustRow = el('div', 'display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:4px;');
   dustIconEl = el('span', '');
-  dustPriceEl = el('span', `font-size:20px;font-weight:600;color:${DUST_COLOR};`);
+  dustPriceEl = el('span', `font-size:18px;font-weight:600;color:${DUST_COLOR};`);
   dustRow.append(dustIconEl, dustPriceEl);
   resultCard.appendChild(dustRow);
 
-  rangeEl = el('div', `font-size:13px;color:${MUTED};`);
+  rangeEl = el('div', `font-size:12px;color:${MUTED};`);
   resultCard.appendChild(rangeEl);
 
   container.appendChild(resultCard);
@@ -200,7 +200,7 @@ export function renderPetTab(container: HTMLElement): () => void {
   // --- Max Strength slider ---
   const maxStrSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
   const maxStrHeader = el('div', 'display:flex;align-items:center;gap:8px;');
-  maxStrHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.maxStrength')));
+  maxStrHeader.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.maxStrength')));
 
   maxSliderInput = document.createElement('input');
   maxSliderInput.type = 'range';
@@ -210,7 +210,7 @@ export function renderPetTab(container: HTMLElement): () => void {
   maxSliderInput.value = String(state.maxStrength);
   maxSliderInput.style.cssText = `flex:1;accent-color:${ACCENT};cursor:pointer;`;
 
-  maxSliderValueEl = el('span', `font-size:13px;color:${TEXT};min-width:28px;text-align:right;`);
+  maxSliderValueEl = el('span', `font-size:12px;color:${TEXT};min-width:28px;text-align:right;`);
 
   maxStrHeader.append(maxSliderInput, maxSliderValueEl);
   maxStrSection.appendChild(maxStrHeader);
@@ -219,7 +219,7 @@ export function renderPetTab(container: HTMLElement): () => void {
   // --- Current Strength slider ---
   const curStrSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
   const curStrHeader = el('div', 'display:flex;align-items:center;gap:8px;');
-  curStrHeader.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.currentStrength')));
+  curStrHeader.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.currentStrength')));
 
   curSliderInput = document.createElement('input');
   curSliderInput.type = 'range';
@@ -229,7 +229,7 @@ export function renderPetTab(container: HTMLElement): () => void {
   curSliderInput.value = String(state.currentStrength);
   curSliderInput.style.cssText = `flex:1;accent-color:${ACCENT};cursor:pointer;`;
 
-  curSliderValueEl = el('span', `font-size:13px;color:${TEXT};min-width:28px;text-align:right;`);
+  curSliderValueEl = el('span', `font-size:12px;color:${TEXT};min-width:28px;text-align:right;`);
 
   curStrHeader.append(curSliderInput, curSliderValueEl);
   curStrSection.appendChild(curStrHeader);
@@ -267,7 +267,7 @@ export function renderPetTab(container: HTMLElement): () => void {
   const colorDefs = mutGroups.color;
   if (colorDefs.length > 0) {
     const colorSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
-    colorSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.color')));
+    colorSection.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.color')));
 
     const tileOptions: MutationTileOption[] = colorDefs.map((d) => {
       const vb = findVariantBadge(d.name);
@@ -276,7 +276,7 @@ export function renderPetTab(container: HTMLElement): () => void {
         value: d.name,
         displayName,
         multiplier: d.multiplier,
-        color: vb?.color ?? '#888',
+        color: vb?.color ?? 'var(--qpm-text-muted)',
         gradient: vb?.gradient,
       };
     });
@@ -291,7 +291,7 @@ export function renderPetTab(container: HTMLElement): () => void {
 
   // --- Friends ---
   const friendSection = el('div', 'display:flex;flex-direction:column;gap:4px;');
-  friendSection.appendChild(el('span', `font-size:13px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.friends')));
+  friendSection.appendChild(el('span', `font-size:14px;font-weight:600;color:${TEXT};`, t('feature.cropCalc.friends')));
 
   const { container: friendContainer } = buildPillRow(FRIEND_OPTIONS, '1', (value) => {
     state.playerCount = parseInt(value ?? '1', 10);

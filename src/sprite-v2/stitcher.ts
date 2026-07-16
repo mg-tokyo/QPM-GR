@@ -3,7 +3,7 @@
 import { areCatalogsReady, getFloraBlueprint, getAllPlantSpecies } from '../catalogs/gameCatalogs';
 import type { FloraBlueprint } from '../catalogs/gameCatalogs';
 import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
-import { log } from '../utils/logger';
+import { writeShimConsole } from '../diagnostics/logger';
 import {
   isSpritesReady,
   getProduceSpriteCanvas,
@@ -356,17 +356,17 @@ const warnedSpecies = new Set<string>();
  */
 export function diagnoseFloraBlueprints(species?: string): void {
   if (!areCatalogsReady()) {
-    console.warn('[QPM Stitcher] Catalogs not ready');
+    writeShimConsole('QPM Stitcher', ['Catalogs not ready']);
     return;
   }
 
   if (species) {
     const bp = getFloraBlueprint(species);
     if (!bp) {
-      console.warn(`[QPM Stitcher] No blueprint for "${species}"`);
+      writeShimConsole('QPM Stitcher', [`No blueprint for "${species}"`]);
       return;
     }
-    console.log(`[QPM Stitcher] Blueprint for ${species}:`, bp);
+    writeShimConsole('QPM Stitcher', [`Blueprint for ${species}:`, bp]);
     return;
   }
 
@@ -387,7 +387,7 @@ export function diagnoseFloraBlueprints(species?: string): void {
     });
   }
   console.table(rows);
-  log(`[Stitcher] Diagnosed ${rows.length} flora blueprints`);
+  writeShimConsole('QPM Stitcher', [`Diagnosed ${rows.length} flora blueprints`]);
 }
 
 /**
@@ -403,7 +403,7 @@ export function testStitch(species: string, mutations?: string[]): HTMLCanvasEle
   });
 
   if (!result) {
-    console.warn(`[QPM Stitcher] testStitch failed for "${species}"`);
+    writeShimConsole('QPM Stitcher', [`testStitch failed for "${species}"`]);
     return null;
   }
 
@@ -437,7 +437,7 @@ export function testStitch(species: string, mutations?: string[]): HTMLCanvasEle
   overlay.appendChild(close);
 
   document.body.appendChild(overlay);
-  console.log(`[QPM Stitcher] testStitch rendered for "${species}"`, result);
+  writeShimConsole('QPM Stitcher', [`testStitch rendered for "${species}"`, result]);
 
   return result.canvas;
 }
@@ -447,7 +447,7 @@ export function testStitch(species: string, mutations?: string[]): HTMLCanvasEle
  */
 export function testStitchAll(): HTMLDivElement | null {
   if (!areCatalogsReady() || !isSpritesReady()) {
-    console.warn('[QPM Stitcher] Not ready');
+    writeShimConsole('QPM Stitcher', ['Not ready']);
     return null;
   }
 
@@ -496,7 +496,7 @@ export function testStitchAll(): HTMLDivElement | null {
   }
 
   document.body.appendChild(container);
-  console.log(`[QPM Stitcher] testStitchAll: rendered ${multiHarvest.length} species`);
+  writeShimConsole('QPM Stitcher', [`testStitchAll: rendered ${multiHarvest.length} species`]);
 
   return container;
 }

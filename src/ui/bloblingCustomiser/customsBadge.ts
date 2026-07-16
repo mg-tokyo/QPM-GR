@@ -3,19 +3,13 @@ import {
   onStateChange,
 } from '../../features/bloblingCustomiser/customSkins';
 
-/**
- * Render a small ★ corner badge on a cosmetic tile when an active custom
- * exists for the filename. Subscribes to the custom-skins update event so
- * the badge appears/disappears on every state change without polling.
- *
- * Spec §3.2.
- */
+/** Renders a ★ corner badge when an active custom exists; reactive via onStateChange (spec §3.2). */
 export function mountCustomsBadge(
   cell: HTMLElement,
   filename: string,
 ): () => void {
   const badge = document.createElement('span');
-  badge.textContent = '★';   // ★
+  badge.textContent = '★';
   badge.style.cssText = [
     'position:absolute',
     'top:2px',

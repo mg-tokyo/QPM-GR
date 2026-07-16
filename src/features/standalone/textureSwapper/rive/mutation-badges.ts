@@ -7,7 +7,7 @@
 // (basePos + iconLayout.offset). Texture loaded from svc.state.tex by the
 // canonical mutation ui sprite-key from mutationColors.getMutationIconSpriteKey.
 
-import { ctx, log } from '../types';
+import { ctx, log, warnFeature } from '../types';
 import { getMutationIconSpriteKey } from '../mutationColors';
 import { getBasePixiSpriteCtor } from './detection';
 import { badgesBySprite, activeRiveSprites } from './state';
@@ -71,6 +71,7 @@ export function applyRiveMutationBadge(sprite: any, mutationName: string, ruleId
       byBadge.set(badgeKey, badge);
     } catch (e) {
       log('applyRiveMutationBadge: failed to create badge', e);
+      warnFeature('QPM-TEXTURESWAP-001', { what: 'mutationBadge:create' }, e);
       return;
     }
   } else {

@@ -93,7 +93,7 @@ function showSellConfirmModal(
           hasSprite = true;
         }
       } catch {
-        // noop
+        /* sprite lookup is best-effort — placeholder dot renders instead */
       }
       if (!hasSprite) {
         const placeholder = document.createElement('span');
@@ -167,7 +167,7 @@ function showSellConfirmModal(
       try {
         overlay.remove();
       } catch {
-        // noop
+        /* teardown — overlay may already be detached */
       }
       document.removeEventListener('keydown', onKeyDown, true);
       resolve(result);
@@ -247,6 +247,7 @@ function executeSellWithFeedback(
       }, 4000);
     }
   }).catch(() => {
+    /* pipeline failures are coded feature-side (FEATURE-003) — the ⚠️ button is the visible fallback */
     btn.textContent = '⚠️';
     btn.style.opacity = '1';
     (btn as HTMLButtonElement).style.pointerEvents = 'auto';
@@ -297,7 +298,6 @@ function executeBulkSell(pets: CollectedPet[], onDone: () => void): void {
         soldCount += 1;
       } else {
         failCount += 1;
-        console.warn(`[Pet Optimizer] Failed to sell ${pet.name || pet.species}: ${result.reason}`);
       }
     }
 

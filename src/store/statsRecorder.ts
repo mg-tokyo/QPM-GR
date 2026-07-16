@@ -16,7 +16,9 @@ import {
 } from './stats';
 import { recordXpProc } from './xpTracker';
 import { getActivePetInfos } from './pets';
-import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeStatsRecorder', 'statsRecorder');
 
 const cleanups: Array<() => void> = [];
 let started = false;
@@ -165,17 +167,17 @@ async function subscribeToActivityLog(): Promise<void> {
       try {
         processActivityLog(value);
       } catch (error) {
-        log('[StatsRecorder] Error processing activity log', error);
+        diag.warn('QPM-STORE-003', { phase: 'processActivityLog' }, error);
       }
     });
     if (!unsub) {
-      log('[StatsRecorder] myDataAtom not found — activity log stats disabled');
+      diag.warn('QPM-STORE-002', { atom: 'myData' });
       return;
     }
     cleanups.push(unsub);
-    log('[StatsRecorder] Subscribed to myDataAtom activity log');
+    diag.log.debug('Subscribed to myDataAtom activity log');
   } catch (error) {
-    log('[StatsRecorder] Failed to subscribe to myDataAtom', error);
+    diag.warn('QPM-STORE-001', { phase: 'subscribeMyData' }, error);
   }
 }
 
@@ -218,6 +220,8 @@ export function startStatsRecorder(): () => void {
   if (started) return () => {};
   started = true;
 
+  diag.register('Wiring activity log + ability subscribers');
+
   lastSeenLogLength = 0;
   lastSeenAbilityTimestamps = new Map();
   activityLogCounts = { garden: 0, shop: 0, feed: 0, ability: 0 };
@@ -244,7 +248,7 @@ export function startStatsRecorder(): () => void {
   });
   cleanups.push(unsubAbility);
 
-  log('[StatsRecorder] Started — activity log + abilities wired');
+  diag.publishOk('Stats recorder started');
 
   return stopStatsRecorder;
 }
@@ -255,12 +259,12 @@ export function stopStatsRecorder(): void {
   for (const cleanup of cleanups) {
     try {
       cleanup();
-    } catch { /* ignore */ }
+    } catch { /* teardown best-effort — silent per §4.5 precedent */ }
   }
   cleanups.length = 0;
   lastSeenAbilityTimestamps.clear();
   lastSeenLogLength = 0;
-  log('[StatsRecorder] Stopped');
+  diag.log.debug('Stats recorder stopped');
 }
 
 /** Debug: recorder state + event counts since start */

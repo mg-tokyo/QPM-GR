@@ -31,7 +31,7 @@ export function renderPickATilePanel(opts: {
       void renderPickATileGarden(gardenOpts).then(el => {
         if (active === 'garden') body.appendChild(el);
       });
-    } else {
+    } else if (active === 'pets') {
       const petsOpts = highlight
         ? { onPick: opts.onPickPetSlot, highlightSpecies: highlight }
         : { onPick: opts.onPickPetSlot };

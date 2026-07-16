@@ -11,6 +11,7 @@ import {
 } from './helpers';
 import { renderInspectorPanes } from './inspectorPanes';
 import { t } from '../../../i18n';
+import { windowLog } from '../../core/modalWindow';
 
 export function destroyPublicRoomsInspector(): void {
   for (const cleanup of inspectorDragCleanups) {
@@ -202,7 +203,7 @@ export function openInspector(slot: RoomUserSlot | null, room: Room): void {
   } else {
     setAllPanes(t('feature.publicRooms.loadingPlayerView'));
     refreshInspectorData(false).catch(err => {
-      console.error('[PublicRooms] Inspector refresh failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'inspector:refresh', source: 'slot' }, err);
       setAllPanes(t('feature.publicRooms.unableToLoadView'));
     });
   }
@@ -213,7 +214,7 @@ export function openInspector(slot: RoomUserSlot | null, room: Room): void {
 export function openInspectorDirect(playerId: string, playerName?: string | null): void {
   const pid = (playerId || '').trim();
   if (!pid) {
-    console.warn('[PublicRooms] Missing playerId for inspector');
+    windowLog.debug('Inspector open skipped — missing playerId', { what: 'inspector:missingPlayerId' });
     return;
   }
 
@@ -237,7 +238,7 @@ export function openInspectorDirect(playerId: string, playerName?: string | null
   setAllPanes(t('feature.publicRooms.loadingPlayerView'));
   shell.classList.remove('hidden');
   refreshInspectorData(false).catch(err => {
-    console.error('[PublicRooms] Inspector direct refresh failed', err);
+    windowLog.warn('QPM-UI-002', { what: 'inspector:refresh', source: 'direct' }, err);
     setAllPanes(t('feature.publicRooms.unableToLoadView'));
   });
 }
@@ -258,7 +259,7 @@ async function refreshInspectorData(notify = false): Promise<void> {
     try {
       friends = await getCachedFriendsSet(myPlayerId);
     } catch (err) {
-      console.warn('[PublicRooms] Friends lookup failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'inspector:friendsLookup' }, err);
     }
   }
 

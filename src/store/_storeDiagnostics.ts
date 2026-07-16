@@ -1,6 +1,8 @@
 // Shared diagnostics wiring for src/store/* modules. Stores share a STORE-* code prefix
 // (§4.4 diagnostics-design.md); `context.store` distinguishes which store fired.
 // Stores never call console.* — use the returned `log` logger, and warn/error for coded failures.
+// Store-side WS send failures stay at log.debug — sendRoomAction already emits WS-* with the
+// reason; add a STORE-* attribution code only if store senders multiply (2026-07-15; mountState is the sole sender).
 
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger, type NamedLogger } from '../diagnostics/logger';

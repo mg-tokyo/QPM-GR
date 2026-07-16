@@ -1,6 +1,6 @@
-import { log } from '../../../utils/logger';
 import { SLOT_MUTATION_DEBUG_LIMIT } from './constants';
 import { reminderState } from './state';
+import { reminderDiag } from './_diagnostics';
 import type { MutationLetter, MutationStage, MutationStageProgress, PlantSlotState } from './types';
 
 export function normalizePlantName(name: string): string {
@@ -284,7 +284,7 @@ export function buildSlotStateFromInventorySlot(rawSlot: any): PlantSlotState {
   const mutations = extractMutationStringsFromSlot(rawSlot);
   if (mutations.length === 0 && reminderState.slotMutationDebugSamples < SLOT_MUTATION_DEBUG_LIMIT) {
     const slotKeys = rawSlot && typeof rawSlot === 'object' ? Object.keys(rawSlot).slice(0, 10) : [];
-    log('[Mutations] Inventory slot missing mutation text', {
+    reminderDiag.debug('Inventory slot missing mutation text', {
       keys: slotKeys,
       sample: summarizeSlotForDebug(rawSlot),
     });

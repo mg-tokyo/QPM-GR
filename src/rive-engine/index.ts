@@ -5,11 +5,17 @@ import { shareGlobal } from '../core/pageContext';
 import type {
   RiveInstance, OverrideScope, OverrideInfo, InputDescriptor,
   ImageOverrideOpts, InputOverrideOpts, TriggerOpts,
-  TextOverrideOpts, AssetInterceptOpts,
+  TextOverrideOpts, AssetInterceptOpts, SpeedOverrideOpts,
   LowLevelRive, RiveImage,
   RiveEngineEventMap, RiveEngineListener,
 } from './types';
 import { riveLog, decodeImageBytes, EventBus } from './helpers';
+import {
+  startRiveEngineDiagnostics,
+  publishOk as publishRiveOk,
+  warnRiveEngine,
+} from './_diagnostics';
+import { writeShimConsole } from '../diagnostics/logger';
 import {
   captureRiveRuntime, getRiveSingleton, awaitRiveSingleton, releaseRiveCapture,
   findAllRiveRuntimes,
@@ -38,6 +44,11 @@ import {
   revertAllTextOverrides, getActiveTextOverrides,
   applyTextOverridesToNewInstance,
 } from './textOverrides';
+import {
+  setSpeedOverride as setSpeedOverrideImpl,
+  revertAllSpeedOverrides, getActiveSpeedOverrides,
+  applySpeedOverridesToNewInstance,
+} from './speedOverrides';
 // File + asset interceptors are wired through the fetch interceptor (.riv
 // URL → override bytes) and the load wrapper (assetLoader injection). See
 // fetchInterceptor.ts and loadWrapper.ts for the consumer side.
@@ -90,7 +101,7 @@ import {
 export type {
   RiveInstance, OverrideScope, OverrideInfo, InputDescriptor,
   ImageOverrideOpts, InputOverrideOpts, TriggerOpts,
-  TextOverrideOpts,
+  TextOverrideOpts, SpeedOverrideOpts,
   LowLevelRive, RiveImage,
 };
 
@@ -111,6 +122,8 @@ let cleanups: Array<() => void> = [];
 export function initRiveEngine(): () => void {
   if (initialized) return () => {};
   initialized = true;
+
+  startRiveEngineDiagnostics();
 
   const debugEnabled = storage.get<boolean>(DEBUG_STORAGE_KEY, false) ?? false;
   riveLog.enabled = debugEnabled;
@@ -137,6 +150,7 @@ export function initRiveEngine(): () => void {
     applyImageOverridesToNewInstance(instance);
     applyInputOverridesToNewInstance(instance);
     applyTextOverridesToNewInstance(instance);
+    applySpeedOverridesToNewInstance(instance);
   });
   cleanups.push(unsubRegistered);
 
@@ -157,10 +171,10 @@ export function initRiveEngine(): () => void {
   // initRivFetchInterceptor() is idempotent, so calling it twice is harmless.
 
   void captureRiveRuntime().then(() => {
-    riveLog('RiveEngine ready');
+    publishRiveOk('Ready');
     exposeDebugGlobals();
   }).catch((e) => {
-    riveLog('Runtime capture failed:', e);
+    warnRiveEngine('QPM-RIVE-001', { what: 'runtimeCapture' }, e);
   });
 
   return () => {
@@ -260,6 +274,11 @@ export function setTextOverride(opts: TextOverrideOpts): () => void {
   return setTextOverrideImpl(opts, eventBus);
 }
 
+export function setSpeedOverride(opts: SpeedOverrideOpts): () => void {
+  if (!eventBus) return () => {};
+  return setSpeedOverrideImpl(opts, eventBus);
+}
+
 /**
  * Replace the bytes the Rive runtime loads for a given .riv URL. Matches
  * `rivFile` as a case-insensitive substring of the request URL. The
@@ -285,17 +304,18 @@ export function setFileOverride(rivFile: string, bytes: Uint8Array): () => void 
  * Asset names are not statically known — call `__QPM_RIVE_ENGINE__.dumpAssets()`
  * after the game UI is up to see what asset names each bundle exposes.
  *
- * KNOWN SCOPE (v573 production): the only bundle with external image assets
- * is avatarelements.riv (Top/Mid/Bottom/DiscordAvatarPlaceholder + Rickroll
- * easter-egg slots). Every other .riv that loads (giftbox, loader,
- * currency, thoughtbubble, decor) bakes textures into the bundle with no
- * referenced asset names — the assetLoader is never called for those.
+ * KNOWN SCOPE: the only bundle with external image assets is
+ * avatarelements.riv (bottom/mid/top/discordAvatar + Rickroll easter-egg
+ * slots). Other .riv bundles (giftbox, loader, currency, thoughtbubble,
+ * decor) bake textures inline with no referenced asset names — the
+ * assetLoader is never called for those.
  *
- * PETS ARE NOT RIVE in v573. Pet sprites render as PIXI display objects
- * with packed-atlas textures (no source URL on the texture). petz.riv is
- * fetched at game init but never .load()-ed on either captured runtime.
- * To customize pet textures, use src/sprite-v2/ or the textureSwapper PIXI
- * hook, not this Rive interceptor. Re-evaluate if pets ever move to Rive.
+ * Pets: since ~v641, pet sprites ARE Rive (per-species artboards in
+ * petz.riv — Horse, Capybara, Turtle, …). petz.riv doesn't expose external
+ * image assets (setAssetInterceptor won't fire), but pets DO appear in the
+ * instance registry as tag `pet` and support setInputOverride /
+ * setSpeedOverride / fireTrigger. Historical v573 note: pets were not Rive
+ * then; textureSwapper's static-atlas path was the only route.
  */
 export function setAssetInterceptor(opts: AssetInterceptOpts): () => void {
   if (!eventBus) return () => {};
@@ -339,6 +359,7 @@ export function revertAll(): void {
   revertAllImageOverrides();
   revertAllInputOverrides();
   revertAllTextOverrides();
+  revertAllSpeedOverrides();
   revertAllFileOverrides();
   revertAllAssetInterceptors();
   riveLog('All overrides reverted');
@@ -349,6 +370,7 @@ export function getActiveOverrides(): OverrideInfo[] {
     ...getActiveImageOverrides(),
     ...getActiveInputOverrides(),
     ...getActiveTextOverrides(),
+    ...getActiveSpeedOverrides(),
     ...getActiveFileOverrides(),
     ...getActiveAssetInterceptors(),
   ];
@@ -382,7 +404,7 @@ function exposeDebugGlobals(): void {
 
   const dumpAssets = (): Record<string, string[]> => {
     const out = getSniffedAssets();
-    try { console.log('[QPM:RiveEngine] dumpAssets — by URL:', out); } catch {}
+    try { writeShimConsole('QPM:RiveEngine', ['dumpAssets — by URL:', out]); } catch { /* console unavailable in sandbox */ }
     return out;
   };
 
@@ -398,6 +420,8 @@ function exposeDebugGlobals(): void {
       setImageOverride({ target: { type: 'instance', id }, property, image: url }),
     setInput: (id: string, input: string, value: boolean | number) =>
       setInputOverride({ target: { type: 'instance', id }, input, value }),
+    setSpeed: (id: string, speed: number) =>
+      setSpeedOverride({ target: { type: 'instance', id }, speed }),
     fire: (id: string, trigger: string) =>
       fireTrigger({ target: { type: 'instance', id }, trigger }),
     // Async so callers can `await __QPM_RIVE_ENGINE__.setFile(...)` before
@@ -499,7 +523,7 @@ function exposeDebugGlobals(): void {
           images: r.imageProperties.length,
           textRuns: r.textRuns.length,
         })));
-        console.log('[QPM:RiveEngine] dumpPet — full result:', result);
+        writeShimConsole('QPM:RiveEngine', ['dumpPet — full result:', result]);
       } catch { /* console may be unavailable in some sandboxes */ }
       return result;
     },

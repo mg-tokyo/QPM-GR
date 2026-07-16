@@ -1,9 +1,9 @@
-import { log } from '../../utils/logger';
 import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
 import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { DEFAULT_HUTCH_CAPACITY } from '../hutch';
 import type { InventorySnapshot, HutchSnapshot } from './types';
+import { diag } from './state';
 
 // Constants
 
@@ -151,7 +151,7 @@ export async function readInventorySnapshot(): Promise<InventorySnapshot> {
     const freeIndex = firstFreeIndex ?? items.length;
     return { ids, petIds, freeIndex, totalCount };
   } catch (error) {
-    log('[petTeams] inventory snapshot read failed', error);
+    diag.warn('QPM-STORE-002', { atom: INVENTORY_ATOM_LABEL, phase: 'readInventorySnapshot' }, error);
     return { ids, petIds, freeIndex: null, totalCount: 0 };
   }
 }
@@ -215,7 +215,7 @@ export async function readHutchSnapshot(resolvedCapacity?: number | null): Promi
 
     return { ids, count: occupied, hutchMax: effectiveMax, freeIndex };
   } catch (error) {
-    log('[petTeams] hutch snapshot read failed', error);
+    diag.warn('QPM-STORE-002', { atom: HUTCH_ATOM_LABEL, phase: 'readHutchSnapshot' }, error);
     return { ids, count: 0, hutchMax: resolvedCapacity ?? DEFAULT_HUTCH_CAPACITY, freeIndex: null };
   }
 }

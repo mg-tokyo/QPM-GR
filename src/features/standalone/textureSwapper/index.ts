@@ -5,9 +5,12 @@ import { pageWindow } from '../../../core/pageContext';
 import { serviceReady, onSpritesReady } from '../../../sprite-v2/compat';
 import { invalidateByFamilyRoot as invalidateThumbCache } from '../../../ui/standalone/textureSwapperWindow/thumbnailCache';
 import { invalidateSpecies as invalidateStitcherCache } from '../../../sprite-v2/stitcher';
+import { healthBus } from '../../../diagnostics/healthBus';
 
 import {
   log,
+  diag,
+  warnFeature,
   ctx,
   parseAtlasKey,
   scopeKey,
@@ -18,6 +21,8 @@ import {
   MAX_UPLOAD_BYTES,
   COMPRESS_SIZE,
 } from './types';
+
+export { diag, warnFeature } from './types';
 import type {
   TextureOverrideRule,
   TextureManipulatorState,
@@ -78,7 +83,7 @@ function loadState(): TextureManipulatorState {
       return { ...saved, rules: normalizedRules };
     }
   } catch (e) {
-    log('Failed to load state', e);
+    warnFeature('QPM-TEXTURESWAP-002', { what: 'state:load' }, e);
   }
   return { version: 1, rules: [], uploadedAssets: {} };
 }
@@ -87,7 +92,7 @@ function saveState(): void {
   try {
     storage.set(STORAGE_KEY, ctx.state);
   } catch (e) {
-    log('Failed to save state', e);
+    warnFeature('QPM-TEXTURESWAP-002', { what: 'state:save' }, e);
     notify({ feature: 'gardenPainter', level: 'error', message: 'Texture rules failed to save' });
   }
 }
@@ -108,7 +113,7 @@ function saveDebugSetting(enabled: boolean): void {
   try {
     storage.set(DEBUG_STORAGE_KEY, enabled);
   } catch (e) {
-    log('Failed to save debug setting', e);
+    warnFeature('QPM-TEXTURESWAP-002', { what: 'debug:save' }, e);
   }
 }
 
@@ -185,7 +190,7 @@ export function onRuleChanged(cb: RuleChangeListener): () => void {
 function fireRuleChanged(rule: TextureOverrideRule, reason: RuleChangeReason): void {
   ruleIndex.rebuild(ctx.state.rules);
   for (const cb of ruleChangeListeners) {
-    try { cb({ rule, reason }); } catch (e) { log('rule-change listener threw', e); }
+    try { cb({ rule, reason }); } catch (e) { warnFeature('QPM-TEXTURESWAP-002', { what: 'ruleChange:notify' }, e); }
   }
 }
 
@@ -197,13 +202,19 @@ function generateId(): string {
   return `rule_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const REGULAR_USER_CATEGORIES = new Set(['plant', 'tallplant', 'crop', 'pet', 'decor', 'item', 'seed']);
+
 function normalizeRule(rule: TextureOverrideRule): TextureOverrideRule {
-  return {
+  const category = parseAtlasKey(rule.targetSpriteKey).category;
+  const needsDev = !REGULAR_USER_CATEGORIES.has(category) || !!rule.riveOverrides;
+  const base: TextureOverrideRule = {
     ...rule,
     mutationBehavior: rule.mutationBehavior ?? 'preserve',
     forceNoMutations: rule.forceNoMutations ?? false,
     scope: rule.scope ?? { kind: 'all' },
   };
+  if (needsDev) base.devOnly = true;
+  return base;
 }
 
 export function addRule(rule: Omit<TextureOverrideRule, 'id'>, options?: { silent?: boolean }): TextureOverrideRule {
@@ -465,10 +476,21 @@ export async function getOriginalSpriteCanvas(spriteKey: string): Promise<HTMLCa
 // Lifecycle
 // ---------------------------------------------------------------------------
 
+let busRegistered = false;
+
 export function initTextureSwapper(): () => void {
   if (!TEXTURE_MANIPULATOR_ENABLED) return () => {};
   if (ctx.started) return () => {};
   ctx.started = true;
+
+  if (!busRegistered) {
+    healthBus.register('feature:textureSwapper', {
+      category: 'feature',
+      status: 'starting',
+      message: 'Loading rules',
+    });
+    busRegistered = true;
+  }
 
   ctx.state = loadState();
   ruleIndex.rebuild(ctx.state.rules);
@@ -522,7 +544,9 @@ export function initTextureSwapper(): () => void {
           canvas.addEventListener('webglcontextrestored', onRestore);
           ctx.cleanups.push(() => canvas.removeEventListener('webglcontextrestored', onRestore));
         }
-      } catch {}
+      } catch (e) {
+        warnFeature('QPM-TEXTURESWAP-001', { what: 'webgl:contextRestoredHook' }, e);
+      }
     })();
   });
   ctx.cleanups.push(unsub);
@@ -533,6 +557,18 @@ export function initTextureSwapper(): () => void {
   // apply pass (via captureFromScene() in layerB-apply.ts).
   const cleanupRiveAdapter = installRiveAdapter();
   ctx.cleanups.push(cleanupRiveAdapter);
+
+  healthBus.publish({
+    subsystem: 'feature:textureSwapper',
+    category: 'feature',
+    status: 'ok',
+    message: 'Ready — waiting for sprites',
+    metrics: {
+      rules: ctx.state.rules.length,
+      activeRules: ctx.activeRules.length,
+      uploads: Object.keys(ctx.state.uploadedAssets).length,
+    },
+  });
 
   return () => {
     ctx.started = false;

@@ -1,5 +1,5 @@
 import { readSharedGlobal, shareGlobal } from '../core/pageContext';
-import { isVerboseLogsEnabled } from '../utils/logger';
+import { isVerboseLogsEnabled, writeShimConsole } from '../diagnostics/logger';
 
 type SpriteLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -40,19 +40,12 @@ export function setSpriteLogsEnabled(enabled: boolean): boolean {
 }
 
 function print(level: SpriteLogLevel, prefix: string, message: string, data?: unknown): void {
-  if (level === 'error') {
-    console.error(prefix, message, data ?? '');
-    return;
-  }
-  if (level === 'warn') {
-    console.warn(prefix, message, data ?? '');
-    return;
-  }
-  if (level === 'info') {
-    console.info(prefix, message, data ?? '');
-    return;
-  }
-  console.log(prefix, message, data ?? '');
+  // writeShimConsole normalises to console.log (severity is carried by the
+  // ring-buffer entry level, not the console output). prefix is passed
+  // without brackets so writeShimConsole can wrap it consistently.
+  const bare = prefix.replace(/^\[|\]$/g, '');
+  const payload = data === undefined ? [`${level.toUpperCase()}:`, message] : [`${level.toUpperCase()}:`, message, data];
+  writeShimConsole(bare, payload);
 }
 
 export function spriteLog(

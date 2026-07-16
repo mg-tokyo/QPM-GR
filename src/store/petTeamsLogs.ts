@@ -2,8 +2,10 @@
 // Tracks ability, feed, and team-apply events with a 5000-event cap and 30-day TTL.
 
 import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
 import type { PetLogEvent, PetLogEventType } from '../types/petTeams';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storePetTeamsLogs', 'petTeamsLogs');
 
 const STORAGE_KEY = 'qpm.petTeams.logs.v1';
 const MAX_EVENTS = 5000;
@@ -33,7 +35,7 @@ function persistNow(): void {
   try {
     storage.set(STORAGE_KEY, cachedLogs);
   } catch (error) {
-    log('⚠️ petTeamsLogs: failed to persist', error);
+    diag.warn('QPM-STORE-004', { what: 'logs', key: STORAGE_KEY }, error);
   }
 }
 
@@ -60,7 +62,7 @@ function notify(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      log('⚠️ petTeamsLogs: listener threw', error);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
   }
 }
@@ -75,13 +77,14 @@ function appendEvent(event: PetLogEvent): void {
 }
 
 export function initPetTeamsLogs(): void {
+  diag.register('Loading pet teams event logs from storage');
   try {
     const raw = storage.get<PetLogEvent[]>(STORAGE_KEY, []);
     cachedLogs = pruneOld(Array.isArray(raw) ? raw : []);
-    log(`[PetTeamsLogs] Loaded ${cachedLogs.length} events`);
+    diag.log.debug(`Loaded ${cachedLogs.length} events`);
   } catch (error) {
     cachedLogs = [];
-    log('⚠️ petTeamsLogs: failed to load from storage', error);
+    diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
   }
 
   // Subscribe to qpm:feedPet CustomEvents dispatched by instantFeed.ts
@@ -107,6 +110,8 @@ export function initPetTeamsLogs(): void {
   unloadHandler = () => flushPersist();
   window.addEventListener('pagehide', unloadHandler);
   window.addEventListener('beforeunload', unloadHandler);
+
+  diag.publishOk('Pet teams logs initialised', { events: cachedLogs.length });
 }
 
 export function stopPetTeamsLogs(): void {

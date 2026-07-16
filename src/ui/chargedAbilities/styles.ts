@@ -1,5 +1,3 @@
-// src/ui/chargedAbilities/styles.ts
-// Scoped CSS for the Charged Abilities floating panel.
 // All colours come from CSS vars in panelStyles.ts — no hex literals here.
 
 export const CHARGED_ABILITIES_STYLES = `
@@ -346,7 +344,7 @@ export const CHARGED_ABILITIES_STYLES = `
   font-weight: var(--qpm-weight-semibold);
 }
 
-/* ── Charge bar ──────────────────────────────────────────────────────── */
+/* Charge bar */
 .qpm-charged-abilities__charge {
   display: flex;
   align-items: center;
@@ -379,7 +377,7 @@ export const CHARGED_ABILITIES_STYLES = `
   animation: qpm-charged-abilities-shimmer 1.8s linear infinite;
 }
 
-/* ── Direction widget ─────────────────────────────────────────────────── */
+/* Direction widget */
 .qpm-charged-abilities__direction {
   display: flex;
   align-items: center;
@@ -402,7 +400,7 @@ export const CHARGED_ABILITIES_STYLES = `
   font-weight: var(--qpm-weight-semibold);
 }
 
-/* ── Full window — layout ─────────────────────────────────────────────── */
+/* Full window — layout */
 .qpm-charged-abilities__wroot {
   font-family: var(--qpm-font);
   color: var(--qpm-text);
@@ -559,7 +557,7 @@ export const CHARGED_ABILITIES_STYLES = `
   line-height: 1.5;
 }
 
-/* ── Full window — card ───────────────────────────────────────────────── */
+/* Full window — card */
 .qpm-charged-abilities__wcard {
   background: var(--qpm-surface-2);
   border: 1px solid var(--qpm-border);
@@ -655,7 +653,7 @@ export const CHARGED_ABILITIES_STYLES = `
   margin-left: auto;
 }
 
-/* ── Hutch sidebar ────────────────────────────────────────────────────── */
+/* Hutch sidebar */
 .qpm-charged-abilities__hutch-sidebar {
   display: flex;
   flex-direction: column;

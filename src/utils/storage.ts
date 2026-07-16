@@ -1,3 +1,6 @@
+import { healthBus } from '../diagnostics/healthBus';
+import type { Subsystem } from '../diagnostics/types';
+
 type LegacyGmGetValue = (key: string) => string | undefined;
 type LegacyGmSetValue = (key: string, value: string) => void;
 type LegacyGmDeleteValue = (key: string) => void;
@@ -103,6 +106,13 @@ const QPM_STORAGE_KEYS = [
   'qpm.chargedAbilities.expanded.v1',
   'qpm.chargedAbilities.autoOpenOverlay.v1',
 
+  // Super Cleanser (multi-slot cleanse fanout)
+  'qpm.superCleanser.enabled.v1',
+  'qpm.superCleanser.autoOpenPanel.v1',
+  'qpm.superCleanser.filterMode.v1',
+  'qpm.superCleanser.filterMutations.v1',
+  'qpm.superCleanser.panel.position.v1',
+
   // Blobling Customiser presets
   'qpm.bloblingPresets.v1',
 
@@ -125,6 +135,9 @@ const QPM_STORAGE_KEYS = [
 
   // Sprite Debug
   'qpm.debug.sprite.allowLegacyFallbackOnKtx2',
+
+  // Dev mode
+  'qpm.dev.enabled',
 
   // Activity Log Enhancer
   'qpm.activityLogEnhanced.entries.v1',
@@ -222,6 +235,9 @@ const QPM_STORAGE_KEYS = [
 
   // Rive Engine
   'qpm.riveEngine.debug.v1',
+
+  // Rive Control (persistent per-target Rive rules)
+  'qpm.riveRules.v1',
   // Note: file overrides are persisted in IndexedDB (qpm-rive-overrides),
   // not via this layer, because they're multi-MB binary blobs that exceed
   // the localStorage quota. See src/rive-engine/fileOverrideStore.ts.
@@ -565,6 +581,32 @@ export function initializeStorage(): Promise<void> {
 export function getStorageRuntime(): StorageRuntime {
   refreshRuntime();
   return runtime;
+}
+
+// Row 6.23 — register the storage subsystem on the health bus so the runtime
+// backend (legacy-gm / modern-gm / local-storage) surfaces in Diagnostics.
+// Idempotent. Call after initializeStorage() so `runtime` is resolved.
+const STORAGE_SUBSYSTEM: Subsystem = 'storage';
+let storageBusRegistered = false;
+export function startStorageDiagnostics(): void {
+  if (storageBusRegistered) return;
+  storageBusRegistered = true;
+  refreshRuntime();
+  healthBus.register(STORAGE_SUBSYSTEM, {
+    category: 'core',
+    status: 'ok',
+    message: `runtime=${runtime}`,
+  });
+  healthBus.publish({
+    subsystem: STORAGE_SUBSYSTEM,
+    category: 'core',
+    status: 'ok',
+    message: `runtime=${runtime}`,
+    metrics: {
+      runtime,
+      registeredKeys: QPM_STORAGE_KEYS.length,
+    },
+  });
 }
 
 function readModernRaw(key: string): string | null {

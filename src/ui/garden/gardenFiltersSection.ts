@@ -16,7 +16,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
   const config = getGardenFiltersConfig();
 
-  // === MAIN TOGGLE ===
   const { root: enableRow, setChecked: setEnableChecked } = createToggle({
     checked: config.enabled,
     onChange: (checked) => updateGardenFiltersConfig({ enabled: checked }),
@@ -25,7 +24,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   enableRow.style.cssText += 'padding:12px;background:var(--qpm-surface-1);border-radius:8px;margin-bottom:16px;gap:12px;';
   body.appendChild(enableRow);
 
-  // === INFO BOX ===
   const infoBox = document.createElement('div');
   infoBox.style.cssText = `
     padding: 12px;
@@ -51,7 +49,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   }
   body.appendChild(infoBox);
 
-  // === MUTATION FILTERS SECTION ===
   const mutationsSection = document.createElement('div');
   mutationsSection.style.cssText = 'margin-bottom: 16px;';
 
@@ -133,7 +130,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       updateFilterRemainingVisibility();
     });
 
-    // Use sprite instead of emoji
     const spriteCanvas = getCropSpriteWithMutations('Sunflower', [mutationId]);
     const spriteEl = document.createElement('img');
     spriteEl.dataset.qpmSprite = `crop:Sunflower:${mutationId}`;
@@ -163,7 +159,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   updateFilterRemainingVisibility();
   body.appendChild(mutationsSection);
 
-  // === CROP SPECIES FILTERS ===
   const cropSection = document.createElement('div');
   cropSection.style.cssText = 'margin-bottom: 16px;';
 
@@ -172,7 +167,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   cropTitle.style.padding = '0 0 8px 0';
   cropSection.appendChild(cropTitle);
 
-  // Get plant species from gardenFilters module
   const plantSpecies = getAllPlantSpecies();
 
   for (const species of plantSpecies) {
@@ -235,7 +229,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
   body.appendChild(cropSection);
 
-  // === EGG TYPE FILTERS ===
   const eggSection = document.createElement('div');
   eggSection.style.cssText = 'margin-bottom: 16px;';
 
@@ -244,7 +237,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
   eggTitle.style.padding = '0 0 8px 0';
   eggSection.appendChild(eggTitle);
 
-  // Get egg types from catalog
   const eggTypes = getAllEggTypes();
 
   for (const eggType of eggTypes) {
@@ -279,7 +271,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
       updateGardenFiltersConfig({ eggTypes: updated });
     });
 
-    // Get egg catalog data for display name
     const eggCatalog = getEggCatalog() ?? {};
     const eggData = eggCatalog[eggType];
     const displayName = eggData?.name || eggType;
@@ -295,7 +286,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
   body.appendChild(eggSection);
 
-  // === GROWTH STATE FILTERS ===
   const growthSection = document.createElement('div');
   growthSection.style.cssText = 'margin-bottom: 16px;';
 
@@ -352,7 +342,6 @@ export async function createGardenFiltersSection(): Promise<HTMLElement> {
 
   body.appendChild(growthSection);
 
-  // === ACTION BUTTONS ===
   const actionsRow = document.createElement('div');
   actionsRow.style.cssText = 'display: flex; gap: 8px; margin-top: 16px;';
 

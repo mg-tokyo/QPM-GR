@@ -7,7 +7,7 @@
 // subscriptions that drive it.
 
 import { storage } from '../../../utils/storage';
-import { log } from '../../../utils/logger';
+import { windowLog } from '../../core/modalWindow';
 import { pixelsToPct } from '../../../utils/windowPosition';
 import { getActivePetInfos, onActivePetInfos, type ActivePetInfo } from '../../../store/pets';
 import { onInventoryChange } from '../../../store/inventory';
@@ -419,7 +419,7 @@ function createSlotCard(slotIndex: number): SlotEntry {
         const signature = `${currentPet.slotId ?? ''}|${currentPet.petId ?? ''}|${plan.slotId ?? ''}|${plan.petId ?? ''}`;
         if (signature !== lastMismatchSignature) {
           lastMismatchSignature = signature;
-          log('[FloatingCard] identity mismatch while resolving feed plan', {
+          windowLog.debug('[FloatingCard] identity mismatch while resolving feed plan', {
             slotIndex,
             current: {
               slotId: currentPet.slotId,
@@ -472,8 +472,9 @@ function createSlotCard(slotIndex: number): SlotEntry {
         feedBtn.title = canFeed ? `Feed with ${rawFoodKey ?? 'food'}` : (plan.error ?? 'No suitable food');
       }
       reapplyHoverPreview();
-    } catch {
+    } catch (err) {
       if (destroyed || seq !== refreshSeq) return;
+      windowLog.warn('QPM-UI-002', { what: 'floatCard:plan', slotIndex }, err);
       selectedFood = null;
       renderFoodCounters(foodCountersRow, [], null, feedLabel);
       card.style.width = '';
@@ -584,7 +585,7 @@ function openSlotCardInternal(slotIndex: number): void {
   slotEntries.set(slotIndex, entry);
   emitFloatingCardStateChanged(slotIndex, true);
   entry.refreshAvailability();
-  log(`[FloatingCard] Opened slot-bound card for slot ${slotIndex + 1}`);
+  windowLog.debug('[FloatingCard] Opened slot-bound card', { slot: slotIndex + 1 });
 }
 
 function restorePersistedCards(): void {
@@ -661,7 +662,7 @@ export function hasFloatingCardForSlot(slotIndex: number): boolean {
 export function openFloatingCard(petId: string): void {
   const slotIndex = resolveSlotByPetId(petId);
   if (slotIndex == null) {
-    log(`[FloatingCard] Pet ${petId} not found in active slots - cannot open slot-bound card`);
+    windowLog.debug('[FloatingCard] Pet not found in active slots - cannot open slot-bound card', { petId });
     return;
   }
   openFloatingCardForSlot(slotIndex);

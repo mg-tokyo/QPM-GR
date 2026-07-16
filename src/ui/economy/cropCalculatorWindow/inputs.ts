@@ -33,9 +33,9 @@ export function buildPillRow(
     const btn = el(
       'button',
       [
-        'padding:5px 10px',
+        'padding:4px 8px',
         'font-size:12px',
-        'border-radius:6px',
+        'border-radius:8px',
         'cursor:pointer',
         'border:1px solid',
         'transition:background 0.12s,border-color 0.12s,color 0.12s',
@@ -84,19 +84,19 @@ export function buildMutationToggleRow(
   // "None" tile
   {
     const tile = el('button', [
-      'padding:5px 10px',
+      'padding:4px 8px',
       'border-radius:8px',
       'cursor:pointer',
       'display:flex',
       'align-items:center',
       'gap:6px',
       'transition:background .15s,border-color .15s,color .15s',
-      `border:1.5px solid ${PILL_ACTIVE_BORDER}`,
+      `border:1px solid ${PILL_ACTIVE_BORDER}`,
       `background:${PILL_ACTIVE_BG}`,
       'font-family:inherit',
     ].join(';'));
     tile.type = 'button';
-    const label = el('div', `font-size:11px;font-weight:600;white-space:nowrap;color:${TEXT};`, t('feature.cropCalc.none'));
+    const label = el('div', `font-size:12px;font-weight:600;white-space:nowrap;color:${TEXT};`, t('feature.cropCalc.none'));
     tile.appendChild(label);
 
     const noneRef = { tile, dot: label, label, value: null as string | null, color: ACCENT, gradient: undefined };
@@ -108,7 +108,7 @@ export function buildMutationToggleRow(
       label.style.color = active ? TEXT : MUTED;
     };
 
-    tile.addEventListener('mouseenter', () => { if (activeValue !== null) { tile.style.background = HOVER_BG; tile.style.borderColor = 'rgba(143,130,255,0.25)'; } });
+    tile.addEventListener('mouseenter', () => { if (activeValue !== null) { tile.style.background = HOVER_BG; tile.style.borderColor = 'var(--qpm-accent-border)'; } });
     tile.addEventListener('mouseleave', () => { if (activeValue !== null) { tile.style.background = MUT_INACTIVE_BG; tile.style.borderColor = MUT_INACTIVE_BORDER; } });
     tile.addEventListener('click', () => {
       activeValue = null;
@@ -126,14 +126,14 @@ export function buildMutationToggleRow(
   // Mutation tiles
   for (const opt of options) {
     const tile = el('button', [
-      'padding:5px 10px',
+      'padding:4px 8px',
       'border-radius:8px',
       'cursor:pointer',
       'display:flex',
       'align-items:center',
       'gap:6px',
       'transition:background .15s,border-color .15s,color .15s',
-      `border:1.5px solid ${MUT_INACTIVE_BORDER}`,
+      `border:1px solid ${MUT_INACTIVE_BORDER}`,
       `background:${MUT_INACTIVE_BG}`,
       'font-family:inherit',
     ].join(';'));
@@ -141,7 +141,7 @@ export function buildMutationToggleRow(
     tile.title = opt.displayName;
 
     const dot = el('div', `width:10px;height:10px;border-radius:50%;flex-shrink:0;transition:background .15s;background:${opt.gradient ?? opt.color}`);
-    const label = el('div', `font-size:11px;font-weight:600;white-space:nowrap;transition:color .15s;color:${MUTED}`, `${opt.displayName} ×${opt.multiplier}`);
+    const label = el('div', `font-size:12px;font-weight:600;white-space:nowrap;transition:color .15s;color:${MUTED}`, `${opt.displayName} ×${opt.multiplier}`);
     tile.append(dot, label);
 
     const ref: TileRef = { tile, dot, label, value: opt.value, color: opt.color, gradient: opt.gradient };

@@ -330,7 +330,7 @@ export function renderGardenPainterPresetsBar(
       tabBtn.remove();
       panel.remove();
       if (pendingDeleteTimer !== null) window.clearTimeout(pendingDeleteTimer);
-      for (const fn of cleanups) { try { fn(); } catch { /* */ } }
+      for (const fn of cleanups) { try { fn(); } catch { /* teardown — one cleanup's throw must not skip the rest */ } }
       cleanups.length = 0;
     },
   };

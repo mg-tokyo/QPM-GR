@@ -16,6 +16,7 @@ import {
 import { tapKey, cycleHotbar, deselectHotbarSlot } from './synthesis';
 import { initPetSlotAtoms, cyclePetSlot, isGrowSlotContextActive } from './controllerContext';
 import { toggleWindow } from '../../../ui/core/modalWindow';
+import { warnFeature } from './_diagnostics';
 
 // ---------------------------------------------------------------------------
 // Action handler — called by GamepadPoller on rising-edge button press
@@ -116,7 +117,7 @@ export async function initializeController(): Promise<ControllerRuntime> {
         import('../../../ui/sections/controllerSection').then(({ createControllerSection }) => {
           windowRoot.appendChild(createControllerSection(poller, cursor));
         }).catch((err) => {
-          console.error('[QPM Controller] Failed to load settings section', err);
+          warnFeature('QPM-FEATURE-004', { what: 'settingsSection:load' }, err);
         });
       },
       '580px',

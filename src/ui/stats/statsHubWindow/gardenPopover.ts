@@ -178,7 +178,7 @@ export function buildSlotDetailContent(tile: TileEntry, selectedMutations: strin
           }
         }
       }
-    } catch { /* ignore */ }
+    } catch { /* per-slot value + gain hint are best-effort — skip when sim math fails */ }
 
     row.appendChild(info);
     wrap.appendChild(row);

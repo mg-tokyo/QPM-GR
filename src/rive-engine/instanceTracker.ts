@@ -10,15 +10,29 @@ const instances = new Map<string, RiveInstance>();
 const rawToId = new WeakMap<object, string>();
 
 // ---------------------------------------------------------------------------
-// Tag inference (audit fix #2: uses artboardName, not riveFileSrc)
+// Tag inference — verified live 2026-07-15 against gg-preview-pr-3208-app.
+// Route by artboard name for known families, then by parent-label walk for
+// unnamed families (pet artboards are species names — 'Horse', 'Capybara',
+// etc. — and never contain 'pet'; avatar artboard is literally 'default').
 // ---------------------------------------------------------------------------
+
+const DECOR_ARTBOARDS_LOWER = new Set([
+  'woodwindmill', 'marblefountain', 'stonebirdbath', 'windspinner',
+  'windturner', 'cauldron', 'weatherstation',
+]);
 
 function inferTags(artboardName: string, raw: Record<string, unknown>): string[] {
   const tags: string[] = [];
   const name = artboardName.toLowerCase();
 
-  if (name.includes('avatar') || name.includes('avatarelements')) tags.push('avatar');
-  if (name.includes('pet') || name.includes('petz')) tags.push('pet');
+  if (DECOR_ARTBOARDS_LOWER.has(name)) {
+    tags.push('decor');
+    return tags;
+  }
+  if (name.includes('avatar')) {
+    tags.push('avatar');
+    return tags;
+  }
   if (name.includes('emote')) tags.push('emote');
   if (name.includes('currency') || name.includes('bread') || name.includes('donut')) {
     tags.push('currency');
@@ -27,13 +41,16 @@ function inferTags(artboardName: string, raw: Record<string, unknown>): string[]
   if (name.includes('giftbox')) tags.push('giftbox');
   if (name.includes('countdown')) tags.push('countdown');
   if (name.includes('loader')) tags.push('loader');
+  if (tags.length > 0) return tags;
 
-  const hasViewModel = resolvePrivateField<unknown>(
-    raw, 'viewModelInstance',
-    (v) => v != null && typeof v === 'object' && typeof (v as Record<string, unknown>).image === 'function',
-  );
-  if (hasViewModel && !tags.includes('avatar')) tags.push('avatar');
-
+  // Unnamed-family instances. Pet artboards are per-species names; avatar is
+  // 'default'. Distinguish via ancestor label — walkParentForAvatarOwner
+  // walks up looking for AvatarView/AvatarContainer.
+  if (walkParentForAvatarOwner(raw) !== null) {
+    tags.push('avatar');
+    return tags;
+  }
+  tags.push('pet');
   return tags;
 }
 

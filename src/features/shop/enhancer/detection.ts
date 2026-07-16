@@ -2,9 +2,7 @@
 // Detects shop modal open/close via activeModalAtom subscription.
 
 import { subscribeAtomValue } from '../../../core/atomRegistry';
-import { createLogger } from '../../../utils/logger';
-
-const log = createLogger('ShopEnhancer');
+import { diag, warnFeature } from './_diagnostics';
 import { visibleInterval, timerManager } from '../../../utils/scheduling/timerManager';
 import { ENHANCEABLE_SHOP_IDS, MODAL_TO_CATEGORY } from './types';
 import type { ShopCategory } from '../../../types/shops';
@@ -28,7 +26,7 @@ function handleModalChange(value: unknown): void {
   const modalId = typeof value === 'string' ? value : null;
   const isShop = modalId !== null && ENHANCEABLE_SHOP_IDS.has(modalId);
 
-  log(`[ShopEnhancer] Modal change: ${String(modalId)} (isShop=${isShop}, current=${currentModalId})`);
+  diag.debug(`Modal change: ${String(modalId)} (isShop=${isShop}, current=${currentModalId})`);
 
   if (isShop && modalId !== currentModalId) {
     currentModalId = modalId;
@@ -47,16 +45,16 @@ async function trySubscribe(): Promise<boolean> {
     const unsub = await subscribeAtomValue('activeModal', (value: unknown) => handleModalChange(value));
     if (!unsub) {
       if (retryCount % 10 === 0) {
-        log(`[ShopEnhancer] activeModalAtom not found (attempt ${retryCount}). This is normal — atom is only discoverable when a modal is open.`);
+        diag.debug(`activeModalAtom not found (attempt ${retryCount}). Atom is only discoverable when a modal is open.`);
       }
       return false;
     }
     modalAtomUnsub = unsub;
     timerManager.unregister(MODAL_RETRY_TIMER_ID);
-    log('[ShopEnhancer] Subscribed to activeModalAtom');
+    diag.debug('Subscribed to activeModalAtom');
     return true;
   } catch (err) {
-    log('[ShopEnhancer] Failed to subscribe to activeModalAtom', err);
+    warnFeature('QPM-FEATURE-003', { what: 'subscribe:activeModal' }, err);
     return false;
   }
 }
@@ -70,7 +68,7 @@ export function startDetection(openCb: ShopOpenCallback, closeCb: ShopCloseCallb
   onClose = closeCb;
   retryCount = 0;
 
-  log('[ShopEnhancer] Starting detection — attempting initial activeModalAtom lookup');
+  diag.debug('Starting detection — attempting initial activeModalAtom lookup');
 
   trySubscribe().then((ok) => {
     if (ok) return;

@@ -1,14 +1,26 @@
 // src/rive-engine/helpers.ts
 
-import { createLogger } from '../utils/logger';
+import { isVerboseLogsEnabled, writeShimConsole } from '../diagnostics/logger';
 import { pageWindow } from '../core/pageContext';
 import type { LowLevelRive, RiveImage, RiveEngineEventMap, RiveEngineListener } from './types';
 
-// ---------------------------------------------------------------------------
-// Logger (audit fix #9: moved from types.ts to avoid runtime dep in types)
-// ---------------------------------------------------------------------------
+// User-toggled debug tracer (settable via setRiveEngineDebug). Preserves the
+// (msg, ...args) + .enabled shape used across the folder; coded failure
+// paths route via _diagnostics.ts's warnRiveEngine instead. §1.3 debug-tracer
+// precedent (textureSwapper types.ts).
+interface DebugLogger {
+  (...args: unknown[]): void;
+  enabled: boolean;
+}
 
-export const riveLog = createLogger('QPM:RiveEngine', false);
+export const riveLog: DebugLogger = ((): DebugLogger => {
+  const shim = ((...args: unknown[]): void => {
+    if (!shim.enabled && !isVerboseLogsEnabled()) return;
+    writeShimConsole('QPM:RiveEngine', args);
+  }) as DebugLogger;
+  shim.enabled = false;
+  return shim;
+})();
 
 // ---------------------------------------------------------------------------
 // Image utilities

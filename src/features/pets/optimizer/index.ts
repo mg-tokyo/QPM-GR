@@ -1,4 +1,4 @@
-import { log } from '../../../utils/logger';
+import { publishOk } from './_diagnostics';
 import {
   getOptimizerConfig,
   loadOptimizerConfig,
@@ -53,5 +53,10 @@ export {
 
 export function startPetOptimizer(): void {
   loadOptimizerConfig();
-  log('Pet Optimizer initialized');
+  const cfg = getOptimizerConfig();
+  publishOk('Started', {
+    recommendationMode: cfg.recommendationMode,
+    selectedStrategy: cfg.selectedStrategy,
+    protectedPets: cfg.protectedPetIds.size,
+  });
 }

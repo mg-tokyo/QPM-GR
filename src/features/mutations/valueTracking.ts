@@ -3,8 +3,13 @@
 import { getAbilityHistorySnapshot } from '../../store/abilityLogs';
 import { storage } from '../../utils/storage';
 import { debounce } from '../../utils/scheduling/debounce';
-import { log } from '../../utils/logger';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
+import {
+  ensureValueTrackingBusRegistered,
+  publishValueTrackingOk,
+  valueDiag,
+  warnValueTrackingFeature,
+} from './_diagnostics';
 import { resetWeatherMutationTracking } from './weatherTracking';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, resolveGrantedMutationName } from '../pets/abilityValuation';
 import { calculateMutationValue } from '../../utils/mutationValueCalculator';
@@ -406,7 +411,7 @@ const scheduleSave = debounce(() => {
   try {
     storage.set(STORAGE_KEY, serializeSnapshot());
   } catch (error) {
-    console.error('[mutationValueTracking] Failed to save:', error);
+    warnValueTrackingFeature('QPM-FEATURE-004', { what: 'state:save' }, error);
   }
 }, SAVE_DEBOUNCE_MS);
 
@@ -458,7 +463,7 @@ function notifyListeners(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      console.error('[mutationValueTracking] Listener error:', error);
+      warnValueTrackingFeature('QPM-FEATURE-004', { what: 'listener:notify' }, error);
     }
   }
 }
@@ -467,12 +472,14 @@ export function initializeMutationValueTracking(): void {
   if (initialized) return;
   initialized = true;
 
+  ensureValueTrackingBusRegistered();
+
   try {
     const persisted = storage.get<PersistedSnapshot | null>(STORAGE_KEY, null);
     restoreSnapshot(persisted);
-    log('🔄 Mutation value tracking initialized - session data reset, tracking only current session');
+    valueDiag.debug('Initialized — session data reset, tracking only current session');
   } catch (error) {
-    console.error('[mutationValueTracking] Failed to restore:', error);
+    warnValueTrackingFeature('QPM-FEATURE-003', { what: 'state:restore' }, error);
   }
 
   lastAbilityEventCount = getTotalAbilityEventCount();
@@ -485,14 +492,16 @@ export function initializeMutationValueTracking(): void {
     lastAbilityEventCount = currentCount;
     recalculateStats();
   }, 10000);
+
+  publishValueTrackingOk('Started', { sessions: snapshot.sessions.length });
 }
 
 export function clearAllMutationValueHistory(): void {
   try {
     storage.remove(STORAGE_KEY);
-    log('🗑️ [MUTATION-VALUE] All history cleared from storage');
+    valueDiag.debug('All history cleared from storage');
   } catch (error) {
-    console.error('[mutationValueTracking] Failed to clear storage:', error);
+    warnValueTrackingFeature('QPM-FEATURE-004', { what: 'state:clear' }, error);
   }
 
   snapshot = {
@@ -582,10 +591,10 @@ export function resetMutationValueTracking(): void {
   try {
     storage.set(STORAGE_KEY, serializeSnapshot());
   } catch (error) {
-    console.error('[mutationValueTracking] Failed to save after reset:', error);
+    warnValueTrackingFeature('QPM-FEATURE-004', { what: 'state:save:afterReset' }, error);
   }
 
   notifyListeners();
 
-  log('✅ [MUTATION-VALUE] Reset complete - session stats cleared');
+  valueDiag.debug('Reset complete — session stats cleared');
 }

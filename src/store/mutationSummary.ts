@@ -1,7 +1,9 @@
 import { shareGlobal } from '../core/pageContext';
-import { log } from '../utils/logger';
 import type { WeatherType } from '../features/mutations/reminder';
 import { isDebugGlobalsEnabled } from '../utils/debugGlobals';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeMutationSummary', 'mutationSummary');
 
 export type MutationActiveWeather = Exclude<WeatherType, 'sunny' | 'unknown'>;
 
@@ -259,7 +261,7 @@ export function publishMutationSummary(source: MutationSummarySource, summary: M
 		try {
 			listener(envelope);
 		} catch (error) {
-			log('⚠️ Mutation summary listener error', error);
+			diag.warn('QPM-STORE-003', { phase: 'notify', source }, error);
 		}
 	}
 }
@@ -285,7 +287,7 @@ export function onMutationSummary(cb: MutationSummaryListener, fireImmediately =
 			try {
 				cb({ source, summary });
 			} catch (error) {
-				log('⚠️ Mutation summary immediate listener error', error);
+				diag.warn('QPM-STORE-003', { phase: 'notifyImmediate', source }, error);
 			}
 		}
 	}

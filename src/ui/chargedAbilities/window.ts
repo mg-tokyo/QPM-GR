@@ -1,12 +1,4 @@
-// src/ui/chargedAbilities/window.ts
-// Full "Charged Abilities" window — opened from the hub tile. Renders large
-// per-pet cards plus a hutch sidebar listing other charged-ability pets.
-//
-// Lifecycle:
-//   - openChargedAbilitiesWindow toggles a window via toggleWindow.
-//   - On open we subscribe to the selector + hutch atom and repaint in place.
-//   - The window owns its subscriptions; closeChargedAbilitiesWindow tears
-//     them down. The floating overlay is independent.
+// Window owns its subscriptions; closeChargedAbilitiesWindow tears them down. Floating overlay is independent.
 
 import { toggleWindow, isWindowOpen, closeWindow } from '../core/modalWindow';
 import { t } from '../../i18n';

@@ -171,7 +171,7 @@ export function buildTileCard(
             header.appendChild(makeWhenCompleteHint(gain));
           }
         }
-      } catch { /* ignore */ }
+      } catch { /* mutation gain hint is best-effort — skip hint when sim math fails */ }
     }
   }
 

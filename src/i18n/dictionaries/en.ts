@@ -1800,6 +1800,24 @@ const en: Dictionary = {
   'feature.chargedAbilities.close': 'Close',
   'feature.chargedAbilities.noActivePets': 'No charged-ability pets active. Mount a Thunder Wolf, Hedgehog, or Ostrich to use this panel.',
 
+  // ── Super Cleanser ─────────────────────────────────────────────────────────
+  'hub.garden.superCleanser.label': 'Super Cleanser',
+  'hub.garden.superCleanser.description': 'Cleanse every matching grow slot on a tile in one press',
+  'hub.garden.superCleanser.summary': 'One-press multi-slot cleanse with filters',
+  'feature.superCleanser.title': 'Super Cleanser',
+  'feature.superCleanser.close': 'Close',
+  'feature.superCleanser.active': 'Active',
+  'feature.superCleanser.off': 'Off',
+  'feature.superCleanser.enable': 'Super Cleanse',
+  'feature.superCleanser.autoOpen': 'Auto-open mini panel when holding Crop Cleanser',
+  'feature.superCleanser.filter': 'Filter',
+  'feature.superCleanser.mode.any': 'Any',
+  'feature.superCleanser.mode.all': 'All',
+  'feature.superCleanser.clearFilter': 'Clear filter',
+  'feature.superCleanser.cleansed': 'Cleansed {count} slots',
+  'feature.superCleanser.partial': 'Cleansed {sent} of {total} slots',
+  'feature.superCleanser.willCleanse': '{count} slots will cleanse',
+
   // ── Sprite Customiser promo (Blobling Customiser + Garden Painter footer) ──
   'feature.spriteCustomiserPromo.prefix': 'Download and edit assets further with',
 };

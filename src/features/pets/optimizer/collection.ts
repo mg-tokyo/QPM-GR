@@ -2,7 +2,7 @@ import { getAtomByLabel, readAtomValue } from '../../../core/jotaiBridge';
 import { getAbilityDefinition } from '../data/petAbilities';
 import { getActivePetInfos, type ActivePetInfo } from '../../../store/pets';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from '../../../store/xpTracker';
-import { log } from '../../../utils/logger';
+import { diag, warnFeature } from './_diagnostics';
 import { PET_LOCATION_PRIORITY } from './constants';
 import type { CollectedPet, PetLocation } from './types';
 
@@ -132,7 +132,7 @@ async function getInventoryPets(): Promise<CollectedPet[]> {
   try {
     const atom = getAtomByLabel('myInventoryAtom');
     if (!atom) {
-      log('Pet Optimizer: myInventoryAtom not found');
+      warnFeature('QPM-FEATURE-004', { what: 'inventory:atom_missing', atom: 'myInventoryAtom' });
       return [];
     }
 
@@ -153,7 +153,7 @@ async function getInventoryPets(): Promise<CollectedPet[]> {
 
     return pets;
   } catch (error) {
-    log('Pet Optimizer: Failed to get inventory pets:', error);
+    warnFeature('QPM-FEATURE-004', { what: 'inventory:read' }, error);
     return [];
   }
 }
@@ -162,7 +162,7 @@ async function getHutchPets(): Promise<CollectedPet[]> {
   try {
     const atom = getAtomByLabel('myPetHutchPetItemsAtom');
     if (!atom) {
-      log('Pet Optimizer: myPetHutchPetItemsAtom not found');
+      warnFeature('QPM-FEATURE-004', { what: 'hutch:atom_missing', atom: 'myPetHutchPetItemsAtom' });
       return [];
     }
 
@@ -180,7 +180,7 @@ async function getHutchPets(): Promise<CollectedPet[]> {
 
     return pets;
   } catch (error) {
-    log('Pet Optimizer: Failed to get hutch pets:', error);
+    warnFeature('QPM-FEATURE-004', { what: 'hutch:read' }, error);
     return [];
   }
 }
@@ -201,7 +201,7 @@ export async function collectAllPets(): Promise<CollectedPet[]> {
     const hutchPets = await getHutchPets();
     pets.push(...hutchPets);
   } catch (error) {
-    log('Pet Optimizer: Error during collection:', error);
+    warnFeature('QPM-FEATURE-003', { what: 'collectAllPets' }, error);
     throw error;
   }
 
@@ -255,7 +255,7 @@ export function dedupeCollectedPets(pets: CollectedPet[]): CollectedPet[] {
   const deduped = [...byIdentityKey.values()];
   if (deduped.length !== pets.length) {
     const removed = pets.length - deduped.length;
-    log(`[Pet Optimizer] Removed ${removed} duplicate pet entr${removed === 1 ? 'y' : 'ies'} by identity key`);
+    diag.debug(`Removed ${removed} duplicate pet entr${removed === 1 ? 'y' : 'ies'} by identity key`);
   }
   return deduped;
 }

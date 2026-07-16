@@ -1,6 +1,9 @@
 import { getInventoryItems, onInventoryChange } from '../../store/inventory';
 import { storage } from '../../utils/storage';
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import {
   playSound,
   playCustomSound,
@@ -8,6 +11,34 @@ import {
   stopLoop,
   isBuiltinSound,
 } from '../../ui/shop/restockAlerts/soundEngine';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:inventoryCapacity';
+const FEATURE_NAME = 'inventoryCapacity';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 export interface SoundAlertConfig {
   soundId: string;
@@ -126,7 +157,7 @@ const configListeners = new Set<ConfigListener>();
 function notifyConfigListeners(): void {
   const snapshot = { ...config };
   for (const listener of configListeners) {
-    try { listener(snapshot); } catch (err) { log('[InventoryCapacity] config listener error', err); }
+    try { listener(snapshot); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:config' }, err); }
   }
 }
 
@@ -147,7 +178,7 @@ export function updateInventoryCapacityConfig(patch: ConfigPatch): InventoryCapa
 
 export function subscribeToInventoryCapacityConfig(listener: ConfigListener): () => void {
   configListeners.add(listener);
-  try { listener(getInventoryCapacityConfig()); } catch (err) { log('[InventoryCapacity] config listener error', err); }
+  try { listener(getInventoryCapacityConfig()); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:config:initial' }, err); }
   return () => { configListeners.delete(listener); };
 }
 
@@ -224,7 +255,7 @@ function recompute(): void {
 function notifyStateListeners(): void {
   const snapshot = { ...currentState };
   for (const listener of stateListeners) {
-    try { listener(snapshot); } catch (err) { log('[InventoryCapacity] state listener error', err); }
+    try { listener(snapshot); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:state' }, err); }
   }
 }
 
@@ -234,7 +265,7 @@ export function getInventoryCapacityState(): InventoryCapacityState {
 
 export function onInventoryCapacityChange(listener: StateListener): () => void {
   stateListeners.add(listener);
-  try { listener(getInventoryCapacityState()); } catch (err) { log('[InventoryCapacity] state listener error', err); }
+  try { listener(getInventoryCapacityState()); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:state:initial' }, err); }
   return () => { stateListeners.delete(listener); };
 }
 
@@ -242,11 +273,17 @@ let unsubInventory: (() => void) | null = null;
 
 export function startInventoryCapacity(): void {
   if (unsubInventory) return;
+  ensureBusRegistered();
   config = loadConfig();
   // fireImmediately ensures recompute runs with current cache even if the
   // inventory atom already fired its initial value before this subscription.
   unsubInventory = onInventoryChange(() => recompute(), true);
-  log('[InventoryCapacity] started');
+  publishOk('Started', {
+    enabled: config.enabled ? 1 : 0,
+    warningThreshold: config.warningThreshold,
+    warningSound: config.warningSound ? 1 : 0,
+    fullSound: config.fullSound ? 1 : 0,
+  });
 }
 
 export function stopInventoryCapacity(): void {

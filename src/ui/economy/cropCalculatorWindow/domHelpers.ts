@@ -12,10 +12,7 @@ export const fullFmt = new Intl.NumberFormat('en-US');
 let dustUrlCache: string | null | undefined;
 function getDustSpriteUrl(): string | null {
   if (dustUrlCache !== undefined) return dustUrlCache;
-  dustUrlCache =
-    getAnySpriteDataUrl('sprite/item/MagicDust') ||
-    getAnySpriteDataUrl('item/MagicDust') ||
-    null;
+  dustUrlCache = getAnySpriteDataUrl('sprite/item/MagicDust') ?? null;
   return dustUrlCache;
 }
 

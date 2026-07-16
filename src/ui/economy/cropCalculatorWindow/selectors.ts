@@ -15,7 +15,7 @@ export function buildPlantSelector(
     'button',
     [
       'width:100%',
-      'padding:10px 14px',
+      'padding:8px 12px',
       'font-size:14px',
       'border-radius:8px',
       `border:1px solid ${BORDER_SUBTLE}`,
@@ -25,7 +25,7 @@ export function buildPlantSelector(
       'text-align:left',
       'display:flex',
       'align-items:center',
-      'gap:10px',
+      'gap:8px',
       'font-family:inherit',
     ].join(';'),
   );
@@ -33,7 +33,7 @@ export function buildPlantSelector(
 
   const btnIcon = el('img', 'width:28px;height:28px;object-fit:contain;image-rendering:pixelated;flex-shrink:0;');
   const btnLabel = el('span', 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;');
-  const btnPrice = el('span', 'display:flex;align-items:center;gap:3px;flex-shrink:0;white-space:nowrap;');
+  const btnPrice = el('span', 'display:flex;align-items:center;gap:2px;flex-shrink:0;white-space:nowrap;');
   const btnArrow = el('span', `color:${MUTED};flex-shrink:0;font-size:12px;`, '▼');
 
   btn.append(btnIcon, btnLabel, btnPrice, btnArrow);
@@ -48,7 +48,7 @@ export function buildPlantSelector(
       'right:0',
       'z-index:50',
       'margin-top:4px',
-      'background:rgba(18,20,26,0.98)',
+      'background:var(--qpm-surface-window)',
       `border:1px solid ${BORDER_ACTIVE}`,
       'border-radius:8px',
       'max-height:280px',
@@ -65,8 +65,7 @@ export function buildPlantSelector(
       'width:100%',
       'box-sizing:border-box',
       'padding:8px 12px',
-      'font-size:13px',
-      `border-bottom:1px solid ${BORDER_SUBTLE}`,
+      'font-size:12px',
       'border:none',
       `border-bottom:1px solid ${BORDER_SUBTLE}`,
       'background:transparent',
@@ -115,8 +114,8 @@ export function buildPlantSelector(
         [
           'display:flex',
           'align-items:center',
-          'gap:10px',
-          'padding:7px 12px',
+          'gap:8px',
+          'padding:8px 12px',
           'cursor:pointer',
           'transition:background 0.1s',
         ].join(';'),
@@ -132,9 +131,9 @@ export function buildPlantSelector(
         icon.style.display = 'none';
       }
 
-      const name = el('span', `flex:1;font-size:13px;color:${TEXT};`, plant.name);
-      const priceWrap = el('span', 'display:flex;align-items:center;gap:3px;flex-shrink:0;');
-      priceWrap.append(makeCoinIcon(14), el('span', `font-size:11px;color:${MUTED};`, fullFmt.format(plant.baseSellPrice)));
+      const name = el('span', `flex:1;font-size:12px;color:${TEXT};`, plant.name);
+      const priceWrap = el('span', 'display:flex;align-items:center;gap:2px;flex-shrink:0;');
+      priceWrap.append(makeCoinIcon(14), el('span', `font-size:12px;color:${MUTED};`, fullFmt.format(plant.baseSellPrice)));
 
       row.append(icon, name, priceWrap);
       row.addEventListener('click', () => {
@@ -200,7 +199,7 @@ export function buildPetSelector(
     'button',
     [
       'width:100%',
-      'padding:10px 14px',
+      'padding:8px 12px',
       'font-size:14px',
       'border-radius:8px',
       `border:1px solid ${BORDER_SUBTLE}`,
@@ -210,7 +209,7 @@ export function buildPetSelector(
       'text-align:left',
       'display:flex',
       'align-items:center',
-      'gap:10px',
+      'gap:8px',
       'font-family:inherit',
     ].join(';'),
   );
@@ -218,7 +217,7 @@ export function buildPetSelector(
 
   const btnIcon = el('img', 'width:28px;height:28px;object-fit:contain;image-rendering:pixelated;flex-shrink:0;');
   const btnLabel = el('span', 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;');
-  const btnPrice = el('span', 'display:flex;align-items:center;gap:3px;flex-shrink:0;white-space:nowrap;');
+  const btnPrice = el('span', 'display:flex;align-items:center;gap:2px;flex-shrink:0;white-space:nowrap;');
   const btnArrow = el('span', `color:${MUTED};flex-shrink:0;font-size:12px;`, '▼');
 
   btn.append(btnIcon, btnLabel, btnPrice, btnArrow);
@@ -233,7 +232,7 @@ export function buildPetSelector(
       'right:0',
       'z-index:50',
       'margin-top:4px',
-      'background:rgba(18,20,26,0.98)',
+      'background:var(--qpm-surface-window)',
       `border:1px solid ${BORDER_ACTIVE}`,
       'border-radius:8px',
       'max-height:280px',
@@ -250,7 +249,7 @@ export function buildPetSelector(
       'width:100%',
       'box-sizing:border-box',
       'padding:8px 12px',
-      'font-size:13px',
+      'font-size:12px',
       'border:none',
       `border-bottom:1px solid ${BORDER_SUBTLE}`,
       'background:transparent',
@@ -298,8 +297,8 @@ export function buildPetSelector(
         [
           'display:flex',
           'align-items:center',
-          'gap:10px',
-          'padding:7px 12px',
+          'gap:8px',
+          'padding:8px 12px',
           'cursor:pointer',
           'transition:background 0.1s',
         ].join(';'),
@@ -315,9 +314,9 @@ export function buildPetSelector(
         icon.style.display = 'none';
       }
 
-      const nameEl = el('span', `flex:1;font-size:13px;color:${TEXT};`, pet.name);
-      const priceWrap = el('span', 'display:flex;align-items:center;gap:3px;flex-shrink:0;');
-      priceWrap.append(makeCoinIcon(14), el('span', `font-size:11px;color:${MUTED};`, fullFmt.format(pet.maturitySellPrice)));
+      const nameEl = el('span', `flex:1;font-size:12px;color:${TEXT};`, pet.name);
+      const priceWrap = el('span', 'display:flex;align-items:center;gap:2px;flex-shrink:0;');
+      priceWrap.append(makeCoinIcon(14), el('span', `font-size:12px;color:${MUTED};`, fullFmt.format(pet.maturitySellPrice)));
       const rarityEl = el('span', `font-size:10px;color:${MUTED};flex-shrink:0;margin-left:4px;opacity:0.7;`, pet.rarity);
 
       row.append(icon, nameEl, priceWrap, rarityEl);

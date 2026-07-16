@@ -1,7 +1,3 @@
-// src/ui/chargedAbilities/optimalityIndicator.ts
-// Pill ("87% optimal" with hover tooltip) for sub-100% optimality, or a
-// shimmering "$ $ $" stamp for 100%. Coloured per ability yield kind.
-
 import { t } from '../../i18n';
 import type { OptimalityResult } from '../../features/chargedAbilities/types';
 import type { AbilityProjection } from '../../features/chargedAbilities/abilities/types';
@@ -50,10 +46,9 @@ export function renderOptimalityIndicator(
   pill.className = 'qpm-charged-abilities__optimal-partial';
   pill.textContent = t('feature.chargedAbilities.optimal.partial', { pct: result.pct });
 
-  // Tooltip is attached as a child of `wrap` (not document.body) so it
-  // cascades away when the panel rebuilds during a hover — otherwise the
-  // mouseleave event never fires and the tooltip orphans on document.body.
-  // position:fixed still anchors it to the viewport regardless of parent.
+  // Tooltip is a child of `wrap` (not document.body) so it's removed when the panel
+  // rebuilds mid-hover — otherwise mouseleave never fires and it orphans. position:fixed
+  // still anchors it to the viewport.
   let tooltip: HTMLElement | null = null;
 
   const showTooltip = (): void => {

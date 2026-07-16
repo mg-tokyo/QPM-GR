@@ -1,6 +1,3 @@
-// src/ui/chargedAbilities/cardHelpers.ts
-// Shared DOM builders for the Charged Abilities card surfaces (overlay + window).
-
 import { t } from '../../i18n';
 import { formatCoins } from '../../utils/formatters';
 import {

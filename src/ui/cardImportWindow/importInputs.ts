@@ -11,7 +11,7 @@
 // storage layer (500 KB soft warn, 2 MB hard refuse) but are enforced at the
 // import boundary so users see them before they save.
 
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import {
   PRESET_SIZE_SOFT_WARN_BYTES,
   PRESET_SIZE_HARD_LIMIT_BYTES,
@@ -163,7 +163,7 @@ export function createImportInputs(): ImportInputsHandle {
       });
       emit(null);
     } catch (err) {
-      log('[importInputs] file ingest failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'cardImport:fileIngest', mimeType: file.type }, err);
       emit(err instanceof Error ? err.message : 'File read failed.');
     }
   }
@@ -191,7 +191,7 @@ export function createImportInputs(): ImportInputsHandle {
       });
       emit(null);
     } catch (err) {
-      log('[importInputs] data URL ingest failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'cardImport:dataUrl' }, err);
       emit(err instanceof Error ? err.message : 'Could not decode data URL.');
     }
   }
@@ -213,7 +213,7 @@ export function createImportInputs(): ImportInputsHandle {
       });
       emit(null);
     } catch (err) {
-      log('[importInputs] URL ingest failed', err);
+      windowLog.warn('QPM-UI-002', { what: 'cardImport:urlIngest' }, err);
       emit(err instanceof Error ? err.message : 'Could not fetch image — try downloading and dropping it instead.');
     }
   }

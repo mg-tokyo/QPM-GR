@@ -3,6 +3,7 @@
 import type { PixiHooks } from './types';
 import { isDiscordSurface } from '../utils/environment';
 import { pageWindow, isIsolatedContext } from '../core/pageContext';
+import { spriteLog } from './diagnostics';
 
 /**
  * Get the page window context.
@@ -112,7 +113,7 @@ function hookCanvasGetContext(root: any): void {
       const ctx = origGetContext.apply(this, [type, ...args]);
       if (ctx && (type === 'webgl2' || type === 'webgl') && !capturedCanvases.includes(this)) {
         capturedCanvases.push(this);
-        console.log('[QPM PIXI] WebGL context created on canvas', this.width, 'x', this.height);
+        spriteLog('debug', 'pixi-hook-webgl-context', 'WebGL context created on canvas', { width: this.width, height: this.height });
       }
       return ctx;
     };
@@ -122,7 +123,7 @@ function hookCanvasGetContext(root: any): void {
       ? _exportFn(patchedGetContext, root) as typeof proto.getContext
       : patchedGetContext as typeof proto.getContext;
   } catch (err) {
-    console.warn('[QPM PIXI] Failed to hook getContext', err);
+    spriteLog('warn', 'pixi-hook-getcontext-failed', 'Failed to hook getContext', { error: String((err as Error)?.message ?? err) });
   }
 }
 
@@ -646,7 +647,7 @@ export function createPixiHooks(): PixiHooks {
 
   // Set up hooks on unsafeWindow (works on Firefox)
   hook('__PIXI_APP_INIT__', (a: any, v: any) => {
-    console.log('[QPM PIXI] __PIXI_APP_INIT__ fired!', { app: !!a, version: v });
+    spriteLog('debug', 'pixi-hook-app-init', '__PIXI_APP_INIT__ fired', { app: !!a, version: v });
     if (!a) return;
     const wasUnset = !APP;
     APP = a;
@@ -668,7 +669,7 @@ export function createPixiHooks(): PixiHooks {
   });
 
   hook('__PIXI_RENDERER_INIT__', (r: any, v: any) => {
-    console.log('[QPM PIXI] __PIXI_RENDERER_INIT__ fired!', { renderer: !!r, version: v });
+    spriteLog('debug', 'pixi-hook-renderer-init', '__PIXI_RENDERER_INIT__ fired', { renderer: !!r, version: v });
     if (!r) return;
     const wasUnset = !RDR;
     RDR = r;
@@ -683,7 +684,7 @@ export function createPixiHooks(): PixiHooks {
     } catch { /* ignore */ }
   });
 
-  console.log('[QPM PIXI] Hook setup:', {
+  spriteLog('debug', 'pixi-hook-setup', 'Hook setup', {
     isDiscord: isDiscordSurface,
     isolated: isIsolatedContext,
     hasExportFn: !!_exportFn,
@@ -704,7 +705,7 @@ export function createPixiHooks(): PixiHooks {
         // Check if PIXI set __PIXI_APP__ on the canvas (some builds do)
         const canvasAny = canvas as unknown as Record<string, unknown>;
         if (canvasAny.__PIXI_APP__ && (canvasAny.__PIXI_APP__ as any)?.stage) {
-          console.log('[QPM PIXI] Found app via canvas.__PIXI_APP__');
+          spriteLog('debug', 'pixi-hook-found-app', 'Found app via canvas.__PIXI_APP__');
           APP = canvasAny.__PIXI_APP__;
           PIXI_VER = (APP as any)?.renderer?.type === 2 ? '8.x' : '7.x';
           appResolver?.(APP);
@@ -728,7 +729,7 @@ export function createPixiHooks(): PixiHooks {
             if (val && typeof val === 'object') {
               const appCanvas = val.canvas || val.view;
               if (appCanvas === canvas && val.stage) {
-                console.log(`[QPM PIXI] Found app via root.${key}`);
+                spriteLog('debug', 'pixi-hook-found-app', 'Found app via root property', { key });
                 APP = val;
                 appResolver?.(APP);
                 if (val.renderer) { RDR = val.renderer; rdrResolver?.(RDR); }

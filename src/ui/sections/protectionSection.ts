@@ -2,7 +2,7 @@
 // Inventory Capacity and Reserve are now inside the Locker's Garden QOL tab.
 
 import { t } from '../../i18n';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 
 export function createProtectionSection(): { element: HTMLElement; cleanup: () => void } {
   const cleanups: Array<() => void> = [];
@@ -19,7 +19,7 @@ export function createProtectionSection(): { element: HTMLElement; cleanup: () =
       const { createLockerSection } = await import('../locker/lockerSection');
       locksContent.appendChild(createLockerSection());
     } catch (err) {
-      log('Failed to load Locker section', err);
+      windowLog.warn('QPM-UI-002', { what: 'protection:loadLocker' }, err);
       locksContent.textContent = `${t('common.loadError')}`;
     }
   })();

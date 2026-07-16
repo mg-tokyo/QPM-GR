@@ -1,6 +1,8 @@
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
 import { InventoryItem, readInventoryDirect } from './inventory';
-import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeSellSnapshot', 'sellSnapshot');
 
 const ACTION_ATOM_LABEL = 'actionAtom';
 const SELL_ALL_ACTION = 'sellAllCrops';
@@ -33,12 +35,12 @@ async function captureProduceSnapshot(): Promise<void> {
       try {
         fn({ items: [...lastProduceSnapshot], timestamp: lastCapturedAt! });
       } catch (error) {
-        log('⚠️ Sell snapshot listener error', error);
+        diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
       }
     });
-    log(`🧾 Captured produce snapshot before ${SELL_ALL_ACTION} (${lastProduceSnapshot.length} entries)`);
+    diag.log.debug(`Captured produce snapshot before ${SELL_ALL_ACTION}`, { entries: lastProduceSnapshot.length });
   } catch (error) {
-    log('⚠️ Failed to capture produce snapshot', error);
+    diag.warn('QPM-STORE-003', { phase: 'captureSnapshot' }, error);
   }
 }
 
@@ -46,10 +48,11 @@ export async function startSellSnapshotWatcher(): Promise<void> {
   if (unsubscribe || initializing) return;
 
   initializing = true;
+  diag.register('Starting sell snapshot watcher');
   try {
     const actionAtom = getAtomByLabel(ACTION_ATOM_LABEL);
     if (!actionAtom) {
-      log('⚠️ Sell snapshot watcher: actionAtom not found');
+      diag.warn('QPM-STORE-002', { atom: ACTION_ATOM_LABEL });
       initializing = false;
       return;
     }
@@ -61,9 +64,10 @@ export async function startSellSnapshotWatcher(): Promise<void> {
       }
     }, 'composite');
 
-    log('✅ Sell snapshot watcher initialized');
+    diag.log.debug('Sell snapshot watcher initialized');
+    diag.publishOk('Sell snapshot watcher ready');
   } catch (error) {
-    log('⚠️ Failed to initialize sell snapshot watcher', error);
+    diag.warn('QPM-STORE-001', { phase: 'init' }, error);
   } finally {
     initializing = false;
   }

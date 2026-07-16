@@ -6,7 +6,10 @@
  * ------------------
  * Production builds strip debugLabels, so label-based lookup always fails.
  *
- * quinoaEngineAtom: matched by QuinoaEngine shape (worldTextureCache + itemSpriteCache).
+ * quinoaEngineAtom: matched by QuinoaEngine shape (itemSpriteCache field +
+ *   systems Map). worldTextureCache was removed upstream in the pr-3208 bundle,
+ *   so the old two-cache predicate never matched in the current build. The
+ *   itemSpriteCache field + Map-typed systems combo is unique to QuinoaEngine.
  *   Used in 5+ React components → minOccurrences=3 safe, no false positives.
  *   Pet slot cycling traverses engine → systems Map → 'petSlots' → PetSlotsView.
  *
@@ -38,6 +41,7 @@ import {
 } from '../../../core/pixiScene';
 import { getGardenSnapshot } from '../../garden/bridge';
 import { isRecord } from '../../../utils/typeGuards';
+import { diag, warnFeature } from './_diagnostics';
 
 // ---------------------------------------------------------------------------
 // Atom label constants (work on dev / QPM-enriched builds)
@@ -64,16 +68,15 @@ const VALID_MODAL_VALUES = new Set([
 ]);
 
 /**
- * QuinoaEngine has public worldTextureCache and itemSpriteCache properties.
- * These two together are distinctive enough to avoid false positives.
+ * QuinoaEngine has a public itemSpriteCache field and a private-but-runtime-
+ * accessible `systems` Map. Both are initialized at construction time (class
+ * field initializers), so any live engine instance has both. The combination
+ * is unique — no other atom value in the game shares this shape.
  */
 function looksLikeQuinoaEngine(v: unknown): boolean {
-  return (
-    !!v &&
-    typeof v === 'object' &&
-    'worldTextureCache' in (v as object) &&
-    'itemSpriteCache' in (v as object)
-  );
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return 'itemSpriteCache' in o && o['systems'] instanceof Map;
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +291,7 @@ const DISCOVERY_POLL_MS    = 1_000;
  */
 export async function initPetSlotAtoms(): Promise<void> {
   const store = await ensureJotaiStore();
-  console.log('[QPM Controller] Jotai store connected.');
+  diag.debug('Jotai store connected');
 
   // Fast path: labels present (dev / QPM-enriched builds)
   tryLabelDiscovery();
@@ -298,7 +301,7 @@ export async function initPetSlotAtoms(): Promise<void> {
   tryScanEngineAtom();
 
   if (quinoaEngineAtom) {
-    console.log('[QPM Controller] Pet slot atoms ready (immediate scan).');
+    diag.debug('Pet slot atoms ready (immediate scan)');
     return;
   }
 
@@ -312,13 +315,15 @@ export async function initPetSlotAtoms(): Promise<void> {
       if (activeModalAtom) subscribeToModalAtom(store);
 
       if (quinoaEngineAtom) {
-        console.log('[QPM Controller] quinoaEngineAtom found.');
+        diag.debug('quinoaEngineAtom found');
         resolve();
         return;
       }
 
       if (Date.now() >= deadline) {
-        console.warn('[QPM Controller] Pet slot atom discovery timed out — RT/LT cycling disabled.');
+        // Non-degrading: engine atom absent (e.g. user on lobby/menu). cyclePetSlot
+        // re-scans on-demand and emits QPM-FEATURE-004 if actually invoked without it.
+        diag.debug('quinoaEngineAtom discovery deferred (background timeout)', { timeoutMs: DISCOVERY_TIMEOUT_MS });
         resolve();
         return;
       }
@@ -395,7 +400,7 @@ export async function cyclePetSlot(direction: 'next' | 'prev'): Promise<void> {
   tryScanEngineAtom();
 
   if (!quinoaEngineAtom) {
-    console.warn('[QPM Controller] RT/LT: game engine atom not yet discovered.');
+    warnFeature('QPM-FEATURE-004', { what: 'cyclePetSlot:engine_not_discovered' });
     return;
   }
 
@@ -404,13 +409,13 @@ export async function cyclePetSlot(direction: 'next' | 'prev'): Promise<void> {
     // quinoaEngineAtom is a primitive atom — store.get is safe (no side effects)
     const engine = store.get(quinoaEngineAtom);
     if (!engine || typeof engine !== 'object') {
-      console.warn('[QPM Controller] RT/LT: QuinoaEngine not yet initialized.');
+      warnFeature('QPM-FEATURE-004', { what: 'cyclePetSlot:engine_not_initialized' });
       return;
     }
 
     const view = findPetSlotsView(engine as Record<string, unknown>);
     if (!view) {
-      console.warn('[QPM Controller] RT/LT: PetSlotsView not accessible — property names may be mangled.');
+      warnFeature('QPM-FEATURE-004', { what: 'cyclePetSlot:view_not_accessible' });
       return;
     }
 
@@ -435,7 +440,7 @@ export async function cyclePetSlot(direction: 'next' | 'prev'): Promise<void> {
     const targetId = cycle[nextIdx];
 
     if (typeof view['handleItemSelect'] !== 'function') {
-      console.warn('[QPM Controller] RT/LT: handleItemSelect not accessible — property may be mangled.');
+      warnFeature('QPM-FEATURE-004', { what: 'cyclePetSlot:handler_not_accessible' });
       return;
     }
 
@@ -450,7 +455,7 @@ export async function cyclePetSlot(direction: 'next' | 'prev'): Promise<void> {
       handleItemSelect.call(view, targetId);
     }
   } catch (err) {
-    console.error('[QPM Controller] cyclePetSlot failed:', err);
+    warnFeature('QPM-FEATURE-004', { what: 'cyclePetSlot' }, err);
   }
 }
 

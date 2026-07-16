@@ -31,6 +31,7 @@ import {
 } from '../../../features/pets/foodRules';
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import type { PetItemFeedOverride } from '../../../types/petTeams';
+import { windowLog } from '../../core/modalWindow';
 import { btn, showToast, createKeybindButton, computeTeamScore, computePetScore } from './helpers';
 import { renderTeamSummaryBar, computeTeamAbilityPills } from './teamSummary';
 import type { ManagerContext } from './types';
@@ -263,7 +264,10 @@ export function renderEditor(ctx: ManagerContext): void {
         const summary = result.errorSummary ? `: ${result.errorSummary}` : '';
         showToast(t('feature.petsWindow.appliedWithErrors', { name: team.name, count: String(result.errors.length), summary }), 'error');
       }
-    } catch { showToast(t('feature.petsWindow.applyFailed'), 'error'); } finally {
+    } catch (err) {
+      windowLog.warn('QPM-UI-002', { what: 'petsTeam:apply' }, err);
+      showToast(t('feature.petsWindow.applyFailed'), 'error');
+    } finally {
       applyBtn.disabled = false;
       applyBtn.textContent = `\u25B6 ${t('feature.petsWindow.apply')}`;
       ctx.renderTeamList();

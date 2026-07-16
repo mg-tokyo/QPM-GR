@@ -1,5 +1,7 @@
 import { ensureJotaiStore, findAtomsByLabel, getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
-import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeUserSlots', 'userSlots');
 
 export interface UserSlotsInventorySnapshot {
   items: any[];
@@ -120,7 +122,7 @@ async function getUserSlotsAtom(): Promise<any | null> {
   }
 
   if (!atom && !userSlotsAtomNotFoundLogged) {
-    log('⚠️ Could not locate userSlotsAtom in jotai cache');
+    diag.warn('QPM-STORE-002', { atom: USER_SLOTS_ATOM_LABEL, phase: 'lookup' });
     userSlotsAtomNotFoundLogged = true;
   }
 
@@ -137,7 +139,7 @@ export async function readUserSlotsInventorySnapshot(): Promise<UserSlotsInvento
     jotaiStoreFailureLogged = false;
   } catch (error) {
     if (!jotaiStoreFailureLogged) {
-      log('⚠️ Unable to capture jotai store for userSlotsAtom', error);
+      diag.warn('QPM-STORE-001', { phase: 'ensureJotaiStore' }, error);
       jotaiStoreFailureLogged = true;
     }
     return null;
@@ -154,7 +156,7 @@ export async function readUserSlotsInventorySnapshot(): Promise<UserSlotsInvento
     userSlotsAccessFailureLogged = false;
   } catch (error) {
     if (!userSlotsAccessFailureLogged) {
-      log('⚠️ Failed reading userSlotsAtom', error);
+      diag.warn('QPM-STORE-002', { atom: USER_SLOTS_ATOM_LABEL, phase: 'read' }, error);
       userSlotsAccessFailureLogged = true;
     }
     return null;

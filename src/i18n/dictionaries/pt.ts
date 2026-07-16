@@ -369,6 +369,24 @@ const pt: Dictionary = {
   'feature.chargedAbilities.close': '[VERIFY] Close',
   'feature.chargedAbilities.noActivePets': '[VERIFY] No charged-ability pets active. Mount a Thunder Wolf, Hedgehog, or Ostrich to use this panel.',
 
+  // ── Super Cleanser ─────────────────────────────────────────────────────────
+  'hub.garden.superCleanser.label': '[VERIFY] Super Cleanser',
+  'hub.garden.superCleanser.description': '[VERIFY] Cleanse every matching grow slot on a tile in one press',
+  'hub.garden.superCleanser.summary': '[VERIFY] One-press multi-slot cleanse with filters',
+  'feature.superCleanser.title': '[VERIFY] Super Cleanser',
+  'feature.superCleanser.close': '[VERIFY] Close',
+  'feature.superCleanser.active': '[VERIFY] Active',
+  'feature.superCleanser.off': '[VERIFY] Off',
+  'feature.superCleanser.enable': '[VERIFY] Super Cleanse',
+  'feature.superCleanser.autoOpen': '[VERIFY] Auto-open mini panel when holding Crop Cleanser',
+  'feature.superCleanser.filter': '[VERIFY] Filter',
+  'feature.superCleanser.mode.any': '[VERIFY] Any',
+  'feature.superCleanser.mode.all': '[VERIFY] All',
+  'feature.superCleanser.clearFilter': '[VERIFY] Clear filter',
+  'feature.superCleanser.cleansed': '[VERIFY] Cleansed {count} slots',
+  'feature.superCleanser.partial': '[VERIFY] Cleansed {sent} of {total} slots',
+  'feature.superCleanser.willCleanse': '[VERIFY] {count} slots will cleanse',
+
   // ── Sprite Customiser promo (Blobling Customiser + Garden Painter footer) ──
   'feature.spriteCustomiserPromo.prefix': '[VERIFY] Download and edit assets further with',
 };

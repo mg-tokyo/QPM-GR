@@ -4,35 +4,25 @@
 import { fetchBundleContaining, markBundleConsumerDone } from './bundleParser';
 import { WEATHER_BLUEPRINT_MARKER, extractWeatherCatalogFromText } from './bundleTextParsing';
 import type { RuntimeWeatherCatalog } from './bundleTextParsing';
-import { readSharedGlobal } from '../../core/pageContext';
+import { createNamedLogger } from '../../diagnostics/logger';
 
 export type { RuntimeWeatherCatalog } from './bundleTextParsing';
+
+const log = createNamedLogger('catalogs');
 
 let weatherCatalogCache: RuntimeWeatherCatalog | null = null;
 let weatherCatalogInFlight: Promise<RuntimeWeatherCatalog | null> | null = null;
 
-function shouldDebug(): boolean {
-  try {
-    return (
-      readSharedGlobal('__QPM_DEBUG_WEATHER_CATALOG') === true ||
-      readSharedGlobal('__QPM_DEBUG_CATALOGS') === true ||
-      readSharedGlobal('__QPM_VERBOSE_LOGS') === true
-    );
-  } catch {
-    return false;
-  }
-}
-
 async function loadWeatherCatalogFromBundle(): Promise<RuntimeWeatherCatalog | null> {
   const bundleText = await fetchBundleContaining(WEATHER_BLUEPRINT_MARKER);
   if (!bundleText) {
-    if (shouldDebug()) console.log('[QPM Catalog] [WeatherCatalog] no loaded chunk contains the weather blueprint marker');
+    log.debug('weatherCatalog: no loaded chunk contains the weather blueprint marker');
     return null;
   }
 
   const catalog = extractWeatherCatalogFromText(bundleText);
-  if (!catalog && shouldDebug()) {
-    console.log('[QPM Catalog] [WeatherCatalog] blueprint chunk found but parse failed');
+  if (!catalog) {
+    log.debug('weatherCatalog: blueprint chunk found but parse failed');
   }
   return catalog;
 }

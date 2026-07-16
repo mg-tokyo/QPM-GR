@@ -1,7 +1,7 @@
 import { getMutationValueSnapshot, subscribeToMutationValueTracking } from '../../features/mutations/valueTracking';
 import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/mutations/weatherTracking';
 import { createCard, btn } from '../core/panelHelpers';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { t } from '../../i18n';
 import { watchDetach } from '../../utils/dom/dom';
 import type { UIState } from '../core/panelState';
@@ -20,7 +20,6 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
   info.appendChild(infoStrong);
   body.appendChild(info);
 
-  // Mutation Reminder Controls
   const reminderSection = document.createElement('div');
   reminderSection.style.cssText = 'margin-bottom:16px;padding:12px;background:#2a1a3a;border-radius:6px;border-left:3px solid #9C27B0;';
 
@@ -73,7 +72,7 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
       }, 2000);
     } catch (error) {
       checkBtn.textContent = `❌ ${t('feature.mutationValue.error')}`;
-      log('Error checking mutations:', error);
+      windowLog.warn('QPM-UI-002', { what: 'mutationValue:checkNow' }, error);
       setTimeout(() => {
         checkBtn.textContent = checkNowLabel;
         checkBtn.disabled = false;
@@ -113,7 +112,6 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     const stats = snapshot.stats;
     const weatherStats = weatherSnapshot.stats;
 
-    // Calculate total weather procs
     const totalWeatherProcs =
       weatherStats.wetCount +
       weatherStats.chilledCount +
@@ -132,7 +130,6 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
       weatherStats.amberlitPerHour +
       weatherStats.amberboundPerHour;
 
-    // Session Value Summary
     const sessionCard = document.createElement('div');
     sessionCard.style.cssText = 'padding:12px;background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(139,69,19,0.1));border-radius:6px;border-left:3px solid #FFD700;';
     sessionCard.innerHTML = `
@@ -142,7 +139,6 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     `;
     valueContainer.appendChild(sessionCard);
 
-    // Proc Rates Grid (2x2 layout)
     const ratesGrid = document.createElement('div');
     ratesGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
 
@@ -174,7 +170,6 @@ export function createMutationValueSection(cfg: any, saveCfg: () => void): HTMLE
     `;
     valueContainer.appendChild(ratesGrid);
 
-    // Best Records
     if (stats.bestSessionValue > 0 || stats.bestHourValue > 0) {
       const recordsCard = document.createElement('div');
       recordsCard.style.cssText = 'padding:10px;background:#1a1a2a;border-radius:6px;';
@@ -245,7 +240,6 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
     mToggle.classList.toggle('qpm-button--accent', cfg.mutationReminder.enabled);
     statusChip.textContent = cfg.mutationReminder.enabled ? t('common.enabled') : t('common.disabled');
     try {
-      // Actually enable/disable the mutation reminder system
       const { setMutationReminderEnabled } = await import('../../features/mutations/reminder');
       setMutationReminderEnabled(cfg.mutationReminder.enabled);
       saveCfg();
@@ -264,7 +258,6 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
   }
   body.appendChild(mToggle);
 
-  // Add "Check Now" button
   const checkNowLabel2 = `🔍 ${t('feature.mutationValue.checkNow')}`;
   const checkBtn = btn(checkNowLabel2, async () => {
     checkBtn.disabled = true;
@@ -279,7 +272,7 @@ export function createMutationSection(uiState: UIState, cfg: any, saveCfg: () =>
       }, 2000);
     } catch (error) {
       checkBtn.textContent = `❌ ${t('feature.mutationValue.error')}`;
-      log('Error checking mutations:', error);
+      windowLog.warn('QPM-UI-002', { what: 'mutationReminder:checkNow' }, error);
       setTimeout(() => {
         checkBtn.textContent = checkNowLabel2;
         checkBtn.disabled = false;

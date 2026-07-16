@@ -3,7 +3,6 @@
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../features/pets/data/petHungerCaps';
 import { getAbilityDefinition } from '../features/pets/data/petAbilities';
-import { log } from '../utils/logger';
 import { recordPetXP, estimatePetLevel } from './petLevelCalculator';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from './xpTracker';
 import { areCatalogsReady, onCatalogsReady } from '../catalogs/gameCatalogs';
@@ -904,7 +903,7 @@ export function onActivePetInfos(
     try {
       callback(cachedInfos);
     } catch (error) {
-      log('⚠️ Pet info immediate callback failed', error);
+      diag.warn('QPM-STORE-003', { phase: 'onActivePetInfo.immediate' }, error);
     }
   }
   return () => {

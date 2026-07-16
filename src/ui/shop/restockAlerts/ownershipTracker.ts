@@ -1,8 +1,8 @@
 // src/ui/shopRestockAlerts/ownershipTracker.ts
 // Inventory snapshot handling, ownership state machine, and confirmation tracking.
 
-import { log } from '../../../utils/logger';
 import { canonicalItemId } from '../../../utils/restock/dataService';
+import { warnFeature } from './_diagnostics';
 import type { InventoryData, InventoryItem } from '../../../store/inventory';
 import {
   ALERT_DEBUG_ENABLED,
@@ -135,7 +135,7 @@ export function onOwnershipChange(listener: () => void): () => void {
 
 export function notifyOwnershipChange(): void {
   for (const listener of Array.from(ownershipListeners)) {
-    try { listener(); } catch (error) { log('[ShopRestockAlerts] Ownership listener failed', error); }
+    try { listener(); } catch (error) { warnFeature('QPM-FEATURE-004', { what: 'listener:ownership' }, error); }
   }
 }
 

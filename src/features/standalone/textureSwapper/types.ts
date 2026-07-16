@@ -1,9 +1,57 @@
-import { createLogger } from '../../../utils/logger';
+import {
+  createNamedLogger,
+  isVerboseLogsEnabled,
+  writeShimConsole,
+} from '../../../diagnostics/logger';
+import { buildError } from '../../../diagnostics/result';
+import type { ErrorCode } from '../../../diagnostics/types';
 import type { SpriteService, SpriteCategory } from '../../../sprite-v2/types';
 
 export type { SpriteService, SpriteCategory };
 
-export const log = createLogger('QPM:TextureSwapper', false);
+// User-toggled debug tracer (settable from the texture-swapper UI). Preserves
+// the (msg, ...args) + .enabled shape used by ~16 downstream files in this
+// folder; migration to diag.debug is deferred to the follow-up 6.4 sub-batch.
+export interface DebugLogger {
+  (...args: unknown[]): void;
+  enabled: boolean;
+}
+
+function makeDebugLogger(prefix: string): DebugLogger {
+  const shim = ((...args: unknown[]): void => {
+    if (!shim.enabled && !isVerboseLogsEnabled()) return;
+    writeShimConsole(prefix, args);
+  }) as DebugLogger;
+  shim.enabled = false;
+  return shim;
+}
+
+export const log: DebugLogger = makeDebugLogger('QPM:TextureSwapper');
+
+// Named logger for coded failure paths (QPM-TEXTURESWAP-*). TEXTURESWAP codes
+// declare subsystem: 'feature' as a placeholder; the helpers below override
+// to 'feature:textureSwapper' so the bus row lands under this feature.
+export const diag = createNamedLogger('feature:textureSwapper');
+
+const FEATURE_SUBSYSTEM = 'feature:textureSwapper';
+
+export function warnFeature(
+  code: ErrorCode,
+  context?: Record<string, unknown>,
+  cause?: unknown,
+): void {
+  const err = buildError(code, context, cause);
+  diag.warn({ ...err, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
+
+export function errorFeature(
+  code: ErrorCode,
+  context?: Record<string, unknown>,
+  cause?: unknown,
+): void {
+  const err = buildError(code, context, cause);
+  diag.error({ ...err, subsystem: FEATURE_SUBSYSTEM, severity: 'error' });
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -41,6 +89,14 @@ export const KNOWN_MUTATION_ALIASES: Record<string, string> = {
 // Types
 // ---------------------------------------------------------------------------
 
+export type RiveOverrides = {
+  artboardName?: string;
+  boolInputs?: Record<string, boolean>;
+  numberInputs?: Record<string, number>;
+  colorInputs?: Record<string, string>;
+  animationState?: string;
+};
+
 export interface TextureOverrideRule {
   id: string;
   enabled: boolean;
@@ -49,6 +105,19 @@ export interface TextureOverrideRule {
   displayLabel: string;
   mutationBehavior?: 'preserve' | 'replace';
   cosmeticMutations?: string[];
+  /**
+   * Reserved for the follow-up plan's Rive artboard-control work. Round-tripped
+   * through storage today so rules created after the follow-up ships load
+   * cleanly on older builds. Not read anywhere in the current codebase.
+   */
+  riveOverrides?: RiveOverrides;
+  /**
+   * Auto-stamped when a rule targets a category outside the regular-user
+   * allowlist (plant, tallplant, crop, pet, decor, item, seed). Purely
+   * informational for now — future editor UX may hide the edit affordance
+   * for these when dev-mode is off.
+   */
+  devOnly?: true;
   /**
    * When true, render matched sprites without any mutation overlay,
    * overriding the live game mutation state. Mutually exclusive with

@@ -1,7 +1,9 @@
 // Watches pet ability triggers (myPetSlotInfosAtom) to expose live proc history.
 
 import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
-import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeAbilityLogs', 'abilityLogs');
 
 const ABILITY_SOURCE_LABEL = 'myPetSlotInfosAtom';
 const HISTORY_LIMIT = 30;
@@ -111,7 +113,7 @@ const notify = () => {
     try {
       listener(snapshot);
     } catch (error) {
-      log('⚠️ Ability history listener failed', error);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
   }
 };
@@ -253,9 +255,12 @@ export async function startAbilityTriggerStore(): Promise<void> {
   if (started) return;
   started = true;
 
+  diag.register('Subscribing to myPetSlotInfosAtom');
+
   const atom = getAtomByLabel(ABILITY_SOURCE_LABEL);
   if (!atom) {
     started = false;
+    diag.warn('QPM-STORE-002', { atom: ABILITY_SOURCE_LABEL });
     throw new Error('myPetSlotInfosAtom not available');
   }
 
@@ -264,14 +269,17 @@ export async function startAbilityTriggerStore(): Promise<void> {
       try {
         processAbilitySource(value);
       } catch (error) {
-        log('⚠️ Failed processing ability triggers', error);
+        diag.warn('QPM-STORE-003', { phase: 'processAbilitySource' }, error);
       }
     });
   } catch (error) {
     started = false;
     unsubscribe = null;
+    diag.error('QPM-STORE-001', { phase: 'subscribe' }, error);
     throw error;
   }
+
+  diag.publishOk('Ability triggers store started');
 }
 
 export function stopAbilityTriggerStore(): void {

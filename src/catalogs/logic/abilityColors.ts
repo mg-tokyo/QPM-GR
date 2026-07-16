@@ -2,7 +2,9 @@
 // Ability color extraction from game bundle (Gemini-style).
 
 import { fetchBundleContaining, findAllIndices, extractBalancedBlock, markBundleConsumerDone } from './bundleParser';
-import { readSharedGlobal } from '../../core/pageContext';
+import { createNamedLogger } from '../../diagnostics/logger';
+
+const log = createNamedLogger('catalogs');
 
 export interface RuntimeAbilityColor {
   bg: string;
@@ -18,14 +20,6 @@ const ABILITY_COLOR_ANCHOR = 'ProduceScaleBoost';
 
 let abilityColorMapCache: Record<string, RuntimeAbilityColor> | null = null;
 let abilityColorMapInFlight: Promise<Record<string, RuntimeAbilityColor> | null> | null = null;
-
-function shouldDebug(): boolean {
-  try {
-    return readSharedGlobal('__QPM_DEBUG_ABILITY_COLORS') === true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Extract the switch block containing ability colors.
@@ -192,13 +186,13 @@ async function loadAbilityColorsFromBundle(): Promise<Record<string, RuntimeAbil
 
   const switchBlock = findAbilityColorSwitchBlock(bundleText);
   if (!switchBlock) {
-    if (shouldDebug()) console.log('[QPM Catalog] [AbilityColors] switch block not found');
+    log.debug('abilityColors: switch block not found');
     return null;
   }
 
   const map = parseAbilityColorsFromSwitch(switchBlock) || parseAbilityColorsFromSimpleSwitch(switchBlock);
-  if (!map && shouldDebug()) console.log('[QPM Catalog] [AbilityColors] switch block found but parse failed');
-  if (map && shouldDebug()) console.log('[QPM Catalog] [AbilityColors] parsed ability color map', { count: Object.keys(map).length });
+  if (!map) log.debug('abilityColors: switch block found but parse failed');
+  if (map) log.debug('abilityColors: parsed ability color map', { count: Object.keys(map).length });
   return map;
 }
 

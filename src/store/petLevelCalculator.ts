@@ -1,6 +1,8 @@
 import { getTimeToMatureSeconds } from '../features/pets/data/petTimeToMature';
-import { log } from '../utils/logger';
+import { createNamedLogger } from '../diagnostics/logger';
 import type { ActivePetInfo } from './pets';
+
+const log = createNamedLogger('storePetLevelCalculator');
 
 interface XPSnapshot {
   xp: number;
@@ -93,7 +95,7 @@ export function estimatePetLevel(pet: ActivePetInfo): LevelEstimate {
   if (!timeToMatureSeconds) {
     if (pet.species && !warnedSpecies.has(pet.species)) {
       warnedSpecies.add(pet.species);
-      log(`⚠️ No time-to-mature data for species: ${pet.species}`);
+      log.debug('No time-to-mature data for species', { species: pet.species });
     }
     return { ...defaultResult, xpGainRate };
   }

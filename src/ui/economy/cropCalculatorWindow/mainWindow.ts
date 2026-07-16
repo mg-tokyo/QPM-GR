@@ -16,7 +16,7 @@ export function renderCalculator(root: HTMLElement): void {
   if (!areCatalogsReady()) {
     const placeholder = el(
       'div',
-      `text-align:center;color:${MUTED};font-size:13px;padding:40px 20px;`,
+      `text-align:center;color:${MUTED};font-size:12px;padding:24px 16px;`,
       t('feature.cropCalc.waitingForData'),
     );
     root.appendChild(placeholder);

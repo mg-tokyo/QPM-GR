@@ -3,6 +3,9 @@
 // Consolidates patterns from gardenFilters, bulkFavorite, and universalProbe.
 
 import { pageWindow } from './pageContext';
+import { healthBus } from '../diagnostics/healthBus';
+import type { Subsystem } from '../diagnostics/types';
+import { visibleInterval } from '../utils/scheduling/timerManager';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,6 +59,44 @@ function isObject(value: unknown): value is Record<string, unknown> {
 // ---------------------------------------------------------------------------
 // Scene Access
 // ---------------------------------------------------------------------------
+
+// Row 6.23 — register the pixiScene subsystem on the health bus so PIXI-runtime
+// readiness surfaces in Diagnostics. Starts as `starting`, polls the shared
+// capture until `getPixiRuntime().ready`, publishes `ok` with the runtime shape
+// and stops polling. Idempotent. Uses visibleInterval so a hidden tab doesn't
+// waste ticks on readiness checks.
+const PIXI_SUBSYSTEM: Subsystem = 'pixiScene';
+let pixiBusRegistered = false;
+export function startPixiSceneDiagnostics(): void {
+  if (pixiBusRegistered) return;
+  pixiBusRegistered = true;
+  healthBus.register(PIXI_SUBSYSTEM, {
+    category: 'core',
+    status: 'starting',
+    message: 'Awaiting PIXI capture',
+  });
+  const publishIfReady = (): boolean => {
+    const rt = getPixiRuntime();
+    if (!rt.ready) return false;
+    healthBus.publish({
+      subsystem: PIXI_SUBSYSTEM,
+      category: 'core',
+      status: 'ok',
+      message: 'PIXI runtime ready',
+      metrics: {
+        hasApp: rt.app ? 1 : 0,
+        hasRenderer: rt.renderer ? 1 : 0,
+        hasStage: rt.stage ? 1 : 0,
+        hasCanvas: rt.canvas ? 1 : 0,
+      },
+    });
+    return true;
+  };
+  if (publishIfReady()) return;
+  const stop = visibleInterval('qpm-pixi-scene-ready', () => {
+    if (publishIfReady()) stop();
+  }, 500);
+}
 
 /** Get the captured PIXI app, renderer, stage, and canvas. */
 export function getPixiRuntime(): PixiRuntime {

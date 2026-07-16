@@ -5,7 +5,9 @@ import { subscribeAtomValue } from '../core/atomRegistry';
 import { getStatsSnapshot, type ShopCategoryKey } from './stats';
 import { visibleInterval } from '../utils/scheduling/timerManager';
 import { onActionSent, type RoomActionType } from '../websocket/api';
-import { log } from '../utils/logger';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeEconomyTracker', 'economyTracker');
 
 export interface CurrencySnapshot {
   balance: number;
@@ -239,7 +241,7 @@ function notifyListeners(): void {
   if (listeners.size === 0) return;
   const snapshot = buildSnapshot();
   for (const cb of listeners) {
-    try { cb(snapshot); } catch { /* ignore */ }
+    try { cb(snapshot); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notify' }, error); }
   }
 }
 
@@ -250,13 +252,14 @@ export function getEconomySnapshot(): EconomySnapshot {
 export function subscribeEconomy(cb: (s: EconomySnapshot) => void): () => void {
   listeners.add(cb);
   // Immediate call with current state
-  try { cb(buildSnapshot()); } catch { /* ignore */ }
+  try { cb(buildSnapshot()); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notifyImmediate' }, error); }
   return () => { listeners.delete(cb); };
 }
 
 export async function initEconomyTracker(): Promise<void> {
   if (initialized) return;
   initialized = true;
+  diag.register('Starting economy tracker');
 
   // Hook into WS sends for transaction context (sell/purchase tracking)
   const unsubActions = onActionSent((type, payload) => {
@@ -280,7 +283,7 @@ export async function initEconomyTracker(): Promise<void> {
       notifyListeners();
     });
     if (unsubCoins) cleanups.push(unsubCoins);
-  } catch { log('[EconomyTracker] coinsBalance atom not found — balance unavailable'); }
+  } catch (error) { diag.warn('QPM-STORE-002', { atom: 'coinsBalance' }, error); }
 
   try {
     const unsubCredits = await subscribeAtomValue('creditsBalance', (v) => {
@@ -293,7 +296,7 @@ export async function initEconomyTracker(): Promise<void> {
       notifyListeners();
     });
     if (unsubCredits) cleanups.push(unsubCredits);
-  } catch { log('[EconomyTracker] creditsBalance atom not found'); }
+  } catch (error) { diag.warn('QPM-STORE-002', { atom: 'creditsBalance' }, error); }
 
   try {
     const unsubDust = await subscribeAtomValue('magicDustBalance', (v) => {
@@ -307,7 +310,7 @@ export async function initEconomyTracker(): Promise<void> {
       notifyListeners();
     });
     if (unsubDust) cleanups.push(unsubDust);
-  } catch { log('[EconomyTracker] magicDustBalance atom not found'); }
+  } catch (error) { diag.warn('QPM-STORE-002', { atom: 'magicDustBalance' }, error); }
 
   // Periodic sampling as a floor — ensures rate doesn't stall during idle periods
   const stopSampler = visibleInterval('economy-tracker-sampler', () => {
@@ -320,6 +323,12 @@ export async function initEconomyTracker(): Promise<void> {
   // Initial samples taken after atom subscriptions fire (balance may already be set)
   pushSample(coinSamples, coinsBalance);
   pushSample(dustSamples, dustBalance);
+
+  diag.publishOk('Economy tracker ready', {
+    coins: coinsConnected ? 1 : 0,
+    credits: creditsConnected ? 1 : 0,
+    dust: dustConnected ? 1 : 0,
+  });
 }
 
 export function destroyEconomyTracker(): void {

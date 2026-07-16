@@ -1,8 +1,10 @@
 import { storage, getStorageRuntime, registerDynamicKey } from '../../utils/storage';
-import { log } from '../../utils/logger';
 import { dispatchCustomEventAll } from '../../core/pageContext';
 import { getPlayerId } from '../../core/playerContext';
 import type { PetTeamsConfig, PetFeedPolicy } from '../../types/petTeams';
+import { createStoreDiagnostics } from '../_storeDiagnostics';
+
+export const diag = createStoreDiagnostics('storePetTeams', 'petTeams');
 
 export const CONFIG_KEY = 'qpm.petTeams.config.v1';
 export const FEED_POLICY_KEY = 'qpm.petTeams.feedPolicy.v1';
@@ -38,7 +40,7 @@ export const store = {
 };
 
 export function saveConfig(): void {
-  log(`[PetTeams:Save] key=${store.resolvedConfigKey} teams=${store.config.teams.length} slots=${countFilledSlots(store.config)} runtime=${getStorageRuntime()}`);
+  diag.log.debug(`save key=${store.resolvedConfigKey} teams=${store.config.teams.length} slots=${countFilledSlots(store.config)} runtime=${getStorageRuntime()}`);
   storage.set(store.resolvedConfigKey, store.config);
   // Mirror to unscoped key so a fresh install can load teams before resolvePlayerKeyAndMigrate resolves the player ID.
   if (store.resolvedConfigKey !== CONFIG_KEY) {
@@ -46,7 +48,12 @@ export function saveConfig(): void {
   }
   const readback = storage.get<PetTeamsConfig | null>(store.resolvedConfigKey, null);
   if (!readback || readback.teams.length !== store.config.teams.length) {
-    log(`[PetTeams:Save] !! READBACK MISMATCH: wrote ${store.config.teams.length} teams, read back ${readback?.teams.length ?? 'null'}`);
+    diag.warn('QPM-STORE-004', {
+      what: 'config',
+      key: store.resolvedConfigKey,
+      wrote: store.config.teams.length,
+      readBack: readback?.teams.length ?? null,
+    });
   }
   notifyConfigListeners();
 }
@@ -70,7 +77,7 @@ export function notifyConfigListeners(): void {
     keybinds: { ...store.config.keybinds },
   };
   for (const listener of store.configListeners) {
-    try { listener(snapshot); } catch (error) { log('[petTeams] config listener threw', error); }
+    try { listener(snapshot); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notifyConfigListeners' }, error); }
   }
 }
 
@@ -79,7 +86,7 @@ export async function resolveCurrentPlayerId(): Promise<string | null> {
 }
 
 /** Count non-null slot entries across all teams — used to compare configs. */
-function countFilledSlots(config: PetTeamsConfig): number {
+export function countFilledSlots(config: PetTeamsConfig): number {
   let count = 0;
   for (const team of config.teams) {
     if (!Array.isArray(team.slots)) continue;
@@ -93,7 +100,7 @@ function countFilledSlots(config: PetTeamsConfig): number {
 export async function resolvePlayerKeyAndMigrate(): Promise<void> {
   const playerId = await resolveCurrentPlayerId();
   if (!playerId) {
-    log('[PetTeams] Player ID unavailable — using unscoped storage key');
+    diag.log.debug('player id unavailable — using unscoped storage key');
     return;
   }
   store.initPlayerId = playerId;
@@ -104,7 +111,7 @@ export async function resolvePlayerKeyAndMigrate(): Promise<void> {
   if (existingScoped === null) {
     if (store.config.teams.length > 0) {
       storage.set(scopedConfigKey, store.config);
-      log(`[PetTeams] Migrated ${store.config.teams.length} team(s) to player-scoped key`);
+      diag.log.debug(`migrated ${store.config.teams.length} team(s) to player-scoped key`);
     }
   } else {
     // Reconcile with unscoped config — more filled slots there means it was updated while the player ID was unavailable.
@@ -112,12 +119,12 @@ export async function resolvePlayerKeyAndMigrate(): Promise<void> {
     const scopedSlots = countFilledSlots(existingScoped);
 
     if (unscopedSlots > scopedSlots) {
-      log(`[PetTeams] Unscoped config has more data (${unscopedSlots} vs ${scopedSlots} filled slots) — keeping unscoped`);
+      diag.log.debug(`unscoped config has more data (${unscopedSlots} vs ${scopedSlots} filled slots) — keeping unscoped`);
       storage.set(scopedConfigKey, store.config);
     } else {
       store.config = existingScoped;
       notifyConfigListeners();
-      log(`[PetTeams] Loaded player-scoped config (${store.config.teams.length} team(s), ${scopedSlots} filled slots)`);
+      diag.log.debug(`loaded player-scoped config (${store.config.teams.length} team(s), ${scopedSlots} filled slots)`);
     }
   }
 

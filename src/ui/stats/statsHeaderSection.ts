@@ -1,7 +1,7 @@
 // src/ui/sections/statsHeaderSection.ts — Dashboard stats header section
 import { type UIState } from "../core/panelState";
 import { btn, showToast } from "../core/panelHelpers";
-import { log } from "../../utils/logger";
+import { windowLog } from "../core/modalWindow";
 import { t } from "../../i18n";
 import { getCropSpriteDataUrl } from "../../sprite-v2/compat";
 import {
@@ -313,7 +313,7 @@ function buildShopRestockSection(): HTMLElement {
   fetchRestockData(false)
     .then((items) => updateCards(items))
     .catch((err) => {
-      log("⚠️ [Dashboard] Failed to load restock data", err);
+      windowLog.warn('QPM-UI-002', { what: 'statsHeader:dashRestock' }, err);
     });
 
   return section;
@@ -369,7 +369,7 @@ function buildSettingsRow(): HTMLElement {
       downloadBackup();
       showToast(t('panel.footer.exportToast'));
     } catch (err) {
-      log("Export failed", err);
+      windowLog.warn('QPM-UI-002', { what: 'statsHeader:settings:export' }, err);
       showToast(t('panel.footer.exportFailed'));
     }
   });
@@ -394,12 +394,12 @@ function buildSettingsRow(): HTMLElement {
         const result = await importFromFile(file);
         if (result.ok) {
           showToast(t('feature.statsHeader.importSuccess', { count: String(result.keysWritten) }));
-          if (result.warnings.length) log("Import warnings:", result.warnings);
+          if (result.warnings.length) windowLog.debug('Import warnings', { warnings: result.warnings });
         } else {
           showToast(t('panel.footer.importError', { reason: result.warnings[0] ?? t('window.lazy.unknownError') }));
         }
       } catch (err) {
-        log("Import failed", err);
+        windowLog.warn('QPM-UI-002', { what: 'statsHeader:settings:import' }, err);
         showToast(t('panel.footer.importFailed'));
       }
     });

@@ -1,4 +1,5 @@
 import { getAtomByLabel } from '../../../core/jotaiBridge';
+import { warnFeature } from './_diagnostics';
 import type { ActivityLogEntry, OrderFilter } from './types';
 import { S } from './state';
 import {
@@ -127,7 +128,8 @@ export function installMyDataReadPatch(): boolean {
     S.patchedMyDataReadOriginal = original as (...args: unknown[]) => unknown;
     S.replayMode = 'read_patch';
     return true;
-  } catch {
+  } catch (error) {
+    warnFeature('QPM-FEATURE-003', { what: 'patch:install' }, error);
     uninstallMyDataReadPatch();
     return false;
   }

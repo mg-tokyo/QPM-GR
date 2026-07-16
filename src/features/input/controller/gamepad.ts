@@ -18,6 +18,7 @@ import { detectProfile, type ControllerProfile } from './controller-profile';
 import { snapCursorToNearest } from './navigation';
 import { getPixiInteractives } from './controllerContext';
 import type { Action } from './bindings';
+import { diag } from './_diagnostics';
 
 export type ActionHandler = (action: Action) => void;
 export type ProfileChangeHandler = (profile: ControllerProfile | null) => void;
@@ -134,7 +135,7 @@ export class GamepadPoller {
     // Snapshot the initial button state so a button that arrives already
     // "pressed" (stuck HID state on connect) does not count as a rising edge.
     this.candidatePrevButtons.set(gp.index, gp.buttons.map(b => b.pressed));
-    console.log(`[QPM Controller] Gamepad detected (awaiting input): ${gp.id}`);
+    diag.debug('Gamepad detected (awaiting input)', { id: gp.id });
   }
 
   private onConnect = (ev: GamepadEvent): void => {
@@ -152,7 +153,7 @@ export class GamepadPoller {
       this.prevDpad.clear();
       releaseAllDirectionKeys();
       this.onProfileChange(null);
-      console.log(`[QPM Controller] Active gamepad disconnected: ${ev.gamepad.id}`);
+      diag.debug('Active gamepad disconnected', { id: ev.gamepad.id });
     }
   };
 
@@ -185,7 +186,7 @@ export class GamepadPoller {
     this.candidatePrevButtons.delete(gp.index);
     this.currentProfile = detectProfile(gp);
     this.onProfileChange(this.currentProfile);
-    console.log(`[QPM Controller] Gamepad active: ${gp.id}`);
+    diag.debug('Gamepad active', { id: gp.id });
   }
 
   private scheduleFrame(): void {

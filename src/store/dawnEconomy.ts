@@ -2,9 +2,11 @@
 // Dawn purchases already flow through recordShopPurchase() via ShopCategoryKey 'dawn'.
 // This module adds session-scoped Dawn spend/harvest aggregation.
 
-import { log } from '../utils/logger';
 import { subscribeToStats, type StatsSnapshot } from './stats';
 import { onWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storeDawnEconomy', 'dawnEconomy');
 
 export interface DawnEconomySnapshot {
   /** Coins spent on Dawn Shop purchases this session */
@@ -69,7 +71,7 @@ function emit(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      log('[DawnEconomy] listener error', error);
+      diag.warn('QPM-STORE-003', { phase: 'notify' }, error);
     }
   }
 }
@@ -96,6 +98,7 @@ export function initDawnEconomy(): void {
   if (initialized) return;
   initialized = true;
   sessionStart = Date.now();
+  diag.register('Starting dawn economy tracker');
 
   statsUnsubscribe = subscribeToStats((stats) => {
     // Capture baseline on first stats snapshot
@@ -108,7 +111,8 @@ export function initDawnEconomy(): void {
   });
 
   weatherUnsubscribe = onWeatherSnapshot(handleWeather, true);
-  log('[DawnEconomy] Initialized');
+  diag.log.debug('Dawn economy initialized');
+  diag.publishOk('Dawn economy ready');
 }
 
 export function destroyDawnEconomy(): void {
@@ -132,7 +136,7 @@ export function subscribeDawnEconomy(listener: (snapshot: DawnEconomySnapshot) =
     try {
       listener(buildSnapshot());
     } catch (error) {
-      log('[DawnEconomy] immediate listener error', error);
+      diag.warn('QPM-STORE-003', { phase: 'notifyImmediate' }, error);
     }
   }
   return () => { listeners.delete(listener); };

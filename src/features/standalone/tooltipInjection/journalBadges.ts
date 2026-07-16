@@ -5,7 +5,7 @@
 import { getJournal, type Journal } from '../../journal/checker';
 import { VARIANT_BADGES } from '../../mutations/data/variantBadges';
 import { storage } from '../../../utils/storage';
-import { log } from '../../../utils/logger';
+import { warnFeature } from './_diagnostics';
 import { resolveCurrentSlot } from './atoms';
 import { normalizeAriesValueIcons, getAriesValueRow } from './ariesCompat';
 import {
@@ -141,7 +141,7 @@ async function getUnloggedVariantBadges(species: string): Promise<VariantBadge[]
 
     return unloggedBadges;
   } catch (error) {
-    log('[JournalBadges] Error checking journal for crop variants:', error);
+    warnFeature('QPM-FEATURE-004', { what: 'journal:variants', species }, error);
     return [];
   }
 }

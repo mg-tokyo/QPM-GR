@@ -1,4 +1,7 @@
-import { log } from '../../utils/logger';
+import { createNamedLogger } from '../../diagnostics/logger';
+import { healthBus } from '../../diagnostics/healthBus';
+import { buildError } from '../../diagnostics/result';
+import type { ErrorCode, Subsystem } from '../../diagnostics/types';
 import { storage } from '../../utils/storage';
 import type {
   PublicRoomsConfig,
@@ -14,6 +17,34 @@ import type {
   PlayerView,
 } from '../../types/publicRooms';
 import { listRooms } from '../../services/ariesRooms';
+
+const FEATURE_SUBSYSTEM: Subsystem = 'feature:publicRooms';
+const FEATURE_NAME = 'publicRooms';
+const diag = createNamedLogger(FEATURE_SUBSYSTEM);
+let busRegistered = false;
+
+function ensureBusRegistered(): void {
+  if (busRegistered) return;
+  busRegistered = true;
+  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
+}
+
+function publishOk(message: string, metrics?: Record<string, number | string>): void {
+  ensureBusRegistered();
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message,
+    ...(metrics ? { metrics } : {}),
+  });
+}
+
+function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
+  ensureBusRegistered();
+  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
+  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+}
 
 type ConnectionStatus = PublicRoomsState['connectionStatus'];
 
@@ -133,15 +164,17 @@ async function fetchRoomsInternal(): Promise<void> {
 export async function initPublicRooms(): Promise<void> {
   if (initStarted) return;
   initStarted = true;
+  ensureBusRegistered();
   loadConfig();
   await fetchRoomsInternal();
+  publishOk('Started', { rooms: Object.keys(state.allRooms).length });
 }
 
 export async function fetchRooms(): Promise<void> {
   try {
     await fetchRoomsInternal();
   } catch (error) {
-    log('⚠️ fetchRooms failed:', error);
+    warnFeature('QPM-FEATURE-004', { what: 'fetchRooms' }, error);
     updateConnectionStatus('retrying');
     emitError('Unable to refresh rooms');
   }

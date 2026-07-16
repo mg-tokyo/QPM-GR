@@ -1,4 +1,4 @@
-import { openWindow, destroyWindow } from '../../core/modalWindow';
+import { openWindow, destroyWindow, windowLog } from '../../core/modalWindow';
 import { fetchItemEvents, fetchAlgorithmHistory, type AlgorithmVersionEntry } from '../../../utils/itemEventService';
 import type { RestockItem } from '../../../utils/restock/dataService';
 import { canonicalItemId, patchCachedItemLastSeen } from '../../../utils/restock/dataService';
@@ -195,11 +195,17 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
       let algoHistory: AlgorithmVersionEntry[] = [];
       try {
         [events, algoHistory] = await Promise.all([
-          fetchItemEvents(item.shop_type, item.item_id).catch(() => [] as Awaited<ReturnType<typeof fetchItemEvents>>),
-          fetchAlgorithmHistory().catch(() => [] as AlgorithmVersionEntry[]),
+          fetchItemEvents(item.shop_type, item.item_id).catch((err: unknown) => {
+            windowLog.warn('QPM-UI-002', { what: 'restockDetail:fetchEvents', shopType: item.shop_type, itemId: item.item_id }, err);
+            return [] as Awaited<ReturnType<typeof fetchItemEvents>>;
+          }),
+          fetchAlgorithmHistory().catch((err: unknown) => {
+            windowLog.warn('QPM-UI-002', { what: 'restockDetail:fetchAlgorithmHistory' }, err);
+            return [] as AlgorithmVersionEntry[];
+          }),
         ]);
-      } catch {
-        /* network error — both stay [] */
+      } catch (err) {
+        windowLog.warn('QPM-UI-002', { what: 'restockDetail:fetchAll' }, err);
       }
 
       if (!eventListSection.contains(spinner)) return; // window closed

@@ -7,7 +7,7 @@
 // during rapid slot cycling.
 
 import { readAtomValue, subscribeAtomValue } from '../../../core/atomRegistry';
-import { log } from '../../../utils/logger';
+import { diag, warnFeature } from './_diagnostics';
 import { isRecord } from '../../../utils/typeGuards';
 import { getCropMaxScaleSafe } from '../../../utils/game/catalogHelpers';
 import type { ResolvedSlot, TileLockContext } from './types';
@@ -66,7 +66,9 @@ function computeSizePercent(species: string, targetScale: number): number {
 
 function notify(): void {
   for (const cb of listeners) {
-    try { cb(); } catch { /* isolate listener failures */ }
+    try { cb(); } catch (err) {
+      warnFeature('QPM-FEATURE-004', { what: 'tileListener:notify' }, err);
+    }
   }
 }
 
@@ -203,19 +205,30 @@ async function attemptSubscribe(): Promise<void> {
         attemptSubscribe().catch(() => { /* retry-timer safety net; attemptSubscribe handles its own inner errors */ });
       }, RETRY_DELAY_MS);
     } else {
-      log('[TooltipAtoms] Garden object atom not found after retries');
+      // Failure path — subscription attach exhausted retries. Tooltip system
+      // will render nothing garden-related for the rest of the session.
+      warnFeature('QPM-FEATURE-003', {
+        what: 'atom:subscribe',
+        atom: 'gardenObject|ownGardenObject',
+        retries: MAX_RETRIES,
+      });
     }
     return;
   }
 
-  log('[TooltipAtoms] Found garden object atom');
+  diag.debug('Found garden object atom');
   cleanups.push(gardenUnsub);
 
   try {
     let initial = await readAtomValue('gardenObject');
     if (initial == null) initial = await readAtomValue('ownGardenObject');
     cachedGardenObject = isRecord(initial) ? initial : null;
-  } catch { /* ignore */ }
+  } catch (err) {
+    warnFeature('QPM-FEATURE-004', {
+      what: 'atom:priming',
+      atom: 'gardenObject|ownGardenObject',
+    }, err);
+  }
 
   const slotIdUnsub = await subscribeAtomValue('selectedSlotId', (value) => {
     cachedSelectedSlotId = typeof value === 'number' ? value : 0;
@@ -226,8 +239,13 @@ async function attemptSubscribe(): Promise<void> {
     try {
       const initial = await readAtomValue('selectedSlotId');
       cachedSelectedSlotId = typeof initial === 'number' ? initial : 0;
-    } catch { /* ignore */ }
-    log('[TooltipAtoms] Found mySelectedSlotIdAtom');
+    } catch (err) {
+      warnFeature('QPM-FEATURE-004', {
+        what: 'atom:priming',
+        atom: 'selectedSlotId',
+      }, err);
+    }
+    diag.debug('Found mySelectedSlotIdAtom');
   }
 
   // Fire initial notification so late-registering listeners see current state.

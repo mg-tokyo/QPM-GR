@@ -3,7 +3,7 @@ import { getMutationValueSnapshot, subscribeToMutationValueTracking, resetMutati
 import { getWeatherMutationSnapshot, subscribeToWeatherMutationTracking } from '../../features/mutations/weatherTracking';
 import { getAbilityDefinition } from '../../features/pets/data/petAbilities';
 import { createCard, btn } from '../core/panelHelpers';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 import { t } from '../../i18n';
 import { watchDetach } from '../../utils/dom/dom';
 
@@ -233,7 +233,7 @@ export function createStatsOverviewSection(): HTMLElement {
           updateStats();
         }, 2000);
       } catch (error) {
-        log('Error resetting stats:', error);
+        windowLog.warn('QPM-UI-002', { what: 'statsOverview:resetStats' }, error);
         resetButton.textContent = `❌ ${t('feature.statsOverview.resetError')}`;
         setTimeout(() => {
           resetButton.textContent = `🗑️ ${t('feature.statsOverview.resetAllStats')}`;

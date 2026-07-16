@@ -44,6 +44,7 @@ async function ensureAudioContext(): Promise<AudioContext | null> {
     try {
       audioCtx = new Ctor();
     } catch {
+      /* browser refused AudioContext construction — caller degrades to no-sound */
       return null;
     }
   }

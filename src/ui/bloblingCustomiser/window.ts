@@ -72,7 +72,6 @@ export function openBloblingCustomiserWindow(): void {
       const presetsBar = renderPresetsBar(windowEl, () => previewBox.canvas);
       cleanups.push(() => presetsBar.destroy());
 
-      // Grid picker (attached to window edge)
       const gridPicker = createGridPicker(
         windowEl,
         (slot, filename) => { selectSlotByFilename(slot, filename); },
@@ -80,7 +79,6 @@ export function openBloblingCustomiserWindow(): void {
       );
       cleanups.push(() => gridPicker.destroy());
 
-      // Drop zone on preview area
       previewBox.setDropHandler((slot, filename) => {
         selectSlotByFilename(slot, filename);
       });

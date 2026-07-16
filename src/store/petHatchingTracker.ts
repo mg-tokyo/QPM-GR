@@ -4,8 +4,10 @@
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { recordPetHatch } from './stats';
 import { recordDetailedHatch } from './hatchStatsStore';
-import { log } from '../utils/logger';
 import { storage } from '../utils/storage';
+import { createStoreDiagnostics } from './_storeDiagnostics';
+
+const diag = createStoreDiagnostics('storePetHatching', 'petHatching');
 
 const STORAGE_KEY = 'qpm.petHatchingTracker.knownPetIds.v1';
 const MAX_KNOWN_PET_IDS = 5000;
@@ -93,10 +95,10 @@ function loadKnownPetIds(): void {
     const stored = storage.get<string[]>(STORAGE_KEY, []);
     knownPetIds = new Set(stored);
     if (knownPetIds.size > 0) {
-      log(`✅ Loaded ${knownPetIds.size} known pet IDs from storage`);
+      diag.log.debug(`Loaded ${knownPetIds.size} known pet IDs from storage`);
     }
   } catch (error) {
-    log('⚠️ Failed to load known pet IDs from storage', error);
+    diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
     knownPetIds = new Set();
   }
 }
@@ -105,7 +107,7 @@ function saveKnownPetIds(): void {
   try {
     storage.set(STORAGE_KEY, Array.from(knownPetIds));
   } catch (error) {
-    log('⚠️ Failed to save known pet IDs to storage', error);
+    diag.warn('QPM-STORE-004', { what: 'knownPetIds', key: STORAGE_KEY }, error);
   }
 }
 
@@ -180,7 +182,7 @@ function detectNewPets(pets: PetInfo[]): void {
       const abilities = extractAbilities(pet);
       recordDetailedHatch(species ?? 'Unknown', rarity, abilities, now);
 
-      log(`🥚 Detected new ${rarity} pet hatched: ${species ?? 'Unknown'}`);
+      diag.log.debug(`Detected new ${rarity} pet hatched: ${species ?? 'Unknown'}`);
       knownPetIds.add(petId);
       addedCount++;
     }
@@ -205,6 +207,7 @@ function processPetData(value: unknown): void {
 export async function startPetHatchingTracker(): Promise<void> {
   if (started) return;
 
+  diag.register('Loading known pet IDs and subscribing to petInventory');
   loadKnownPetIds();
 
   let isFirstCall = true;
@@ -221,25 +224,27 @@ export async function startPetHatchingTracker(): Promise<void> {
             knownPetIds.add(petId);
           }
           saveKnownPetIds();
-          log(`✅ Pet hatching tracker initialized with ${knownPetIds.size} existing pets`);
+          diag.log.debug(`Pet hatching tracker initialized with ${knownPetIds.size} existing pets`);
         } else {
           processPetData(value);
         }
       } catch (error) {
-        log('⚠️ Failed processing pet hatching data', error);
+        diag.warn('QPM-STORE-003', { phase: 'processPetData' }, error);
       }
     });
 
     if (!unsub) {
-      log('⚠️ Pet infos atom not found, pet hatching tracking disabled');
+      diag.warn('QPM-STORE-002', { atom: 'petInventory' });
       return;
     }
     unsubscribe = unsub;
 
     started = true;
-    log('✅ Pet hatching tracker started');
+    diag.publishOk('Pet hatching tracker started', {
+      knownPetIds: knownPetIds.size,
+    });
   } catch (error) {
-    log('⚠️ Failed to start pet hatching tracker', error);
+    diag.error('QPM-STORE-001', { phase: 'subscribe' }, error);
     throw error;
   }
 }
@@ -248,14 +253,14 @@ export function stopPetHatchingTracker(): void {
   unsubscribe?.();
   unsubscribe = null;
   started = false;
-  // Note: We don't clear knownPetIds here to prevent compounding on restart
-  log('🛑 Pet hatching tracker stopped');
+  // Don't clear knownPetIds — prevents compounding on restart.
+  diag.log.debug('Pet hatching tracker stopped');
 }
 
 export function resetPetHatchingTracker(): void {
   knownPetIds.clear();
   saveKnownPetIds();
-  log('🗑️ Pet hatching tracker reset - all known pet IDs cleared');
+  diag.log.debug('Pet hatching tracker reset — all known pet IDs cleared');
 }
 
 export function isPetHatchingTrackerStarted(): boolean {

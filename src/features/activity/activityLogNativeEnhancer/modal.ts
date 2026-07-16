@@ -1,7 +1,7 @@
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
 import { getAtomByLabel, readAtomValue, writeAtomValue } from '../../../core/jotaiBridge';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
-import { log } from '../../../utils/logger';
+import { warnFeature } from './_diagnostics';
 import type {
   ActivityLogEntry,
   ModalRef,
@@ -467,7 +467,11 @@ async function replayHistoryToModal(opts?: {
     if (!patched) {
       S.replayMode = 'none';
     }
-    log(`[ActivityLogNative] Replay disabled (${opts?.reason ?? 'unknown'})`, error);
+    warnFeature('QPM-FEATURE-004', {
+      what: 'replay',
+      reason: opts?.reason ?? 'unknown',
+      patched,
+    }, error);
   } finally {
     S.replayInFlight = false;
     if (S.virtualMode === 'virtual-expanded') {
@@ -776,7 +780,7 @@ export async function startMyDataActivitySubscription(): Promise<void> {
   const atom = getAtomByLabel('myDataAtom');
   if (!atom) {
     S.replayMode = 'none';
-    log('[ActivityLogNative] myDataAtom not found; running in DOM-only mode');
+    warnFeature('QPM-FEATURE-003', { what: 'subscribe:atom_missing', atom: 'myDataAtom' });
     return;
   }
 
@@ -786,7 +790,7 @@ export async function startMyDataActivitySubscription(): Promise<void> {
     mergeSnapshots([], snapshot);
     S.lastSnapshot = snapshot;
   } catch (error) {
-    log('[ActivityLogNative] Failed initial myData read', error);
+    warnFeature('QPM-FEATURE-004', { what: 'subscribe:initial_read' }, error);
   }
 
   try {
@@ -796,7 +800,7 @@ export async function startMyDataActivitySubscription(): Promise<void> {
     S.myDataUnsubscribe = unsub;
   } catch (error) {
     S.myDataUnsubscribe = null;
-    log('[ActivityLogNative] Failed myData subscription', error);
+    warnFeature('QPM-FEATURE-003', { what: 'subscribe:subscribe' }, error);
   }
 }
 

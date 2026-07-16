@@ -1,8 +1,8 @@
-import { log } from '../../../utils/logger';
 import { storage } from '../../../utils/storage';
 import type { ActivePetInfo } from '../../../store/pets';
 import { MANUAL_OVERRIDES_STORAGE_KEY } from './constants';
 import { recalculateTimerState } from './recompute';
+import { warnFeature } from './_diagnostics';
 import type { ManualOverridesStorage, PetManualOverride } from './types';
 
 let manualOverrides: ManualOverridesStorage = {};
@@ -14,7 +14,7 @@ export function loadManualOverrides(): void {
       manualOverrides = stored;
     }
   } catch (error) {
-    log('⚠️ Failed to load manual pet overrides', error);
+    warnFeature('QPM-FEATURE-004', { what: 'overrides:load' }, error);
   }
 }
 
@@ -22,7 +22,7 @@ function saveManualOverrides(): void {
   try {
     storage.set(MANUAL_OVERRIDES_STORAGE_KEY, manualOverrides);
   } catch (error) {
-    log('⚠️ Failed to save manual pet overrides', error);
+    warnFeature('QPM-FEATURE-004', { what: 'overrides:save' }, error);
   }
 }
 

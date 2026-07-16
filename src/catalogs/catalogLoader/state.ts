@@ -2,17 +2,18 @@
 // NOTE: Keep this module lightweight and early-init safe.
 
 import { pageWindow, readSharedGlobal, shareGlobal } from '../../core/pageContext';
+import { writeShimConsole } from '../../diagnostics/logger';
 import type { GameCatalogs } from '../types';
 
-// Local log function to avoid circular imports
-const CATALOG_PREFIX = '[QPM Catalog]';
+// Variadic shim — used by hooks/lifecycle/scan/enrichment/ownership/readyState;
+// avoids importing catalogLoader/diagnostics.ts (which imports this file).
 export function catalogLog(...args: unknown[]): void {
   const isVerbose = readSharedGlobal('__QPM_VERBOSE_LOGS') === true;
   const isCatalogDebug = readSharedGlobal('__QPM_DEBUG_CATALOGS') === true;
   const isAbilityColorDebug = readSharedGlobal('__QPM_DEBUG_ABILITY_COLORS') === true;
   const isWeatherCatalogDebug = readSharedGlobal('__QPM_DEBUG_WEATHER_CATALOG') === true;
   if (isVerbose || isCatalogDebug || isAbilityColorDebug || isWeatherCatalogDebug) {
-    console.log(CATALOG_PREFIX, ...args);
+    writeShimConsole('QPM Catalog', args);
   }
 }
 

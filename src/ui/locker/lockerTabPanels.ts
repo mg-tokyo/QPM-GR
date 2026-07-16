@@ -21,7 +21,7 @@ import { buildGeneralTabContent } from './lockerHarvestFilters';
 import { buildOverridesTabContent } from './lockerCropOverrides';
 import { createInventoryCapacitySection } from '../economy/inventoryCapacitySection';
 import { t } from '../../i18n';
-import { log } from '../../utils/logger';
+import { windowLog } from '../core/modalWindow';
 
 // ── General Panel ──────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ export function buildRestrictionsPanel(config: LockerConfig, eligible: EligibleD
   try {
     panel.appendChild(createInventoryCapacitySection());
   } catch (err) {
-    log('[Locker] Failed to load Inventory Capacity', err);
+    windowLog.warn('QPM-UI-002', { what: 'locker:inventoryCapacity' }, err);
   }
 
   return panel;

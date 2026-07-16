@@ -1,8 +1,7 @@
 // src/ui/hub/groups/gardenGroup.ts
 
 import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../cards/types';
-import { toggleWindow } from '../../core/modalWindow';
-import { log } from '../../../utils/logger';
+import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { getGardenQolConfig, updateGardenQolConfig, type HoldContexts } from '../../../features/gardenQol/index';
 import { t } from '../../../i18n';
@@ -15,10 +14,9 @@ import {
   startInventoryCapacityStatus,
 } from '../../panel/tileStatusesNew';
 
-/** Best-effort catalog wait — never rejects, just logs and continues */
 async function awaitCatalogs(): Promise<void> {
   try { await waitForCatalogs(10000); }
-  catch { log('[Hub] Catalogs not ready yet, rendering with fallbacks'); }
+  catch { /* catalogs subsystem attributes the timeout; hub renders with fallbacks */ }
 }
 
 // ── Extracted render functions for tile actions ──────────────────────────────
@@ -108,7 +106,7 @@ export function getGardenGroup(): HubGroupDef {
           spinner.remove();
           container.appendChild(el);
         } catch (err) {
-          log('⚠️ Failed to load Garden Filters', err);
+          windowLog.warn('QPM-UI-002', { what: 'lazy:gFilters' }, err);
           spinner.textContent = `❌ ${t('common.loadError')}`;
         }
       })();
@@ -119,7 +117,7 @@ export function getGardenGroup(): HubGroupDef {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
         import('../../garden/gardenFiltersSection').then(async ({ createGardenFiltersSection }) => {
           root.appendChild(await createGardenFiltersSection());
-        }).catch(e => log('⚠️ Failed to load Garden Filters', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:gFilters' }, e));
       }, '580px', '78vh');
     },
   };
@@ -145,7 +143,7 @@ export function getGardenGroup(): HubGroupDef {
       // overflow left to parent hub scroll container
       import('../../core/originalPanel').then(({ renderRemindersContent }) => {
         renderRemindersContent(container, { startExpanded: true });
-      }).catch(e => log('⚠️ Failed to load Reminders', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:reminders' }, e));
     },
     detachWindowId: 'utility-feature-reminders',
     onDetach: () => {
@@ -153,7 +151,7 @@ export function getGardenGroup(): HubGroupDef {
         root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
         import('../../core/originalPanel').then(({ renderRemindersContent }) => {
           renderRemindersContent(root);
-        }).catch(e => log('⚠️ Failed to load Reminders', e));
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:reminders' }, e));
       }, '580px', '78vh');
     },
   };
@@ -185,7 +183,7 @@ export function getGardenGroup(): HubGroupDef {
     onOpen: () => {
       import('../../stats/statsHubWindow').then(({ openStatsHubWindow }) => {
         openStatsHubWindow();
-      }).catch(e => log('⚠️ Failed to open Stats Hub', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:statsHub' }, e));
     },
   };
 
@@ -264,7 +262,7 @@ export function getGardenGroup(): HubGroupDef {
           root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
           import('../../economy/inventoryCapacitySection').then(({ createInventoryCapacitySection }) => {
             root.appendChild(createInventoryCapacitySection());
-          }).catch(e => log('[Hub] Failed to load Inventory Capacity', e));
+          }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:invCap' }, e));
         }, '420px', '50vh');
       },
     },
@@ -275,7 +273,35 @@ export function getGardenGroup(): HubGroupDef {
     renderExpanded: (container) => {
       import('../../economy/inventoryCapacitySection').then(({ createInventoryCapacitySection }) => {
         container.appendChild(createInventoryCapacitySection());
-      }).catch(e => log('[Hub] Failed to load Inventory Capacity', e));
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:invCap' }, e));
+    },
+  };
+
+  const superCleanserCard: LauncherCardConfig = {
+    key: 'super-cleanser',
+    label: t('hub.garden.superCleanser.label'),
+    description: t('hub.garden.superCleanser.description'),
+    icon: {
+      kind: 'sprite', value: '🧴', fallback: '🧴',
+      bunched: [
+        { spriteKey: 'sprite/item/CropCleanser', offsetX: 0, offsetY: 0, scale: 1.0 },
+      ],
+    },
+    labelColor: '#81c784',
+    tier: 'launcher',
+    tile: {
+      icon: '🧴',
+      color: 'rgba(129, 199, 132, 0.28)',
+      defaultStatus: '—',
+    },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.textContent = t('hub.garden.superCleanser.summary');
+    },
+    onOpen: () => {
+      import('../../../features/superCleanser').then(({ openSuperCleanserWindow }) => {
+        openSuperCleanserWindow();
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:superCleanser' }, e));
     },
   };
 
@@ -290,7 +316,7 @@ export function getGardenGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/MythicalEgg', offsetX: 12, offsetY: 2, scale: 0.9 },
       ],
     },
-    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, inventoryCapacityCard, remindersCard, statsCard],
+    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, superCleanserCard, inventoryCapacityCard, remindersCard, statsCard],
   };
 }
 

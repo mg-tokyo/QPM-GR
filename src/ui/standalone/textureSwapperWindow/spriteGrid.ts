@@ -8,14 +8,16 @@ import {
 import type { TextureOverrideRule } from '../../../features/standalone/textureSwapper';
 import { stripRenderState } from '../../../features/standalone/textureSwapper/matcher/state';
 import type { SpriteService, SpriteCategory } from '../../../sprite-v2/types';
+import { getSpriteInventory } from '../../../sprite-v2/compat';
 import { t } from '../../../i18n';
 import {
   CATEGORY_TABS,
+  getVisibleCategoryTabs,
   MUTATION_GROUPS,
   MUTATION_COLORS,
   getRuleType,
 } from './types';
-import type { WindowState, RuleType } from './types';
+import type { WindowState, RuleType, CategoryTab } from './types';
 import { getCachedThumbnail, getCachedThumbnailWithMutations, buildShimmerPlaceholder } from './thumbnailCache';
 import { createPillTabs } from '../../components/pillTabs';
 import { createTabBar, type TabDef } from '../../components/tabBar';
@@ -92,9 +94,13 @@ function renderBrowseGrid(
   svc: SpriteService,
   _fullRefresh: () => void,
 ): void {
-  const browseTabDefs: TabDef[] = CATEGORY_TABS.map((tab, i) => ({
+  const visibleTabs = getVisibleCategoryTabs();
+  // Dev mode may have been toggled off since the last open; clamp before use.
+  if (state.activeTabIndex >= visibleTabs.length) state.activeTabIndex = 0;
+  const browseTabDefs: TabDef[] = visibleTabs.map((tab, i) => ({
     id: String(i),
-    label: t(tab.label),
+    // Dev tab labels are literal strings (UI/World/Weather), not i18n keys.
+    label: tab.devScan ? tab.label : t(tab.label),
   }));
   const browseBar = createTabBar(browseTabDefs, {
     defaultTab: String(state.activeTabIndex),
@@ -129,15 +135,9 @@ function renderBrowseGrid(
     const innerGrid = document.createElement('div');
     innerGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;';
 
-    const tab = CATEGORY_TABS[state.activeTabIndex];
+    const tab = visibleTabs[state.activeTabIndex];
     if (!tab) return;
-    const tabKind: 'plants-merged' | 'pets' | 'seeds' | 'items' | 'decor' =
-      state.activeTabIndex === 0 ? 'plants-merged'
-        : state.activeTabIndex === 1 ? 'pets'
-        : state.activeTabIndex === 2 ? 'seeds'
-        : state.activeTabIndex === 3 ? 'items'
-        : 'decor';
-    const items = await collectItems(svc, tab.categories, state.searchFilter, tabKind);
+    const items = await collectItemsForTab(svc, tab, state.activeTabIndex, state.searchFilter);
     const rules = getTextureSwapperState().rules;
 
     for (const item of items) {
@@ -624,6 +624,22 @@ function buildThumbnailCell(
 // Helpers
 // ---------------------------------------------------------------------------
 
+async function collectItemsForTab(
+  svc: SpriteService,
+  tab: CategoryTab,
+  activeIndex: number,
+  filter: string,
+): Promise<Array<SpriteListItem & { isLocked: boolean }>> {
+  if (tab.devScan) return collectDevItems(tab.devScan, filter);
+  const tabKind: 'plants-merged' | 'pets' | 'seeds' | 'items' | 'decor' =
+    activeIndex === 0 ? 'plants-merged'
+      : activeIndex === 1 ? 'pets'
+      : activeIndex === 2 ? 'seeds'
+      : activeIndex === 3 ? 'items'
+      : 'decor';
+  return collectItems(svc, tab.categories, filter, tabKind);
+}
+
 async function collectItems(
   svc: SpriteService,
   categories: SpriteCategory[],
@@ -646,6 +662,27 @@ async function collectItems(
     out.push({ ...item, isLocked });
   }
   return out;
+}
+
+// Dev-tab items live outside the typed SpriteCategory enum, so we walk the
+// full sprite inventory and dedupe / sort alphabetically. Journal-unlock
+// gating doesn't apply (no journal concept for ui/mutation/world/weather).
+function collectDevItems(
+  filterEntry: (entry: import('../../../sprite-v2/compat').SpriteInventoryEntry) => boolean,
+  filter: string,
+): Array<SpriteListItem & { isLocked: boolean }> {
+  const lcFilter = filter.toLowerCase();
+  const seen = new Set<string>();
+  const raw: SpriteListItem[] = [];
+  for (const e of getSpriteInventory()) {
+    if (!filterEntry(e)) continue;
+    if (lcFilter && !e.key.toLowerCase().includes(lcFilter)) continue;
+    if (seen.has(e.key)) continue;
+    seen.add(e.key);
+    raw.push({ key: e.key, displayId: e.id });
+  }
+  raw.sort((a, b) => a.displayId.localeCompare(b.displayId));
+  return raw.map(item => ({ ...item, isLocked: false }));
 }
 
 function getBadgesForSprite(spriteKey: string, rules: TextureOverrideRule[]): RuleType[] {

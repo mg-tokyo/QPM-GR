@@ -1,6 +1,6 @@
 import { storage, registerDynamicKey } from '../../../../utils/storage';
 import { getPlayerId } from '../../../../core/playerContext';
-import { log } from '../../../../utils/logger';
+import { diag, warnFeature } from '../types';
 import {
   PRESETS_STORAGE_KEY, PRESETS_SOFT_CAP, createDefaultPresetsConfig,
   type GardenPainterPreset, type GardenPainterPresetsConfig,
@@ -19,7 +19,7 @@ function notifyListeners(): void {
     snapshot: { ...p.snapshot, rules: [...p.snapshot.rules], uploadedAssets: { ...p.snapshot.uploadedAssets } },
   }));
   for (const cb of state.listeners) {
-    try { cb(snapshot); } catch (e) { log('[gardenPainterPresets] listener threw', e); }
+    try { cb(snapshot); } catch (e) { warnFeature('QPM-TEXTURESWAP-002', { what: 'preset:notify' }, e); }
   }
 }
 
@@ -41,7 +41,7 @@ export async function initGardenPainterPresets(): Promise<void> {
 
   const playerId = await getPlayerId();
   if (!playerId) {
-    log('[gardenPainterPresets] No playerId — using unscoped key');
+    diag.debug('No playerId — using unscoped key');
     return;
   }
 
@@ -51,7 +51,7 @@ export async function initGardenPainterPresets(): Promise<void> {
   if (existingScoped === null) {
     if (state.config.presets.length > 0) {
       storage.set(scopedKey, state.config);
-      log(`[gardenPainterPresets] Migrated ${state.config.presets.length} preset(s) to scoped key`);
+      diag.debug('Migrated presets to scoped key', { count: state.config.presets.length });
     }
   } else {
     if (state.config.presets.length > existingScoped.presets.length) {

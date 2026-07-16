@@ -2,9 +2,7 @@
 // Entry point for the shop enhancer feature.
 // Sorts in-stock items first and injects a Buy All button into expansion panels.
 
-import { createLogger } from '../../../utils/logger';
-
-const log = createLogger('ShopEnhancer');
+import { diag, publishOk } from './_diagnostics';
 import { visibleInterval, timerManager } from '../../../utils/scheduling/timerManager';
 import { startDetection, stopDetection } from './detection';
 import { findShopContentContainer, getContentChildCount, resetScannerDiagnostics } from './scanner';
@@ -25,7 +23,7 @@ let activeCategory: ShopCategory | null = null;
 let lastChildCount = -1;
 
 function applyEnhancements(category: ShopCategory): void {
-  log(`[ShopEnhancer] Applying enhancements for ${category}`);
+  diag.debug(`Applying enhancements for ${category}`);
 
   // Sort in-stock first
   applySorting(category);
@@ -54,7 +52,7 @@ function pollEnhancements(): void {
   // so we must re-sort to restore enhancements.
   const currentCount = getContentChildCount();
   if (currentCount !== lastChildCount) {
-    log(`[ShopEnhancer] Content child count changed: ${lastChildCount} → ${currentCount}`);
+    diag.debug(`Content child count changed: ${lastChildCount} → ${currentCount}`);
     lastChildCount = currentCount;
     applyEnhancements(activeCategory);
     return;
@@ -68,7 +66,7 @@ function pollEnhancements(): void {
 function handleShopOpen(_modalId: string, category: ShopCategory): void {
   activeCategory = category;
   lastChildCount = -1;
-  log(`[ShopEnhancer] Shop opened: ${category} (modalId=${_modalId})`);
+  diag.debug(`Shop opened: ${category} (modalId=${_modalId})`);
 
   // Small delay to let the game finish rendering the modal content
   setTimeout(() => {
@@ -82,7 +80,7 @@ function handleShopOpen(_modalId: string, category: ShopCategory): void {
 }
 
 function handleShopClose(): void {
-  log('[ShopEnhancer] Shop closed');
+  diag.debug('Shop closed');
   timerManager.unregister(POLL_TIMER_ID);
 
   // Clean up injected PIXI nodes
@@ -121,7 +119,8 @@ export function startShopEnhancer(): void {
                            !ariesDetected;
 
   if (!shouldRun) {
-    log(`[ShopEnhancer] Skipped — mode=${mode}, aries=${ariesDetected}`);
+    publishOk('Skipped', { mode, ariesDetected: ariesDetected ? 1 : 0 });
+    diag.debug(`Skipped — mode=${mode}, aries=${ariesDetected}`);
     if (mode === 'auto' && ariesDetected) {
       notifyOncePerSession({
         key: 'shopEnhancer.disabledForAries',
@@ -135,7 +134,8 @@ export function startShopEnhancer(): void {
 
   started = true;
   startDetection(handleShopOpen, handleShopClose);
-  log('[ShopEnhancer] Started');
+  publishOk('Started', { mode });
+  diag.debug('Started');
 }
 
 export function stopShopEnhancer(): void {
@@ -153,5 +153,5 @@ export function stopShopEnhancer(): void {
 
   activeCategory = null;
   lastChildCount = -1;
-  log('[ShopEnhancer] Stopped');
+  diag.debug('Stopped');
 }

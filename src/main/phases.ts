@@ -1,4 +1,4 @@
-import { log } from '../utils/logger';
+import { diag, warnCore } from './_diagnostics';
 import { yieldToBrowser } from '../utils/scheduling/scheduling';
 import { initializeAntiAfk } from '../features/standalone/antiAfk';
 import { startInventoryStore } from '../store/inventory';
@@ -50,34 +50,34 @@ import type { QpmConfig } from './config';
 // antiAfk import line above and to the "Phase 3" comment — keep both literal.
 export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   await initializeAntiAfk().catch((error) => {
-    log('Anti-AFK initialization failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:antiAfk' }, error);
   });
   await startInventoryStore().catch((error) => {
-    log('Inventory store pre-init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:inventoryStore' }, error);
   });
   await startHutchStore().catch((error) => {
-    log('Hutch store pre-init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:hutchStore' }, error);
   });
   await startSeedSiloStore().catch((error) => {
-    log('Seed silo store pre-init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:seedSiloStore' }, error);
   });
   await startDecorShedStore().catch((error) => {
-    log('Decor shed store pre-init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:decorShedStore' }, error);
   });
   await yieldToBrowser();
   await startPetInfoStore().catch((error) => {
-    log('Pet info store pre-init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:petInfoStore' }, error);
   });
   await startAbilityTriggerStore().catch((error) => {
-    log('Ability trigger store pre-init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:abilityTriggerStore' }, error);
   });
   await yieldToBrowser();
   if (isActivityLogEnhancerEnabled()) {
     await startActivityLogEnhancer().catch((error) => {
-      log('Activity Log enhancer initialization failed', error);
+      warnCore('QPM-INIT-001', { what: 'phase:activityLog' }, error);
     });
   } else {
-    log('[Main] Activity Log enhancer disabled by config');
+    diag.debug('Activity Log enhancer disabled by config');
   }
   // OPTIMIZATION: Initialize core stores in batches with yields to prevent main thread blocking
   // Phase 1: Critical stores that other features depend on
@@ -93,12 +93,12 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   const { initHatchStatsStore } = await import('../store/hatchStatsStore');
   initHatchStatsStore();
   initEconomyTracker().catch((error) => {
-    log('Economy tracker init failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:economyTracker' }, error);
   });
   await yieldToBrowser();
   const { startPetHatchingTracker } = await import('../store/petHatchingTracker');
   await startPetHatchingTracker().catch((error) => {
-    log('Pet hatching tracker start failed', error);
+    warnCore('QPM-INIT-001', { what: 'phase:petHatchingTracker' }, error);
   });
   await yieldToBrowser();
 

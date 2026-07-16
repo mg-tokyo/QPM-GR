@@ -3,6 +3,13 @@ import { getJournal } from '../../../features/journal/checker';
 import { getCatalogs } from '../../../catalogs/gameCatalogs';
 import { storage } from '../../../utils/storage';
 import { stripFamilySuffix } from './displayName';
+import { isDevModeEnabled } from '../../../core/devMode';
+
+export type GatingOptions = { bypassJournal?: boolean };
+
+export function isDevExpansionEnabled(): boolean {
+  return isDevModeEnabled();
+}
 
 // Suffixes stripped after NORMALIZE (lowercase + alphanumeric-only).
 // Kept conservative — only family/variant tokens that show up at the END
@@ -181,8 +188,9 @@ function petCatalogHas(speciesRoot: string): boolean {
   return false;
 }
 
-export async function isSpeciesUnlocked(spriteKey: string): Promise<boolean> {
+export async function isSpeciesUnlocked(spriteKey: string, opts?: GatingOptions): Promise<boolean> {
   if (isGatingDisabled()) return true;
+  if (opts?.bypassJournal) return true;
 
   const { category, id } = parseAtlasKey(spriteKey);
   const { speciesRoot } = getSpeciesRoot(spriteKey);
@@ -246,12 +254,13 @@ export async function isSpeciesUnlocked(spriteKey: string): Promise<boolean> {
   return true;
 }
 
-export async function isMutationUnlocked(spriteKey: string, mutationName: string): Promise<boolean> {
+export async function isMutationUnlocked(spriteKey: string, mutationName: string, opts?: GatingOptions): Promise<boolean> {
   if (isGatingDisabled()) return true;
+  if (opts?.bypassJournal) return true;
 
   const { category } = parseAtlasKey(spriteKey);
   const { speciesRoot } = getSpeciesRoot(spriteKey);
-  if (mutationName === 'None') return isSpeciesUnlocked(spriteKey);
+  if (mutationName === 'None') return isSpeciesUnlocked(spriteKey, opts);
 
   const journal = await getJournal();
   if (!journal) return true;

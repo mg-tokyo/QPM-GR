@@ -1,6 +1,6 @@
 // src/ui/xpTracker/nearMaxSection.ts — Near-max-level section with swap picker
 
-import { log } from '../../../utils/logger';
+import { windowLog } from '../../core/modalWindow';
 import { type ActivePetInfo } from '../../../store/pets';
 import { readAtomValue } from '../../../core/atomRegistry';
 import { getPetSpriteDataUrlWithMutations } from '../../../sprite-v2/compat';
@@ -371,14 +371,14 @@ async function getAllPets(activePets: ActivePetInfo[]): Promise<PetWithLevel[]> 
     if (invData != null) {
       processItems(extractAtomItems(invData as unknown), 'inventory');
     }
-  } catch (e) { log('⚠️ Near max: inventory read failed', e); }
+  } catch (e) { windowLog.warn('QPM-UI-002', { what: 'nearMax:readInv' }, e); }
 
   try {
     const hutchData = await readAtomValue('hutchPets');
     if (hutchData != null) {
       processItems(extractAtomItems(hutchData as unknown), 'hutch');
     }
-  } catch (e) { log('⚠️ Near max: hutch read failed', e); }
+  } catch (e) { windowLog.warn('QPM-UI-002', { what: 'nearMax:readHutch' }, e); }
 
   return allPets;
 }
@@ -679,7 +679,7 @@ async function updateNearMaxDisplay(
 
     container.appendChild(list);
   } catch (e) {
-    log('Near max update failed', e);
+    windowLog.warn('QPM-UI-002', { what: 'nearMax:render' }, e);
     const errDiv = document.createElement('div');
     errDiv.style.cssText = 'padding:12px 14px;color:var(--qpm-danger);font-size:12px;';
     errDiv.textContent = t('feature.xpTracker.nearMaxError');

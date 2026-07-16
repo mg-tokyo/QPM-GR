@@ -11,7 +11,7 @@
 // Sprite owner of the width/height setters, then monkey-patch at the setter
 // level. Idempotent.
 
-import { log } from '../types';
+import { log, warnFeature } from '../types';
 import { walkSpriteTree, getPixiApp } from '../pixi-walk';
 import { uninstallPetOverlayTicker } from '../rivePetOverlay';
 import { clearCapturedFilterCtors } from '../riveFilters';
@@ -68,6 +68,7 @@ function captureRendererPrototype(riveSprite: any): any | null {
     ?? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(proto), 'height');
   if (!widthDesc?.set || !heightDesc?.set) {
     log('riveAdapter: width/height setters not found on Sprite prototype');
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'riveAdapter:setterCapture' });
     return null;
   }
   // Find the prototype that owns the setter — typically PIXI.Sprite or Container.
@@ -213,6 +214,7 @@ function installRiveTextureHookOnCtor(ctor: any): void {
   const origDraw = proto?.draw;
   if (typeof origDraw !== 'function') {
     log('installRiveTextureHookOnCtor: draw not found on prototype');
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'riveAdapter:drawHook' });
     return;
   }
   capturedDrawsByCtor.set(ctor, origDraw);

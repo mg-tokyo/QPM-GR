@@ -1,6 +1,5 @@
 // src/ui/panel/tileRegistry.ts
-import { log } from '../../utils/logger';
-import { t } from '../../i18n';
+import { windowLog } from '../core/modalWindow';
 import type { PerTileStatusProvider, MultiTileStatusProvider } from './tileStatusTypes';
 import type { HubGroupDef, LauncherCardConfig, ExpandableCardConfig } from '../hub/cards/types';
 
@@ -64,7 +63,7 @@ export function registerTilesFromGroups(groups: ReadonlyArray<HubGroupDef>): voi
       }
 
       if (!action) {
-        log(`[QPM] ⚠️ Tile "${tileId}" has no action and no derivable action from card "${card.key}"`);
+        windowLog.warn('QPM-UI-002', { what: 'tileReg:noAction', tile: tileId, cardKey: card.key });
         continue;
       }
 

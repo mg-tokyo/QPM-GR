@@ -3,8 +3,6 @@ import { DEBUG_GLOBALS_OPT_IN_KEY, isDebugGlobalsEnabled } from '../utils/debugG
 import { getStorageRuntime, storage } from '../utils/storage';
 import { setLocaleMode, getCurrentLocale, getLocaleMode } from '../i18n';
 
-declare const GM_registerMenuCommand: ((caption: string, commandFunc: () => void) => void) | undefined;
-
 export interface QpmBootStatus {
   debugEnabled: boolean;
   storageRuntime: string;
@@ -79,16 +77,5 @@ export function registerDebugBootstrap(): QpmBootApi {
   const api = createDebugBootstrapApi();
   shareGlobal('QPM_BOOT', api);
   (window as Window & typeof globalThis & { QPM_BOOT?: QpmBootApi }).QPM_BOOT = api;
-
-  try {
-    if (typeof GM_registerMenuCommand === 'function') {
-      GM_registerMenuCommand('QPM: Enable Debug API', () => { api.enableDebug(true); });
-      GM_registerMenuCommand('QPM: Disable Debug API', () => { api.disableDebug(true); });
-      GM_registerMenuCommand('QPM: Show Debug Status', () => { api.status(); });
-    }
-  } catch {
-    // no-op
-  }
-
   return api;
 }

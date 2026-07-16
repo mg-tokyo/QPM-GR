@@ -3,7 +3,7 @@
 // machinery. Extracted from riveAdapter.ts during PR #1 of the 2026-06-27
 // perf refactor.
 
-import { ctx, log } from '../types';
+import { ctx, log, warnFeature } from '../types';
 import { extractCanvasFromTexture } from './detection';
 import {
   scaleMultipliers,
@@ -101,6 +101,7 @@ export function getOrBuildRiveOverrideTexture(ruleId: string, customTex: any): a
     return clean;
   } catch (e) {
     log('getOrBuildRiveOverrideTexture: build failed', e);
+    warnFeature('QPM-TEXTURESWAP-001', { what: 'riveOverride:build', ruleId }, e);
     return null;
   }
 }

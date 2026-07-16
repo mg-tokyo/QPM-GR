@@ -7,6 +7,7 @@
 
 import { t } from '../../../i18n';
 import { storage } from '../../../utils/storage';
+import { warnFeature } from './_diagnostics';
 
 // ---------------------------------------------------------------------------
 // Action type
@@ -118,7 +119,7 @@ export function saveBindings(bindings: Record<number, Action>): void {
   try {
     storage.set(BINDINGS_KEY, bindings);
   } catch (err) {
-    console.warn('[QPM Controller] Failed to save bindings:', err);
+    warnFeature('QPM-FEATURE-004', { what: 'bindings:save' }, err);
   }
 }
 
@@ -152,6 +153,6 @@ export function saveCursorSpeed(speed: CursorSpeed): void {
   try {
     storage.set(SPEED_KEY, speed);
   } catch (err) {
-    console.warn('[QPM Controller] Failed to save cursor speed:', err);
+    warnFeature('QPM-FEATURE-004', { what: 'cursorSpeed:save' }, err);
   }
 }
