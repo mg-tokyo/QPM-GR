@@ -99,6 +99,8 @@ const de: Dictionary = {
   'hub.tools.guide.label': 'Guide',
   'hub.tools.guide.description': 'Den In-App Magic Garden Geldverdien-Guide von bella öffnen',
   'hub.tools.guide.summary': 'Geldroute / Fortschrittsnotizen',
+  'hub.tools.journalChecker.description': 'Gesammelte Frucht- und Haustier-Varianten mit dem Spiel-Journal abgleichen',
+  'hub.tools.journalChecker.summary': 'Varianten-Fortschritt / Tipps',
   'hub.tools.decorLayout.label': 'MG Deko-Layout-Anpasser',
   'hub.tools.decorLayout.description': 'Magic Garden Deko-Platzierung im externen Layout-Anpasser planen',
   'hub.tools.decorLayout.summary': 'Externes Layout-Tool / Neuer Tab',
@@ -620,6 +622,7 @@ const de: Dictionary = {
   'feature.journal.longTermWarning': 'Diese Varianten sind sehr schwierig oder erfordern seltene Bedingungen',
   'feature.journal.tooltipHelper': 'Tooltip-Helfer',
   'feature.journal.tooltipHelperDesc': 'Journal-Buchstaben in Pflanzen-Tooltips anzeigen',
+  'feature.journal.badgeStyle': 'Spiel-Icons (aus = Buchstaben)',
   'feature.journal.refresh': 'Journal-Daten aktualisieren',
   // Journal-Empfehlungsmodul (Strategien, Schwierigkeit, Zeitschätzungen)
   'feature.journal.difficulty.easy': 'Einfach',

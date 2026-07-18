@@ -5,6 +5,7 @@ import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { TEXTURE_MANIPULATOR_ENABLED } from '../../../features/standalone/textureSwapper';
 import { t } from '../../../i18n';
 import { startTextureManipulatorStatus, startBloblingCustomiserStatus } from '../../panel/tileStatusesNew';
+import { startJournalStatus } from '../../panel/tileStatusesCore';
 
 const CUSTOM_CARDS_ENABLED: boolean = false;
 
@@ -51,6 +52,34 @@ export function getToolsGroup(): HubGroupDef {
           root.appendChild(createGuideSection());
         }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:guide' }, e));
       }, '700px', '85vh');
+    },
+  };
+
+  const journalCheckerCard: LauncherCardConfig = {
+    key: 'journal-checker',
+    label: t('tile.journalChecker.label'),
+    description: t('hub.tools.journalChecker.description'),
+    icon: { kind: 'sprite', value: '📔', spriteKey: 'sprite/ui/MutationRainbow', fallback: '📔' },
+    labelColor: '#d7ccc8',
+    tier: 'launcher',
+    tile: {
+      tileId: 'journal-checker',
+      icon: '📔',
+      color: 'rgba(121, 85, 72, 0.28)',
+      defaultStatus: '0% / catalog loading',
+      statusProvider: startJournalStatus,
+    },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      el.textContent = t('hub.tools.journalChecker.summary');
+    },
+    onOpen: () => {
+      toggleWindow('journal-checker-window', `📔 ${t('tile.journalChecker.label')}`, (root) => {
+        root.style.padding = '0';
+        import('../../journalChecker/index').then(({ createJournalCheckerSection }) => {
+          root.appendChild(createJournalCheckerSection());
+        }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:journalChecker', id: 'journal-checker-window' }, e));
+      }, '900px', '90vh');
     },
   };
 
@@ -159,7 +188,7 @@ export function getToolsGroup(): HubGroupDef {
     },
   };
 
-  const cards: LauncherCardConfig[] = [guideCard, decorLayoutCard, spriteCustomiserCard, celestialCard, bloblingCard];
+  const cards: LauncherCardConfig[] = [guideCard, journalCheckerCard, decorLayoutCard, spriteCustomiserCard, celestialCard, bloblingCard];
 
   if (CUSTOM_CARDS_ENABLED) {
     cards.splice(3, 0, customCardsCard);

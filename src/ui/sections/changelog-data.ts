@@ -2,6 +2,19 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.19",
+    date: "2026-07-18",
+    notes: [
+      "Added Thundercharged support to the journal variant badges, and made the whole badge system pull mutations, display names, and colors from the live game at runtime, so any future mutation the game adds will show up automatically with the correct letter and color, no QPM update needed",
+      "Added game UI icon sprites as the default look for unlogged journal variants in the crop tile overlay, with a new toggle in the Journal Checker window to switch back to the classic letters",
+      "Added hover names to the journal badges, mousing over an icon or letter now shows which variant it is (e.g. Dawnbound, Thundercharged)",
+      "Added a Journal Checker card to the Tools tab in the hub, previously the journal was only reachable from its panel tile",
+      "Improved the letter badges to match the game's own mutation text exactly: same font, weight, size, and the exact colors the game uses, including the Rainbow gradient",
+      "Improved sprite system startup resilience, if the game's renderer appears late (slow loads, background tabs, Discord Activity) QPM now keeps watching for up to five minutes and boots the sprite system when it arrives instead of staying blank for the session, diagnostics now show a proper recovered state",
+      "Improved the Rive animation runtime capture to be more reliable, the capture path now stays armed and resolves from whichever source appears first, so pet, avatar, and decor animation features acquire the runtime more consistently",
+    ],
+  },
+  {
     version: "3.3.18",
     date: "2026-07-16",
     notes: [

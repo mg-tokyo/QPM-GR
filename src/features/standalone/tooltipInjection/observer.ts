@@ -101,10 +101,10 @@ function ensureStyles(): void {
     [${TOOLTIP_ROW_ATTR}="journal"] {
       gap: 8px;
       margin-top: 0;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      line-height: 16px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 19px;
     }
 
     [${TOOLTIP_ROW_ATTR}="value"] {
@@ -126,12 +126,16 @@ function ensureStyles(): void {
     }
 
     [${JOURNAL_BADGE_ATTR}] {
-      font-weight: 600;
-      letter-spacing: 0.04em;
+      font-weight: 800;
+      letter-spacing: 0;
       display: inline-block;
       margin: 0 1px;
       min-width: 10px;
       text-align: center;
+      /* Overlay is pointer-events:none; re-enable on badges so the native
+         hover title (mutation name) can fire. */
+      pointer-events: auto;
+      cursor: default;
     }
 
     #${LOCK_BADGE_ID} {

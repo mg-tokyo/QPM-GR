@@ -33,18 +33,18 @@
 
 import type { LowLevelRive } from './types';
 import { riveLog } from './helpers';
-import { wrapRiveLoad, getWrappedRuntimeCount } from './loadWrapper';
+import { getWrappedRuntimeCount } from './loadWrapper';
 
 // Lazy import to avoid a circular dep at module load. runtimeCapture imports
 // wrapRiveLoad from loadWrapper, this module imports wrapRiveLoad too — a
-// direct sync import of runtimeCapture here would close the cycle. The poke
-// runs only when a real RiveFile constructor fires (many ms after page
-// load), by which time all modules are evaluated and the dynamic import
-// resolves immediately from the bundler cache.
-function tryPokeAtomCapture(): void {
+// direct sync import of runtimeCapture here would close the cycle. Runs only
+// when a real RiveFile constructor fires (many ms after page load), by which
+// time all modules are evaluated and the dynamic import resolves immediately
+// from the bundler cache.
+function provideRuntime(rive: unknown, label: string): void {
   void import('./runtimeCapture')
-    .then((m) => m.pokeCaptureAttempt?.())
-    .catch((e) => riveLog('pokeAtomCapture failed', e));
+    .then((m) => m.provideRuntimeFromCapture?.(rive as never, label))
+    .catch((e) => riveLog('provideRuntimeFromCapture failed', e));
 }
 
 // Diagnostics: count every .runtime assignment we observe so we can tell if
@@ -129,23 +129,20 @@ export function initCanvasRuntimeTrap(): () => void {
         totalAssignmentCount++;
         if (!isRiveRuntimeShape(value)) return;
 
-        // Wrap each unique rive-shaped runtime we see. wrapRiveLoad is
-        // idempotent per-runtime, so seeing the same rive on multiple
-        // RiveFile instances is harmless. Each distinct runtime gets its
-        // own labeled entry.
+        // Primary capture path. Historically we called wrapRiveLoad here and
+        // separately poked the atom capture — but the game removed
+        // lowLevelRiveAtom, so the poke hit a dead scan and awaitRiveSingleton
+        // never resolved (QPM-RIVE-001 at 30s). Now the trap is the source of
+        // truth: hand every rive-shaped runtime to provideRuntimeFromCapture,
+        // which wraps load AND populates capturedRive AND resolves any
+        // pending awaiter. All three writes stay in one place.
         matchedAssignmentCount++;
         const before = getWrappedRuntimeCount();
-        wrapRiveLoad(value, `canvas-trap-${matchedAssignmentCount}`);
+        const label = `canvas-trap-${matchedAssignmentCount}`;
+        provideRuntime(value, label);
         const after = getWrappedRuntimeCount();
         if (after > before) {
           riveLog(`canvas-trap: new runtime wrapped (#${after} total)`);
-          // A RiveFile being constructed is a strong signal that the rive
-          // ecosystem has finished initializing, including lowLevelRiveAtom
-          // resolving. Poke the runtime-capture path to grab that runtime
-          // immediately instead of waiting for its next poll tick — the
-          // game often calls .load() on lowLevelRiveAtom's runtime within
-          // milliseconds of this assignment.
-          tryPokeAtomCapture();
         }
       } catch (e) {
         riveLog('canvas-runtime trap setter threw', e);

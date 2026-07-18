@@ -10,9 +10,22 @@ import type { LowLevelRive } from './types';
 import { riveLog } from './helpers';
 import { wrapRiveLoad, unwrapRiveLoad } from './loadWrapper';
 
+// Single-write module state. capturedRive is the first runtime any capture
+// path handed us; multi-runtime tracking lives in loadWrapper's wrappedRuntimes
+// map. Legacy singleton API here stays intact for existing callers.
 let capturedRive: LowLevelRive | null = null;
 let capturePromise: Promise<LowLevelRive> | null = null;
 let atomUnsub: (() => void) | null = null;
+
+// Hoisted resolvers so ANY capture path (atom sub or the canvas-runtime trap
+// via provideRuntimeFromCapture) can complete the same pending promise.
+// Historical bug: awaitRuntimeViaSubscription owned its own resolvers inside
+// a closure, so the trap couldn't unblock it — pokeCaptureAttempt just
+// re-ran an atom scan that was already dead in production.
+let pendingResolve: ((r: LowLevelRive) => void) | null = null;
+let pendingReject: ((e: Error) => void) | null = null;
+let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+let subscribePoll: ReturnType<typeof setInterval> | null = null;
 
 // ---------------------------------------------------------------------------
 // Structural detection
@@ -28,19 +41,11 @@ function extractRiveFromAtomValue(atomValue: unknown): LowLevelRive | null {
   if (!atomValue || typeof atomValue !== 'object') return null;
   const val = atomValue as Record<string, unknown>;
 
-  // Loadable shape: { state: 'hasData', data: LowLevelRive }
-  // (audit fix #8: explicit state check)
   if (val.state === 'hasData' && isRiveRuntime(val.data)) {
     return val.data as LowLevelRive;
   }
-
-  // Skip non-resolved loadable states (loading/hasError)
   if (val.state === 'loading' || val.state === 'hasError') return null;
-
-  // Direct runtime (edge case: non-loadable wrapper)
   if (isRiveRuntime(val)) return val as LowLevelRive;
-
-  // Wrapped data without loadable state marker
   if (isRiveRuntime(val.data)) return val.data as LowLevelRive;
 
   return null;
@@ -50,6 +55,10 @@ function extractRiveFromAtomValue(atomValue: unknown): LowLevelRive | null {
 // Capture strategies
 // ---------------------------------------------------------------------------
 
+// Kept for the retro-compat path. Empty in production as of 2026-07 — the
+// game removed lowLevelRiveAtom from jotaiAtomCache. The canvas-runtime trap
+// is now the primary capture source. If a future version re-exposes the
+// atom, extend this list and the fast path picks it up again.
 const ATOM_LABELS = ['lowLevelRiveAtom', 'riveAtom', 'lowLevelRive'];
 
 function tryLabelCapture(): LowLevelRive | null {
@@ -72,7 +81,6 @@ function tryLabelCapture(): LowLevelRive | null {
   return null;
 }
 
-// Strategy 2: structure-based scan (audit fix #1: primary strategy)
 function tryStructureScan(): LowLevelRive | null {
   const store = getCachedStore();
   if (!store) return null;
@@ -100,108 +108,102 @@ function tryCapture(): LowLevelRive | null {
 }
 
 // ---------------------------------------------------------------------------
-// Subscription-based capture
+// Single write point for successful capture
 // ---------------------------------------------------------------------------
 
-// Replaces value-polling. The previous polling approach raced the game's
-// QuinoaEngine preload of petz/currency/thoughtbubble/loader_tm/decor —
-// those call `getRiveRuntime().load(bytes)` in the same microtask as
-// lowLevelRiveAtom resolution, and our 250 ms cold tick lost the race.
-// `subscribeAtom` fires synchronously when the atom updates (Jotai
-// `store.sub`) and also invokes the callback once with the current value,
-// so an already-resolved atom is captured on the same microtask cycle as
-// the subscription is installed.
-async function awaitRuntimeViaSubscription(timeoutMs: number): Promise<LowLevelRive> {
-  return new Promise<LowLevelRive>((resolve, reject) => {
-    let done = false;
-    let existPoll: ReturnType<typeof setInterval> | null = null;
-    let subscribing = false;
-
-    const cleanup = () => {
-      if (existPoll !== null) {
-        clearInterval(existPoll);
-        existPoll = null;
-      }
-    };
-
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      cleanup();
-      reject(new Error('[RiveEngine] Timed out waiting for Rive runtime'));
-    }, timeoutMs);
-
-    const onValue = (label: string, value: unknown) => {
-      if (done) return;
-      const rive = extractRiveFromAtomValue(value);
-      if (!rive) return;
-      done = true;
-      clearTimeout(timer);
-      cleanup();
-      capturedRive = rive;
-      wrapRiveLoad(rive, 'lowLevelRiveAtom');
-      riveLog(`Runtime captured via atom subscription "${label}"`);
-      resolve(rive);
-    };
-
-    const trySubscribeOnce = async (): Promise<boolean> => {
-      if (done || atomUnsub || subscribing) return atomUnsub !== null;
-      subscribing = true;
-      try {
-        for (const label of ATOM_LABELS) {
-          const atom = getAtomByLabel(label);
-          if (!atom) continue;
-          try {
-            const unsub = await subscribeAtom(atom, (value: unknown) =>
-              onValue(label, value),
-            );
-            // If the initial invoke inside subscribeAtom already captured
-            // the runtime synchronously, the sub is no longer needed.
-            if (done) {
-              try { unsub(); } catch { /* noop */ }
-              return true;
-            }
-            atomUnsub = unsub;
-            return true;
-          } catch (e) {
-            riveLog(`subscribeAtom failed for "${label}":`, e);
-          }
-        }
-        return false;
-      } finally {
-        subscribing = false;
-      }
-    };
-
-    // First attempt — likely the atom is registered but unresolved.
-    void trySubscribeOnce().then((subscribed) => {
-      if (done || subscribed) return;
-      // Atom module not yet loaded. Poll for atom REGISTRATION (cheap —
-      // it's a Map lookup, not a value read) until one of the known
-      // labels resolves to an atom we can subscribe to. This is not the
-      // old value-polling: once subscribed, we stop polling and wait
-      // for the sub callback.
-      existPoll = setInterval(() => {
-        if (done || atomUnsub) return;
-        void trySubscribeOnce();
-      }, 100);
-    });
-  });
+function clearPendingWaiter(): void {
+  if (pendingTimer !== null) {
+    clearTimeout(pendingTimer);
+    pendingTimer = null;
+  }
+  if (subscribePoll !== null) {
+    clearInterval(subscribePoll);
+    subscribePoll = null;
+  }
+  if (atomUnsub) {
+    try { atomUnsub(); } catch { /* noop */ }
+    atomUnsub = null;
+  }
+  pendingResolve = null;
+  pendingReject = null;
 }
 
 /**
- * Synchronously try to capture the rive runtime. Used by external triggers
- * (e.g. the canvas-runtime trap firing) to short-circuit the poll loop.
- * Returns true if capture succeeded for the first time on this call.
+ * Idempotent handoff for any capture path (canvas-runtime trap, atom sub,
+ * atom fast path). First caller wins; subsequent calls with the same or a
+ * different runtime are no-ops on capturedRive but still ensure wrapRiveLoad
+ * runs for each distinct runtime (wrapRiveLoad is itself idempotent per-runtime).
+ *
+ * Contract: this MUST be the only place that writes capturedRive or resolves
+ * the pending promise. Split-brain writes caused the historical bug where the
+ * trap wrapped a runtime but capturedRive stayed null.
  */
-export function pokeCaptureAttempt(): boolean {
-  if (capturedRive) return false;
-  const rive = tryCapture();
-  if (!rive) return false;
+export function provideRuntimeFromCapture(rive: LowLevelRive, label: string): void {
+  // Always wrap load — multi-runtime aware; safe to call for a runtime we
+  // already wrapped.
+  wrapRiveLoad(rive, label);
+
+  if (capturedRive) return;
   capturedRive = rive;
-  wrapRiveLoad(rive, 'lowLevelRiveAtom');
-  riveLog('Runtime captured via external poke');
-  return true;
+  riveLog(`Runtime captured via "${label}"`);
+
+  const resolve = pendingResolve;
+  clearPendingWaiter();
+  resolve?.(rive);
+}
+
+// ---------------------------------------------------------------------------
+// Atom subscription (fallback path)
+// ---------------------------------------------------------------------------
+
+// Kept for the case where the game re-exposes lowLevelRiveAtom. Success here
+// flows through provideRuntimeFromCapture so the write path is unified.
+function armAtomSubscription(): void {
+  if (atomUnsub) return;
+  let subscribing = false;
+
+  const onValue = (label: string, value: unknown) => {
+    const rive = extractRiveFromAtomValue(value);
+    if (!rive) return;
+    provideRuntimeFromCapture(rive, `atom:${label}`);
+  };
+
+  const trySubscribeOnce = async (): Promise<boolean> => {
+    if (atomUnsub || subscribing || capturedRive) return atomUnsub !== null;
+    subscribing = true;
+    try {
+      for (const label of ATOM_LABELS) {
+        const atom = getAtomByLabel(label);
+        if (!atom) continue;
+        try {
+          const unsub = await subscribeAtom(atom, (value: unknown) =>
+            onValue(label, value),
+          );
+          if (capturedRive) {
+            try { unsub(); } catch { /* noop */ }
+            return true;
+          }
+          atomUnsub = unsub;
+          return true;
+        } catch (e) {
+          riveLog(`subscribeAtom failed for "${label}":`, e);
+        }
+      }
+      return false;
+    } finally {
+      subscribing = false;
+    }
+  };
+
+  void trySubscribeOnce().then((subscribed) => {
+    if (capturedRive || subscribed) return;
+    // Atom module not yet loaded. Cheap Map-lookup poll for atom REGISTRATION
+    // (not value polling) until one of the labels resolves.
+    subscribePoll = setInterval(() => {
+      if (capturedRive || atomUnsub) return;
+      void trySubscribeOnce();
+    }, 100);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -212,18 +214,33 @@ export async function captureRiveRuntime(): Promise<LowLevelRive> {
   if (capturedRive) return capturedRive;
   if (capturePromise) return capturePromise;
 
-  capturePromise = (async () => {
-    // Fast path: atom already resolved AND store cached at call time.
-    // Skips the sub round-trip when QPM was loaded after the game.
+  capturePromise = new Promise<LowLevelRive>((resolve, reject) => {
+    // Fast path — atom fully resolved AND store cached at call time. Covers
+    // retro-compat if the atom ever comes back.
     const quick = tryCapture();
     if (quick) {
-      capturedRive = quick;
-      wrapRiveLoad(quick, 'lowLevelRiveAtom');
-      return quick;
+      provideRuntimeFromCapture(quick, 'atom:fast-path');
+      resolve(quick);
+      return;
     }
 
-    return await awaitRuntimeViaSubscription(30_000);
-  })();
+    pendingResolve = resolve;
+    pendingReject = reject;
+
+    // The canvas-runtime trap is the primary source in production — it calls
+    // provideRuntimeFromCapture the instant a RiveFile constructor fires,
+    // which resolves this promise via pendingResolve. Below we install the
+    // atom sub as a defensive fallback for future game versions that re-
+    // expose the atom.
+    armAtomSubscription();
+
+    pendingTimer = setTimeout(() => {
+      if (capturedRive) return;
+      const reject = pendingReject;
+      clearPendingWaiter();
+      reject?.(new Error('[RiveEngine] Timed out waiting for Rive runtime'));
+    }, 30_000);
+  });
 
   try {
     return await capturePromise;
@@ -242,10 +259,7 @@ export function awaitRiveSingleton(): Promise<LowLevelRive> {
 }
 
 export function releaseRiveCapture(): void {
-  if (atomUnsub) {
-    try { atomUnsub(); } catch { /* noop */ }
-    atomUnsub = null;
-  }
+  clearPendingWaiter();
   unwrapRiveLoad();
   capturedRive = null;
   capturePromise = null;
@@ -253,8 +267,8 @@ export function releaseRiveCapture(): void {
 
 /**
  * Diagnostic: scan ALL atoms for objects that look like a Rive low-level
- * runtime. If more than one shows up we have the wrong-singleton problem —
- * we may have hooked a runtime the game doesn't use for pets.
+ * runtime. Empty in production since the game removed lowLevelRiveAtom.
+ * Still useful for detecting a future re-exposure of the atom.
  */
 export function findAllRiveRuntimes(): Array<{ atomLabel: string; matches: LowLevelRive }> {
   const store = getCachedStore();

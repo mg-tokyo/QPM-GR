@@ -27,7 +27,7 @@ import { runBackgroundCompressedRehydrate, runPostHydrationMutationPass } from '
 import { resolvePixiFast, resolveActiveRenderer } from './service/pixiResolve';
 import type { LoadTexturesResult, PrefetchedAtlas, SpriteBootReport } from './service/types';
 
-export { initPixiHooks } from './service/pixiResolve';
+export { initPixiHooks, probePixiPresence } from './service/pixiResolve';
 export { getSpriteWarmupState, onSpriteWarmupProgress } from './service/warmup';
 export type { SpriteWarmupState } from './service/warmup';
 export { getSpriteBootReport } from './service/bootReport';
@@ -35,6 +35,7 @@ export {
   startSpriteV2Diagnostics,
   stopSpriteV2Diagnostics,
   reportSpriteV2InitFailed,
+  reportSpriteV2InitRecovered,
 } from './service/healthIntegration';
 export { spriteProbe } from './service/probe';
 export type {
@@ -503,5 +504,20 @@ async function start(): Promise<SpriteService> {
 }
 
 export { start as initSpriteSystem };
+
+/**
+ * Reset the module-scope guards so a failed initSpriteSystem() can be retried
+ * by the late-boot watcher in init.ts. Only clears the pre-PIXI-resolve state
+ * — safe to call after resolvePixiFast() threw; unsafe if any prior boot got
+ * past the `state.started = true` gate AND published a boot report.
+ *
+ * Idempotent. No-op if there is no context to reset.
+ */
+export function resetSpriteBootStateForRetry(): void {
+  prefetchPromise = null;
+  if (ctxRef.current) {
+    ctxRef.current.state.started = false;
+  }
+}
 
 export type { SpriteService, GetSpriteParams, RenderOptions };

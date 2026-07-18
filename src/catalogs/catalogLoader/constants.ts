@@ -11,6 +11,9 @@ export const ABILITY_COLOR_POLL_INTERVAL_MS = 1000;
 export const MAX_ABILITY_COLOR_POLL_ATTEMPTS = 10;
 export const ABILITY_COLOR_ANCHORS = ['ProduceScaleBoost', 'RainbowGranter', 'GoldGranter'];
 
+export const MUTATION_COLOR_POLL_INTERVAL_MS = 1000;
+export const MAX_MUTATION_COLOR_POLL_ATTEMPTS = 10;
+
 export const WEATHER_CATALOG_POLL_INTERVAL_MS = 500;
 export const MAX_WEATHER_CATALOG_POLL_ATTEMPTS = 20;
 

@@ -58,6 +58,8 @@ export interface MutationCatalogEntry {
   coinMultiplier: number;
   tileRef?: TileRef;
   name?: string;
+  /** CSS color or linear-gradient — enriched from the bundle, not in the game dex */
+  color?: string;
   [key: string]: unknown;
 }
 

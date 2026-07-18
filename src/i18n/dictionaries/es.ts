@@ -97,6 +97,8 @@ const es: Dictionary = {
   'hub.tools.guide.label': 'Guía',
   'hub.tools.guide.description': 'Guía de ganancias de Magic Garden (de bella)',
   'hub.tools.guide.summary': 'Guía de ganancias / Progresión',
+  'hub.tools.journalChecker.description': 'Sigue las variantes de cultivos y mascotas registradas en el diario del juego',
+  'hub.tools.journalChecker.summary': 'Progreso de variantes / Consejos',
   'hub.tools.decorLayout.label': 'Diseño de decoración MG',
   'hub.tools.decorLayout.description': 'Planificar la distribución de decoración en el editor externo',
   'hub.tools.decorLayout.summary': 'Herramienta externa / Nueva pestaña',
@@ -618,6 +620,7 @@ const es: Dictionary = {
   'feature.journal.longTermWarning': 'Estas variantes son muy difíciles o requieren condiciones raras',
   'feature.journal.tooltipHelper': 'Ayuda en tooltips',
   'feature.journal.tooltipHelperDesc': 'Mostrar letras del diario en tooltips de cultivos',
+  'feature.journal.badgeStyle': 'Iconos del juego (desactivado = letras)',
   'feature.journal.refresh': 'Actualizar datos del diario',
 
   // ── Feature: Pet Hub ──────────────────────────────────────────────────

@@ -4,6 +4,66 @@ import { pageWindow } from '../../core/pageContext';
 import type { PixiBundle } from './types';
 import { hasExtractCanvas, updateBootReportRenderer } from './bootReport';
 
+export interface PixiPresenceProbe {
+  hasInjectedCapture: boolean;
+  injectedApp: boolean;
+  injectedRenderer: boolean;
+  hasPixiGlobal: boolean;
+  hasAriesService: boolean;
+  canvasCount: number;
+  bigCanvasCount: number;
+  hooksActive: boolean;
+  hooksInjected: boolean;
+  surface: string;
+  visibilityState: string;
+}
+
+function computePixiPresenceProbe(): PixiPresenceProbe {
+  const root = getRoot();
+  let canvasCount = 0;
+  let bigCanvasCount = 0;
+  try {
+    const canvases = document.querySelectorAll('canvas');
+    canvasCount = canvases.length;
+    canvases.forEach((c) => {
+      if (c.width >= 200 && c.height >= 200) bigCanvasCount += 1;
+    });
+  } catch {
+    /* document unavailable — leave counts at 0 */
+  }
+  return {
+    hasInjectedCapture: !!root.__QPM_PIXI_CAPTURED__,
+    injectedApp: !!root.__QPM_PIXI_CAPTURED__?.app,
+    injectedRenderer: !!root.__QPM_PIXI_CAPTURED__?.renderer,
+    hasPixiGlobal: !!(root.__PIXI_APP__ || root.PIXI_APP),
+    hasAriesService: !!root.__MG_SPRITE_SERVICE__,
+    canvasCount,
+    bigCanvasCount,
+    hooksActive: !!root.__QPM_PIXI_HOOKS_ACTIVE__,
+    hooksInjected: !!root.__QPM_HOOKS_INJECTED__,
+    surface: (() => {
+      try { return String(root.location?.host ?? 'unknown'); } catch { return 'unknown'; }
+    })(),
+    visibilityState: (() => {
+      try { return String(document.visibilityState ?? 'unknown'); } catch { return 'unknown'; }
+    })(),
+  };
+}
+
+/**
+ * Cheap synchronous probe used by late-boot recovery. Returns true if any
+ * of the fast detection paths would resolve PIXI right now. Does NOT run the
+ * expensive React fiber BFS — that's reserved for full resolvePixiFast().
+ */
+export function probePixiPresence(): boolean {
+  const root = getRoot();
+  if (root.__QPM_PIXI_CAPTURED__?.app && root.__QPM_PIXI_CAPTURED__?.renderer) return true;
+  const app = root.__PIXI_APP__ || root.PIXI_APP || root.app;
+  if (app && (root.__PIXI_RENDERER__ || root.PIXI_RENDERER__ || root.renderer || app?.renderer)) return true;
+  if (root.__MG_SPRITE_SERVICE__?.state?.renderer) return true;
+  return false;
+}
+
 // PIXI hooks must install BEFORE the game calls __PIXI_APP_INIT__. main.ts calls
 // initPixiHooks() as its very first statement so this stays at the same document-start
 // timing that the old module-scope side-effect had.
@@ -202,7 +262,13 @@ export async function resolvePixiFast(): Promise<PixiBundle> {
     return { app: waited.app, renderer: waited.renderer || waited.app?.renderer, version: waited.version };
   }
 
-  throw new Error('PIXI app timeout');
+  const diag = {
+    ...computePixiPresenceProbe(),
+    elapsedMs: Math.round(performance.now() - pollStart),
+  };
+  const err = new Error(`PIXI app timeout (${JSON.stringify(diag)})`);
+  (err as Error & { qpmDiagnostic?: typeof diag }).qpmDiagnostic = diag;
+  throw err;
 }
 
 export function resolveActiveRenderer(state: SpriteState, preferred?: any): any {

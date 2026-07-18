@@ -26,6 +26,8 @@ export interface CropSizeConfig {
   showForGrowing: boolean;
   showForMature: boolean;
   showJournalIndicators: boolean;
+  /** Unlogged-variant badge rendering: game UI icon sprites or letter glyphs. */
+  journalBadgeStyle: 'icons' | 'letters';
 }
 
 export interface TileValueConfig {

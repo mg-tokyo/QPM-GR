@@ -3,7 +3,8 @@
 // Shows letter badges (R, G, F, etc.) for unlogged produce variants.
 
 import { getJournal, type Journal } from '../../journal/checker';
-import { VARIANT_BADGES } from '../../mutations/data/variantBadges';
+import { getVariantBadges } from '../../mutations/data/variantBadges';
+import { renderBySpriteKey } from '../../../sprite-v2/compat';
 import { storage } from '../../../utils/storage';
 import { warnFeature } from './_diagnostics';
 import { resolveCurrentSlot } from './atoms';
@@ -25,6 +26,7 @@ const DEFAULT_CONFIG: CropSizeConfig = {
   showForGrowing: true,
   showForMature: true,
   showJournalIndicators: true,
+  journalBadgeStyle: 'icons',
 };
 
 let config: CropSizeConfig = { ...DEFAULT_CONFIG };
@@ -117,7 +119,7 @@ async function getUnloggedVariantBadges(species: string): Promise<VariantBadge[]
 
     if (!speciesData) {
       // Species not in journal yet — everything counts as unlogged
-      return VARIANT_BADGES.map(badge => ({ ...badge }));
+      return getVariantBadges().map(badge => ({ ...badge }));
     }
 
     const loggedVariants = new Set(
@@ -130,7 +132,7 @@ async function getUnloggedVariantBadges(species: string): Promise<VariantBadge[]
     );
 
     const unloggedBadges: VariantBadge[] = [];
-    for (const badge of VARIANT_BADGES) {
+    for (const badge of getVariantBadges()) {
       const isLogged = badge.matches.some(matchName =>
         loggedVariants.has(matchName.toLowerCase()),
       );
@@ -150,7 +152,25 @@ async function getUnloggedVariantBadges(species: string): Promise<VariantBadge[]
 // DOM rendering
 // ---------------------------------------------------------------------------
 
+// Game card ratio: 14px attribute font × 1.35 (gardenInfo/attributeChips.ts).
+const BADGE_ICON_SIZE_PX = 19;
+
 function createBadgeElement(badge: VariantBadge): HTMLElement {
+  if (config.journalBadgeStyle !== 'letters' && badge.iconKey) {
+    const canvas = renderBySpriteKey(badge.iconKey);
+    if (canvas) {
+      canvas.setAttribute(JOURNAL_BADGE_ATTR, 'true');
+      canvas.style.height = `${BADGE_ICON_SIZE_PX}px`;
+      canvas.style.width = 'auto';
+      canvas.style.imageRendering = 'pixelated';
+      canvas.style.display = 'inline-block';
+      canvas.style.verticalAlign = 'middle';
+      canvas.title = badge.displayName ?? badge.matches[0] ?? '';
+      return canvas;
+    }
+    // Unknown/unready sprite key — fall through to the letter glyph.
+  }
+
   const span = document.createElement('span');
   span.setAttribute(JOURNAL_BADGE_ATTR, 'true');
   span.textContent = badge.label;
@@ -170,8 +190,8 @@ function createBadgeElement(badge: VariantBadge): HTMLElement {
   // Force badge legibility (don't inherit tooltip/weight colors)
   span.style.textShadow = '0 1px 2px rgba(0, 0, 0, 0.35)';
   span.style.setProperty('color', span.style.color || '#FFFFFF', 'important');
-  span.style.fontWeight = badge.bold ? '700' : '600';
-  span.title = badge.matches.join(' / ');
+  span.style.fontWeight = badge.bold ? '800' : '600';
+  span.title = badge.displayName ?? badge.matches[0] ?? '';
   return span;
 }
 

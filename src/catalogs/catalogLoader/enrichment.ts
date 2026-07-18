@@ -2,6 +2,7 @@
 // Each has an immediate attempt + bounded retry polling.
 
 import { DEFAULT_ABILITY_COLOR, getAbilityColorMap } from '../logic/abilityColors';
+import { getMutationColorMap } from '../logic/mutationColors';
 import { getWeatherCatalogMap } from '../logic/weatherCatalog';
 import { getCosmeticCatalogFromBundle } from '../logic/cosmeticCatalog';
 import { readSharedGlobal } from '../../core/pageContext';
@@ -12,7 +13,9 @@ import {
   COSMETIC_CATALOG_POLL_INTERVAL_MS,
   MAX_ABILITY_COLOR_POLL_ATTEMPTS,
   MAX_COSMETIC_CATALOG_POLL_ATTEMPTS,
+  MAX_MUTATION_COLOR_POLL_ATTEMPTS,
   MAX_WEATHER_CATALOG_POLL_ATTEMPTS,
+  MUTATION_COLOR_POLL_INTERVAL_MS,
   WEATHER_CATALOG_POLL_INTERVAL_MS,
 } from './constants';
 import { diagLog, diagState } from './diagnostics';
@@ -21,12 +24,15 @@ import { capturedCatalogs, catalogLog, publishCatalogs } from './state';
 // Live holder — retry budgets reset from scan.ts (ability) and debug.ts (weather).
 export const pollAttempts = {
   abilityColor: 0,
+  mutationColor: 0,
   weatherCatalog: 0,
   cosmeticCatalog: 0,
 };
 
 let abilityColorPollTimer: ReturnType<typeof setInterval> | null = null;
 let abilityColorEnrichInFlight: Promise<boolean> | null = null;
+let mutationColorPollTimer: ReturnType<typeof setInterval> | null = null;
+let mutationColorEnrichInFlight: Promise<boolean> | null = null;
 let weatherCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
 let weatherCatalogEnrichInFlight: Promise<boolean> | null = null;
 let cosmeticCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -110,6 +116,50 @@ export async function enrichPetAbilityColors(): Promise<boolean> {
   return abilityColorEnrichInFlight;
 }
 
+function areMutationColorsEnriched(catalog: Record<string, unknown>): boolean {
+  return Object.values(catalog).some(
+    entry => entry !== null && typeof entry === 'object' && typeof (entry as Record<string, unknown>).color === 'string',
+  );
+}
+
+export async function enrichMutationColors(): Promise<boolean> {
+  if (!capturedCatalogs.mutationCatalog) return false;
+  const catalog = capturedCatalogs.mutationCatalog as Record<string, Record<string, unknown>>;
+  if (areMutationColorsEnriched(catalog)) return true;
+  if (mutationColorEnrichInFlight) return mutationColorEnrichInFlight;
+
+  mutationColorEnrichInFlight = (async () => {
+    const colorMap = await getMutationColorMap(Object.keys(catalog));
+    if (!colorMap) return false;
+
+    const enriched: Record<string, unknown> = {};
+    let updatedCount = 0;
+
+    for (const [mutationId, entry] of Object.entries(catalog)) {
+      const copy = entry && typeof entry === 'object' ? { ...entry } : {};
+      const color = colorMap[mutationId];
+      // Unknown mutations keep color undefined — renderers fall back to white.
+      if (typeof copy.color !== 'string' && typeof color === 'string') {
+        copy.color = color;
+        updatedCount += 1;
+      }
+      enriched[mutationId] = copy;
+    }
+
+    if (updatedCount > 0) {
+      capturedCatalogs.mutationCatalog = enriched as GameCatalogs['mutationCatalog'];
+      catalogLog(`Enriched mutation colors from runtime bundle (${updatedCount} mutations).`);
+      publishCatalogs();
+    }
+
+    return areMutationColorsEnriched(enriched);
+  })().finally(() => {
+    mutationColorEnrichInFlight = null;
+  });
+
+  return mutationColorEnrichInFlight;
+}
+
 export async function enrichWeatherCatalog(): Promise<boolean> {
   if (isWeatherCatalogEnriched(capturedCatalogs.weatherCatalog)) return true;
   if (weatherCatalogEnrichInFlight) return weatherCatalogEnrichInFlight;
@@ -152,6 +202,12 @@ export function stopAbilityColorPolling(): void {
   if (!abilityColorPollTimer) return;
   clearInterval(abilityColorPollTimer);
   abilityColorPollTimer = null;
+}
+
+export function stopMutationColorPolling(): void {
+  if (!mutationColorPollTimer) return;
+  clearInterval(mutationColorPollTimer);
+  mutationColorPollTimer = null;
 }
 
 export function stopWeatherCatalogPolling(): void {
@@ -199,6 +255,36 @@ export function startAbilityColorPolling(): void {
       }
     })();
   }, ABILITY_COLOR_POLL_INTERVAL_MS);
+}
+
+export function startMutationColorPolling(): void {
+  if (mutationColorPollTimer) return;
+  pollAttempts.mutationColor = 0;
+
+  void enrichMutationColors();
+
+  mutationColorPollTimer = setInterval(() => {
+    void (async () => {
+      // Don't consume retry budget before the mutation catalog is captured.
+      if (!capturedCatalogs.mutationCatalog) return;
+
+      const enriched = await enrichMutationColors();
+      pollAttempts.mutationColor += 1;
+      if (enriched) {
+        stopMutationColorPolling();
+        return;
+      }
+      if (pollAttempts.mutationColor >= MAX_MUTATION_COLOR_POLL_ATTEMPTS) {
+        if (diagState.started) {
+          diagLog.warn('QPM-CATALOG-003', {
+            what: 'mutationColors',
+            attempts: pollAttempts.mutationColor,
+          });
+        }
+        stopMutationColorPolling();
+      }
+    })();
+  }, MUTATION_COLOR_POLL_INTERVAL_MS);
 }
 
 export function startWeatherCatalogPolling(): void {

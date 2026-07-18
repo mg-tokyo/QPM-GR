@@ -106,6 +106,8 @@ const en: Dictionary = {
   'hub.tools.guide.label': 'Guide',
   'hub.tools.guide.description': 'Open the in-app Magic Garden money making guide by bella',
   'hub.tools.guide.summary': 'Money route / Progression notes',
+  'hub.tools.journalChecker.description': 'Track collected produce and pet variants against the in-game journal',
+  'hub.tools.journalChecker.summary': 'Variant progress / Smart tips',
   'hub.tools.decorLayout.label': 'MG Decor Layout Customiser',
   'hub.tools.decorLayout.description': 'Plan Magic Garden decor placement in the external layout customiser',
   'hub.tools.decorLayout.summary': 'External layout tool / New tab',
@@ -630,6 +632,7 @@ const en: Dictionary = {
   'feature.journal.longTermWarning': 'These variants are very difficult or require rare conditions',
   'feature.journal.tooltipHelper': 'Tooltip Helper',
   'feature.journal.tooltipHelperDesc': 'Show journal letters inside crop tooltips',
+  'feature.journal.badgeStyle': 'Game icons (off = letters)',
   'feature.journal.refresh': 'Refresh Journal Data',
   // Journal recommendation engine (strategies, difficulty, time estimates)
   'feature.journal.difficulty.easy': 'Easy',

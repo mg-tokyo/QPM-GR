@@ -12,6 +12,9 @@ import {
   initSpriteSystem,
   startSpriteV2Diagnostics,
   reportSpriteV2InitFailed,
+  reportSpriteV2InitRecovered,
+  probePixiPresence,
+  resetSpriteBootStateForRetry,
 } from '../sprite-v2/index';
 import type { SpriteService } from '../sprite-v2/types';
 import { setSpriteService, inspectPetSprites } from '../sprite-v2/compat';
@@ -105,6 +108,44 @@ async function waitForGame(): Promise<void> {
   }
 
   diag.debug('Game UI not detected within timeout, proceeding anyway');
+}
+
+/**
+ * Late-boot recovery for the sprite subsystem. Called when the initial
+ * initSpriteSystem() rejects (typically 'PIXI app timeout'). Polls the cheap
+ * PIXI presence probe every 5s for up to 5 minutes; if PIXI appears late
+ * (slow bundle, background-tab throttling, late Discord Activity handoff),
+ * resets the sprite boot guards and retries once. On success, publishes the
+ * recovery message so the diagnostics bus can transition failed → recovering
+ * → ok via the hysteresis machine.
+ */
+function scheduleLateSpriteBoot(applyServiceOnBoot: (service: SpriteService) => void): void {
+  const START_MS = Date.now();
+  const MAX_MS = 5 * 60 * 1000;
+  const INTERVAL_MS = 5000;
+  let retrying = false;
+
+  const timerId = 'qpm-sprite-late-boot';
+  const stop = visibleInterval(timerId, () => {
+    if (retrying) return;
+    if (Date.now() - START_MS > MAX_MS) {
+      stop();
+      return;
+    }
+    if (!probePixiPresence()) return;
+
+    retrying = true;
+    stop();
+    resetSpriteBootStateForRetry();
+    initSpriteSystem()
+      .then((service) => {
+        applyServiceOnBoot(service);
+        reportSpriteV2InitRecovered();
+      })
+      .catch((err) => {
+        reportSpriteV2InitFailed(err);
+      });
+  }, INTERVAL_MS);
 }
 
 async function initialize(): Promise<void> {
@@ -211,7 +252,8 @@ async function initialize(): Promise<void> {
   // Initialize sprite system (sprite-v2) - must be done early to hook PIXI
   // OPTIMIZATION: Don't block other initialization on sprite loading
   let spriteService: SpriteService | null = null;
-  const spriteInit = initSpriteSystem().then((service) => {
+
+  const applyServiceOnBoot = (service: SpriteService): void => {
     spriteService = service;
     setSpriteService(service);
     initStitcherHydrationListener();
@@ -220,14 +262,16 @@ async function initialize(): Promise<void> {
     }
     diag.debug('Sprite system v2 initialized');
 
-    // Export sprite inspector after sprites are ready
     if (debugGlobalsEnabled && typeof window !== 'undefined') {
       const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
       (targetWindow as any).inspectPetSprites = inspectPetSprites;
       diag.debug('inspectPetSprites() available in console');
     }
-  }).catch((err) => {
+  };
+
+  const spriteInit = initSpriteSystem().then(applyServiceOnBoot).catch((err) => {
     reportSpriteV2InitFailed(err);
+    scheduleLateSpriteBoot(applyServiceOnBoot);
   });
 
   // Wait for game to be ready (parallel with sprite init)

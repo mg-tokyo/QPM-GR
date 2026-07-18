@@ -14,6 +14,7 @@ import {
   normalizeWeatherCatalog,
 } from './detection';
 import {
+  enrichMutationColors,
   enrichPetAbilityColors,
   pollAttempts,
   stopWeatherCatalogPolling,
@@ -63,6 +64,9 @@ function deepScan(obj: unknown, depth: number): void {
       capturedCatalogs.mutationCatalog = record as GameCatalogs['mutationCatalog'];
       catalogLog('Captured mutationCatalog');
       didCapture = true;
+      // Reset retry budget when the catalog becomes available.
+      pollAttempts.mutationColor = 0;
+      void enrichMutationColors();
     }
 
     if (!capturedCatalogs.eggCatalog && looksLikeEggCatalog(record, keys)) {

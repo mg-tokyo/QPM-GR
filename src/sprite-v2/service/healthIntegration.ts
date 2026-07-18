@@ -181,7 +181,23 @@ export function stopSpriteV2Diagnostics(): void {
  * Surface a sprite init failure on the health bus. Called from main.ts when
  * the initSpriteSystem() promise rejects — otherwise the bus would sit in
  * 'starting' forever.
+ *
+ * Publishes an explicit message BEFORE the log call so the bus row shows the
+ * real error text; without this the previous 'starting' message ("Waiting for
+ * PIXI + atlas hydration") leaks through because fanOut only sets status +
+ * lastError, and healthBus.publish preserves any prior message field.
  */
 export function reportSpriteV2InitFailed(error: unknown): void {
+  const raw = error instanceof Error ? error.message : String(error);
+  publishSpriteHealth('failed', `initSpriteSystem rejected: ${raw}`);
   diagLog.error('QPM-SPRITE-001', { phase: 'initSpriteSystem' }, error);
+}
+
+/**
+ * Publish a recovery message + status when a late-boot retry succeeds. The bus
+ * hysteresis machine coerces 'ok' from a failed state into 'recovering' and
+ * drives the transition to 'ok' after the hysteresis window.
+ */
+export function reportSpriteV2InitRecovered(): void {
+  publishSpriteHealth('ok', 'Recovered after late PIXI arrival');
 }

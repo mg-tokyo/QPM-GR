@@ -4,9 +4,11 @@ import { HOOKS_HARD_DEADLINE_MS, HOOKS_RECHECK_INTERVAL_MS } from './constants';
 import {
   startAbilityColorPolling,
   startCosmeticCatalogPolling,
+  startMutationColorPolling,
   startWeatherCatalogPolling,
   stopAbilityColorPolling,
   stopCosmeticCatalogPolling,
+  stopMutationColorPolling,
   stopWeatherCatalogPolling,
 } from './enrichment';
 import { hooksLifecycle, installHooks, removeHooks, tryRemoveHooks } from './hooks';
@@ -22,6 +24,7 @@ export function initCatalogLoader(): void {
   catalogLog('Initializing catalog loader...');
   installHooks();
   startAbilityColorPolling();
+  startMutationColorPolling();
   startWeatherCatalogPolling();
   startCosmeticCatalogPolling();
   void fetchCosmeticOwnership();
@@ -57,6 +60,7 @@ export function cleanupCatalogLoader(): void {
   removeHooks();
   hooksLifecycle.removed = true;
   stopAbilityColorPolling();
+  stopMutationColorPolling();
   stopWeatherCatalogPolling();
   stopCosmeticCatalogPolling();
   readyCallbacks.length = 0;

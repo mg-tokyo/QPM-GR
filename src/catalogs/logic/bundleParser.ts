@@ -46,7 +46,7 @@ function markerHits(text: string, marker: BundleMarker): boolean {
 
 // Consumers that hold the shared text cache open. Once every declared consumer
 // signals its final cache is populated, the multi-MB bundle text is released.
-const pendingBundleConsumers = new Set<string>(['weather', 'ability-colors']);
+const pendingBundleConsumers = new Set<string>(['weather', 'ability-colors', 'mutation-colors']);
 
 export function markBundleConsumerDone(name: string): void {
   if (!pendingBundleConsumers.delete(name)) return;

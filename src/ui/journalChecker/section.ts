@@ -159,6 +159,23 @@ export function createJournalCheckerSection(): HTMLElement {
     },
   });
   helperCard.appendChild(helperToggle.root);
+
+  const badgeStyleRow = document.createElement('div');
+  badgeStyleRow.style.cssText =
+    'flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+  const badgeStyleLabel = document.createElement('div');
+  badgeStyleLabel.style.cssText = 'font-size:var(--qpm-font-caption);color:var(--qpm-text-muted);';
+  badgeStyleLabel.textContent = t('feature.journal.badgeStyle');
+  const badgeStyleToggle = createToggle({
+    size: 'compact',
+    checked: getCropSizeIndicatorConfig().journalBadgeStyle !== 'letters',
+    onChange: (checked) => {
+      setCropSizeIndicatorConfig({ journalBadgeStyle: checked ? 'icons' : 'letters' });
+    },
+  });
+  badgeStyleRow.appendChild(badgeStyleLabel);
+  badgeStyleRow.appendChild(badgeStyleToggle.root);
+  helperCard.appendChild(badgeStyleRow);
   root.appendChild(helperCard);
 
   const resultsContainer = document.createElement('div');
