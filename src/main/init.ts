@@ -448,11 +448,6 @@ async function initialize(): Promise<void> {
     registerWindowOpener('texture-swapper', openTextureSwapperWindow);
   }
 
-  // Rive Control (dev-gated window shell). Registration is unconditional so
-  // the lazy loader is ready when dev mode is enabled; the launcher in the
-  // Garden Painter footer is what dev-gates VISIBILITY.
-  const { registerRiveControlWindow } = await import('../ui/riveControl/window');
-  registerRiveControlWindow();
   registerWindowOpener('pet-hub', () => {
     const render = (root: HTMLElement) => import('../ui/pets/hubWindow').then(({ renderPetHubWindow }) => renderPetHubWindow(root));
     toggleWindow('pet-hub', '🐾 Pet Hub', render, '1600px', '92vh');

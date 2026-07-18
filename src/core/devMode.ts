@@ -5,11 +5,10 @@ import { dispatchCustomEventAll } from './pageContext';
 const KEY = 'qpm.dev.enabled';
 const EVENT = 'qpm:dev-mode-changed';
 
-// Dev mode unlocks the Garden Painter's extra picker tabs (Catalog / UI /
-// World / Weather). It is on whenever either the standalone `qpm.dev.enabled`
-// flag is set OR debug mode is on — matches the original ask "gate the whole
-// expansion behind qpm boot debug enabled" while keeping the standalone flag
-// usable on its own.
+// Dev mode is on whenever either the standalone `qpm.dev.enabled` flag is
+// set OR debug mode is on. Currently only consumed by the debug API
+// (setDevMode/isDevMode in mainApi/lateExposure.ts) and init logging — the
+// Garden Painter picker tabs it once gated are now always visible.
 export function isDevModeEnabled(): boolean {
   if (storage.get<boolean>(KEY, false) === true) return true;
   return isDebugGlobalsEnabled();

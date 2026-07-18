@@ -2,7 +2,6 @@ import type { SpriteCategory } from '../../../sprite-v2/types';
 import type { SpriteInventoryEntry } from '../../../sprite-v2/compat';
 import type { TextureOverrideRule } from '../../../features/standalone/textureSwapper';
 import type { RuleScope } from '../../../features/standalone/textureSwapper/types';
-import { isDevModeEnabled } from '../../../core/devMode';
 
 export type { SpriteCategory };
 
@@ -11,11 +10,11 @@ export const WINDOW_ID = 'texture-swapper';
 export type CategoryTab = {
   label: string;
   categories: SpriteCategory[];
-  // Dev-only tabs cover sprite categories outside the typed SpriteCategory
-  // enum (ui, mutation, object, animation, winter). When present, the browse
-  // grid uses getSpriteInventory() + this predicate instead of svc.list(),
-  // and skips species-lock gating (journal unlocks don't apply here).
-  devScan?: (entry: SpriteInventoryEntry) => boolean;
+  // Scan tabs cover sprite categories outside the typed SpriteCategory enum
+  // (ui, object, animation, winter). When present, the browse grid uses
+  // getSpriteInventory() + this predicate instead of svc.list(), and skips
+  // species-lock gating (these categories are not journal-tracked).
+  scan?: (entry: SpriteInventoryEntry) => boolean;
 };
 
 export const CATEGORY_TABS: CategoryTab[] = [
@@ -26,14 +25,23 @@ export const CATEGORY_TABS: CategoryTab[] = [
   { label: 'feature.gardenPainter.catDecor', categories: ['decor'] },
 ];
 
-const DEV_CATEGORY_TABS: CategoryTab[] = [
-  { label: 'UI',      categories: [], devScan: (e) => e.category === 'ui' || e.category === 'mutation' || e.category === 'mutation-overlay' },
-  { label: 'World',   categories: [], devScan: (e) => e.category === 'object' || e.category === 'animation' },
-  { label: 'Weather', categories: [], devScan: (e) => e.category === 'winter' || /weather|storm|rain|snow|thunder|dawn|amber/i.test(e.id) },
+// Scan predicates are restricted to SCAN_CATEGORIES so journal-tracked
+// categories (plant/tallplant/crop/pet — plus seed/item/decor) can never
+// leak into these ungated tabs, and are mutually exclusive so no sprite
+// appears in two tabs.
+const SCAN_CATEGORIES = new Set(['ui', 'mutation', 'mutation-overlay', 'object', 'animation', 'winter']);
+const WEATHER_RE = /weather|storm|rain|snow|thunder|dawn|amber/i;
+const isWeatherEntry = (e: SpriteInventoryEntry): boolean =>
+  e.category === 'winter' || (SCAN_CATEGORIES.has(e.category) && WEATHER_RE.test(e.id));
+
+const SCAN_TABS: CategoryTab[] = [
+  { label: 'feature.gardenPainter.catUi',      categories: [], scan: (e) => (e.category === 'ui' || e.category === 'mutation' || e.category === 'mutation-overlay') && !isWeatherEntry(e) },
+  { label: 'feature.gardenPainter.catWorld',   categories: [], scan: (e) => (e.category === 'object' || e.category === 'animation') && !isWeatherEntry(e) },
+  { label: 'feature.gardenPainter.catWeather', categories: [], scan: isWeatherEntry },
 ];
 
 export function getVisibleCategoryTabs(): CategoryTab[] {
-  return isDevModeEnabled() ? [...CATEGORY_TABS, ...DEV_CATEGORY_TABS] : CATEGORY_TABS;
+  return [...CATEGORY_TABS, ...SCAN_TABS];
 }
 
 export type MutationGroup = {

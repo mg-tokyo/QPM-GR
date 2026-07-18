@@ -95,12 +95,10 @@ function renderBrowseGrid(
   _fullRefresh: () => void,
 ): void {
   const visibleTabs = getVisibleCategoryTabs();
-  // Dev mode may have been toggled off since the last open; clamp before use.
   if (state.activeTabIndex >= visibleTabs.length) state.activeTabIndex = 0;
   const browseTabDefs: TabDef[] = visibleTabs.map((tab, i) => ({
     id: String(i),
-    // Dev tab labels are literal strings (UI/World/Weather), not i18n keys.
-    label: tab.devScan ? tab.label : t(tab.label),
+    label: t(tab.label),
   }));
   const browseBar = createTabBar(browseTabDefs, {
     defaultTab: String(state.activeTabIndex),
@@ -630,7 +628,7 @@ async function collectItemsForTab(
   activeIndex: number,
   filter: string,
 ): Promise<Array<SpriteListItem & { isLocked: boolean }>> {
-  if (tab.devScan) return collectDevItems(tab.devScan, filter);
+  if (tab.scan) return collectScanItems(tab.scan, filter);
   const tabKind: 'plants-merged' | 'pets' | 'seeds' | 'items' | 'decor' =
     activeIndex === 0 ? 'plants-merged'
       : activeIndex === 1 ? 'pets'
@@ -664,10 +662,10 @@ async function collectItems(
   return out;
 }
 
-// Dev-tab items live outside the typed SpriteCategory enum, so we walk the
+// Scan-tab items live outside the typed SpriteCategory enum, so we walk the
 // full sprite inventory and dedupe / sort alphabetically. Journal-unlock
 // gating doesn't apply (no journal concept for ui/mutation/world/weather).
-function collectDevItems(
+function collectScanItems(
   filterEntry: (entry: import('../../../sprite-v2/compat').SpriteInventoryEntry) => boolean,
   filter: string,
 ): Array<SpriteListItem & { isLocked: boolean }> {

@@ -25,9 +25,6 @@ import { createToggle } from '../../components/toggle';
 import { showConfirmDialog } from '../../components/confirmDialog';
 import { renderGardenPainterPresetsBar } from './presetsBar';
 import { createSpriteCustomiserPromo } from '../../components/spriteCustomiserPromo';
-import { isDevModeEnabled, onDevModeChange } from '../../../core/devMode';
-import { toggleLazyWindow } from '../../core/lazyWindow';
-import { RIVE_CONTROL_WINDOW_ID } from '../../riveControl/window';
 
 const GRID_OPEN_STORAGE_KEY = 'qpm.gardenPainter.gridOpen.v1';
 
@@ -146,28 +143,7 @@ function renderWindow(root: HTMLElement): void {
     },
   });
   resetAllBtn.title = t('feature.gardenPainter.resetAllRules');
-  footerRow.append(settingsBtn, spacer);
-
-  // Dev-mode-gated Rive Control launcher. Added when dev mode is on, removed
-  // when it flips off. Non-i18n — dev-only surface, plain English per plan.
-  const riveControlBtn = createButton('Rive Control', {
-    variant: 'ghost',
-    size: 'sm',
-    onClick: () => { void toggleLazyWindow(RIVE_CONTROL_WINDOW_ID, 'Rive Control (dev)'); },
-  });
-  riveControlBtn.title = 'Persistent Rive animation control (dev mode)';
-  function refreshDevGate(): void {
-    if (isDevModeEnabled()) {
-      if (!riveControlBtn.parentElement) footerRow.appendChild(riveControlBtn);
-    } else if (riveControlBtn.parentElement) {
-      riveControlBtn.remove();
-    }
-  }
-  refreshDevGate();
-  const stopDevWatch = onDevModeChange(refreshDevGate);
-  cleanups.push(stopDevWatch);
-
-  footerRow.append(resetAllBtn);
+  footerRow.append(settingsBtn, spacer, resetAllBtn);
   root.appendChild(footerRow);
 
   root.appendChild(createSpriteCustomiserPromo());

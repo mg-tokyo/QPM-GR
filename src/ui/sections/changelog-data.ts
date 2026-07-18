@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.20",
+    date: "2026-07-18",
+    notes: [
+      "Added three new asset tabs to the Garden Painter for everyone: UI, World, and Weather, so you can now customise game interface icons and mutation overlays, world objects and animations, and weather and winter effects alongside the existing plants, pets, seeds, items, and decor",
+      "Improved the new tabs so every sprite appears in exactly one tab, weather-named plants and pets no longer show up duplicated in the Weather tab, and journal locking for plants, crops, pets, eggs, and mutations applies exactly as before",
+      "Removed the unfinished Rive Control window and its Garden Painter footer button for now, it needs more work before a public release; any animation rules previously saved with it still apply in the background",
+    ],
+  },
+  {
     version: "3.3.19",
     date: "2026-07-18",
     notes: [

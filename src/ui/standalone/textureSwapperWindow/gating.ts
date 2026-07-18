@@ -3,13 +3,8 @@ import { getJournal } from '../../../features/journal/checker';
 import { getCatalogs } from '../../../catalogs/gameCatalogs';
 import { storage } from '../../../utils/storage';
 import { stripFamilySuffix } from './displayName';
-import { isDevModeEnabled } from '../../../core/devMode';
 
 export type GatingOptions = { bypassJournal?: boolean };
-
-export function isDevExpansionEnabled(): boolean {
-  return isDevModeEnabled();
-}
 
 // Suffixes stripped after NORMALIZE (lowercase + alphanumeric-only).
 // Kept conservative — only family/variant tokens that show up at the END
