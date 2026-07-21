@@ -1,37 +1,12 @@
 import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
-import { createNamedLogger } from '../../../diagnostics/logger';
-import { healthBus } from '../../../diagnostics/healthBus';
-import { buildError } from '../../../diagnostics/result';
-import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
+import type { Subsystem } from '../../../diagnostics/types';
 import { DAWN_CAPTURE_ACTION } from '../capsule/constants';
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:dawnCapture';
-const FEATURE_NAME = 'dawnCapture';
-const diag = createNamedLogger(FEATURE_SUBSYSTEM);
-let busRegistered = false;
-
-function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
-}
-
-function publishOk(message: string, metrics?: Record<string, number | string>): void {
-  healthBus.publish({
-    subsystem: FEATURE_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message,
-    ...(metrics ? { metrics } : {}),
-  });
-}
-
-function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
-  ensureBusRegistered();
-  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
-  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
-}
+const { diag, ensureBusRegistered, publishOk, warnFeature } =
+  createFeatureDiagnostics(FEATURE_SUBSYSTEM, 'dawnCapture');
 
 export interface DawnCapturePetState {
   petSlotId: string;

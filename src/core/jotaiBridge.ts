@@ -3,7 +3,6 @@
 // Prioritizes reading from existing stores, falls back to capture if needed
 
 import { readSharedGlobal, shareGlobal, pageWindow } from './pageContext';
-import { log } from '../utils/logger';
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
 import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
@@ -711,13 +710,13 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       storeRef = createCacheReadStore();
       lastCaptureMode = 'cache-read';
       shareStoreNonInvasively(storeRef);
-      log('[jotaiBridge] Using cache-read fallback store');
+      diagLog.debug('Using cache-read fallback store');
       reportJotaiCapture(lastCaptureMode);
       return storeRef;
     }
 
     // 6) No options left - return a store that will throw on every operation
-    log('[jotaiBridge] ⚠️ No Jotai store available - functionality limited');
+    diagLog.debug('No Jotai store available - functionality limited');
     storeRef = {
       get() { throw new Error('Jotai store unavailable'); },
       set() { throw new Error('Jotai store unavailable'); },

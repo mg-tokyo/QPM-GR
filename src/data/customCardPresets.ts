@@ -11,7 +11,9 @@
 
 import type { PhantomInventoryItem, SpeciesOverrides } from '../integrations/nativeCardView';
 import { storage } from '../utils/storage';
-import { log } from '../utils/logger';
+import { createNamedLogger } from '../diagnostics/logger';
+
+const diagLog = createNamedLogger('customCardPresets');
 import {
   TOKYO_CARD,
   TOKYO_CARD_VIDEO_URL,
@@ -178,7 +180,7 @@ export function loadUserPresets(): CustomCardPreset[] {
     if (isPresetShape(entry)) {
       out.push(entry);
     } else {
-      log('[customCardPresets] dropped malformed preset on load', entry);
+      diagLog.info('dropped malformed preset on load', { entry });
     }
   }
   return out;

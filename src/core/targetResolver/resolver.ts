@@ -1,3 +1,4 @@
+import { writeShimConsole } from '../../diagnostics/logger';
 import { getProbeRuntime } from '../../debug/universalProbe/runtime';
 import { buildDomIndex } from '../../debug/universalProbe/domIndex';
 import { buildSceneIndex } from '../../debug/universalProbe/sceneIndex';
@@ -198,13 +199,13 @@ export function resolveTarget(recipeId: string, params: ResolveTargetParams = {}
 
 export function explainTarget(recipeId: string, params: ResolveTargetParams = {}): ResolveTargetResult {
   const result = resolveTarget(recipeId, params);
-  console.info('[QPM targetResolver] explain', result);
+  writeShimConsole('QPM targetResolver', ['explain', result]);
   return result;
 }
 
 export function untrackTarget(): void {
   if (trackCancel) {
     trackCancel();
-    console.log('%c[resolve]%c tracking stopped', 'color:#a78bfa;font-weight:700', 'color:inherit');
+    writeShimConsole('resolve', ['tracking stopped']);
   }
 }

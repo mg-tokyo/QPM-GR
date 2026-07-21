@@ -5,12 +5,13 @@ import { pageWindow } from '../../../core/pageContext';
 import { serviceReady, onSpritesReady } from '../../../sprite-v2/compat';
 import { invalidateByFamilyRoot as invalidateThumbCache } from '../../../ui/standalone/textureSwapperWindow/thumbnailCache';
 import { invalidateSpecies as invalidateStitcherCache } from '../../../sprite-v2/stitcher';
-import { healthBus } from '../../../diagnostics/healthBus';
 
 import {
   log,
   diag,
   warnFeature,
+  ensureBusRegistered,
+  publishOk,
   ctx,
   parseAtlasKey,
   scopeKey,
@@ -476,21 +477,12 @@ export async function getOriginalSpriteCanvas(spriteKey: string): Promise<HTMLCa
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-let busRegistered = false;
-
 export function initTextureSwapper(): () => void {
   if (!TEXTURE_MANIPULATOR_ENABLED) return () => {};
   if (ctx.started) return () => {};
   ctx.started = true;
 
-  if (!busRegistered) {
-    healthBus.register('feature:textureSwapper', {
-      category: 'feature',
-      status: 'starting',
-      message: 'Loading rules',
-    });
-    busRegistered = true;
-  }
+  ensureBusRegistered();
 
   ctx.state = loadState();
   ruleIndex.rebuild(ctx.state.rules);
@@ -558,16 +550,10 @@ export function initTextureSwapper(): () => void {
   const cleanupRiveAdapter = installRiveAdapter();
   ctx.cleanups.push(cleanupRiveAdapter);
 
-  healthBus.publish({
-    subsystem: 'feature:textureSwapper',
-    category: 'feature',
-    status: 'ok',
-    message: 'Ready — waiting for sprites',
-    metrics: {
-      rules: ctx.state.rules.length,
-      activeRules: ctx.activeRules.length,
-      uploads: Object.keys(ctx.state.uploadedAssets).length,
-    },
+  publishOk('Ready — waiting for sprites', {
+    rules: ctx.state.rules.length,
+    activeRules: ctx.activeRules.length,
+    uploads: Object.keys(ctx.state.uploadedAssets).length,
   });
 
   return () => {

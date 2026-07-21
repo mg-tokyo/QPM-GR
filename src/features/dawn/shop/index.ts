@@ -4,29 +4,12 @@
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { activeAlerts } from '../../../ui/shop/restockAlerts/alertState';
 import { removeAlert } from '../../../ui/shop/restockAlerts/alertDom';
-import { createNamedLogger } from '../../../diagnostics/logger';
-import { healthBus } from '../../../diagnostics/healthBus';
+import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
 import type { Subsystem } from '../../../diagnostics/types';
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:dawnShop';
-const diag = createNamedLogger(FEATURE_SUBSYSTEM);
-let busRegistered = false;
-
-function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
-}
-
-function publishOk(message: string, metrics?: Record<string, number | string>): void {
-  healthBus.publish({
-    subsystem: FEATURE_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message,
-    ...(metrics ? { metrics } : {}),
-  });
-}
+const { diag, ensureBusRegistered, publishOk } =
+  createFeatureDiagnostics(FEATURE_SUBSYSTEM, 'dawnShop');
 
 let weatherUnsubscribe: (() => void) | null = null;
 let lastWeatherKind: string | null = null;

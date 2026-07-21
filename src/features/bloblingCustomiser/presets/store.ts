@@ -4,44 +4,19 @@
 
 import { storage, registerDynamicKey } from '../../../utils/storage';
 import { getPlayerId } from '../../../core/playerContext';
-import { createNamedLogger } from '../../../diagnostics/logger';
-import { healthBus } from '../../../diagnostics/healthBus';
-import { buildError } from '../../../diagnostics/result';
-import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
+import type { Subsystem } from '../../../diagnostics/types';
 import {
   PRESETS_STORAGE_KEY, PRESETS_SOFT_CAP, createDefaultPresetsConfig,
   type BloblingPreset, type BloblingPresetsConfig,
 } from './types';
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:bloblingCustomiser';
-const FEATURE_NAME = 'bloblingCustomiser';
-const presetsLog = createNamedLogger(FEATURE_SUBSYSTEM);
-
-let busRegistered = false;
-
-function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(FEATURE_SUBSYSTEM, {
-    category: 'feature',
-    status: 'starting',
-    message: 'Loading presets',
-  });
-}
+const { diag: presetsLog, ensureBusRegistered, publishOk, warnFeature: warnBlobling } =
+  createFeatureDiagnostics(FEATURE_SUBSYSTEM, 'bloblingCustomiser');
 
 function publishReady(): void {
-  healthBus.publish({
-    subsystem: FEATURE_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message: 'Ready',
-    metrics: { presets: state.config.presets.length },
-  });
-}
-
-function warnBlobling(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
-  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
-  presetsLog.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
+  publishOk('Ready', { presets: state.config.presets.length });
 }
 
 const state = {

@@ -1,12 +1,50 @@
 import type { Manifest, AtlasData } from './types';
 
-/** Uses GM_xmlhttpRequest to bypass CORS; falls back to fetch if unavailable. */
+const REQUEST_TIMEOUT_MS = 20000;
+
+function isSameOrigin(url: string): boolean {
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function fetchRequest(url: string, type: 'text' | 'blob'): Promise<any> {
+  const init: RequestInit = {};
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    init.signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  }
+  if (type === 'blob') {
+    return fetch(url, init).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} (${url})`);
+      return r.blob();
+    });
+  }
+  return fetch(url, init).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status} (${url})`);
+    return r.text().then((text) => ({ responseText: text }));
+  });
+}
+
+/**
+ * Same-origin URLs (all game assets — the base is built from location.origin)
+ * use plain fetch: Violentmonkey MV3 can drop GM_xmlhttpRequest callbacks
+ * entirely (no onload/onerror ever fires), which hung sprite boot forever and
+ * blocked UI creation. GM path is kept for cross-origin only, with a real
+ * `timeout` value — without it ontimeout never fires.
+ */
 function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
+  if (isSameOrigin(url)) {
+    return fetchRequest(url, type);
+  }
+
   if (typeof GM_xmlhttpRequest !== 'undefined') {
     return new Promise((resolve, reject) => {
       const reqConfig: any = {
         method: 'GET',
         url,
+        timeout: REQUEST_TIMEOUT_MS,
         onload: (r: any) =>
           r.status >= 200 && r.status < 300
             ? resolve(r)
@@ -23,17 +61,7 @@ function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
     });
   }
 
-  if (type === 'blob') {
-    return fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status} (${url})`);
-      return r.blob();
-    });
-  } else {
-    return fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status} (${url})`);
-      return r.text().then((text) => ({ responseText: text }));
-    });
-  }
+  return fetchRequest(url, type);
 }
 
 export async function getJSON<T = any>(url: string): Promise<T> {

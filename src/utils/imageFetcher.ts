@@ -14,6 +14,7 @@ export function fetchImageUrl(url: string): Promise<string> {
         method: 'GET',
         url,
         responseType: 'blob',
+        timeout: 15000,
         onload(response: { response: Blob }) {
           try {
             const blob = response.response;

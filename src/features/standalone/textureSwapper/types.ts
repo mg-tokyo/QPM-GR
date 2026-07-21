@@ -1,10 +1,8 @@
 import {
-  createNamedLogger,
   isVerboseLogsEnabled,
   writeShimConsole,
 } from '../../../diagnostics/logger';
-import { buildError } from '../../../diagnostics/result';
-import type { ErrorCode } from '../../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
 import type { SpriteService, SpriteCategory } from '../../../sprite-v2/types';
 
 export type { SpriteService, SpriteCategory };
@@ -28,30 +26,16 @@ function makeDebugLogger(prefix: string): DebugLogger {
 
 export const log: DebugLogger = makeDebugLogger('QPM:TextureSwapper');
 
-// Named logger for coded failure paths (QPM-TEXTURESWAP-*). TEXTURESWAP codes
-// declare subsystem: 'feature' as a placeholder; the helpers below override
-// to 'feature:textureSwapper' so the bus row lands under this feature.
-export const diag = createNamedLogger('feature:textureSwapper');
+// Coded failure paths (QPM-TEXTURESWAP-*). TEXTURESWAP codes declare
+// subsystem: 'feature' as a placeholder; the factory overrides to
+// 'feature:textureSwapper' so the bus row lands under this feature.
+const d = createFeatureDiagnostics('feature:textureSwapper', 'textureSwapper');
 
-const FEATURE_SUBSYSTEM = 'feature:textureSwapper';
-
-export function warnFeature(
-  code: ErrorCode,
-  context?: Record<string, unknown>,
-  cause?: unknown,
-): void {
-  const err = buildError(code, context, cause);
-  diag.warn({ ...err, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
-}
-
-export function errorFeature(
-  code: ErrorCode,
-  context?: Record<string, unknown>,
-  cause?: unknown,
-): void {
-  const err = buildError(code, context, cause);
-  diag.error({ ...err, subsystem: FEATURE_SUBSYSTEM, severity: 'error' });
-}
+export const diag = d.diag;
+export const ensureBusRegistered = d.ensureBusRegistered;
+export const publishOk = d.publishOk;
+export const warnFeature = d.warnFeature;
+export const errorFeature = d.errorFeature;
 
 // ---------------------------------------------------------------------------
 // Constants

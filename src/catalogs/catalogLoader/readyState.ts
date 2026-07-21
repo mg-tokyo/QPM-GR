@@ -1,7 +1,7 @@
 // Ready state management
 
 import type { GameCatalogs } from '../types';
-import { diagState, publishCatalogsHealth, schedulePartialCheck } from './diagnostics';
+import { diagLog, diagState, publishCatalogsHealth, schedulePartialCheck } from './diagnostics';
 import {
   capturedCatalogs,
   catalogLog,
@@ -43,7 +43,7 @@ export function checkAndNotifyReady(): void {
       try {
         callback(capturedCatalogs);
       } catch (e) {
-        console.error('[Catalog] Ready callback error:', e);
+        diagLog.warn('QPM-CATALOG-004', { what: 'ready-callback' }, e);
       }
     }
     readyCallbacks.length = 0;
@@ -113,7 +113,7 @@ export function onCatalogsReady(callback: (catalogs: GameCatalogs) => void): () 
     try {
       callback(capturedCatalogs);
     } catch (e) {
-      console.error('[Catalog] onCatalogsReady callback error:', e);
+      diagLog.warn('QPM-CATALOG-004', { what: 'onCatalogsReady-immediate-callback' }, e);
     }
     return () => {};
   }

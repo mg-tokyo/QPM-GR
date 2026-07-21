@@ -2,6 +2,7 @@
 // context to feed maybeCapture.
 
 import { maybeCapture } from './scan';
+import { diagLog } from './diagnostics';
 import { catalogLog, NativeObject, originalEntries, originalKeys, originalValues } from './state';
 
 // Hook lifecycle state (live holder) — timers armed by lifecycle.ts initCatalogLoader.
@@ -42,7 +43,7 @@ export function installHooks(): void {
 
     catalogLog('Object.* hooks installed');
   } catch (e) {
-    console.error('[Catalog] Failed to install hooks:', e);
+    diagLog.warn('QPM-CATALOG-004', { what: 'install-hooks' }, e);
   }
 }
 

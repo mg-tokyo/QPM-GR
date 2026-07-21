@@ -1,49 +1,14 @@
 // Shared diagnostics wiring for the turtle-timer feature (feature:turtleTimer).
-// Internal to the folder — not re-exported from index.ts. Mirrors the
-// pets/_diagnostics.ts precedent (row 6.11 session 1).
+// Internal to the folder — not re-exported from index.ts.
 
-import { createNamedLogger } from '../../../diagnostics/logger';
-import { healthBus } from '../../../diagnostics/healthBus';
-import { buildError } from '../../../diagnostics/result';
-import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
+import type { Subsystem } from '../../../diagnostics/types';
 
 export const TURTLE_TIMER_SUBSYSTEM: Subsystem = 'feature:turtleTimer';
-const FEATURE_NAME = 'turtleTimer';
 
-export const diag = createNamedLogger(TURTLE_TIMER_SUBSYSTEM);
+const d = createFeatureDiagnostics(TURTLE_TIMER_SUBSYSTEM, 'turtleTimer');
 
-let busRegistered = false;
-
-export function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(TURTLE_TIMER_SUBSYSTEM, {
-    category: 'feature',
-    status: 'starting',
-  });
-}
-
-export function publishOk(
-  message: string,
-  metrics?: Record<string, number | string>,
-): void {
-  ensureBusRegistered();
-  healthBus.publish({
-    subsystem: TURTLE_TIMER_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message,
-    ...(metrics ? { metrics } : {}),
-  });
-}
-
-/** Re-attribute FEATURE-* codes (whose registry subsystem is the generic 'feature' placeholder) to feature:turtleTimer. */
-export function warnFeature(
-  code: ErrorCode,
-  ctx: Record<string, unknown>,
-  cause?: unknown,
-): void {
-  ensureBusRegistered();
-  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
-  diag.warn({ ...built, subsystem: TURTLE_TIMER_SUBSYSTEM, severity: 'warn' });
-}
+export const diag = d.diag;
+export const ensureBusRegistered = d.ensureBusRegistered;
+export const publishOk = d.publishOk;
+export const warnFeature = d.warnFeature;

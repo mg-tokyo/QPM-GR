@@ -3,29 +3,12 @@
 import { storage } from '../../utils/storage';
 import { isEditableTarget, normalizeKeybind } from '../../ui/pets/petsWindow/helpers';
 import { getAtomByLabel, writeAtomValue, ensureJotaiStore } from '../../core/jotaiBridge';
-import { createNamedLogger } from '../../diagnostics/logger';
-import { healthBus } from '../../diagnostics/healthBus';
-import { buildError } from '../../diagnostics/result';
-import type { ErrorCode, Subsystem } from '../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
+import type { Subsystem } from '../../diagnostics/types';
 
 const SHOP_KEYBINDS_SUBSYSTEM: Subsystem = 'feature:shopKeybinds';
-const FEATURE_NAME = 'shopKeybinds';
-const diag = createNamedLogger(SHOP_KEYBINDS_SUBSYSTEM);
-
-let busRegistered = false;
-function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(SHOP_KEYBINDS_SUBSYSTEM, {
-    category: 'feature',
-    status: 'starting',
-  });
-}
-function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
-  ensureBusRegistered();
-  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
-  diag.warn({ ...built, subsystem: SHOP_KEYBINDS_SUBSYSTEM, severity: 'warn' });
-}
+const { ensureBusRegistered, publishOk, warnFeature } =
+  createFeatureDiagnostics(SHOP_KEYBINDS_SUBSYSTEM, 'shopKeybinds');
 
 const STORAGE_KEY = 'qpm.shop-keybinds.v1';
 
@@ -142,18 +125,12 @@ export function startShopKeybinds(): void {
   };
   document.addEventListener('keydown', handler);
   const binds = getAllShopKeybinds();
-  healthBus.publish({
-    subsystem: SHOP_KEYBINDS_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message: 'Started',
-    metrics: {
-      enabled: isShopKeybindsEnabled() ? 1 : 0,
-      seed: binds.seedShop,
-      egg: binds.eggShop,
-      tool: binds.toolShop,
-      decor: binds.decorShop,
-    },
+  publishOk('Started', {
+    enabled: isShopKeybindsEnabled() ? 1 : 0,
+    seed: binds.seedShop,
+    egg: binds.eggShop,
+    tool: binds.toolShop,
+    decor: binds.decorShop,
   });
 }
 

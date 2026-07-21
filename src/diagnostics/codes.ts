@@ -172,6 +172,17 @@ register({
 });
 
 register({
+  code: 'QPM-CATALOG-004',
+  subsystem: 'catalogs',
+  category: 'core',
+  severity: 'warn',
+  title: 'Catalog loader lifecycle error',
+  description: 'A catalogs-ready callback threw, or the Object.* capture hooks failed to install.',
+  devNotes: 'src/catalogs/catalogLoader/readyState.ts (callback isolation — the throwing subscriber is the real owner) / hooks.ts installHooks. If hooks failed to install, QPM-CATALOG-001 fires later from the watchdog.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
   code: 'QPM-JOTAI-001',
   subsystem: 'jotaiBridge',
   category: 'core',

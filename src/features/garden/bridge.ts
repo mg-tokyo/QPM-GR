@@ -1,37 +1,12 @@
 import { ensureJotaiStore, getAtomByLabel, readAtomValue, getCachedStore } from '../../core/jotaiBridge';
 import { subscribeAtomValue } from '../../core/atomRegistry';
 import { shareGlobal, readSharedGlobal } from '../../core/pageContext';
-import { createNamedLogger } from '../../diagnostics/logger';
-import { healthBus } from '../../diagnostics/healthBus';
-import { buildError } from '../../diagnostics/result';
-import type { ErrorCode, Subsystem } from '../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
+import type { Subsystem } from '../../diagnostics/types';
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenBridge';
-const FEATURE_NAME = 'gardenBridge';
-const diag = createNamedLogger(FEATURE_SUBSYSTEM);
-let busRegistered = false;
-
-function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
-}
-
-function publishOk(message: string, metrics?: Record<string, number | string>): void {
-  healthBus.publish({
-    subsystem: FEATURE_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message,
-    ...(metrics ? { metrics } : {}),
-  });
-}
-
-function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
-  ensureBusRegistered();
-  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
-  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
-}
+const { diag, ensureBusRegistered, publishOk, warnFeature } =
+  createFeatureDiagnostics(FEATURE_SUBSYSTEM, 'gardenBridge');
 
 const MY_DATA_ATOM_LABEL = 'myDataAtom';
 const MAP_ATOM_LABEL = 'mapAtom';

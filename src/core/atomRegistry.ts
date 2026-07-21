@@ -13,7 +13,6 @@ import {
   subscribeAtom as subscribeRawAtom,
   getCachedStore,
 } from './jotaiBridge';
-import { log } from '../utils/logger';
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
 import type { Subsystem } from '../diagnostics/types';
@@ -452,7 +451,7 @@ function resolveViaFallbackSource(key: AtomRegistryKey, finder: AtomFinder<unkno
   };
   resolutionCache.set(key, entry);
   missingLog.delete(key);
-  log(`[AtomRegistry] Resolved '${key}' via ${entry.resolvedVia}`);
+  diagLog.debug(`Resolved '${key}' via ${entry.resolvedVia}`);
   return entry;
 }
 
@@ -532,7 +531,7 @@ function resolveAtom(key: AtomRegistryKey): CachedResolution | null {
           const preferred = matches.find((m) => finder.prefer!(m.label));
           if (preferred) match = preferred;
         }
-        log(`[AtomRegistry] Resolved '${key}' via structure (found label: ${match.label})`);
+        diagLog.debug(`Resolved '${key}' via structure (found label: ${match.label})`);
         const entry: CachedResolution = {
           atom: match.atom, resolvedVia: 'structure', foundLabel: match.label,
         };
@@ -699,7 +698,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
   const resolution = resolveAtom(key);
 
   if (!resolution) {
-    log(`[AtomRegistry] Cannot subscribe '${key}': atom not found`);
+    diagLog.debug(`Cannot subscribe '${key}': atom not found`);
     return null;
   }
 
@@ -722,7 +721,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
   }
 
   if (resolution.atom === null) {
-    log(`[AtomRegistry] Cannot subscribe '${key}': no atom to bind`);
+    diagLog.debug(`Cannot subscribe '${key}': no atom to bind`);
     return null;
   }
 
@@ -735,7 +734,7 @@ export async function subscribeAtomValue<K extends AtomRegistryKey>(
 
   return () => {
     try { unsubscribe(); } catch (error) {
-      log(`[AtomRegistry] Unsubscribe error for '${key}'`, error);
+      diagLog.debug(`Unsubscribe error for '${key}'`, { error });
     }
   };
 }
@@ -897,13 +896,13 @@ export function runAtomHealthCheck(): AtomHealthCheckResult {
     unregistered.push({ label: entry.label, populated });
   }
 
-  log(
-    `[AtomRegistry] Health: ${registered.length} registered ` +
+  diagLog.debug(
+    `Health: ${registered.length} registered ` +
     `(${registered.length} found, ${missing.length} missing), ` +
     `${unregistered.length} unregistered discovered`,
   );
   if (missing.length > 0) {
-    log(`[AtomRegistry] ⚠️ Missing keys: ${missing.join(', ')}`);
+    diagLog.debug(`Missing keys: ${missing.join(', ')}`);
   }
 
   const result: AtomHealthCheckResult = { registered, missing, unregistered };

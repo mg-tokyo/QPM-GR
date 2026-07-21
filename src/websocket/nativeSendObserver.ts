@@ -5,7 +5,9 @@
 
 import { pageWindow } from '../core/pageContext';
 import { criticalInterval } from '../utils/scheduling/timerManager';
-import { log } from '../utils/logger';
+import { createNamedLogger } from '../diagnostics/logger';
+
+const diagLog = createNamedLogger('websocket');
 
 export type NativeSendListener = (type: string, payload: Record<string, unknown>) => void;
 
@@ -96,7 +98,7 @@ export function startNativeSendObserver(): void {
   started = true;
   ensurePatched();
   stopReconnectTimer = criticalInterval('native-send-observer', ensurePatched, RECONNECT_POLL_MS);
-  log('[NativeSendObserver] Started');
+  diagLog.debug('NativeSendObserver started');
 }
 
 export function stopNativeSendObserver(): void {
@@ -108,7 +110,7 @@ export function stopNativeSendObserver(): void {
   }
   restorePatch();
   listeners.clear();
-  log('[NativeSendObserver] Stopped');
+  diagLog.debug('NativeSendObserver stopped');
 }
 
 /** Debug: current listener count + started state */

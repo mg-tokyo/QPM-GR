@@ -5,10 +5,8 @@
 import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { onActivePetInfos, getActivePetInfos } from '../../../store/pets';
-import { createNamedLogger } from '../../../diagnostics/logger';
-import { healthBus } from '../../../diagnostics/healthBus';
-import { buildError } from '../../../diagnostics/result';
-import type { ErrorCode, Subsystem } from '../../../diagnostics/types';
+import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
+import type { Subsystem } from '../../../diagnostics/types';
 import {
   THUNDERCHARGER_ABILITY_ID,
   THUNDERCHARGER_ACTION,
@@ -16,31 +14,8 @@ import {
 } from './constants';
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:thunderCharger';
-const FEATURE_NAME = 'thunderCharger';
-const diag = createNamedLogger(FEATURE_SUBSYSTEM);
-let busRegistered = false;
-
-function ensureBusRegistered(): void {
-  if (busRegistered) return;
-  busRegistered = true;
-  healthBus.register(FEATURE_SUBSYSTEM, { category: 'feature', status: 'starting' });
-}
-
-function publishOk(message: string, metrics?: Record<string, number | string>): void {
-  healthBus.publish({
-    subsystem: FEATURE_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message,
-    ...(metrics ? { metrics } : {}),
-  });
-}
-
-function warnFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unknown): void {
-  ensureBusRegistered();
-  const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
-  diag.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
-}
+const { diag, ensureBusRegistered, publishOk, warnFeature } =
+  createFeatureDiagnostics(FEATURE_SUBSYSTEM, 'thunderCharger');
 
 // Types
 

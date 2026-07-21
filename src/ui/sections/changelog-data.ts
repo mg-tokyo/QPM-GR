@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.22",
+    date: "2026-07-21",
+    notes: [
+      "Fixed QPM not appearing at all for some users (notably Violentmonkey on Opera): sprite loading could hang forever inside the userscript manager's network layer, which silently blocked the panel from ever being created while everything else ran in the background",
+      "Improved sprite asset loading to fetch game files directly from the page instead of through the userscript manager, making startup immune to manager quirks and slightly faster",
+      "Improved startup resilience: if sprite assets still fail to load, requests now time out cleanly and the panel opens anyway with sprites retrying in the background, instead of QPM staying invisible",
+    ],
+  },
+  {
     version: "3.3.21",
     date: "2026-07-21",
     notes: [
