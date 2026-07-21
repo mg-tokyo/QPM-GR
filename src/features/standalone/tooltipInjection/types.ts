@@ -34,6 +34,10 @@ export interface TileValueConfig {
   enabled: boolean;
 }
 
+export interface TileEtaConfig {
+  enabled: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Shared slot data
 // ---------------------------------------------------------------------------
@@ -44,6 +48,11 @@ export interface ResolvedSlot {
   mutations: string[];
   slotId: number;
   endTime: number;
+}
+
+export interface ResolvedEgg {
+  eggId: string;
+  maturedAt: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +68,7 @@ export type InjectorFn = (container: HTMLElement) => void | Promise<void>;
 export const CROP_SIZE_STORAGE_KEY = 'qpm.cropSize.v1';
 export const CROP_SIZE_LEGACY_KEY = 'cropSizeIndicator:config';
 export const TILE_VALUE_STORAGE_KEY = 'qpm.tileValue.v1';
+export const TILE_ETA_STORAGE_KEY = 'qpm.tileEta.v1';
 
 /**
  * Whole tile info panel — includes the object card AND the ability chip

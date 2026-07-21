@@ -5,6 +5,7 @@ import {
   createTeam,
   onTeamsChange,
   getAllPooledPets,
+  detectCurrentTeam,
 } from '../../../store/petTeams';
 import { storage } from '../../../utils/storage';
 import { importAriesTeams } from '../../../utils/ariesTeamImport';
@@ -24,8 +25,12 @@ export function buildManagerTab(
   onCompareStateChange?: (state: CompareStateChange) => void,
 ): ManagerState {
   const initialTeams = getTeamsConfig().teams;
+  const initialActiveId = detectCurrentTeam();
+  const initialSelectedId = initialActiveId && initialTeams.some((team) => team.id === initialActiveId)
+    ? initialActiveId
+    : initialTeams[0]?.id ?? null;
   const state: ManagerState = {
-    selectedTeamId: initialTeams[0]?.id ?? null,
+    selectedTeamId: initialSelectedId,
     searchTerm: '',
     selectTeam: () => {},
     cleanups: [],

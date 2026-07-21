@@ -1,0 +1,1822 @@
+{
+  "src/catalogs/catalogLoader/enrichment.ts": {
+    "no-restricted-globals": {
+      "count": 4
+    }
+  },
+  "src/catalogs/catalogLoader/lifecycle.ts": {
+    "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/core/atomRegistry.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/core/jotaiBridge.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/core/pageContext.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 2
+    }
+  },
+  "src/core/reactive/manager.ts": {
+    "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/core/targetResolver/resolver.ts": {
+    "no-restricted-properties": {
+      "count": 1
+    }
+  },
+  "src/debug/debugApi.ts": {
+    "no-restricted-properties": {
+      "count": 1
+    }
+  },
+  "src/debug/universalProbe/watch.ts": {
+    "no-restricted-properties": {
+      "count": 1
+    }
+  },
+  "src/debug/wsMonitor.ts": {
+    "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/diagnostics/diagnosticsWindow.ts": {
+    "no-restricted-properties": {
+      "count": 1
+    }
+  },
+  "src/features/activity/activityLogNativeEnhancer/modal.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 8
+    }
+  },
+  "src/features/activity/activityLogNativeEnhancer/patchHooks.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/activity/activityLogNativeEnhancer/rendering.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/features/activity/activityLogNativeEnhancer/virtualList.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/features/economy/roomPlayerEconomy.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/garden/bridge.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/gardenQol/ariesHold.ts": {
+    "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/features/input/controller/controllerContext.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/locker/guard.ts": {
+    "no-restricted-properties": {
+      "count": 7
+    }
+  },
+  "src/features/mutations/reminder/highlights.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/features/mutations/reminder/inventorySource.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/mutations/reminder/notifications.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/features/pets/data/petAbilities.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/features/pets/optimizer/collection.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/pets/sellAll.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/features/pets/swap.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/shop/keybinds.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/features/standalone/antiAfk.ts": {
+    "no-restricted-properties": {
+      "count": 2
+    }
+  },
+  "src/features/standalone/autoFavorite.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/features/standalone/autoReconnect.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 5
+    }
+  },
+  "src/features/standalone/bulkFavorite/sidebar.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/features/standalone/textureSwapper/layerB-overlay.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/features/standalone/textureSwapper/layerB-prepare.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/detection.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/mutation-badges.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/mutation-overlays.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/pet-filters.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/pet-swap.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/rainbow-filter.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/rainbow-lite.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 21
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/rainbow-offscreen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/scale-alpha-textureOverride.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/sprite-patching.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/state.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 17
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/static-fallback.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/features/standalone/textureSwapper/types.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/i18n/dictionaries/de.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/i18n/dictionaries/en.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/i18n/dictionaries/es.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/i18n/dictionaries/fr.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/integrations/nativeCardView.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/rive-engine/instanceTracker.ts": {
+    "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/rive-engine/runtimeCapture.ts": {
+    "no-restricted-globals": {
+      "count": 1
+    },
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/sprite-v2/compat.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/sprite-v2/hooks.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/store/abilityLogs.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/store/inventory.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/store/petTeams/applyHelpers.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/store/pets.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/store/sellSnapshot.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/store/shopRegistry.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/store/shopStock.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/store/userSlots.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/bloblingCustomiser/carouselArrows.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/bloblingCustomiser/customsBadge.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/bloblingCustomiser/customsDropZone.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 8
+    }
+  },
+  "src/ui/bloblingCustomiser/gridPicker.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 14
+    }
+  },
+  "src/ui/bloblingCustomiser/outfitPanel.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/bloblingCustomiser/presetsBar.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/bloblingCustomiser/previewBox.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 6
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 12
+    }
+  },
+  "src/ui/bloblingCustomiser/purchasePopup.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/bloblingCustomiser/window.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    }
+  },
+  "src/ui/cardImportWindow/importInputs.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 12
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/ui/cardImportWindow/index.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/ui/cardImportWindow/itemForm.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 4
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 8
+    }
+  },
+  "src/ui/cardImportWindow/itemFormOverrides.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 7
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/cardImportWindow/itemFormStats.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    }
+  },
+  "src/ui/chargedAbilities/cardHelpers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    }
+  },
+  "src/ui/chargedAbilities/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/components/button.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 17
+    }
+  },
+  "src/ui/components/card.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/components/confirmDialog.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/components/mutationBadge.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    }
+  },
+  "src/ui/components/pillTabs.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/components/progressBar.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/components/sectionHeader.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/components/select.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/components/sliderRow.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    }
+  },
+  "src/ui/components/spinner.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/components/spriteCustomiserPromo.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/components/toggle.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/catalogStatusIndicator.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/lazyWindow.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/core/modalWindow.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 13
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/core/modalWindowErrorBoundary.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 7
+    }
+  },
+  "src/ui/core/originalPanel.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 5
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelHelpers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 16
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/about.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/button.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/card.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/footer.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/nav.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/panel.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/tile.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/toast.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/core/panelStyles/tokens.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/economy/cropCalculatorWindow/domHelpers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    }
+  },
+  "src/ui/economy/cropCalculatorWindow/inputs.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/economy/cropCalculatorWindow/mainWindow.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    }
+  },
+  "src/ui/economy/cropCalculatorWindow/pricing.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/economy/inventoryCapacityOverlay.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/economy/inventoryCapacitySection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 39
+    }
+  },
+  "src/ui/economy/playerCompareFloatingCard.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/ui/economy/storageValueOverlay.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/economy/storageValueWindow.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/economy/valueFloatingCard.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 8
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 23
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 5
+    }
+  },
+  "src/ui/garden/gardenFiltersSection.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/hub/cards/expandableCard.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 24
+    }
+  },
+  "src/ui/hub/cards/iconRenderer.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/hub/cards/inlineToggle.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 12
+    }
+  },
+  "src/ui/hub/cards/launcherCard.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 19
+    }
+  },
+  "src/ui/hub/groups/configGroup.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 14
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 42
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 3
+    }
+  },
+  "src/ui/hub/groups/gardenGroup.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 27
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 26
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 3
+    }
+  },
+  "src/ui/hub/groups/itemsGroup.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 19
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 18
+    }
+  },
+  "src/ui/hub/groups/toolsGroup.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 25
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 24
+    }
+  },
+  "src/ui/hub/groups/trackersGroup.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 29
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 22
+    }
+  },
+  "src/ui/hub/hubGroup.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/hub/hubSidebar.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    }
+  },
+  "src/ui/journalChecker/constants.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 7
+    }
+  },
+  "src/ui/journalChecker/section.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 10
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    }
+  },
+  "src/ui/journalChecker/speciesCard.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/journalChecker/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/journalChecker/tabRecommendations.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 14
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 10
+    }
+  },
+  "src/ui/locker/lockerCropOverrides.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/locker/lockerFilterBuilder.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 13
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/locker/lockerPrimitives.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 4
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 22
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/locker/lockerSection.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/locker/lockerTabPanels.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 7
+    }
+  },
+  "src/ui/mutations/mutationValueSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 22
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 27
+    }
+  },
+  "src/ui/panel/panelNav.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 18
+    }
+  },
+  "src/ui/panel/standaloneTiles.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/panel/tileDrag.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 3
+    }
+  },
+  "src/ui/panel/tileGrid.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 29
+    }
+  },
+  "src/ui/panel/tileStatusesCore.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/pets/cropBoostTrackerWindow.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 17
+    }
+  },
+  "src/ui/pets/floatingCard/bodyRenderers.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/floatingCard/card.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 6
+    }
+  },
+  "src/ui/pets/floatingCard/gearButton.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 4
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/ui/pets/floatingCard/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/hubWindow.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 17
+    }
+  },
+  "src/ui/pets/hutchWindow.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 4
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 10
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/optimizerWindow/card.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 26
+    }
+  },
+  "src/ui/pets/optimizerWindow/familyNav.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/pets/optimizerWindow/filters.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 14
+    }
+  },
+  "src/ui/pets/optimizerWindow/results.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/pets/optimizerWindow/sell.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 3
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 25
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/optimizerWindow/sprites.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 3
+    }
+  },
+  "src/ui/pets/optimizerWindow/statusSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 3
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 33
+    }
+  },
+  "src/ui/pets/optimizerWindow/summary.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    }
+  },
+  "src/ui/pets/optimizerWindow/window.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 4
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/pets/petsWindow/compareStyles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/petsWindow/comparisonPanel.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    }
+  },
+  "src/ui/pets/petsWindow/helpers.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 10
+    }
+  },
+  "src/ui/pets/petsWindow/mainWindow.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/petsWindow/styles.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/petsWindow/teamEditor.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 7
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 14
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/pets/petsWindow/teamList.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/petsWindow/teamSummary.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    }
+  },
+  "src/ui/pets/pickerModal/abilityFilter.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/pickerModal/comparePanel.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 3
+    }
+  },
+  "src/ui/pets/pickerModal/helpers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    }
+  },
+  "src/ui/pets/pickerModal/hoverPanel.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 5
+    }
+  },
+  "src/ui/pets/pickerModal/mainModal.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 7
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 13
+    }
+  },
+  "src/ui/pets/pickerModal/petCard.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 7
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/ui/pets/pickerModal/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/turtleTimerLogic.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 26
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 38
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 41
+    }
+  },
+  "src/ui/pets/turtleTimerSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 12
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 41
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/pets/turtleTimerWindow.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 4
+    }
+  },
+  "src/ui/pets/xpTracker/nearMaxSection.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/pets/xpTracker/xpPotionButton.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    }
+  },
+  "src/ui/pets/xpTracker/xpTrackerContent.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 11
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 10
+    }
+  },
+  "src/ui/riveControl/avatarCards.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/riveControl/browser.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/riveControl/decorCards.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/riveControl/editorPanel.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 8
+    }
+  },
+  "src/ui/riveControl/petCards.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/riveControl/previewHero.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/riveControl/rulesList.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/riveControl/window.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 6
+    }
+  },
+  "src/ui/sections/aboutWindow.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/sections/activityLogSection.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 12
+    }
+  },
+  "src/ui/sections/autoFavoriteSection.ts": {
+    "no-restricted-imports": {
+      "count": 2
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 13
+    }
+  },
+  "src/ui/sections/autoReconnectSection.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/sections/bulkFavoriteSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 12
+    }
+  },
+  "src/ui/sections/changelog-data.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/ui/sections/changelog.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    }
+  },
+  "src/ui/sections/controllerSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 21
+    }
+  },
+  "src/ui/sections/dashboardModules.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 17
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 31
+    }
+  },
+  "src/ui/sections/favoritesSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    }
+  },
+  "src/ui/sections/guideSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 4
+    }
+  },
+  "src/ui/sections/notificationSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 6
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 18
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 3
+    }
+  },
+  "src/ui/sections/shopEnhancerSection.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/cardShared.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 12
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/constants.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/eventCard.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 21
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/mainWindow.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 13
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/markers.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/overviewCard.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 35
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/rowList.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/shop/itemRestockDetailWindow/sprite.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/shop/restockAlerts/alertDom.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 15
+    }
+  },
+  "src/ui/shop/restockAlerts/ownershipTracker.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 5
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 4
+    }
+  },
+  "src/ui/shop/restockAlerts/purchaseActions.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 17
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 11
+    }
+  },
+  "src/ui/shop/restockAlerts/soundPopover.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 23
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 15
+    }
+  },
+  "src/ui/shop/restockWindow.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/shop/restockWindowConstants.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 13
+    }
+  },
+  "src/ui/shop/restockWindowFormatters.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    }
+  },
+  "src/ui/shop/restockWindowMeta.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/shop/restockWindowRows.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 7
+    }
+  },
+  "src/ui/shop/shopKeybindsSection.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/constants.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 7
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 20
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/gardenPane.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 6
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/helpers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 3
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/inspectorPanes.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/inspectorShell.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/mainWindow.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/roomsList.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 12
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 37
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/spriteHelpers.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/publicRoomsWindow/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/displayName.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/mutationChip.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/previewHero.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/scopeChip.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/tabMutations.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/tabSwap.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/tabTintSize.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/editor/tileSwapButtons.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 10
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/gating.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/gatingDiagnostic.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 12
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/index.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/pickATileGarden.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 8
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/pickATilePanel.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 4
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/pickATilePets.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 2
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/presetsBar.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/ruleBadge.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/slideoutPanel.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 7
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/sort.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/spriteGrid.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/standalone/textureSwapperWindow/types.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 11
+    }
+  },
+  "src/ui/stats/statsHeaderSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 25
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/stats/statsHubWindow/constants.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/stats/statsHubWindow/economyTab.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 40
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/stats/statsHubWindow/economyTopValue.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/stats/statsHubWindow/eggsTab.ts": {
+    "no-restricted-imports": {
+      "count": 2
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 2
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 16
+    }
+  },
+  "src/ui/stats/statsHubWindow/gardenPopover.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 6
+    }
+  },
+  "src/ui/stats/statsHubWindow/gardenTab.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 17
+    }
+  },
+  "src/ui/stats/statsHubWindow/gardenTileCard.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 16
+    }
+  },
+  "src/ui/stats/statsHubWindow/mainWindow.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 3
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 4
+    }
+  },
+  "src/ui/stats/statsHubWindow/spriteHelpers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 6
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/stats/statsHubWindow/styleHelpers.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 9
+    }
+  },
+  "src/ui/stats/statsHubWindow/tileHelpers.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/stats/statsOverviewSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 40
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 7
+    }
+  },
+  "src/ui/stats/statsSection.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 8
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 15
+    }
+  },
+  "src/ui/stats/trackerWindow.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 3
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/superCleanser/floatingPanel.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/ui/superCleanser/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/tour/help/hub.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 7
+    }
+  },
+  "src/ui/tour/help/panel.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 5
+    }
+  },
+  "src/ui/tour/help/pets.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 8
+    }
+  },
+  "src/ui/tour/help/tools.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 14
+    }
+  },
+  "src/ui/tour/help/trackers.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 17
+    }
+  },
+  "src/ui/tour/index.ts": {
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/ui/tour/overlay.ts": {
+    "qpm/no-emoji-in-ui": {
+      "count": 1
+    },
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 2
+    }
+  },
+  "src/ui/tour/styles.ts": {
+    "qpm/no-hardcoded-colors": {
+      "count": 1
+    },
+    "qpm/no-inline-ui-strings": {
+      "count": 1
+    }
+  },
+  "src/utils/restock/dataService.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/storage.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  }
+}

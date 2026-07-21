@@ -26,6 +26,14 @@ import {
   startFriendBonusWatch,
   stopFriendBonusWatch,
 } from './valueIndicator';
+import {
+  loadTileEtaConfig,
+  getTileEtaConfig,
+  setTileEtaConfig,
+  injectTileEta,
+  startTurtleEtaWatch,
+  stopTurtleEtaWatch,
+} from './etaIndicator';
 import { initLockBadge } from './lockBadge';
 
 // ---------------------------------------------------------------------------
@@ -46,18 +54,21 @@ export function initTooltipInjection(): void {
   // Load configs (with legacy key migration)
   loadCropSizeConfig();
   loadTileValueConfig();
+  loadTileEtaConfig();
 
   const cropCfg = getCropSizeConfig();
   const tileCfg = getTileValueConfig();
+  const etaCfg = getTileEtaConfig();
 
-  // We start even when crop-size and tile-value are both disabled, because
-  // the lock badge is a third independent feature that shares the same PIXI
-  // anchor + rAF loop and should be available whenever Locker is running.
+  // We start even when all indicator features are disabled, because the lock
+  // badge is a fourth independent feature that shares the same PIXI anchor +
+  // rAF loop and should be available whenever Locker is running.
   isActive = true;
   ensureBusRegistered();
   diag.debug('Starting', {
     crop: String(cropCfg.enabled),
     tileValue: String(tileCfg.enabled),
+    tileEta: String(etaCfg.enabled),
   });
 
   // Register injectors based on config
@@ -66,6 +77,9 @@ export function initTooltipInjection(): void {
   }
   if (tileCfg.enabled) {
     registerInjector('tile-value', injectTileValue);
+  }
+  if (etaCfg.enabled) {
+    registerInjector('tile-eta', injectTileEta);
   }
 
   // Start atom subscriptions (idempotent — lockBadge may also register).
@@ -77,6 +91,11 @@ export function initTooltipInjection(): void {
     startFriendBonusWatch(reinjectAll);
   }
 
+  // Turtle timer state re-renders
+  if (etaCfg.enabled) {
+    startTurtleEtaWatch(reinjectAll);
+  }
+
   // Start the single shared observer
   startObserver();
 
@@ -85,9 +104,13 @@ export function initTooltipInjection(): void {
   lockBadgeUnsub = initLockBadge(() => reinjectAll());
 
   publishOk('Started', {
-    injectors: (cropCfg.enabled && cropCfg.showJournalIndicators ? 1 : 0) + (tileCfg.enabled ? 1 : 0),
+    injectors:
+      (cropCfg.enabled && cropCfg.showJournalIndicators ? 1 : 0) +
+      (tileCfg.enabled ? 1 : 0) +
+      (etaCfg.enabled ? 1 : 0),
     cropSize: String(cropCfg.enabled),
     tileValue: String(tileCfg.enabled),
+    tileEta: String(etaCfg.enabled),
   });
 }
 
@@ -96,12 +119,14 @@ export function stopTooltipInjection(): void {
 
   stopObserver();
   stopFriendBonusWatch();
+  stopTurtleEtaWatch();
   atomUnsub?.();
   atomUnsub = null;
   lockBadgeUnsub?.();
   lockBadgeUnsub = null;
   unregisterInjector('journal-badges');
   unregisterInjector('tile-value');
+  unregisterInjector('tile-eta');
   stopTileTracking();
 
   isActive = false;
@@ -128,8 +153,8 @@ function setCropSizeIndicatorConfig(updates: Parameters<typeof setCropSizeConfig
     unregisterInjector('journal-badges');
   }
 
-  // Ensure observer is running if either feature is enabled
-  if (cfg.enabled || getTileValueConfig().enabled) {
+  // Ensure observer is running if any indicator feature is enabled
+  if (cfg.enabled || getTileValueConfig().enabled || getTileEtaConfig().enabled) {
     if (!isActive) initTooltipInjection();
     reinjectAll();
   } else {
@@ -155,8 +180,35 @@ function setTileValueIndicatorConfig(updates: Parameters<typeof setTileValueConf
     stopFriendBonusWatch();
   }
 
-  // Ensure observer is running if either feature is enabled
-  if (cfg.enabled || getCropSizeConfig().enabled) {
+  // Ensure observer is running if any indicator feature is enabled
+  if (cfg.enabled || getCropSizeConfig().enabled || getTileEtaConfig().enabled) {
+    if (!isActive) initTooltipInjection();
+    reinjectAll();
+  } else {
+    stopTooltipInjection();
+  }
+}
+
+/** Get tile ETA (turtle-boosted countdown) config. */
+function getTileEtaIndicatorConfig(): ReturnType<typeof getTileEtaConfig> {
+  return getTileEtaConfig();
+}
+
+/** Update tile ETA config. */
+function setTileEtaIndicatorConfig(updates: Parameters<typeof setTileEtaConfig>[0]): void {
+  setTileEtaConfig(updates);
+  const cfg = getTileEtaConfig();
+
+  if (cfg.enabled) {
+    registerInjector('tile-eta', injectTileEta);
+    startTurtleEtaWatch(reinjectAll);
+  } else {
+    unregisterInjector('tile-eta');
+    stopTurtleEtaWatch();
+  }
+
+  // Ensure observer is running if any indicator feature is enabled
+  if (cfg.enabled || getCropSizeConfig().enabled || getTileValueConfig().enabled) {
     if (!isActive) initTooltipInjection();
     reinjectAll();
   } else {
@@ -173,4 +225,6 @@ export {
   setCropSizeIndicatorConfig,
   getTileValueIndicatorConfig as getTileValueConfig,
   setTileValueIndicatorConfig as setTileValueConfig,
+  getTileEtaIndicatorConfig,
+  setTileEtaIndicatorConfig,
 };

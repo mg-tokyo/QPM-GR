@@ -11,7 +11,11 @@ import {
   type TurtleTimerFocus,
 } from '../../features/pets/turtleTimer';
 import { getPetSpriteDataUrlWithMutations } from '../../sprite-v2/compat';
-import { createTabBar } from '../components';
+import {
+  getTileEtaIndicatorConfig,
+  setTileEtaIndicatorConfig,
+} from '../../features/standalone/tooltipInjection';
+import { createTabBar, createToggle } from '../components';
 import { throttle } from '../../utils/scheduling/scheduling';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
@@ -470,6 +474,25 @@ export function renderTurtleTimerContent(container: HTMLElement): () => void {
   dynamicZone.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
   dynamicZone.dataset.tour = 'turtle-dynamic';
   contentWrap.appendChild(dynamicZone);
+
+  // Tile ETA overlay toggle — shows a boosted-completion countdown on the
+  // game's tile info card (crop/egg you're standing on). Applies to both
+  // channels; the ETA row uses the plant vs egg effectiveRate as appropriate.
+  const settingsRow = document.createElement('div');
+  settingsRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:var(--qpm-surface-2);border:1px solid var(--qpm-border);border-radius:6px;margin-top:4px;';
+  const settingsLabel = document.createElement('span');
+  settingsLabel.textContent = t('feature.turtleTimer.tileEtaToggle');
+  settingsLabel.style.cssText = 'font-size:12px;color:var(--qpm-text);';
+  settingsRow.appendChild(settingsLabel);
+  const etaToggle = createToggle({
+    size: 'compact',
+    checked: getTileEtaIndicatorConfig().enabled,
+    onChange: (checked) => {
+      setTileEtaIndicatorConfig({ enabled: checked });
+    },
+  });
+  settingsRow.appendChild(etaToggle.root);
+  contentWrap.appendChild(settingsRow);
 
   scrollWrapper.appendChild(contentWrap);
   container.appendChild(scrollWrapper);

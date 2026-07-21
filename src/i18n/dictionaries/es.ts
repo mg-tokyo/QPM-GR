@@ -497,6 +497,9 @@ const es: Dictionary = {
   'feature.turtleTimer.summaryTurtles': '{count} tortugas',
   'feature.turtleTimer.summaryHungry': '{count} hambrientas',
   'feature.turtleTimer.summaryDataPending': '{count} datos pendientes',
+  'feature.turtleTimer.tileEtaToggle': 'Mostrar ETA impulsado en la ficha',
+  'feature.turtleTimer.tileEtaTitle': 'Finalización estimada (boost tortuga)',
+  'feature.turtleTimer.tileEtaAlt': 'tortuga',
 
   // ── Feature: Turtle Timer Section ────────────────────────────────────────
   'feature.turtleSection.title': 'Templo de Tortugas de Bella',

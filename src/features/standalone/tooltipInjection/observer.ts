@@ -28,6 +28,7 @@ import {
   updateLockBadge,
   hideLockBadge,
 } from './lockBadge';
+import { updateEtaCountdown } from './etaIndicator';
 
 // ---------------------------------------------------------------------------
 // Injector registry
@@ -119,6 +120,24 @@ function ensureStyles(): void {
     }
     [${TOOLTIP_ROW_ATTR}="value"] span {
       color: var(--qpm-gold, #FFD700);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+
+    [${TOOLTIP_ROW_ATTR}="eta"] {
+      gap: 5px;
+      margin-top: 2px;
+    }
+    [${TOOLTIP_ROW_ATTR}="eta"] img {
+      width: 16px;
+      height: 16px;
+      image-rendering: pixelated;
+      flex-shrink: 0;
+    }
+    [${TOOLTIP_ROW_ATTR}="eta"] span {
+      color: var(--qpm-accent, #8f82ff);
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.02em;
@@ -263,6 +282,11 @@ function tick(): void {
     dirtyContent = false;
     cardWasVisible = true;
   }
+
+  // Advance the ETA countdown text on the currently-visible eta row (if any).
+  // Cheap: single Date.now() + Set-membership check + at most one textContent
+  // write when the formatted string changes. Uses the already-running rAF.
+  updateEtaCountdown();
 
   if (el.children.length === 0) {
     // Nothing to show for this tile (e.g. non-plant object, all variants

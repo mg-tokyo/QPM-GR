@@ -499,6 +499,9 @@ const de: Dictionary = {
   'feature.turtleTimer.summaryTurtles': '{count} Schildkröten',
   'feature.turtleTimer.summaryHungry': '{count} hungrig',
   'feature.turtleTimer.summaryDataPending': '{count} Daten ausstehend',
+  'feature.turtleTimer.tileEtaToggle': 'Verbesserte Zeit auf Kachel-Info anzeigen',
+  'feature.turtleTimer.tileEtaTitle': 'Geschätzter Abschluss (Schildkröten-Boost)',
+  'feature.turtleTimer.tileEtaAlt': 'Schildkröte',
 
   // ── Feature: Turtle Timer Section ────────────────────────────────────────
   'feature.turtleSection.title': "Bellas Schildkröten-Tempel",

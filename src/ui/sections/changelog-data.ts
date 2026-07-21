@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.21",
+    date: "2026-07-21",
+    notes: [
+      "Added a boosted ETA countdown to the game's tile info card: stand on a growing crop or egg and a turtle icon shows when it will actually finish with your active turtle growth boosts factored in, updating live every second",
+      "Added a toggle for the new ETA row in the Turtle Timer window, on by default, works for both plant and egg boost channels",
+      "Improved the Pet Manager tab to open with your currently active team selected instead of always the first team in the list",
+    ],
+  },
+  {
     version: "3.3.20",
     date: "2026-07-18",
     notes: [

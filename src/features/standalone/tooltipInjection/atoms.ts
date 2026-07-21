@@ -10,7 +10,7 @@ import { readAtomValue, subscribeAtomValue } from '../../../core/atomRegistry';
 import { diag, warnFeature } from './_diagnostics';
 import { isRecord } from '../../../utils/typeGuards';
 import { getCropMaxScaleSafe } from '../../../utils/game/catalogHelpers';
-import type { ResolvedSlot, TileLockContext } from './types';
+import type { ResolvedSlot, ResolvedEgg, TileLockContext } from './types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -90,6 +90,45 @@ export function resolveCurrentSlot(): ResolvedSlot | null {
   }
 
   return parseSlot(slots[0]);
+}
+
+/**
+ * Effective plant completion time for the focused slot. Prefers the slot's
+ * own `endTime`; falls back to tile-level `maturedAt` (body maturity) when the
+ * slot's endTime is missing/0 — matching how turtle-timer's `collectSlots`
+ * resolves endTime with the same fallback chain (slots.ts:147-158). Returns
+ * null unless the focused object is a plant with a valid effective endTime.
+ */
+export function resolveCurrentPlantEndTime(): number | null {
+  const slot = resolveCurrentSlot();
+  if (!slot) return null;
+
+  if (slot.endTime > 0) return slot.endTime;
+
+  const obj = cachedGardenObject;
+  if (!obj) return null;
+  const fallback = obj.maturedAt ?? obj.endTime ?? obj.readyAt;
+  if (typeof fallback !== 'number' || !Number.isFinite(fallback) || fallback <= 0) return null;
+  return fallback;
+}
+
+/**
+ * Resolve the currently-focused egg tile. Eggs have no `slots` array; hatch
+ * time is the tile-level `maturedAt` (EggObjectSchema in beta source). Falls
+ * back to `endTime`/`readyAt` defensively in case a bundle exposes a rename.
+ */
+export function resolveCurrentEgg(): ResolvedEgg | null {
+  const obj = cachedGardenObject;
+  if (!obj) return null;
+  if (obj.objectType !== 'egg') return null;
+
+  const eggId = obj.eggId;
+  if (typeof eggId !== 'string' || eggId.length === 0) return null;
+
+  const raw = obj.maturedAt ?? obj.endTime ?? obj.readyAt;
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
+
+  return { eggId, maturedAt: raw };
 }
 
 /**

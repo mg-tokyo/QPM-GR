@@ -516,6 +516,9 @@ const fr: Dictionary = {
   'feature.turtleTimer.summaryTurtles': '{count} tortues',
   'feature.turtleTimer.summaryHungry': '{count} affamée(s)',
   'feature.turtleTimer.summaryDataPending': '{count} données en attente',
+  'feature.turtleTimer.tileEtaToggle': 'Afficher le temps boosté sur les tuiles',
+  'feature.turtleTimer.tileEtaTitle': 'Fin estimée (boost tortue)',
+  'feature.turtleTimer.tileEtaAlt': 'tortue',
 
   // ── Feature: Turtle Timer Section ────────────────────────────────────────
   'feature.turtleSection.subtitle': 'Croissance, œufs et détail du support',

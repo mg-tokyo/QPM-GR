@@ -185,11 +185,12 @@ const QPM_STORAGE_KEYS = [
   // Garden QOL (insta-harvest, aries hold)
   'qpm.gardenQol.config.v1',
 
-  // Crop Boost / Size Indicator / Tile Value
+  // Crop Boost / Size Indicator / Tile Value / Tile ETA
   'cropBoostTracker:config',
   'qpm.cropSize.v1',
   'cropSizeIndicator:config',
   'qpm.tileValue.v1',
+  'qpm.tileEta.v1',
 
   // Journal
   'journal:notes',

@@ -509,6 +509,9 @@ const en: Dictionary = {
   'feature.turtleTimer.summaryTurtles': '{count} turtles',
   'feature.turtleTimer.summaryHungry': '{count} hungry',
   'feature.turtleTimer.summaryDataPending': '{count} data pending',
+  'feature.turtleTimer.tileEtaToggle': 'Show boosted ETA on tile info',
+  'feature.turtleTimer.tileEtaTitle': 'Estimated completion (turtle boost)',
+  'feature.turtleTimer.tileEtaAlt': 'turtle',
 
   // ── Feature: Turtle Timer Section ────────────────────────────────────────
   'feature.turtleSection.title': "Bella's Turtle Temple",
