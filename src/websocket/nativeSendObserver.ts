@@ -92,7 +92,14 @@ export function onNativeSend(listener: NativeSendListener): () => void {
   };
 }
 
-/** Start the observer. Called automatically by onNativeSend on first registration. */
+/**
+ * Start the observer. Called automatically by onNativeSend on first registration.
+ *
+ * Ordering invariant: this observer must start AFTER startLocker() in
+ * src/features/locker/index.ts, so that the observer's captured "original"
+ * is the locker wrapper (chain: observer → locker → raw). Reversing this
+ * order silently drops observer visibility on every locker-blocked send.
+ */
 export function startNativeSendObserver(): void {
   if (started) return;
   started = true;

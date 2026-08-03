@@ -162,7 +162,14 @@ function resolveTileContext(slot: unknown, slotsIndex?: unknown): TileContext | 
         targetSlot = s;
       }
     }
-    if (!targetSlot && isRecord(tile.slots[0])) {
+    // Only fall back to slot 0 when slotsIndex was not provided (e.g. tile-scoped
+    // actions like RemoveGardenObject). If slotsIndex WAS provided but no slot
+    // matches, that's a race between garden snapshot and current tile state —
+    // leave targetSlot undefined so per-slot mutation/size decisions harmlessly
+    // no-op instead of evaluating the wrong slot.
+    const slotsIndexProvided =
+      typeof slotsIndex === 'number' && Number.isFinite(slotsIndex);
+    if (!targetSlot && !slotsIndexProvided && isRecord(tile.slots[0])) {
       targetSlot = tile.slots[0] as Record<string, unknown>;
     }
 
@@ -478,6 +485,12 @@ function ensureNativeHookPatched(): void {
 
 // ── Public lifecycle ───────────────────────────────────────────────────────
 
+// Ordering invariant: startLocker() must run BEFORE any consumer registers
+// onNativeSend() (which triggers nativeSendObserver's on-demand patch).
+// Today enforced by src/main/phases.ts:156 (locker in phase 7c, observer
+// consumers in phase 7c+). If flipped, the observer would capture the raw
+// sendMessage as its "original" and its wrapper would sit BELOW the locker
+// in the call chain, silently under-counting every locker-blocked send.
 export function startNativeHook(): void {
   ensureBusRegistered();
   ensureNativeHookPatched();

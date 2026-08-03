@@ -41,8 +41,6 @@ function isPlantLocked(
     }
   }
 
-  if (config.cropSellLocks[tile.species]) return true;
-  if (tile.baseSpecies && config.cropSellLocks[tile.baseSpecies]) return true;
   return false;
 }
 

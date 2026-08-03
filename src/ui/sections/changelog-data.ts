@@ -2,6 +2,14 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.23",
+    date: "2026-08-03",
+    notes: [
+      "Fixed the locker blocking harvest of a plant whenever its produce was on the sell lock list, sell locks now protect selling only, harvesting is governed by the plant, mutation, size, color, and weather locks as intended",
+      "Fixed a locker race condition where actions targeting a specific grow slot could be evaluated against the wrong slot (usually slot 0) if the tile snapshot was momentarily out of sync, per-slot mutation and size decisions now no-op safely instead of locking based on unrelated slot data",
+    ],
+  },
+  {
     version: "3.3.22",
     date: "2026-07-21",
     notes: [
