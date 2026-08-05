@@ -7,6 +7,12 @@ import {
   reorderTeams,
   deleteTeam,
 } from '../../../store/petTeams';
+import {
+  getNativeTeams,
+  isTeamNativeOwned,
+  getActiveNativeTeamId,
+  nativeTeamToDisplayPetTeam,
+} from '../../../store/petTeamsSync';
 import { getActivePetInfos } from '../../../store/pets';
 import { getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
 import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
@@ -71,7 +77,7 @@ function computeTeamDominantMetric(
 export function renderTeamList(ctx: ManagerContext): void {
   const config = getTeamsConfig();
   const term = ctx.state.searchTerm.toLowerCase();
-  const detectedId = detectCurrentTeam();
+  const detectedId = detectCurrentTeam() ?? getActiveNativeTeamId();
   const keybinds = getKeybinds();
   const keyByTeamId: Record<string, string> = {};
   for (const [combo, teamId] of Object.entries(keybinds)) {
@@ -84,7 +90,13 @@ export function renderTeamList(ctx: ManagerContext): void {
 
   ctx.teamsContainer.innerHTML = '';
 
-  const filtered = config.teams.filter((team) => !term || team.name.toLowerCase().includes(term));
+  const nativeOwnedRows = getNativeTeams()
+    .filter((n) => isTeamNativeOwned(n.id))
+    .map(nativeTeamToDisplayPetTeam);
+  const nativeOwnedIds = new Set(nativeOwnedRows.map((n) => n.id));
+
+  const allRows = [...config.teams, ...nativeOwnedRows];
+  const filtered = allRows.filter((team) => !term || team.name.toLowerCase().includes(term));
 
   // Pin active team to top for quick access
   if (detectedId) {
@@ -104,6 +116,7 @@ export function renderTeamList(ctx: ManagerContext): void {
   }
 
   filtered.forEach((team) => {
+    const nativeOwned = nativeOwnedIds.has(team.id);
     const row = document.createElement('div');
     row.className = 'qpm-team-row';
     const isActive = team.id === detectedId;
@@ -111,7 +124,7 @@ export function renderTeamList(ctx: ManagerContext): void {
     if (isActive) row.classList.add('qpm-team-row--active');
     if (ctx.compareOpen && ctx.compareTeamAId === team.id) row.classList.add('qpm-team-row--compare-a');
     if (ctx.compareOpen && ctx.compareTeamBId === team.id) row.classList.add('qpm-team-row--compare-b');
-    if (reorderEnabled) row.classList.add('qpm-team-row--draggable');
+    if (reorderEnabled && !nativeOwned) row.classList.add('qpm-team-row--draggable');
 
     // --- Name line ---
     const nameLine = document.createElement('div');
@@ -135,6 +148,14 @@ export function renderTeamList(ctx: ManagerContext): void {
       activeBadge.className = 'qpm-team-row__active-badge';
       activeBadge.textContent = `\u25CF ${t('feature.petsWindow.activeBadge')}`;
       nameLine.appendChild(activeBadge);
+    }
+
+    if (nativeOwned) {
+      const nativeBadge = document.createElement('span');
+      nativeBadge.className = 'qpm-team-row__native-badge';
+      nativeBadge.textContent = t('feature.petsWindow.nativeTeamBadge');
+      nativeBadge.style.cssText = 'margin-left:6px;padding:2px 6px;border-radius:9999px;background:var(--qpm-accent-subtle);color:var(--qpm-accent);font-size:9px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;';
+      nameLine.appendChild(nativeBadge);
     }
 
     if (ctx.compareOpen && ctx.compareTeamAId === team.id) {
@@ -279,39 +300,40 @@ export function renderTeamList(ctx: ManagerContext): void {
       bottomLine.appendChild(feedToggle);
     }
 
-    // Delete button
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'qpm-team-row__delete-btn';
-    deleteBtn.textContent = '\uD83D\uDDD1';
-    deleteBtn.title = t('feature.petsWindow.deleteTooltip', { name: team.name });
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Replace row content with confirmation strip
-      row.innerHTML = '';
-      row.className = 'qpm-team-row qpm-team-row--confirm';
-      const strip = document.createElement('div');
-      strip.className = 'qpm-team-row__confirm-strip';
-      const label = document.createElement('span');
-      label.textContent = t('feature.petsWindow.deleteConfirm', { name: team.name });
-      const yesBtn = btn(t('feature.petsWindow.confirm'), 'danger');
-      const noBtn = btn(t('feature.petsWindow.cancel'), 'default');
-      yesBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        deleteTeam(team.id);
-        if (ctx.state.selectedTeamId === team.id) ctx.state.selectedTeamId = null;
-        ctx.renderTeamList();
-        ctx.renderEditor();
+    // Delete button (hidden for native-owned teams \u2014 those are managed in-game)
+    if (!nativeOwned) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'qpm-team-row__delete-btn';
+      deleteBtn.textContent = '\uD83D\uDDD1';
+      deleteBtn.title = t('feature.petsWindow.deleteTooltip', { name: team.name });
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        row.innerHTML = '';
+        row.className = 'qpm-team-row qpm-team-row--confirm';
+        const strip = document.createElement('div');
+        strip.className = 'qpm-team-row__confirm-strip';
+        const label = document.createElement('span');
+        label.textContent = t('feature.petsWindow.deleteConfirm', { name: team.name });
+        const yesBtn = btn(t('feature.petsWindow.confirm'), 'danger');
+        const noBtn = btn(t('feature.petsWindow.cancel'), 'default');
+        yesBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          deleteTeam(team.id);
+          if (ctx.state.selectedTeamId === team.id) ctx.state.selectedTeamId = null;
+          ctx.renderTeamList();
+          ctx.renderEditor();
+        });
+        noBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          ctx.renderTeamList();
+        });
+        strip.appendChild(label);
+        strip.appendChild(yesBtn);
+        strip.appendChild(noBtn);
+        row.appendChild(strip);
       });
-      noBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        ctx.renderTeamList();
-      });
-      strip.appendChild(label);
-      strip.appendChild(yesBtn);
-      strip.appendChild(noBtn);
-      row.appendChild(strip);
-    });
-    bottomLine.appendChild(deleteBtn);
+      bottomLine.appendChild(deleteBtn);
+    }
 
     row.appendChild(bottomLine);
 
@@ -336,8 +358,8 @@ export function renderTeamList(ctx: ManagerContext): void {
       ctx.renderEditor();
     });
 
-    // Drag-drop reordering
-    if (reorderEnabled) {
+    // Drag-drop reordering (QPM teams only — native-owned teams stay in place)
+    if (reorderEnabled && !nativeOwned) {
       row.draggable = true;
       row.addEventListener('dragstart', (event) => {
         ctx.dragTeamId = team.id;
@@ -360,6 +382,7 @@ export function renderTeamList(ctx: ManagerContext): void {
         const fromId = ctx.dragTeamId || event.dataTransfer?.getData('text/plain') || null;
         ctx.dragTeamId = null;
         if (!fromId || fromId === team.id) return;
+        if (nativeOwnedIds.has(fromId) || nativeOwnedIds.has(team.id)) return;
         const liveTeams = getTeamsConfig().teams;
         const fromIndex = liveTeams.findIndex((entry) => entry.id === fromId);
         const toIndex = liveTeams.findIndex((entry) => entry.id === team.id);

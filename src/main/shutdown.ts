@@ -9,6 +9,7 @@ import { stopAbilityTriggerStore } from '../store/abilityLogs';
 import { stopNativeFeedIntercept } from '../features/pets/nativeFeedIntercept';
 import { stopPetTeamsStore } from '../store/petTeams';
 import { stopPetTeamsLogs } from '../store/petTeamsLogs';
+import { stopPetTeamsSync } from '../store/petTeamsSync';
 import { stopPetsWindow } from '../ui/pets/petsWindow';
 import { stopInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOverlay';
 import { stopInventoryCapacity } from '../features/economy/inventoryCapacity';
@@ -33,6 +34,7 @@ import { stopWebsocketDiagnostics } from '../websocket/api';
 import { stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
 import { stopJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { stopSpriteV2Diagnostics } from '../sprite-v2/index';
+import { stopPetRive } from '../sprite-v2/petRive';
 import { stopRestockDataDiagnostics } from '../utils/restock/dataService';
 import { stopVersionChecker } from '../utils/versionChecker';
 import { stopBloblingPresets } from '../features/bloblingCustomiser/presets/store';
@@ -89,6 +91,7 @@ export function installGlobalHandlers(): void {
     stopAbilityTriggerStore();
     timerManager.destroy();
     stopNativeFeedIntercept();
+    stopPetTeamsSync();
     stopPetTeamsStore();
     stopPetTeamsLogs();
     stopPetsWindow();
@@ -115,6 +118,7 @@ export function installGlobalHandlers(): void {
     stopCatalogsDiagnostics();
     stopJotaiBridgeDiagnostics();
     stopSpriteV2Diagnostics();
+    try { stopPetRive(); } catch { /* best effort */ }
     stopRestockDataDiagnostics();
     stopVersionChecker();
     try { disposers.riveControl?.(); } catch { /* best effort */ }

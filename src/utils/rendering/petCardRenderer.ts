@@ -297,7 +297,7 @@ export function renderPetCard(config: PetCardConfig): string {
     <div class="qpm-pet-card" style="position: relative; padding: ${dimensions.padding}px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(30,20,45,0.9); display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: ${spriteSize + dimensions.padding * 2 + 30}px;">
       ${abilitySquares ? `<div class="qpm-pet-card-abilities" style="position: absolute; left: 12px; top: ${dimensions.padding + spriteSize / 2}px; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; z-index: 2;">${abilitySquares}</div>` : ''}
       <div class="qpm-pet-card-sprite" style="width: ${spriteSize}px; height: ${spriteSize}px; display: flex; align-items: center; justify-content: center;">
-        ${sprite ? `<img src="${sprite}" alt="${displayName}" style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;" />` : `<div style="font-size: ${spriteSize / 2}px; opacity: 0.4;">🐾</div>`}
+        ${sprite ? `<img src="${sprite}" alt="${displayName}" style="width: 100%; height: 100%; object-fit: contain;" />` : `<div style="font-size: ${spriteSize / 2}px; opacity: 0.4;">🐾</div>`}
       </div>
       <div class="qpm-pet-card-name" style="font-size: 13px; font-weight: 700; color: #e2e8f0; text-align: center; line-height: 1.2; max-width: 100%; word-wrap: break-word;">${displayName}</div>
       <div class="qpm-pet-card-str" style="font-size: 12px; font-weight: 700; color: #a78bfa; background: rgba(168,139,250,0.15); padding: 3px 8px; border-radius: 6px;">STR: ${strength}</div>
@@ -317,7 +317,7 @@ export function renderPetSpeciesIcon(species: string): string {
 
   return `
     <div class="qpm-pet-species-icon" style="display: inline-flex; align-items: center; gap: 6px;">
-      ${sprite ? `<img src="${sprite}" alt="${speciesStr}" style="width: 24px; height: 24px; object-fit: contain; image-rendering: pixelated; border-radius: 4px; border: 1px solid rgba(168,139,250,0.2);" />` : `<div style="font-size: 16px;">🐾</div>`}
+      ${sprite ? `<img src="${sprite}" alt="${speciesStr}" style="width: 24px; height: 24px; object-fit: contain; border-radius: 4px; border: 1px solid rgba(168,139,250,0.2);" />` : `<div style="font-size: 16px;">🐾</div>`}
       <span style="font-size: 12px; font-weight: 600; color: #e2e8f0;">${speciesStr}</span>
     </div>
   `;
@@ -359,7 +359,7 @@ export function renderCompactPetSprite(config: PetCardConfig): string {
     <div class="qpm-compact-pet" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: rgba(30,20,45,0.7); border: 1px solid rgba(168,139,250,0.2);">
       <div style="position: relative;">
         ${abilitySquares ? `<div style="position: absolute; left: -14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2px;">${abilitySquares}</div>` : ''}
-        ${sprite ? `<img src="${sprite}" alt="${displayName}" style="width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated;" />` : `<div style="font-size: 16px;">🐾</div>`}
+        ${sprite ? `<img src="${sprite}" alt="${displayName}" style="width: 32px; height: 32px; object-fit: contain;" />` : `<div style="font-size: 16px;">🐾</div>`}
       </div>
       <div style="display: flex; flex-direction: column; gap: 2px;">
         <span style="font-size: 12px; font-weight: 700; color: #e2e8f0;">${displayName}</span>

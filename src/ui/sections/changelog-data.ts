@@ -2,6 +2,16 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.24",
+    date: "2026-08-05",
+    notes: [
+      "Added Mirror to game, a new toggle in the Pet Manager tab that syncs your QPM teams into the game's own Pet Teams list so you can activate them from the native picker: creates, renames, and deletes propagate both ways, teams created in-game show up in QPM with a Game badge (pet slots are read-only there, diet rules stay editable), and the game's 25-team cap is respected with a clear notice when you hit it",
+      "Added Garden Battleship in the Garden hub with both solo vs AI and player vs player: pick another player in the room to challenge or play the AI, place hidden crop-row ships on your plot, then take turns firing by walking onto a tile and pressing Space, your real garden is hidden and locked for the whole match and restored the moment it ends",
+      "Added a Reset tutorials card in the Config hub, one click replays every first-time walkthrough the next time you open each window",
+      "Fixed pet portraits across QPM (Pet Manager, floating cards, optimizer, tile card) so all pet species render again after the game moved them out of the sprite atlas and into Rive animations, this also stops fallbacks like Horse quietly showing HorseEgg",
+    ],
+  },
+  {
     version: "3.3.23",
     date: "2026-08-03",
     notes: [

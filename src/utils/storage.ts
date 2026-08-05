@@ -53,6 +53,9 @@ const QPM_STORAGE_KEYS = [
   'qpm.petHatchingTracker.knownPetIds.v1',
   'qpm.hatchStats.v1',
 
+  // Garden Battleship
+  'qpm.battleship.record.v1',
+
   // Stats
   'quinoa:stats:v1',
 
@@ -100,6 +103,8 @@ const QPM_STORAGE_KEYS = [
   'qpm.petTeams.logs.v1',
   'qpm.petTeams.uiState.v1',
   'qpm.petFloatingCards.v1',
+  'qpm.petTeams.sync.enabled.v1',
+  'qpm.petTeams.sync.idMap.v1',
 
   // Charged Abilities (player-activated ability awareness panel)
   'qpm.chargedAbilities.panel.v1',

@@ -19,6 +19,7 @@ import { initializeFoodRules } from '../features/pets/foodRules';
 import { startSellSnapshotWatcher } from '../store/sellSnapshot';
 import { initPetTeamsStore } from '../store/petTeams';
 import { initPetTeamsLogs } from '../store/petTeamsLogs';
+import { initPetTeamsSync } from '../store/petTeamsSync';
 import { startGardenBridge } from '../features/garden/bridge';
 import { initializeGardenFilters } from '../features/garden/filters';
 import { initializeHarvestReminder, configureHarvestReminder } from '../features/garden/harvestReminder';
@@ -114,6 +115,12 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   initPetTeamsStore();
   await yieldToBrowser();
 
+  // Phase 3c: Pet Teams native sync (needs petTeams store + jotai bridge ready)
+  await initPetTeamsSync().catch((error) => {
+    warnCore('QPM-INIT-001', { what: 'phase:petTeamsSync' }, error);
+  });
+  await yieldToBrowser();
+
   // Phase 4: Garden bridge (needed for reminders)
   await startGardenBridge();
   await yieldToBrowser();
@@ -189,5 +196,14 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   // Phase 9: Expose Aries bridge + register native card view diagnostics
   exposeAriesBridge();
   startNativeCardViewDiagnostics();
+  await yieldToBrowser();
+
+  // Phase 10: Battleship idle chat watcher (must run before user opens the
+  // panel so incoming challenges auto-open the window).
+  const { initBattleship } = await import('../features/battleship');
+  initBattleship();
+  window.addEventListener('qpm:battleship-incoming-challenge', () => {
+    void import('../ui/battleshipWindow').then(({ openBattleshipWindow }) => openBattleshipWindow());
+  });
   await yieldToBrowser();
 }

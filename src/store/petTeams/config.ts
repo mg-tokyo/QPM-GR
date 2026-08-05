@@ -290,6 +290,27 @@ export function purgeGonePets(validIds: Set<string>): number {
   return cleared;
 }
 
+/**
+ * Bulk-update a mirrored team's name and pet slots in one write. Called by
+ * the petTeamsSync reconcile when a native team change should propagate into
+ * QPM. Single saveConfig() call → one notifyConfigListeners tick.
+ * Pads petIds to 3 with nulls; extra entries are dropped.
+ */
+export function mirrorTeamFromNative(qpmTeamId: string, name: string, petIds: string[]): void {
+  const team = store.config.teams.find((t) => t.id === qpmTeamId);
+  if (!team) return;
+  const trimmed = name.trim();
+  const nextSlots: [string | null, string | null, string | null] = [
+    petIds[0] ?? null,
+    petIds[1] ?? null,
+    petIds[2] ?? null,
+  ];
+  team.name = trimmed.length > 0 ? trimmed : team.name;
+  team.slots = nextSlots;
+  team.updatedAt = Date.now();
+  saveConfig();
+}
+
 export function detectCurrentTeam(): string | null {
   const activePets = getActivePetInfos();
   const activeSet = new Set(activePets.map(p => p.slotId).filter((id): id is string => id !== null));

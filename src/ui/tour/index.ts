@@ -39,6 +39,7 @@ export async function initTourSystem(): Promise<void> {
     { cropBoostTour },
     { xpTrackerTour },
     { turtleTimerTour },
+    { battleshipTour },
   ] = await Promise.all([
     import('./tours/welcome'),
     import('./tours/panel/shell'),
@@ -53,6 +54,7 @@ export async function initTourSystem(): Promise<void> {
     import('./tours/trackers/cropBoost'),
     import('./tours/trackers/xpTracker'),
     import('./tours/trackers/turtleTimer'),
+    import('./tours/garden/battleship'),
   ]);
 
   registerTour(welcomeTour);
@@ -68,6 +70,7 @@ export async function initTourSystem(): Promise<void> {
   registerTour(cropBoostTour);
   registerTour(xpTrackerTour);
   registerTour(turtleTimerTour);
+  registerTour(battleshipTour);
 
   migrateLegacyTutorial(welcomeTour.version);
 

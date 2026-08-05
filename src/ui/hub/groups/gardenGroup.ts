@@ -305,6 +305,24 @@ export function getGardenGroup(): HubGroupDef {
     },
   };
 
+  const battleshipCard: LauncherCardConfig = {
+    key: 'battleship',
+    label: t('hub.garden.battleship.label'),
+    description: t('hub.garden.battleship.description'),
+    icon: { kind: 'sprite', value: '', spriteKey: 'sprite/plant/Cattail' },
+    labelColor: 'var(--qpm-accent)',
+    tier: 'launcher',
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);margin-top:2px;';
+      el.textContent = t('hub.garden.battleship.summary');
+    },
+    onOpen: () => {
+      import('../../battleshipWindow').then(({ openBattleshipWindow }) => {
+        openBattleshipWindow();
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:battleship' }, e));
+    },
+  };
+
   return {
     id: 'garden',
     label: t('hub.garden.label'),
@@ -316,7 +334,7 @@ export function getGardenGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/MythicalEgg', offsetX: 12, offsetY: 2, scale: 0.9 },
       ],
     },
-    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, superCleanserCard, inventoryCapacityCard, remindersCard, statsCard],
+    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, superCleanserCard, battleshipCard, inventoryCapacityCard, remindersCard, statsCard],
   };
 }
 

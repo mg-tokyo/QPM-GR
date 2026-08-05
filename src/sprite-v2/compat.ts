@@ -2,6 +2,7 @@ import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
 import { getFloraBlueprint } from '../catalogs/gameCatalogs';
 import type { SpriteService } from './types';
 import { spriteLog } from './diagnostics';
+import { getPetRiveCanvas, isPetRiveSpecies } from './petRive';
 
 let service: SpriteService | null = null;
 let hasLoggedServiceNotReady = false;
@@ -430,6 +431,12 @@ export function getCropSpriteDataUrlWithMutations(speciesOrTile: string | number
 export function getPetSpriteCanvas(species: string): HTMLCanvasElement | null {
   if (!species) return null;
   const normalized = normalizeSpeciesName(species);
+  // Rive first when the species has an artboard: prevents the atlas prefix
+  // fallback (`api.ts` findItem) from matching `Horse` → `HorseEgg` etc.
+  if (isPetRiveSpecies(normalized)) {
+    const riveCanvas = getPetRiveCanvas(normalized);
+    if (riveCanvas) return riveCanvas;
+  }
   return tryRenderCanvas('pet', normalized, []);
 }
 
@@ -437,6 +444,13 @@ export function getPetSpriteWithMutations(species: string, mutations: string[] =
   if (!species) return null;
   const normalized = normalizeSpeciesName(species);
   const normalizedMutations = normalizeMutations(mutations);
+  // Rive first when the species has an artboard (same egg-collision reason as
+  // getPetSpriteCanvas). Rive path returns the base sprite — mutation overlays
+  // on Rive-rendered pets are out of scope for the initial migration.
+  if (isPetRiveSpecies(normalized)) {
+    const riveCanvas = getPetRiveCanvas(normalized);
+    if (riveCanvas) return riveCanvas;
+  }
   return tryRenderCanvas('pet', normalized, normalizedMutations);
 }
 

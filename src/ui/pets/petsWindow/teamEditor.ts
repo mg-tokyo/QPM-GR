@@ -17,6 +17,13 @@ import {
   setFeedPolicyOverride,
   clearFeedPolicyOverride,
 } from '../../../store/petTeams';
+import {
+  isTeamNativeOwned,
+  getNativeTeamById,
+  getActiveNativeTeamId,
+  nativeTeamToDisplayPetTeam,
+} from '../../../store/petTeamsSync';
+import type { PetTeam } from '../../../types/petTeams';
 import { getActivePetInfos } from '../../../store/pets';
 import { getPetSpriteDataUrlWithMutations, getCropSpriteDataUrl, getAnySpriteDataUrl, isSpritesReady } from '../../../sprite-v2/compat';
 import { HUNGER_POTION_KEY } from '../../../features/pets/hungerPotion';
@@ -219,16 +226,31 @@ export function renderEditor(ctx: ManagerContext): void {
   }
 
   const config = getTeamsConfig();
-  const team = config.teams.find(t => t.id === ctx.state.selectedTeamId);
+  const nativeOwned = isTeamNativeOwned(ctx.state.selectedTeamId);
+  let team: PetTeam | null | undefined = null;
+  if (nativeOwned) {
+    const native = getNativeTeamById(ctx.state.selectedTeamId);
+    team = native ? nativeTeamToDisplayPetTeam(native) : null;
+  } else {
+    team = config.teams.find(t => t.id === ctx.state.selectedTeamId) ?? null;
+  }
   if (!team) {
     ctx.state.selectedTeamId = config.teams[0]?.id ?? null;
     renderEditor(ctx);
     return;
   }
 
-  const detectedId = detectCurrentTeam();
+  const detectedId = detectCurrentTeam() ?? getActiveNativeTeamId();
   const isActiveTeam = detectedId === team.id;
   const activePets = getActivePetInfos();
+
+  if (nativeOwned) {
+    const banner = document.createElement('div');
+    banner.className = 'qpm-editor__native-banner';
+    banner.style.cssText = 'padding:6px 8px;margin-bottom:8px;border-radius:4px;background:var(--qpm-accent-tint);color:var(--qpm-text-muted);font-size:12px;line-height:1.4;';
+    banner.textContent = t('feature.petsWindow.nativeTeamReadOnlyBanner');
+    ctx.editor.appendChild(banner);
+  }
 
   // Header: name + status + action buttons
   const header = document.createElement('div');
@@ -238,14 +260,19 @@ export function renderEditor(ctx: ManagerContext): void {
   nameInput.className = 'qpm-editor__name';
   nameInput.value = team.name;
   nameInput.placeholder = t('feature.petsWindow.teamNamePlaceholder');
-  let renameTimer: number | null = null;
-  nameInput.addEventListener('input', () => {
-    if (renameTimer) clearTimeout(renameTimer);
-    renameTimer = window.setTimeout(() => {
-      renameTeam(team.id, nameInput.value);
-      ctx.renderTeamList();
-    }, 400);
-  });
+  if (nativeOwned) {
+    nameInput.disabled = true;
+    nameInput.style.opacity = '0.62';
+  } else {
+    let renameTimer: number | null = null;
+    nameInput.addEventListener('input', () => {
+      if (renameTimer) clearTimeout(renameTimer);
+      renameTimer = window.setTimeout(() => {
+        renameTeam(team!.id, nameInput.value);
+        ctx.renderTeamList();
+      }, 400);
+    });
+  }
   header.appendChild(nameInput);
 
   const statusEl = document.createElement('span');
@@ -253,38 +280,40 @@ export function renderEditor(ctx: ManagerContext): void {
   statusEl.textContent = isActiveTeam ? t('feature.petsWindow.active') : '';
   header.appendChild(statusEl);
 
-  const applyBtn = btn(`\u25B6 ${t('feature.petsWindow.apply')}`, 'primary');
-  applyBtn.addEventListener('click', async () => {
-    applyBtn.disabled = true;
-    applyBtn.textContent = `\u23F3 ${t('feature.petsWindow.applying')}`;
-    try {
-      const result = await applyTeam(team.id);
-      if (result.errors.length === 0) showToast(t('feature.petsWindow.appliedTeam', { name: team.name }), 'success');
-      else {
-        const summary = result.errorSummary ? `: ${result.errorSummary}` : '';
-        showToast(t('feature.petsWindow.appliedWithErrors', { name: team.name, count: String(result.errors.length), summary }), 'error');
+  if (!nativeOwned) {
+    const applyBtn = btn(`\u25B6 ${t('feature.petsWindow.apply')}`, 'primary');
+    applyBtn.addEventListener('click', async () => {
+      applyBtn.disabled = true;
+      applyBtn.textContent = `\u23F3 ${t('feature.petsWindow.applying')}`;
+      try {
+        const result = await applyTeam(team!.id);
+        if (result.errors.length === 0) showToast(t('feature.petsWindow.appliedTeam', { name: team!.name }), 'success');
+        else {
+          const summary = result.errorSummary ? `: ${result.errorSummary}` : '';
+          showToast(t('feature.petsWindow.appliedWithErrors', { name: team!.name, count: String(result.errors.length), summary }), 'error');
+        }
+      } catch (err) {
+        windowLog.warn('QPM-UI-002', { what: 'petsTeam:apply' }, err);
+        showToast(t('feature.petsWindow.applyFailed'), 'error');
+      } finally {
+        applyBtn.disabled = false;
+        applyBtn.textContent = `\u25B6 ${t('feature.petsWindow.apply')}`;
+        ctx.renderTeamList();
+        ctx.renderEditor();
       }
-    } catch (err) {
-      windowLog.warn('QPM-UI-002', { what: 'petsTeam:apply' }, err);
-      showToast(t('feature.petsWindow.applyFailed'), 'error');
-    } finally {
-      applyBtn.disabled = false;
-      applyBtn.textContent = `\u25B6 ${t('feature.petsWindow.apply')}`;
+    });
+    header.appendChild(applyBtn);
+
+    const snapshotBtn = btn(`\uD83D\uDCF7 ${t('feature.petsWindow.saveCurrent')}`, 'default');
+    snapshotBtn.title = t('feature.petsWindow.saveCurrentTooltip');
+    snapshotBtn.addEventListener('click', () => {
+      saveCurrentTeamSlots(team!.id);
       ctx.renderTeamList();
       ctx.renderEditor();
-    }
-  });
-  header.appendChild(applyBtn);
-
-  const snapshotBtn = btn(`\uD83D\uDCF7 ${t('feature.petsWindow.saveCurrent')}`, 'default');
-  snapshotBtn.title = t('feature.petsWindow.saveCurrentTooltip');
-  snapshotBtn.addEventListener('click', () => {
-    saveCurrentTeamSlots(team.id);
-    ctx.renderTeamList();
-    ctx.renderEditor();
-    showToast(t('feature.petsWindow.teamUpdated'), 'success');
-  });
-  header.appendChild(snapshotBtn);
+      showToast(t('feature.petsWindow.teamUpdated'), 'success');
+    });
+    header.appendChild(snapshotBtn);
+  }
   ctx.editor.appendChild(header);
 
   // Team summary bar (includes team score)
@@ -397,32 +426,34 @@ export function renderEditor(ctx: ManagerContext): void {
 
       slot.appendChild(info);
 
-      // 4. Change / clear buttons
-      const pickBtn = btn('\u21BB', 'sm');
-      pickBtn.title = t('feature.petsWindow.changePet');
-      pickBtn.addEventListener('click', () => {
-        const usedIds = new Set((team.slots.filter((s, idx2) => s && idx2 !== i) as string[]));
-        openPetPicker({
-          teamId: team.id,
-          usedPetIds: usedIds,
-          onSelect: (petId) => {
-            setTeamSlot(team.id, i as 0 | 1 | 2, petId);
-            getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => { /* decorative refresh — score uses last-known pool until next open */ });
-            ctx.renderTeamList();
-            ctx.renderEditor();
-          },
+      // 4. Change / clear buttons (hidden for native-owned teams \u2014 managed in-game)
+      if (!nativeOwned) {
+        const pickBtn = btn('\u21BB', 'sm');
+        pickBtn.title = t('feature.petsWindow.changePet');
+        pickBtn.addEventListener('click', () => {
+          const usedIds = new Set((team!.slots.filter((s, idx2) => s && idx2 !== i) as string[]));
+          openPetPicker({
+            teamId: team!.id,
+            usedPetIds: usedIds,
+            onSelect: (petId) => {
+              setTeamSlot(team!.id, i as 0 | 1 | 2, petId);
+              getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => { /* decorative refresh — score uses last-known pool until next open */ });
+              ctx.renderTeamList();
+              ctx.renderEditor();
+            },
+          });
         });
-      });
-      slot.appendChild(pickBtn);
-
-      const clearBtn = btn('\u00D7', 'sm');
-      clearBtn.title = t('feature.petsWindow.clearSlot');
-      clearBtn.addEventListener('click', () => {
-        clearTeamSlot(team.id, i as 0 | 1 | 2);
-        ctx.renderTeamList();
-        ctx.renderEditor();
-      });
-      slot.appendChild(clearBtn);
+        slot.appendChild(pickBtn);
+  
+        const clearBtn = btn('\u00D7', 'sm');
+        clearBtn.title = t('feature.petsWindow.clearSlot');
+        clearBtn.addEventListener('click', () => {
+          clearTeamSlot(team!.id, i as 0 | 1 | 2);
+          ctx.renderTeamList();
+          ctx.renderEditor();
+        });
+        slot.appendChild(clearBtn);
+      }
 
       // 5. Hunger bar + feed controls
       if (species) {
@@ -516,28 +547,33 @@ export function renderEditor(ctx: ManagerContext): void {
       emptyLabel.textContent = t('feature.petsWindow.emptySlot');
       slot.appendChild(emptyLabel);
 
-      const pickBtn = btn(t('feature.petsWindow.pickPet'), 'sm');
-      pickBtn.addEventListener('click', () => {
-        const usedIds = new Set((team.slots.filter((s, idx2) => s && idx2 !== i) as string[]));
-        openPetPicker({
-          teamId: team.id,
-          usedPetIds: usedIds,
-          onSelect: (petId) => {
-            setTeamSlot(team.id, i as 0 | 1 | 2, petId);
-            getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => { /* decorative refresh — score uses last-known pool until next open */ });
-            ctx.renderTeamList();
-            ctx.renderEditor();
-          },
+      if (!nativeOwned) {
+        const pickBtn = btn(t('feature.petsWindow.pickPet'), 'sm');
+        pickBtn.addEventListener('click', () => {
+          const usedIds = new Set((team!.slots.filter((s, idx2) => s && idx2 !== i) as string[]));
+          openPetPicker({
+            teamId: team!.id,
+            usedPetIds: usedIds,
+            onSelect: (petId) => {
+              setTeamSlot(team!.id, i as 0 | 1 | 2, petId);
+              getAllPooledPets().then(pool => { ctx.petPool = pool; }).catch(() => { /* decorative refresh */ });
+              ctx.renderTeamList();
+              ctx.renderEditor();
+            },
+          });
         });
-      });
-      slot.appendChild(pickBtn);
+        slot.appendChild(pickBtn);
+      }
     }
 
     slotsEl.appendChild(slot);
   }
   ctx.editor.appendChild(slotsEl);
 
-  // Bottom controls: keybind + delete
+  // Bottom controls: keybind + delete (both hidden for native-owned teams)
+  if (nativeOwned) {
+    return;
+  }
   const controls = document.createElement('div');
   controls.className = 'qpm-editor__controls';
 
@@ -548,11 +584,11 @@ export function renderEditor(ctx: ManagerContext): void {
     confirmRow.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
     const confirmLabel = document.createElement('span');
     confirmLabel.style.cssText = 'font-size:12px;color:#f87171;white-space:nowrap;';
-    confirmLabel.textContent = t('feature.petsWindow.deleteConfirm', { name: team.name });
+    confirmLabel.textContent = t('feature.petsWindow.deleteConfirm', { name: team!.name });
     const yesBtn = btn(t('feature.petsWindow.yesDelete'), 'danger');
     const cancelConfirmBtn = btn(t('feature.petsWindow.cancel'), 'default');
     yesBtn.addEventListener('click', () => {
-      deleteTeam(team.id);
+      deleteTeam(team!.id);
       ctx.state.selectedTeamId = null;
       ctx.renderTeamList();
       ctx.renderEditor();

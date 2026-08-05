@@ -7,6 +7,11 @@ import {
   getAllPooledPets,
   detectCurrentTeam,
 } from '../../../store/petTeams';
+import {
+  isSyncEnabled,
+  setSyncEnabled,
+  onSyncStateChange,
+} from '../../../store/petTeamsSync';
 import { storage } from '../../../utils/storage';
 import { importAriesTeams } from '../../../utils/ariesTeamImport';
 import type { PooledPet } from '../../../types/petTeams';
@@ -67,6 +72,22 @@ export function buildManagerTab(
   importBtn.title = t('feature.petsWindow.importAriesTooltip');
   importBtn.dataset.tour = 'mgr-import';
   listTop.appendChild(importBtn);
+
+  const syncBtn = btn(t('feature.petsWindow.syncToggleLabel'), 'sm');
+  syncBtn.title = t('feature.petsWindow.syncToggleTooltip');
+  syncBtn.dataset.tour = 'mgr-sync';
+  const applySyncButtonState = (enabled: boolean, hint: string): void => {
+    syncBtn.style.opacity = enabled ? '1' : '0.62';
+    syncBtn.title = `${t('feature.petsWindow.syncToggleTooltip')} \u2014 ${hint}`;
+  };
+  applySyncButtonState(isSyncEnabled(), isSyncEnabled() ? '' : t('feature.petsWindow.syncDisabledHint'));
+  syncBtn.addEventListener('click', () => {
+    const next = !isSyncEnabled();
+    void setSyncEnabled(next).catch(() => {
+      showToast(t('feature.petsWindow.syncPushFailed'), 'error');
+    });
+  });
+  listTop.appendChild(syncBtn);
 
   const search = document.createElement('input');
   search.className = 'qpm-mgr__search';
@@ -227,6 +248,16 @@ export function buildManagerTab(
   });
   state.cleanups.push(unsub);
   state.cleanups.push(() => { if (editorRenderTimer) { clearTimeout(editorRenderTimer); editorRenderTimer = null; } });
+
+  const unsubSync = onSyncStateChange((evt) => {
+    const hint = evt.enabled
+      ? t('feature.petsWindow.syncEnabledHint', { count: String(evt.mirroredCount) })
+      : t('feature.petsWindow.syncDisabledHint');
+    applySyncButtonState(evt.enabled, hint);
+    ctx.renderTeamList();
+    if (!compareOpen) ctx.renderEditor();
+  });
+  state.cleanups.push(unsubSync);
 
   ctx.renderTeamList();
   ctx.renderEditor();

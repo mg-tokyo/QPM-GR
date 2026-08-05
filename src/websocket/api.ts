@@ -37,6 +37,11 @@ export type RoomActionType =
   | 'UpgradePetHutch'
   | 'UpgradeSeedSilo'
   | 'UpgradeDecorShed'
+  | 'SavePetTeam'
+  | 'DeletePetTeam'
+  | 'ApplyPetTeam'
+  | 'MovePetTeam'
+  | 'SetPetTeamEmblem'
   // Keep the SetRiddenPet member as the final entry of this union — the
   // QPM FULL PRIVATE overlay's apply-transforms.js anchors ws:extend-union
   // to that literal line and inserts automation-only types after it. Add
@@ -113,6 +118,17 @@ type PutInStoragePayload = { itemId: string; storageId: string; toStorageIndex?:
 type PickupPetPayload = { petId: string };
 type SwapPayload = { petSlotId: string; petInventoryId: string };
 type SwapFromStoragePayload = { petSlotId: string; storagePetId: string; storageId: string };
+type PetTeamEmblemPayload =
+  | { type: 'number'; number: number }
+  | { type: 'pet'; petSpecies: string }
+  | { type: 'icon'; icon: string };
+type SavePetTeamPayload = { teamId: string | null; name: string; petIds: string[] };
+type MovePetTeamPayload = { movePetTeamId: string; toPetTeamIndex: number };
+type SetPetTeamEmblemPayload = { teamId: string; emblem: PetTeamEmblemPayload };
+
+const PET_TEAM_ICON_IDS = new Set([
+  'rainbow', 'gold', 'thunder', 'dawn', 'amber', 'wet', 'chilled', 'frozen', 'coin', 'egg',
+]);
 /** V16 unified shop purchase payload. itemType values: 'Seed'|'Egg'|'Tool'|'Decor'. */
 type PurchaseShopItemPayload = {
   shop: string;
@@ -259,6 +275,40 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
         && isFiniteNumber(payload.growSlotIdx)
         && isNonEmptyString(payload.mutation)
       );
+    case 'SavePetTeam': {
+      const p = payload as unknown as SavePetTeamPayload;
+      const teamIdOk = p.teamId === null || isNonEmptyString(p.teamId);
+      const nameOk = isNonEmptyString(p.name);
+      const petIdsOk =
+        Array.isArray(p.petIds)
+        && p.petIds.length >= 1
+        && p.petIds.length <= 3
+        && p.petIds.every(isNonEmptyString);
+      return teamIdOk && nameOk && petIdsOk;
+    }
+    case 'DeletePetTeam':
+    case 'ApplyPetTeam':
+      return isNonEmptyString(payload.teamId);
+    case 'MovePetTeam': {
+      const p = payload as unknown as MovePetTeamPayload;
+      return (
+        isNonEmptyString(p.movePetTeamId)
+        && isFiniteNumber(p.toPetTeamIndex)
+        && p.toPetTeamIndex >= 0
+        && Number.isInteger(p.toPetTeamIndex)
+      );
+    }
+    case 'SetPetTeamEmblem': {
+      const p = payload as unknown as SetPetTeamEmblemPayload;
+      if (!isNonEmptyString(p.teamId) || !p.emblem || typeof p.emblem !== 'object') return false;
+      const em = p.emblem;
+      if (em.type === 'number') {
+        return isFiniteNumber(em.number) && em.number >= 1 && em.number <= 26 && Number.isInteger(em.number);
+      }
+      if (em.type === 'pet') return isNonEmptyString(em.petSpecies);
+      if (em.type === 'icon') return typeof em.icon === 'string' && PET_TEAM_ICON_IDS.has(em.icon);
+      return false;
+    }
     default:
       return false;
   }
@@ -314,6 +364,19 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'CropCleanser':
     case 'MutationPotion':
       return `${type}:${String(payload.tileObjectIdx ?? '')}:${String(payload.growSlotIdx ?? '')}`;
+    case 'SavePetTeam': {
+      const p = payload as { teamId?: unknown; name?: unknown; petIds?: unknown };
+      if (typeof p.teamId === 'string') return `${type}:${p.teamId}`;
+      const ids = Array.isArray(p.petIds) ? p.petIds.join(',') : '';
+      return `${type}:new:${String(p.name ?? '')}:${ids}`;
+    }
+    case 'DeletePetTeam':
+    case 'ApplyPetTeam':
+      return `${type}:${String(payload.teamId ?? '')}`;
+    case 'MovePetTeam':
+      return `${type}:${String((payload as { movePetTeamId?: unknown }).movePetTeamId ?? '')}`;
+    case 'SetPetTeamEmblem':
+      return `${type}:${String(payload.teamId ?? '')}`;
     default:
       return type;
   }

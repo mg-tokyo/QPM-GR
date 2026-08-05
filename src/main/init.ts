@@ -49,6 +49,7 @@ import { initCustomSkins } from '../features/bloblingCustomiser/customSkins';
 import { initBloblingPresets } from '../features/bloblingCustomiser/presets/store';
 import { initGardenPainterPresets } from '../features/standalone/textureSwapper/presets/store';
 import { initRiveEngine, initRivFetchInterceptor, initCanvasRuntimeTrap } from '../rive-engine';
+import { initPetRive } from '../sprite-v2/petRive';
 import { initRiveControl } from '../features/standalone/riveControl';
 import { openTextureSwapperWindow } from '../ui/standalone/textureSwapperWindow';
 import { startShopRestockAlerts } from '../ui/shop/restockAlerts';
@@ -209,6 +210,10 @@ async function initialize(): Promise<void> {
   } catch (error) {
     warnCore('QPM-INIT-001', { what: 'riveEngine' }, error);
   }
+
+  // Pet species sprites live in pets.riv since ~v641 — not the sprite atlas.
+  // Fire-and-forget: warmup is non-critical to boot; awaits Rive runtime capture internally.
+  void initPetRive();
 
   try {
     disposers.riveControl = initRiveControl();
