@@ -1,0 +1,154 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "SproutSlinger3B",
+  "createdAt": "2026-08-17T06:15:29.077Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/StemFlower",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -24.96099903412577,
+        "y": -43.931358300061355,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-5",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Carrot",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -75.85023629104298,
+        "y": 61.934478377331274,
+        "scale": 0.31,
+        "rotation": 5.515240436302081,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    },
+    {
+      "id": "slot-4",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Carrot",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -51.887677218282235,
+        "y": 43.96255907276072,
+        "scale": 0.35,
+        "rotation": 5.061454830783556,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "id": "slot-0",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Sunflower",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -26.957878956855833,
+        "y": -139.78159459110432,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 3
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Sunflower",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -0.9984399613650439,
+        "y": 62.901717565996925,
+        "scale": 0.46,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 4
+    },
+    {
+      "id": "slot-2",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Sunflower",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 31.981279536380384,
+        "y": 84.898597488727,
+        "scale": 0.38,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 5
+    }
+  ]
+}

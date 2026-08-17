@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.25",
+    date: "2026-08-15",
+    notes: [
+      "Added Tower Defense to the Garden hub, an endless single-player minigame where balloons run a path across your plot and you build and upgrade towers to pop them: round-based waves with cash income and lives, two-path upgrade trees with target-priority controls, boss and camo and regen and armored enemy debuts with warnings, high score tracking, and in-progress runs are saved and can be resumed after a page reload, all without touching your real garden state",
+      "Fixed color mutations (Frosted, Rainbow, Gold and friends) not appearing on the new Rive-rendered pet portraits, tints now composite over Rive pets everywhere they show up in QPM (Pet Manager, floating cards, optimizer, tile card)",
+      "Fixed the sponsor heart and Ko-fi buttons in the About window not opening on the Discord Activity build, they now use a real link so they work inside Discord's sandboxed iframe where popups are blocked",
+      "Fixed a spurious catalog warning (QPM-CATALOG-003) firing on healthy sessions when the game's color data lived in a lazy-loaded chunk that had not mounted yet, retry attempts now only count when a new chunk was actually fetched",
+      "Fixed the restock predictions feed going empty after the upstream data provider rotated its legacy access key on 2026-08-16, QPM now uses the new key format so restock numbers keep flowing without user action",
+      "Improved the Shop Enhancer card in the Config hub, its settings can now be popped out into a dedicated window like the other expandable cards (Controller, Shop Keybinds, Panel Shortcut) instead of only expanding inline",
+    ],
+  },
+  {
     version: "3.3.24",
     date: "2026-08-05",
     notes: [

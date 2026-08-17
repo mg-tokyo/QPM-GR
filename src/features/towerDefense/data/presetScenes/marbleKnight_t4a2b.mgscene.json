@@ -1,0 +1,162 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "MarbleKnight4A2B",
+  "createdAt": "2026-08-17T05:29:14.096Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-3",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/ThunderstruckGround",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -16.973479343205522,
+        "y": 199.68799227300616,
+        "scale": 1.39,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-2",
+      "type": "sprite",
+      "spriteKey": "sprite/object/DawnRug",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -29.908095220899305,
+        "y": 189.42519445283037,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    },
+    {
+      "id": "slot-0",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/MarbleKnight",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/ColoredStringLightsSideways",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -100.68535107630905,
+        "y": -75.76323447326223,
+        "scale": 0.61,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 3
+    },
+    {
+      "id": "slot-5",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/Thundercharged",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -107.83151582742335,
+        "y": -240.62403068897245,
+        "scale": 0.5,
+        "rotation": 0.7155849933176751,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 4
+    },
+    {
+      "id": "slot-6",
+      "type": "sprite",
+      "spriteKey": "sprite/pet-cosmetic/Bolo",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 5.990639768190185,
+        "y": 34.94539864777608,
+        "scale": 0.85,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 5
+    }
+  ]
+}

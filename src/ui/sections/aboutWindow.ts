@@ -2,7 +2,6 @@
 
 import { t } from '../../i18n';
 import { getCurrentVersion } from '../../utils/versionChecker';
-import { openExternalUrl } from '../hub/groups/toolsGroup';
 import { openNativeCard, type OpenNativeCardOptions } from '../../integrations/nativeCardView';
 import { TOKYO_CARD_PREVIEW_URL, TOKYO_CARD_VIDEO_URL } from '../../data/tokyoCard';
 import { BUILT_IN_PRESETS } from '../../data/customCardPresets';
@@ -64,27 +63,31 @@ export function renderAboutContent(root: HTMLElement): void {
     sponsorText.textContent = fullText;
   }
 
-  const heartBtn = document.createElement('button');
-  heartBtn.type = 'button';
+  // <a target="_blank"> — native navigation works in sandboxed iframes
+  // (Discord Activity) where window.open / GM_openInTab are blocked.
+  const heartBtn = document.createElement('a');
+  heartBtn.href = SPONSORS_URL;
+  heartBtn.target = '_blank';
+  heartBtn.rel = 'noopener noreferrer';
   heartBtn.className = 'qpm-about__heart-btn';
   heartBtn.title = t('about.sponsorTooltip');
   heartBtn.innerHTML = HEART_SVG;
   heartBtn.addEventListener('click', () => {
     heartBtn.classList.add('qpm-about__heart-btn--pop');
-    openExternalUrl(SPONSORS_URL);
   });
   heartBtn.addEventListener('animationend', () => {
     heartBtn.classList.remove('qpm-about__heart-btn--pop');
   });
 
-  const kofiBtn = document.createElement('button');
-  kofiBtn.type = 'button';
+  const kofiBtn = document.createElement('a');
+  kofiBtn.href = KOFI_URL;
+  kofiBtn.target = '_blank';
+  kofiBtn.rel = 'noopener noreferrer';
   kofiBtn.className = 'qpm-about__kofi-btn';
   kofiBtn.title = t('about.kofiTooltip');
   kofiBtn.innerHTML = KOFI_SVG;
   kofiBtn.addEventListener('click', () => {
     kofiBtn.classList.add('qpm-about__kofi-btn--pop');
-    openExternalUrl(KOFI_URL);
   });
   kofiBtn.addEventListener('animationend', () => {
     kofiBtn.classList.remove('qpm-about__kofi-btn--pop');

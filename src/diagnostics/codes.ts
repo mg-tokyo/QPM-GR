@@ -5,6 +5,7 @@
 // new one.
 
 import type { ErrorCode, ErrorCodeDefinition } from './types';
+import { TD_CUSTOM_DESIGNS_CODES } from './codes/tdCustomDesigns';
 
 const CURRENT_VERSION = '3.2.29';
 
@@ -710,3 +711,20 @@ register({
   devNotes: 'src/diagnostics/bundleInfo.ts reads window.__QPM_BUNDLE_INFO__ (burned in by scripts/build-userscript.js before USERSCRIPT_FOOTER). Metric-only; never fires a log call.',
   sinceVersion: CURRENT_VERSION,
 });
+
+register({
+  code: 'QPM-AUDIO-001',
+  subsystem: 'audio',
+  category: 'core',
+  severity: 'warn',
+  title: 'Unknown SFX name',
+  description: 'playSfx() / startLoop() was called with a name that is not present in the game\'s live SFX atlas or the fallback URL index. The call is a silent no-op.',
+  devNotes: 'src/audio/player.ts warnUnknown() — deduped per name. Compare against __QPM_AUDIO__.list() to find the correct name.',
+  sinceVersion: CURRENT_VERSION,
+  notifyUser: false,
+});
+
+// Feature: TD Custom Designs — see src/diagnostics/codes/tdCustomDesigns.ts.
+// Split into a sibling module because inlining 15 more register() blocks would
+// push this file past the 750-line hard cap.
+for (const def of TD_CUSTOM_DESIGNS_CODES) register(def);

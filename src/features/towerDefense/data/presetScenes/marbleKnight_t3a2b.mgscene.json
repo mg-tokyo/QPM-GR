@@ -1,0 +1,131 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "MarbleKnight3A2B",
+  "createdAt": "2026-08-17T06:09:38.350Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-4",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/ThunderchargedGround",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 0.998439961365031,
+        "y": 172.73011331615032,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-0",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Cactus",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 57.81931051906858,
+        "y": -7.9750773129749835,
+        "scale": 0.24,
+        "rotation": 0.6806784082777885,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Cactus",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -60.74765779387158,
+        "y": -11.9003092518999,
+        "scale": 0.24,
+        "rotation": 5.672320068981571,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/MarbleKnight",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 19.2896963426067,
+        "y": 22.447795359523674,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 3
+    },
+    {
+      "id": "slot-3",
+      "type": "sprite",
+      "spriteKey": "sprite/pet-cosmetic/Bolo",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 22.96411911139571,
+        "y": 55.91263783644172,
+        "scale": 0.85,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 4
+    }
+  ]
+}

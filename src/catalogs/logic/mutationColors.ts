@@ -3,10 +3,15 @@
 // (constants/colors.ts), so it always shares the '#228B22' chunk that
 // abilityColors.ts already fetches and caches.
 
-import { fetchBundleContaining, findAllIndices, extractBalancedBlock, markBundleConsumerDone } from './bundleParser';
+import { fetchBundleContaining, findAllIndices, extractBalancedBlock, getMarkerMissCount, markBundleConsumerDone } from './bundleParser';
 import { createNamedLogger } from '../../diagnostics/logger';
 
 const log = createNamedLogger('catalogs');
+
+export interface MutationColorLoadResult {
+  map: Record<string, string> | null;
+  triedNewChunks: boolean;
+}
 
 // Primary marker rides the ability-color chunk (already cached); Gold's color
 // literal is the fallback if the ability switch ever moves chunks.
@@ -21,7 +26,7 @@ const MIN_KEY_OVERLAP = 3;
 const MAX_BLOCK_LENGTH = 20_000;
 
 let colorMapCache: Record<string, string> | null = null;
-let colorMapInFlight: Promise<Record<string, string> | null> | null = null;
+let colorMapInFlight: Promise<MutationColorLoadResult> | null = null;
 
 function parseColorBlock(block: string): Record<string, string> {
   const pairRe = /([A-Za-z_$][\w$]*)\s*:\s*([`'"])((?:#|rgba?\(|hsl\(|linear-gradient\()[^`'"]*)\2/g;
@@ -58,36 +63,44 @@ function findMutationColorMap(bundleText: string, catalogKeys: string[]): Record
   return null;
 }
 
-async function loadMutationColorsFromBundle(catalogKeys: string[]): Promise<Record<string, string> | null> {
+async function loadMutationColorsFromBundle(catalogKeys: string[]): Promise<MutationColorLoadResult> {
+  let triedNewChunks = false;
+
   for (const marker of MUTATION_COLOR_MARKERS) {
+    const missesBefore = getMarkerMissCount(marker);
     const bundleText = await fetchBundleContaining(marker);
+    if (getMarkerMissCount(marker) > missesBefore) triedNewChunks = true;
     if (!bundleText) continue;
 
     const map = findMutationColorMap(bundleText, catalogKeys);
     if (map) {
       log.debug('mutationColors: parsed color map', { count: Object.keys(map).length });
-      return map;
+      return { map, triedNewChunks };
     }
   }
 
   log.debug('mutationColors: color table not found in any candidate chunk');
-  return null;
+  return { map: null, triedNewChunks };
 }
 
 /**
  * Extract the game's mutation color table, validated against the captured
  * mutation catalog's keys. Single in-flight + positive cache.
+ * triedNewChunks reports whether any candidate chunk was fetched on this call
+ * (see abilityColors.ts for rationale — enrichment polling gates retry budget
+ * on this so lazy-loaded chunks don't burn attempts before they load).
  */
-export async function getMutationColorMap(catalogKeys: string[]): Promise<Record<string, string> | null> {
-  if (colorMapCache) return colorMapCache;
+export async function getMutationColorMap(catalogKeys: string[]): Promise<MutationColorLoadResult> {
+  if (colorMapCache) return { map: colorMapCache, triedNewChunks: false };
   if (colorMapInFlight) return colorMapInFlight;
 
   colorMapInFlight = (async () => {
-    const map = await loadMutationColorsFromBundle(catalogKeys);
-    if (!map) return null;
-    colorMapCache = map;
-    markBundleConsumerDone('mutation-colors');
-    return map;
+    const result = await loadMutationColorsFromBundle(catalogKeys);
+    if (result.map) {
+      colorMapCache = result.map;
+      markBundleConsumerDone('mutation-colors');
+    }
+    return result;
   })().finally(() => {
     colorMapInFlight = null;
   });

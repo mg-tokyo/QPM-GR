@@ -1,0 +1,181 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "SproutSlinger4B",
+  "createdAt": "2026-08-17T06:17:14.319Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-9",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/Ambercharged",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 22.96411911139571,
+        "y": -132.79251486154908,
+        "scale": 1.31,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/StemFlower",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 12.979719497745402,
+        "y": -22.96411911139571,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    },
+    {
+      "id": "slot-0",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Sunflower",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 11.479087166404605,
+        "y": -136.47922830763466,
+        "scale": 0.77,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/BabyCarrot",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -57.106223768407936,
+        "y": 48.44298819766621,
+        "scale": 0.46,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 3
+    },
+    {
+      "id": "slot-2",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/BabyCarrot",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -17.456904321456687,
+        "y": 78.08628557021166,
+        "scale": 0.38,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 4
+    },
+    {
+      "id": "slot-6",
+      "type": "sprite",
+      "spriteKey": "sprite/item/RainbowPotion",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 61.90327760463191,
+        "y": 64.89859748872699,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 5
+    },
+    {
+      "id": "slot-7",
+      "type": "sprite",
+      "spriteKey": "sprite/item/RainbowPotion",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 27.98751969092025,
+        "y": 91.8876772182822,
+        "scale": 0.9,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 6
+    }
+  ]
+}

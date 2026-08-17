@@ -1,0 +1,256 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "WitchCauldron4B2A",
+  "createdAt": "2026-08-17T05:29:05.133Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-8",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/ThunderstruckGround",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 198.68955231164114,
+        "scale": 1.57,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-0",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/Cauldron",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -91.85647644558283,
+        "y": 23.96255907276074,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/Cauldron",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 85.89703745009206,
+        "y": 28.985959652285274,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "id": "slot-5",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/Cauldron",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -104.80499517062886,
+        "y": 115.85023629104296,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 3
+    },
+    {
+      "id": "slot-4",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/Cauldron",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 80.9048376432669,
+        "y": 121.84087605923315,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 4
+    },
+    {
+      "id": "slot-3",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/Dawncharged",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 77.9095177591718,
+        "y": -106.80187509335893,
+        "scale": 0.6900000000000001,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 5
+    },
+    {
+      "id": "slot-2",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/Dawncharged",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -105.83463590469326,
+        "y": -113.82215559561352,
+        "scale": 0.6900000000000001,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 6
+    },
+    {
+      "id": "slot-6",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/Dawncharged",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -113.79095482291412,
+        "y": -18.939158493236206,
+        "scale": 0.6900000000000001,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 7
+    },
+    {
+      "id": "slot-7",
+      "type": "sprite",
+      "spriteKey": "sprite/mutation/Dawncharged",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 74.91419787507671,
+        "y": -11.95007876368099,
+        "scale": 0.6900000000000001,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 8
+    },
+    {
+      "id": "slot-9",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/MiniWizardTowerOrnamentAmberMoon",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -8.985959652285278,
+        "y": -245.61623049579757,
+        "scale": 1.2,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 9
+    }
+  ]
+}

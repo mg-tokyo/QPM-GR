@@ -1,0 +1,135 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "SproutSlinger2A2B",
+  "createdAt": "2026-08-17T05:29:22.310Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-0",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Carrot",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/BabyCarrot",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -50.920438029616584,
+        "y": 66.89547741145705,
+        "scale": 0.46,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    },
+    {
+      "id": "slot-2",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/BabyCarrot",
+      "mutations": [
+        "Rainbow"
+      ],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": -95.81903551834357,
+        "y": 80.90483764326689,
+        "scale": 0.38,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 2
+    },
+    {
+      "id": "slot-5",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Carrot",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 15.007800193174836,
+        "y": 22.995319884095082,
+        "scale": 0.51,
+        "rotation": 5.515240436302081,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 3
+    },
+    {
+      "id": "slot-4",
+      "type": "sprite",
+      "spriteKey": "sprite/plant/Carrot",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 30.982839575015323,
+        "y": 24.992199806825134,
+        "scale": 0.49999999999999994,
+        "rotation": 5.061454830783556,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 4
+    }
+  ]
+}

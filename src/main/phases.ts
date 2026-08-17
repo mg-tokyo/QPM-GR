@@ -43,6 +43,7 @@ import { startInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOv
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from '../features/standalone/textureSwapper';
 import { exposeAriesBridge } from '../integrations/ariesBridge';
 import { startNativeCardViewDiagnostics } from '../integrations/nativeCardView';
+import { initTDCustomDesigns } from '../features/towerDefense/customDesigns/store';
 import type { QpmConfig } from './config';
 
 // Store/feature init ladder (init phases 1–9). Sequencing and yield points
@@ -205,5 +206,29 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   window.addEventListener('qpm:battleship-incoming-challenge', () => {
     void import('../ui/battleshipWindow').then(({ openBattleshipWindow }) => openBattleshipWindow());
   });
+  await yieldToBrowser();
+
+  // Phase 10b: Audio bridge. Deferred import so no cost before this phase.
+  // Placed BEFORE Tower Defense so its launch has the SFX catalog ready
+  // (or fallback route active) the moment the player opens the minigame.
+  const { initAudio } = await import('../audio');
+  initAudio();
+  await yieldToBrowser();
+
+  // Phase 11: Tower Defense unload guard. No stage/UI init yet — those happen
+  // on menu click via launchTowerDefense(). This just installs the
+  // beforeunload snapshot save so an in-progress match survives page reload.
+  const { initTowerDefense } = await import('../features/towerDefense');
+  initTowerDefense();
+  await yieldToBrowser();
+
+  // Phase 11b: TD Custom Designs store. Seeds bundled preset scenes and
+  // auto-binds them to tower (kind, slot) so custom art renders without user
+  // interaction. UI window removed 2026-08-17 — this feature is backend-only.
+  try {
+    initTDCustomDesigns();
+  } catch (error) {
+    warnCore('QPM-TDCDINIT-002', { what: 'phase:tdCustomDesigns' }, error);
+  }
   await yieldToBrowser();
 }

@@ -308,6 +308,16 @@ const QPM_STORAGE_KEYS = [
 
   // Tour system (dynamic keys: qpm.tour.<windowId>)
   // Cleared by storage.clear() via the qpm.* prefix match
+
+  // Tower Defense minigame
+  'qpm.td.highScore.v1',
+  'qpm.td.settings.v1',
+  'qpm.td.saveGame.v1',
+  'qpm.td.debug.perfOverlay.v1',
+  'qpm.td.customDesigns.v1',
+
+  // Audio subsystem (per-feature volume overrides)
+  'qpm.audio.prefs.v1',
 ];
 
 /** Shop enhancer mode key. Values: 'auto' | 'force-on' | 'force-off'. */

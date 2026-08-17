@@ -1,0 +1,62 @@
+{
+  "$schema": "mgscene/v1",
+  "name": "MarbleKnight2B",
+  "createdAt": "2026-08-17T05:35:22.648Z",
+  "rendererVersion": "1.0.0",
+  "capabilities": [
+    "sprite"
+  ],
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "originAnchor": "top-left"
+  },
+  "slots": [
+    {
+      "id": "slot-1",
+      "type": "sprite",
+      "spriteKey": "sprite/decor/MarbleKnight",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 13.308388357875469,
+        "y": 15.469602710670571,
+        "scale": 1,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 0
+    },
+    {
+      "id": "slot-3",
+      "type": "sprite",
+      "spriteKey": "sprite/pet-cosmetic/Bolo",
+      "mutations": [],
+      "tint": {
+        "color": "#ffffff",
+        "opacity": 0
+      },
+      "transform": {
+        "x": 15.975039381840494,
+        "y": 41.934478377331295,
+        "scale": 0.75,
+        "rotation": 0,
+        "anchor": "auto"
+      },
+      "options": {
+        "icons": true,
+        "overlays": true
+      },
+      "visible": true,
+      "zIndex": 1
+    }
+  ]
+}

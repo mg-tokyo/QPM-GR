@@ -312,6 +312,13 @@ export function getGardenGroup(): HubGroupDef {
     icon: { kind: 'sprite', value: '', spriteKey: 'sprite/plant/Cattail' },
     labelColor: 'var(--qpm-accent)',
     tier: 'launcher',
+    tile: {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- TileMeta.icon renders via textContent (src/ui/panel/tileGrid.ts:146); no sprite path exists for tile icons yet — matches every other tile in this file.
+      icon: '🚢',
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- TileMeta.color is a per-feature rgba tint applied at render time (src/ui/panel/tileGrid.ts:127-129); no design token for tile tints exists — matches the established pattern for launcher tiles.
+      color: 'rgba(96, 165, 250, 0.28)',
+      defaultStatus: t('hub.garden.battleship.summary'),
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);margin-top:2px;';
       el.textContent = t('hub.garden.battleship.summary');
@@ -320,6 +327,31 @@ export function getGardenGroup(): HubGroupDef {
       import('../../battleshipWindow').then(({ openBattleshipWindow }) => {
         openBattleshipWindow();
       }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:battleship' }, e));
+    },
+  };
+
+  const towerDefenseCard: LauncherCardConfig = {
+    key: 'tower-defense',
+    label: t('hub.garden.towerDefense.label'),
+    description: t('hub.garden.towerDefense.description'),
+    icon: { kind: 'sprite', value: '', spriteKey: 'sprite/decor/MarbleKnight' },
+    labelColor: 'var(--qpm-accent)',
+    tier: 'launcher',
+    tile: {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- TileMeta.icon renders via textContent (src/ui/panel/tileGrid.ts:146); no sprite path exists for tile icons yet — matches every other tile in this file.
+      icon: '🏰',
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- TileMeta.color is a per-feature rgba tint applied at render time (src/ui/panel/tileGrid.ts:127-129); no design token for tile tints exists — matches the established pattern for launcher tiles.
+      color: 'rgba(196, 181, 253, 0.28)',
+      defaultStatus: t('hub.garden.towerDefense.summary'),
+    },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);margin-top:2px;';
+      el.textContent = t('hub.garden.towerDefense.summary');
+    },
+    onOpen: () => {
+      import('../../../features/towerDefense').then(({ launchTowerDefense }) => {
+        void launchTowerDefense();
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:towerDefense' }, e));
     },
   };
 
@@ -334,7 +366,7 @@ export function getGardenGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/MythicalEgg', offsetX: 12, offsetY: 2, scale: 0.9 },
       ],
     },
-    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, superCleanserCard, battleshipCard, inventoryCapacityCard, remindersCard, statsCard],
+    cards: [gardenFiltersCard, instaHarvestCard, holdSettingsCard, superCleanserCard, battleshipCard, towerDefenseCard, inventoryCapacityCard, remindersCard, statsCard],
   };
 }
 

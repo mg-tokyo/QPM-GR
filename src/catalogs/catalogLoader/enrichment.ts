@@ -29,10 +29,15 @@ export const pollAttempts = {
   cosmeticCatalog: 0,
 };
 
+interface EnrichmentAttempt {
+  enriched: boolean;
+  triedNewChunks: boolean;
+}
+
 let abilityColorPollTimer: ReturnType<typeof setInterval> | null = null;
-let abilityColorEnrichInFlight: Promise<boolean> | null = null;
+let abilityColorEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 let mutationColorPollTimer: ReturnType<typeof setInterval> | null = null;
-let mutationColorEnrichInFlight: Promise<boolean> | null = null;
+let mutationColorEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 let weatherCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
 let weatherCatalogEnrichInFlight: Promise<boolean> | null = null;
 let cosmeticCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -73,15 +78,15 @@ function isWeatherCatalogEnriched(catalog: GameCatalogs['weatherCatalog']): bool
   return !!catalog && typeof catalog === 'object' && Object.keys(catalog).length > 0;
 }
 
-export async function enrichPetAbilityColors(): Promise<boolean> {
-  if (!capturedCatalogs.petAbilities) return false;
+export async function enrichPetAbilityColors(): Promise<EnrichmentAttempt> {
+  if (!capturedCatalogs.petAbilities) return { enriched: false, triedNewChunks: false };
   const abilities = capturedCatalogs.petAbilities as Record<string, unknown>;
-  if (arePetAbilityColorsEnriched(abilities)) return true;
+  if (arePetAbilityColorsEnriched(abilities)) return { enriched: true, triedNewChunks: false };
   if (abilityColorEnrichInFlight) return abilityColorEnrichInFlight;
 
   abilityColorEnrichInFlight = (async () => {
-    const colorMap = await getAbilityColorMap();
-    if (!colorMap) return false;
+    const { map: colorMap, triedNewChunks } = await getAbilityColorMap();
+    if (!colorMap) return { enriched: false, triedNewChunks };
 
     const enriched: Record<string, unknown> = {};
     let updatedCount = 0;
@@ -108,7 +113,7 @@ export async function enrichPetAbilityColors(): Promise<boolean> {
       publishCatalogs();
     }
 
-    return arePetAbilityColorsEnriched(enriched);
+    return { enriched: arePetAbilityColorsEnriched(enriched), triedNewChunks };
   })().finally(() => {
     abilityColorEnrichInFlight = null;
   });
@@ -122,15 +127,15 @@ function areMutationColorsEnriched(catalog: Record<string, unknown>): boolean {
   );
 }
 
-export async function enrichMutationColors(): Promise<boolean> {
-  if (!capturedCatalogs.mutationCatalog) return false;
+export async function enrichMutationColors(): Promise<EnrichmentAttempt> {
+  if (!capturedCatalogs.mutationCatalog) return { enriched: false, triedNewChunks: false };
   const catalog = capturedCatalogs.mutationCatalog as Record<string, Record<string, unknown>>;
-  if (areMutationColorsEnriched(catalog)) return true;
+  if (areMutationColorsEnriched(catalog)) return { enriched: true, triedNewChunks: false };
   if (mutationColorEnrichInFlight) return mutationColorEnrichInFlight;
 
   mutationColorEnrichInFlight = (async () => {
-    const colorMap = await getMutationColorMap(Object.keys(catalog));
-    if (!colorMap) return false;
+    const { map: colorMap, triedNewChunks } = await getMutationColorMap(Object.keys(catalog));
+    if (!colorMap) return { enriched: false, triedNewChunks };
 
     const enriched: Record<string, unknown> = {};
     let updatedCount = 0;
@@ -152,7 +157,7 @@ export async function enrichMutationColors(): Promise<boolean> {
       publishCatalogs();
     }
 
-    return areMutationColorsEnriched(enriched);
+    return { enriched: areMutationColorsEnriched(enriched), triedNewChunks };
   })().finally(() => {
     mutationColorEnrichInFlight = null;
   });
@@ -235,12 +240,17 @@ export function startAbilityColorPolling(): void {
       // Do not consume retry budget before abilities are captured.
       if (!capturedCatalogs.petAbilities) return;
 
-      const enriched = await enrichPetAbilityColors();
-      pollAttempts.abilityColor += 1;
+      const { enriched, triedNewChunks } = await enrichPetAbilityColors();
       if (enriched) {
         stopAbilityColorPolling();
         return;
       }
+      // Only count an attempt when we actually fetched a previously-untried
+      // chunk. The color switch ships in a lazy chunk (e.g. store-*.js) that
+      // loads when its owning UI mounts — burning budget on empty polls before
+      // that would spuriously fire QPM-CATALOG-003 for healthy sessions.
+      if (!triedNewChunks) return;
+      pollAttempts.abilityColor += 1;
       if (pollAttempts.abilityColor >= MAX_ABILITY_COLOR_POLL_ATTEMPTS) {
         if (shouldLogAbilityColorDebug()) {
           catalogLog('Ability color enrichment timed out, using fallback colors.');
@@ -268,12 +278,14 @@ export function startMutationColorPolling(): void {
       // Don't consume retry budget before the mutation catalog is captured.
       if (!capturedCatalogs.mutationCatalog) return;
 
-      const enriched = await enrichMutationColors();
-      pollAttempts.mutationColor += 1;
+      const { enriched, triedNewChunks } = await enrichMutationColors();
       if (enriched) {
         stopMutationColorPolling();
         return;
       }
+      // See ability color polling — same lazy-chunk rationale.
+      if (!triedNewChunks) return;
+      pollAttempts.mutationColor += 1;
       if (pollAttempts.mutationColor >= MAX_MUTATION_COLOR_POLL_ATTEMPTS) {
         if (diagState.started) {
           diagLog.warn('QPM-CATALOG-003', {

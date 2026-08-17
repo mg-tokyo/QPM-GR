@@ -2,7 +2,13 @@ import { canvasToDataUrl } from '../utils/dom/canvasHelpers';
 import { getFloraBlueprint } from '../catalogs/gameCatalogs';
 import type { SpriteService } from './types';
 import { spriteLog } from './diagnostics';
-import { getPetRiveCanvas, isPetRiveSpecies } from './petRive';
+import {
+  getPetRiveCanvas,
+  isPetRiveSpecies,
+  getPetRiveMutatedCanvas,
+  cachePetRiveMutatedCanvas,
+} from './petRive';
+import { applyColorMutationsToCanvas } from './renderer';
 
 let service: SpriteService | null = null;
 let hasLoggedServiceNotReady = false;
@@ -444,12 +450,18 @@ export function getPetSpriteWithMutations(species: string, mutations: string[] =
   if (!species) return null;
   const normalized = normalizeSpeciesName(species);
   const normalizedMutations = normalizeMutations(mutations);
-  // Rive first when the species has an artboard (same egg-collision reason as
-  // getPetSpriteCanvas). Rive path returns the base sprite — mutation overlays
-  // on Rive-rendered pets are out of scope for the initial migration.
   if (isPetRiveSpecies(normalized)) {
     const riveCanvas = getPetRiveCanvas(normalized);
-    if (riveCanvas) return riveCanvas;
+    if (riveCanvas) {
+      if (normalizedMutations.length === 0) return riveCanvas;
+      const cached = getPetRiveMutatedCanvas(normalized, normalizedMutations);
+      if (cached) return cached;
+      const composited = applyColorMutationsToCanvas(riveCanvas, normalizedMutations);
+      if (composited !== riveCanvas) {
+        cachePetRiveMutatedCanvas(normalized, normalizedMutations, composited);
+      }
+      return composited;
+    }
   }
   return tryRenderCanvas('pet', normalized, normalizedMutations);
 }
@@ -522,6 +534,19 @@ export function getMultiHarvestSpriteCanvas(
   const id = normalizeSpeciesName(species);
   const normalizedMuts = normalizeMutations(mutations);
   return renderAcrossCategories(MULTIHARVEST_CATEGORIES, id, normalizedMuts, true);
+}
+
+export function hasSpriteKey(spriteKey: string): boolean {
+  if (!service || !spriteKey) return false;
+  return service.state.tex.has(spriteKey);
+}
+
+// Raw base sprite canvas for a specific atlas key, mutations NOT applied.
+// Consumers (e.g. td-custom thumbnail) apply mg-sprite-render's applyMutations
+// on the returned canvas so the QPM code path and the customiser code path
+// share the identical compose formula.
+export function getRawSpriteCanvas(spriteKey: string): HTMLCanvasElement | null {
+  return renderBySpriteKey(spriteKey, []);
 }
 
 /**

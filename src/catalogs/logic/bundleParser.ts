@@ -33,10 +33,21 @@ const bundleTextCache = new Map<string, string>();
 const bundleFetchInFlightByUrl = new Map<string, Promise<string | null>>();
 const bundleMarkerMisses = new Map<string, Set<string>>();
 
-type BundleMarker = string | RegExp;
+export type BundleMarker = string | RegExp;
 
 function markerKey(marker: BundleMarker): string {
   return typeof marker === 'string' ? `s:${marker}` : `r:${marker.source}`;
+}
+
+/**
+ * How many candidate chunks have been fetched-and-rejected for a given marker.
+ * Callers snapshot this before + after a fetchBundleContaining call to detect
+ * whether real network work happened this attempt — used to gate retry budgets
+ * so lazy-loaded chunks (that arrive only when their owning UI mounts) don't
+ * burn attempts while nothing new is discoverable.
+ */
+export function getMarkerMissCount(marker: BundleMarker): number {
+  return bundleMarkerMisses.get(markerKey(marker))?.size ?? 0;
 }
 
 // Pass non-global RegExp markers only — a global regex carries lastIndex state.

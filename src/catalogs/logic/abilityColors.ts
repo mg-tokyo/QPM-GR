@@ -1,7 +1,7 @@
 // src/catalogs/logic/abilityColors.ts
 // Ability color extraction from game bundle (Gemini-style).
 
-import { fetchBundleContaining, findAllIndices, extractBalancedBlock, markBundleConsumerDone } from './bundleParser';
+import { fetchBundleContaining, findAllIndices, extractBalancedBlock, getMarkerMissCount, markBundleConsumerDone } from './bundleParser';
 import { createNamedLogger } from '../../diagnostics/logger';
 
 const log = createNamedLogger('catalogs');
@@ -9,6 +9,11 @@ const log = createNamedLogger('catalogs');
 export interface RuntimeAbilityColor {
   bg: string;
   hover: string;
+}
+
+export interface AbilityColorLoadResult {
+  map: Record<string, RuntimeAbilityColor> | null;
+  triedNewChunks: boolean;
 }
 
 export const DEFAULT_ABILITY_COLOR: RuntimeAbilityColor = {
@@ -19,7 +24,7 @@ export const DEFAULT_ABILITY_COLOR: RuntimeAbilityColor = {
 const ABILITY_COLOR_ANCHOR = 'ProduceScaleBoost';
 
 let abilityColorMapCache: Record<string, RuntimeAbilityColor> | null = null;
-let abilityColorMapInFlight: Promise<Record<string, RuntimeAbilityColor> | null> | null = null;
+let abilityColorMapInFlight: Promise<AbilityColorLoadResult> | null = null;
 
 /**
  * Extract the switch block containing ability colors.
@@ -179,36 +184,43 @@ const ABILITY_COLOR_BUNDLE_MARKER = '#228B22';
 
 /**
  * Load ability color map from live main bundle.
+ * triedNewChunks reports whether this call fetched at least one previously
+ * untried candidate — callers use it to distinguish "chunk not loaded yet"
+ * from "chunk loaded but marker missing / parse failed."
  */
-async function loadAbilityColorsFromBundle(): Promise<Record<string, RuntimeAbilityColor> | null> {
+async function loadAbilityColorsFromBundle(): Promise<AbilityColorLoadResult> {
+  const missesBefore = getMarkerMissCount(ABILITY_COLOR_BUNDLE_MARKER);
   const bundleText = await fetchBundleContaining(ABILITY_COLOR_BUNDLE_MARKER);
-  if (!bundleText) return null;
+  const triedNewChunks = getMarkerMissCount(ABILITY_COLOR_BUNDLE_MARKER) > missesBefore;
+
+  if (!bundleText) return { map: null, triedNewChunks };
 
   const switchBlock = findAbilityColorSwitchBlock(bundleText);
   if (!switchBlock) {
     log.debug('abilityColors: switch block not found');
-    return null;
+    return { map: null, triedNewChunks };
   }
 
   const map = parseAbilityColorsFromSwitch(switchBlock) || parseAbilityColorsFromSimpleSwitch(switchBlock);
   if (!map) log.debug('abilityColors: switch block found but parse failed');
   if (map) log.debug('abilityColors: parsed ability color map', { count: Object.keys(map).length });
-  return map;
+  return { map, triedNewChunks };
 }
 
 /**
  * Public getter with single in-flight + positive cache.
  */
-export async function getAbilityColorMap(): Promise<Record<string, RuntimeAbilityColor> | null> {
-  if (abilityColorMapCache) return abilityColorMapCache;
+export async function getAbilityColorMap(): Promise<AbilityColorLoadResult> {
+  if (abilityColorMapCache) return { map: abilityColorMapCache, triedNewChunks: false };
   if (abilityColorMapInFlight) return abilityColorMapInFlight;
 
   abilityColorMapInFlight = (async () => {
-    const map = await loadAbilityColorsFromBundle();
-    if (!map) return null;
-    abilityColorMapCache = map;
-    markBundleConsumerDone('ability-colors');
-    return map;
+    const result = await loadAbilityColorsFromBundle();
+    if (result.map) {
+      abilityColorMapCache = result.map;
+      markBundleConsumerDone('ability-colors');
+    }
+    return result;
   })().finally(() => {
     abilityColorMapInFlight = null;
   });

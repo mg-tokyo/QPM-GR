@@ -40,6 +40,8 @@ import { stopVersionChecker } from '../utils/versionChecker';
 import { stopBloblingPresets } from '../features/bloblingCustomiser/presets/store';
 import { stopGardenPainterPresets } from '../features/standalone/textureSwapper/presets/store';
 import { teardownDiagnostics } from '../diagnostics/init';
+import { stopAudio } from '../audio';
+import { stopTDCustomDesigns } from '../features/towerDefense/customDesigns/store';
 
 // Live holder for one-shot disposers set during init() and consumed at
 // beforeunload. These subsystems return closures instead of exposing named
@@ -135,6 +137,8 @@ export function installGlobalHandlers(): void {
     disposers.rivFetchInterceptor = null;
     try { disposers.canvasRuntimeTrap?.(); } catch { /* best effort */ }
     disposers.canvasRuntimeTrap = null;
+    try { stopAudio(); } catch { /* best effort */ }
+    try { stopTDCustomDesigns(); } catch { /* best effort */ }
     teardownDiagnostics();
   }, { once: true });
 }

@@ -55,6 +55,8 @@ export const ABOUT_CSS = `/* ── About window ── */
     cursor: pointer;
     transition: background 0.15s ease;
     flex-shrink: 0;
+    text-decoration: none;
+    color: inherit;
   }
   .qpm-about__heart-btn:hover {
     background: var(--qpm-surface-3);
@@ -79,6 +81,8 @@ export const ABOUT_CSS = `/* ── About window ── */
     cursor: pointer;
     transition: background 0.15s ease;
     flex-shrink: 0;
+    text-decoration: none;
+    color: inherit;
   }
   .qpm-about__kofi-btn:hover {
     background: var(--qpm-surface-3);

@@ -48,8 +48,9 @@ export type {
 
 const RESTOCK_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_predictions_mat';
 const RESTOCK_ACCURACY_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_prediction_accuracy_by_item';
-export const RESTOCK_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqdXZyeWpncmpjaGJoaml4d3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDYyODMsImV4cCI6MjA4NTY4MjI4M30.MqQCBG-UMR4HYJU44Tz2orHUj9gMgJTMJtxpb_MHeps';
+// Supabase publishable key (new API keys system). Public by design — safe to embed
+// in userscript. Previous legacy anon JWT was rotated 2026-08-16 and is no longer valid.
+export const RESTOCK_ANON_KEY = 'sb_publishable_L1p4vEhYCQq11l4IYtbsBQ_FdLYZsGZ';
 // Base columns — known to exist in the live restock_predictions view.
 const RESTOCK_COLUMNS = [
   'item_id',

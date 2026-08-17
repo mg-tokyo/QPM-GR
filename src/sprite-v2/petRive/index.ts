@@ -1,7 +1,15 @@
 import { awaitRiveSingleton } from '../../rive-engine';
 import { spriteLog } from '../diagnostics';
 import { petRiveState, resetPetRiveState } from './state';
-import { getCachedCanvas, getCachedDataUrl, clearPetRiveCache, cachedSpeciesCount } from './cache';
+import {
+  getCachedCanvas,
+  getCachedDataUrl,
+  getCachedMutatedCanvas,
+  cacheMutatedCanvas,
+  getCachedMutatedDataUrl,
+  clearPetRiveCache,
+  cachedSpeciesCount,
+} from './cache';
 import { fetchPetsRivBytes } from './bundleLoader';
 import { setupRenderer, warmupAllSpecies, notifySpritesRefresh } from './renderer';
 
@@ -103,6 +111,21 @@ export function getPetRiveDataUrl(species: string): string {
   return getCachedDataUrl(species);
 }
 
+export function getPetRiveMutatedCanvas(species: string, mutations: string[]): HTMLCanvasElement | null {
+  if (!species) return null;
+  return getCachedMutatedCanvas(species, mutations);
+}
+
+export function cachePetRiveMutatedCanvas(species: string, mutations: string[], canvas: HTMLCanvasElement): void {
+  if (!species) return;
+  cacheMutatedCanvas(species, mutations, canvas);
+}
+
+export function getPetRiveMutatedDataUrl(species: string, mutations: string[]): string {
+  if (!species) return '';
+  return getCachedMutatedDataUrl(species, mutations);
+}
+
 export function onPetRiveReady(cb: () => void): () => void {
   if (petRiveState.ready) {
     try { cb(); } catch { /* best effort */ }
@@ -121,4 +144,16 @@ export function getPetRiveStats(): { ready: boolean; cached: number; artboards: 
     cached: cachedSpeciesCount(),
     artboards: petRiveState.artboardNames.size,
   };
+}
+
+// Runtime + file access for consumers that need to instantiate their OWN
+// artboards for live per-frame animation (e.g. TD balloons). Returns null
+// until warmup completes. Callers must NOT reuse petRive's shared workCanvas
+// or renderer — create their own to avoid GL-state contention with warmups.
+export function getPetRiveInternals(): {
+  runtime: import('../../rive-engine/types').LowLevelRive;
+  file: import('./state').RivePetsFile;
+} | null {
+  if (!petRiveState.ready || !petRiveState.runtime || !petRiveState.file) return null;
+  return { runtime: petRiveState.runtime, file: petRiveState.file };
 }

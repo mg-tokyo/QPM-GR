@@ -329,6 +329,13 @@ export function getConfigGroup(): HubGroupDef {
     description: t('feature.shopEnhancer.settingCaption'),
     icon: { kind: 'emoji', value: '🏪' },
     tier: 'expandable',
+    tile: {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- TileMeta.icon renders via textContent (src/ui/panel/tileGrid.ts:146); no sprite path exists for tile icons yet — matches every other tile in this file.
+      icon: '🏪',
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- TileMeta.color is a per-feature rgba tint applied at render time (src/ui/panel/tileGrid.ts:127-129); no design token for tile tints exists — matches the established pattern for expandable tiles.
+      color: 'rgba(129, 199, 132, 0.28)',
+      defaultStatus: '—',
+    },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
       import('../../../integrations/ariesDetection').then(({ getAriesDetectionInfo }) => {
@@ -342,6 +349,16 @@ export function getConfigGroup(): HubGroupDef {
       import('../../sections/shopEnhancerSection').then(({ createShopEnhancerSection }) => {
         container.appendChild(createShopEnhancerSection());
       }).catch((e) => windowLog.warn('QPM-UI-002', { what: 'lazy:shopEnh' }, e));
+    },
+    detachWindowId: 'config-shop-enhancer',
+    onDetach: () => {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- Window title emoji matches the tile icon and the pattern used by every other detached expandable in this file (controller / shopKeybinds / panelShortcut).
+      toggleWindow('config-shop-enhancer', `🏪 ${t('feature.shopEnhancer.settingTitle')}`, (root) => {
+        root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+        import('../../sections/shopEnhancerSection').then(({ createShopEnhancerSection }) => {
+          root.appendChild(createShopEnhancerSection());
+        }).catch((e) => windowLog.warn('QPM-UI-002', { what: 'lazy:shopEnhDetach' }, e));
+      }, '580px', '78vh');
     },
   };
 

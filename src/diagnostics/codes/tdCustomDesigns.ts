@@ -1,0 +1,168 @@
+// src/diagnostics/codes/tdCustomDesigns.ts — TD Custom Designs codes,
+// split out of codes.ts to stay under the 750-line hard cap.
+
+import type { ErrorCodeDefinition } from '../types';
+
+// Keep in sync with CURRENT_VERSION in ../codes.ts. Local copy avoids the
+// circular import that would result from importing the constant back through
+// the parent module.
+const V = '3.2.29';
+
+// Feature: TD Custom Designs — sprite composites for tower kinds. Codes cover
+// import validation, bootstrap safety, and runtime render fallbacks. The
+// `subsystem: 'feature'` field here is a placeholder; per-call subsystem is
+// overridden to 'feature:tdCustomDesigns' via context.feature (matches the
+// STORE-*/FEATURE-*/TEXTURESWAP-* grouping conventions in ../codes.ts).
+
+export const TD_CUSTOM_DESIGNS_CODES: readonly ErrorCodeDefinition[] = [
+  {
+    code: 'QPM-TDCDIMP-001',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: invalid JSON',
+    description: 'The pasted or dropped design file did not parse as JSON.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — pre-schema JSON.parse failure. Import dialog surfaces the parser message directly; no user-facing notify needed.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-002',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: wrong schema',
+    description: 'File is JSON but not an mgscene/v1 document (missing or wrong $schema).',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — also fires for missing canvas / slots.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-003',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: renderer major mismatch',
+    description: 'Design was authored against a different major version of mg-sprite-render than this QPM ships. Compose output is not guaranteed to match; import is refused.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.designVersion + context.localVersion carry the two majors. User action: update QPM or re-export from the customiser.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-004',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'warn',
+    title: 'Custom design import: renderer minor mismatch',
+    description: 'Design was authored against a different minor version of the shared renderer. Import proceeds; the library row carries an amber chip so the user knows a re-export is recommended.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.designVersion + context.localVersion carry the two versions.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-005',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: unknown sprite key(s)',
+    description: 'One or more slot spriteKey values do not resolve in the current atlas. Import is refused (a partial import would render blank slots at runtime).',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.badKeys lists the missing keys. Root cause is usually a design authored against a newer game build with new sprites.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-006',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: unknown mutation(s)',
+    description: 'One or more slot mutation ids are not present in the shared renderer\'s MUTATION_META. Import is refused.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.badMutations lists the offenders. Usually caused by a design using a mutation added after this QPM\'s mg-sprite-render pin.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-007',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: non-sprite slot type',
+    description: 'A slot declares a type other than "sprite" (text, blobling, full-card). v1 only supports plain sprite slots.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.badTypes lists the encountered types. Multi-type support is a v2 concern.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-008',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design import: canvas too large',
+    description: 'Design canvas exceeds 256x256. Multi-tile footprints are a v2 concern; v1 refuses the import so the composite always fits one tower tile.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.canvasWidth + context.canvasHeight carry the offending dimensions.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDIMP-009',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'warn',
+    title: 'Custom design import: high slot count',
+    description: 'Design has more than 32 sprite slots. Import proceeds; the warning surfaces so authors know they are past the render-perf sweet spot.',
+    devNotes: 'src/features/towerDefense/customDesigns/validator.ts — context.slotCount carries the actual number.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDINIT-001',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'warn',
+    title: 'Custom designs storage corrupt; fresh start',
+    description: 'The stored TDCustomDesignsV1 blob failed shape validation. The bad blob was copied to a timestamped backup key and the feature booted with an empty library + no bindings.',
+    devNotes: 'src/features/towerDefense/customDesigns/persistence.ts — context.backedUpTo carries the backup key. context.reason names the shape mismatch.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDINIT-002',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom designs bootstrap failed',
+    description: 'An exception escaped initTDCustomDesigns(). The feature is disabled for the session; vanilla Tower Defense is unaffected because the dispatch header short-circuits when the store is not initialized.',
+    devNotes: 'src/main/phases.ts init:tdCustomDesigns catch — cause carries the underlying throw.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDRND-001',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'warn',
+    title: 'Custom design render: sprite key not in atlas',
+    description: 'At mount time a slot\'s spriteKey resolved to a missing atlas frame. That single slot is skipped; other slots in the composite still render.',
+    devNotes: 'src/features/towerDefense/customDesigns/mount/composite.ts — context.spriteKey + context.designId identify the drop. Deduped per (designId, spriteKey).',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDRND-002',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'warn',
+    title: 'Custom design render: stage container not ready',
+    description: 'The PIXI tower-layer container was not resolvable at mount time; the mount is deferred to the next resolve attempt.',
+    devNotes: 'src/features/towerDefense/customDesigns/mount/composite.ts — usually a first-tick race before the TD stage finishes wiring up.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDRND-003',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design render: renderer major mismatch at runtime',
+    description: 'A stored design\'s rendererVersion major does not match the current mg-sprite-render major (e.g. QPM was downgraded after the design was imported). The tower falls back to its vanilla sprite; the binding stays intact.',
+    devNotes: 'src/features/towerDefense/render/towerRender.ts dispatch header — context.designId + context.designVersion + context.localVersion.',
+    sinceVersion: V,
+  },
+  {
+    code: 'QPM-TDCDRND-004',
+    subsystem: 'feature',
+    category: 'feature',
+    severity: 'error',
+    title: 'Custom design render: PIXI ctor missing',
+    description: 'getStageSpriteCtor / getStageTextureCtor / getStageContainerCtor returned null so no composite can mount. The dispatch header disables custom rendering for the session; every bound tower renders as vanilla until reload.',
+    devNotes: 'src/features/towerDefense/customDesigns/mount/composite.ts — context.what names which ctor was missing (sprite | texture | container).',
+    sinceVersion: V,
+  },
+];

@@ -197,6 +197,47 @@ function applyFilterOnto(ctx: CanvasRenderingContext2D, sourceCanvas: HTMLCanvas
   ctx.restore();
 }
 
+/**
+ * Apply the color-tint mutation pipeline to any canvas (Rive-produced, atlas-produced, etc.).
+ * Uses the same FILTERS map + normalizeMutListColor rules as the atlas pipeline, so any
+ * new tint added to FILTERS is picked up automatically.
+ * Returns the input canvas unchanged when no valid color mutations remain after normalization.
+ */
+export function applyColorMutationsToCanvas(
+  base: HTMLCanvasElement,
+  mutations: string[],
+  opts: { isTall?: boolean } = {},
+): HTMLCanvasElement {
+  const isTall = !!opts.isTall;
+  const raw = (mutations ?? []).filter((v) => hasMutationFilter(v));
+  const names = normalizeMutListColor(raw);
+  if (names.length === 0) return base;
+
+  const w = base.width;
+  const h = base.height;
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const octx = out.getContext('2d');
+  if (!octx) return base;
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(base, 0, 0);
+
+  for (const name of names) {
+    const layerCanvas = document.createElement('canvas');
+    layerCanvas.width = w;
+    layerCanvas.height = h;
+    const lctx = layerCanvas.getContext('2d');
+    if (!lctx) continue;
+    lctx.imageSmoothingEnabled = false;
+    lctx.drawImage(base, 0, 0);
+    applyFilterOnto(lctx, layerCanvas, name, isTall);
+    octx.drawImage(layerCanvas, 0, 0);
+  }
+
+  return out;
+}
+
 export function textureToCanvas(tex: any, state: SpriteState, cfg: SpriteConfig): HTMLCanvasElement {
   const hit = state.srcCan.get(tex);
   if (hit) return hit;
