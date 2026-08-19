@@ -88,19 +88,31 @@ let state: RenderState | null = null;
 
 function buildTowerCanvas(kind: TowerId, upgradesA: number, upgradesB: number): HTMLCanvasElement | null {
   const sprite = resolveTowerSprite(kind, upgradesA, upgradesB);
+  const mutations = sprite.mutations ? [...sprite.mutations] : [];
   if (sprite.kind === 'plant') {
     // Banana Grove grows visually with upgrades (plan T12 §1).
     // Cap raised to 8 for T4A Diamond Grove (extraLeafCountBonus).
     const activeSlotCount =
       kind === 'bananaGrove' ? Math.min(8, 3 + upgradesA + upgradesB) : undefined;
-    const result = stitchPlantSprite(
-      activeSlotCount !== undefined
-        ? { species: sprite.key, activeSlotCount, fullGrowth: true }
-        : { species: sprite.key, fullGrowth: true },
-    );
+    // Banana Grove: T2A "Rainbow Grove" tints fruits rainbow (persists at higher A tiers).
+    // T3+ swells fruits; T4+ swells them further (Diamond Grove / Grove Godhead payoff).
+    let slotScaleMultiplier: number | undefined;
+    if (kind === 'bananaGrove') {
+      if (upgradesA >= 2 && !mutations.includes('Rainbow')) mutations.push('Rainbow');
+      const topTier = Math.max(upgradesA, upgradesB);
+      if (topTier >= 4) slotScaleMultiplier = 1.8;
+      else if (topTier >= 3) slotScaleMultiplier = 1.4;
+    }
+    const base = { species: sprite.key, fullGrowth: true as const };
+    const withSlots = activeSlotCount !== undefined ? { ...base, activeSlotCount } : base;
+    const withMuts = mutations.length > 0 ? { ...withSlots, slotMutations: mutations } : withSlots;
+    const withScale = slotScaleMultiplier !== undefined
+      ? { ...withMuts, slotScaleMultiplier }
+      : withMuts;
+    const result = stitchPlantSprite(withScale);
     return result?.canvas ?? null;
   }
-  return renderBySpriteKey(sprite.key);
+  return renderBySpriteKey(sprite.key, mutations);
 }
 
 function createSprite(canvas: HTMLCanvasElement, anchor: { x: number; y: number }): SpriteNode | null {

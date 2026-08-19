@@ -22,6 +22,7 @@ import { initTowerRender, stopTowerRender } from './render/towerRender';
 import { initBalloonRender, stopBalloonRender } from './render/balloonRender';
 import { initProjectileRender, stopProjectileRender } from './render/projectileRender';
 import { initEffects, stopEffects } from './render/effects';
+import { initStormForgeEffects, stopStormForgeEffects } from './render/stormForgeEffects';
 import { initPetHider, stopPetHider } from './render/petHider';
 import { injectStyles, removeStyles } from './ui/styles';
 import { mountHud } from './ui/hud';
@@ -80,6 +81,7 @@ function proceed(saved?: MatchSnapshot | null): void {
     initBalloonRender();
     initProjectileRender();
     initEffects();
+    initStormForgeEffects();
     initPetHider();
 
     hostEl = document.createElement('div');
@@ -172,6 +174,7 @@ export function quitTowerDefense(): void {
     try { c(); } catch { /* teardown must not throw */ }
   }
   try { stopPetHider(); } catch { /* ignore */ }
+  try { stopStormForgeEffects(); } catch { /* ignore */ }
   try { stopEffects(); } catch { /* ignore */ }
   try { stopProjectileRender(); } catch { /* ignore */ }
   try { stopBalloonRender(); } catch { /* ignore */ }

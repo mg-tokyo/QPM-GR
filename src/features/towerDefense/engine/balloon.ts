@@ -1,5 +1,5 @@
 import type { Balloon, BalloonId, BalloonModifier, DamageType, StatusEffectState, Tower } from '../types';
-import { getBalloonDef } from '../data/balloonDefs';
+import { BOSS_KINDS, getBalloonDef } from '../data/balloonDefs';
 import { getPathLength, positionAt } from './path';
 import { getMatchSnapshot, setBalloons, setLives } from '../state';
 import { REGEN_DELAY_MS, REGEN_HP_PER_SEC } from '../constants';
@@ -13,12 +13,14 @@ export interface SpawnOpts {
   readonly modifiers?: readonly BalloonModifier[];
 }
 
-// Step-based endless HP scaling, BTD6-freeplay-shaped: predictable "wall"
-// moments the player can plan around. Prescripted 1-20 unchanged; endless
-// starts biting at R21 so there's no grace period. Steps: R21-30 ×1.25,
-// R31-40 ×1.5, R41-50 ×2, R51-60 ×3, then +1× per 10 rounds thereafter.
+// Smooth-with-floor endless HP per docs/superpowers/plans/2026-08-18-tower-defense-endless-threat-layer-7.md §1.1.
+// Base 1.05 solved backwards from "R61 must be ~2× current 4×" → 8 = k^41 → k ≈ 1.052.
+// steppedFloor keeps R21-R25 pinned at 1.25× so no round regresses vs Layer 5.
 function endlessHpMult(round: number): number {
   if (round <= 20) return 1;
+  return Math.max(steppedFloor(round), Math.pow(1.05, round - 20));
+}
+function steppedFloor(round: number): number {
   if (round <= 30) return 1.25;
   if (round <= 40) return 1.5;
   if (round <= 50) return 2;
@@ -54,18 +56,34 @@ export function getCurrentSpeed(b: Balloon): number {
 export function applyStatus(b: Balloon, status: StatusEffectState): void {
   const existing = b.statuses.find((s) => s.kind === status.kind);
   if (existing) {
+    // Refresh keeps the STRONGEST values, so a T4 forge's burn upgrades a T1
+    // forge's burn on the same balloon instead of waiting for it to expire.
     existing.remainingMs = Math.max(existing.remainingMs, status.remainingMs);
+    if (status.dotPerSec !== undefined && status.dotPerSec > (existing.dotPerSec ?? 0)) existing.dotPerSec = status.dotPerSec;
+    if (status.dmgTakenBonus !== undefined && status.dmgTakenBonus > (existing.dmgTakenBonus ?? 0)) existing.dmgTakenBonus = status.dmgTakenBonus;
+    if (status.armorStrip !== undefined && status.armorStrip > (existing.armorStrip ?? 0)) existing.armorStrip = status.armorStrip;
+    if (status.dotBossMult !== undefined && status.dotBossMult > (existing.dotBossMult ?? 1)) existing.dotBossMult = status.dotBossMult;
     return;
   }
   b.statuses.push(status);
 }
 
-export function getWiltMultiplier(b: Balloon): number {
+// Sum of dmgTakenBonus across ALL active statuses (Wilt, Static, T4 Burn…).
+export function getStatusDmgTakenBonus(b: Balloon): number {
   let bonus = 0;
   for (const s of b.statuses) {
-    if (s.kind === 'wilt' && s.dmgTakenBonus) bonus += s.dmgTakenBonus;
+    if (s.dmgTakenBonus) bonus += s.dmgTakenBonus;
   }
   return bonus;
+}
+
+// Strongest armor strip among active statuses, clamped to [0, 1].
+export function getStatusArmorStrip(b: Balloon): number {
+  let strip = 0;
+  for (const s of b.statuses) {
+    if (s.armorStrip && s.armorStrip > strip) strip = s.armorStrip;
+  }
+  return Math.min(1, strip);
 }
 
 export interface DamageResult {
@@ -92,9 +110,10 @@ export function applyDamageToBalloon(
   const scaledDmg = dmg * mult;
   // Armor only reduces standard damage; explosive and cold ignore it per spec §4.2.
   // ctx.ignoresArmor lets Marble Charge (T3B) bypass armor DR entirely.
-  const armorApplies = type === 'standard' && b.armorDR > 0 && !ctx.ignoresArmor;
+  const effectiveDR = b.armorDR * (1 - getStatusArmorStrip(b));
+  const armorApplies = type === 'standard' && effectiveDR > 0 && !ctx.ignoresArmor;
   const effectiveDmg = armorApplies
-    ? Math.max(1, Math.ceil(scaledDmg * (1 - b.armorDR)))
+    ? Math.max(1, Math.ceil(scaledDmg * (1 - effectiveDR)))
     : scaledDmg;
   const damageDealt = Math.min(effectiveDmg, b.hp);
   if (damageDealt > 0) b.msSinceDamage = 0;
@@ -166,10 +185,14 @@ export function advanceBalloons(deltaMs: number): AdvanceResult {
     }
     let dotDamage = 0;
     if (b.statuses.length > 0) {
+      const isBoss = BOSS_KINDS.includes(b.kind);
       for (let i = b.statuses.length - 1; i >= 0; i--) {
         const s = b.statuses[i];
         if (!s) continue;
-        if (s.dotPerSec && s.dotPerSec > 0) dotDamage += s.dotPerSec * (deltaMs / 1000);
+        if (s.dotPerSec && s.dotPerSec > 0) {
+          const mult = isBoss && s.dotBossMult ? s.dotBossMult : 1;
+          dotDamage += s.dotPerSec * mult * (deltaMs / 1000);
+        }
         s.remainingMs -= deltaMs;
         if (s.remainingMs <= 0) b.statuses.splice(i, 1);
       }

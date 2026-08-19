@@ -103,7 +103,7 @@ const CSS = `
   flex-direction: column;
   align-items: center;
   gap: var(--qpm-space-1);
-  min-width: 88px;
+  min-width: 76px;
   padding: var(--qpm-space-2) var(--qpm-space-3);
   font-family: var(--qpm-font);
   color: var(--qpm-text);

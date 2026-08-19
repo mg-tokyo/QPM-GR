@@ -73,6 +73,12 @@ export interface StitchOptions {
    * manually looking up the max scale. Overrides slotScales.
    */
   fullGrowth?: boolean;
+  /**
+   * Multiplier applied to every resolved slot scale (after fullGrowth expansion).
+   * Lets callers exaggerate fruit size vs. base plant without looking up cropMaxScale.
+   * Default 1.
+   */
+  slotScaleMultiplier?: number;
   /** Output canvas size in pixels (default 256). */
   size?: number;
   /** Skip cache lookup. */
@@ -113,6 +119,10 @@ export function stitchPlantSprite(opts: StitchOptions): StitchResult | null {
     slotScales = new Array(activeSlotCount).fill(blueprint.cropMaxScale);
   } else {
     slotScales = opts.slotScales ?? [];
+  }
+  const scaleMult = opts.slotScaleMultiplier ?? 1;
+  if (scaleMult !== 1 && slotScales.length > 0) {
+    slotScales = slotScales.map(s => s * scaleMult);
   }
 
   const cacheKey = buildCacheKey(species, activeSlotCount, slotMutations, slotScales, size);

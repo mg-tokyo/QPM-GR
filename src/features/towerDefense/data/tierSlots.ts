@@ -31,6 +31,8 @@ export const TIER_SLOTS: Readonly<Record<TowerId, readonly UpgradeSlot[]>> = {
   bananaGrove:     ALL_SLOTS,
   owlPerch:        ALL_SLOTS,
   gnomeAlchemist:  ALL_SLOTS,
+  stormLantern:    ALL_SLOTS,
+  fairyForge:      ALL_SLOTS,
 };
 
 // (upgA, upgB) → slot. T1 collapses to base (no art distinction). Higher-tier
@@ -53,13 +55,120 @@ export function resolveUpgradeSlot(upgA: UpgradeTier, upgB: UpgradeTier): Upgrad
 // not listed here falls back to baseSprite — preset/user-bound designs are then
 // resolved separately by the customDesigns store.
 export function getTierSlotSprite(kind: TowerId, slot: UpgradeSlot): SpriteRef {
+  if (kind === 'stormLantern') return stormLanternSprite(slot);
+  if (kind === 'gnomeAlchemist') return gnomeAlchemistSprite(slot);
+  if (kind === 'owlPerch') return owlPerchSprite(slot);
+  if (kind === 'fairyForge') return fairyForgeSprite(slot);
   if (slot === 't3a') {
     if (kind === 'sproutSlinger') return { kind: 'plant', key: 'Pumpkin' };
     if (kind === 'bananaGrove') return { kind: 'plant', key: 'DragonFruit' };
-    if (kind === 'gnomeAlchemist') return { kind: 'decor', key: 'sprite/decor/StoneGnomess' };
   }
   if (slot === 't3b' && kind === 'sproutSlinger') return { kind: 'plant', key: 'Sunflower' };
   return getTowerDef(kind).baseSprite;
+}
+
+function stormLanternSprite(slot: UpgradeSlot): SpriteRef {
+  if (slot.startsWith('t4')) return { kind: 'decor', key: 'sprite/decor/MarbleLampPost' };
+  if (slot.startsWith('t3')) return { kind: 'decor', key: 'sprite/decor/StoneLampPost' };
+  return getTowerDef('stormLantern').baseSprite;
+}
+
+// Path A already swaps the base sprite to StoneGnomess at t3a in the previous
+// design; extend the swap to every slot from t2b onward so the pair reads as
+// the aura/elder progression. Overlays: Amberlit at t3-tier for the alchemy
+// aesthetic; charged/dawn variants for t4; Rainbow lives on the crosspath
+// max (t4b2a) — the "fully invested Cosmic Sage" slot that requires paying
+// through the t3 lock on both sides.
+function gnomeAlchemistSprite(slot: UpgradeSlot): SpriteRef {
+  const GNOME = 'sprite/decor/StoneGnome';
+  const GNOMESS = 'sprite/decor/StoneGnomess';
+  switch (slot) {
+    case 'base':
+    case 't2a':
+      return { kind: 'decor', key: GNOME };
+    case 't2b':
+    case 't2a2b':
+    case 't3b':
+      return { kind: 'decor', key: GNOMESS };
+    case 't3a':
+    case 't3a2b':
+    case 't3b2a':
+      return { kind: 'decor', key: GNOMESS, mutations: ['Amberlit'] };
+    case 't4a':
+      return { kind: 'decor', key: GNOMESS, mutations: ['Ambercharged'] };
+    case 't4a2b':
+      return { kind: 'decor', key: GNOMESS, mutations: ['Dawncharged'] };
+    case 't4b':
+      return { kind: 'decor', key: GNOMESS, mutations: ['Dawnlit'] };
+    case 't4b2a':
+      return { kind: 'decor', key: GNOMESS, mutations: ['Rainbow'] };
+  }
+}
+
+// Only one owl atlas key exists, so all progression is mutation overlays.
+// t3a Night Hunter → Thunderstruck; t3b Eagle Talons → Gold; t4 mirrors the
+// upgrade flavour (Frozen for Moonlit Terror, Amberlit for Phoenix Owl) and
+// Rainbow lives on t4a2b — the "moonlit terror + phoenix damage" crosspath.
+function owlPerchSprite(slot: UpgradeSlot): SpriteRef {
+  const OWL = 'sprite/decor/WoodOwl';
+  switch (slot) {
+    case 'base':
+    case 't2a':
+    case 't2b':
+    case 't2a2b':
+      return { kind: 'decor', key: OWL };
+    case 't3a':
+    case 't3a2b':
+      return { kind: 'decor', key: OWL, mutations: ['Thunderstruck'] };
+    case 't3b':
+    case 't3b2a':
+      return { kind: 'decor', key: OWL, mutations: ['Gold'] };
+    case 't4a':
+      return { kind: 'decor', key: OWL, mutations: ['Frozen'] };
+    case 't4a2b':
+      return { kind: 'decor', key: OWL, mutations: ['Rainbow'] };
+    case 't4b':
+      return { kind: 'decor', key: OWL, mutations: ['Amberlit'] };
+    case 't4b2a':
+      return { kind: 'decor', key: OWL, mutations: ['Ambercharged'] };
+  }
+}
+
+// The MiniFairy* decor family provides a natural material ladder
+// (Forge → Cottage → Keep → Castle → CastleLit) that matches the
+// scaling forge → solar-crucible arc. Overlays layer heat on top:
+// Amberlit at low fire tiers, Ambercharged/Dawnlit/Dawncharged as it climbs,
+// Rainbow reserved for t4b2a Star-Forge crosspath.
+function fairyForgeSprite(slot: UpgradeSlot): SpriteRef {
+  const FORGE = 'sprite/decor/MiniFairyForge';
+  const COTTAGE = 'sprite/decor/MiniFairyCottage';
+  const KEEP = 'sprite/decor/MiniFairyKeep';
+  const CASTLE = 'sprite/decor/MiniFairyCastle';
+  const CASTLE_LIT = 'sprite/decor/MiniFairyCastleLit';
+  switch (slot) {
+    case 'base':
+      return { kind: 'decor', key: FORGE };
+    case 't2a':
+    case 't2a2b':
+      return { kind: 'decor', key: COTTAGE, mutations: ['Amberlit'] };
+    case 't2b':
+      return { kind: 'decor', key: FORGE, mutations: ['Gold'] };
+    case 't3a':
+      return { kind: 'decor', key: COTTAGE, mutations: ['Ambercharged'] };
+    case 't3a2b':
+    case 't3b2a':
+      return { kind: 'decor', key: KEEP, mutations: ['Ambercharged'] };
+    case 't3b':
+      return { kind: 'decor', key: KEEP, mutations: ['Amberlit'] };
+    case 't4a':
+      return { kind: 'decor', key: CASTLE, mutations: ['Dawnlit'] };
+    case 't4a2b':
+      return { kind: 'decor', key: CASTLE_LIT, mutations: ['Dawncharged'] };
+    case 't4b':
+      return { kind: 'decor', key: CASTLE_LIT, mutations: ['Ambercharged'] };
+    case 't4b2a':
+      return { kind: 'decor', key: CASTLE_LIT, mutations: ['Rainbow'] };
+  }
 }
 
 // Per-slot scale multiplier stacked on top of a tower's own `renderScale`.

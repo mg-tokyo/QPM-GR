@@ -1,4 +1,4 @@
-import type { DamageType, StatusEffect, TowerId } from '../types';
+import type { DamageType, Point, StatusEffect, TowerId } from '../types';
 
 export interface TowerStats {
   readonly range: number;
@@ -50,6 +50,14 @@ export interface TowerStats {
   readonly cashOnWaveComplete?: number;
   readonly fireRateCapOverride?: number;
   readonly extraLeafCountBonus?: number;
+  // Storm Lantern chain: extra targets, hop radius (tiles), per-hop multiplier.
+  readonly chainCount?: number;
+  readonly chainRange?: number;
+  readonly chainDecay?: number;
+  // Fairy Forge: while a balloon burns from this tower, its armorDR is reduced
+  // by this fraction for ALL towers; DoT ticks on bosses are multiplied.
+  readonly burnArmorStrip?: number;
+  readonly burnBossMult?: number;
 }
 
 export interface UpgradeDef {
@@ -60,8 +68,8 @@ export interface UpgradeDef {
 }
 
 export type SpriteRef =
-  | { readonly kind: 'plant'; readonly key: string }
-  | { readonly kind: 'decor'; readonly key: string };
+  | { readonly kind: 'plant'; readonly key: string; readonly mutations?: readonly string[] }
+  | { readonly kind: 'decor'; readonly key: string; readonly mutations?: readonly string[] };
 
 export interface TowerDef {
   readonly id: TowerId;
@@ -73,6 +81,9 @@ export interface TowerDef {
   readonly pathB: readonly UpgradeDef[];
   readonly baseSprite: SpriteRef;
   readonly renderScale?: number;
+  // Tile-space offset from tower.pixel to where shots/effects emerge. Default
+  // (see engine/tower.ts towerMuzzle) is { x: 0, y: -0.5 }.
+  readonly muzzleOffset?: Point;
 }
 
 const DEFS: Record<TowerId, TowerDef> = {
@@ -284,6 +295,67 @@ const DEFS: Record<TowerId, TowerDef> = {
       { name: 'Cosmic Sage',   cost: 21000, description: 'Aura covers the entire map at 60% strength.', apply: (s) => ({ ...s, range: 999, globalAura: true, globalAuraScale: 0.6 }) },
     ],
     baseSprite: { kind: 'decor', key: 'sprite/decor/StoneGnome' },
+  },
+
+  stormLantern: {
+    id: 'stormLantern',
+    displayName: 'Storm Lantern',
+    description: 'Calls lightning that arcs from worm to worm. Metal armour conducts.',
+    baseCost: 540,
+    // WoodLampPost is 344px wide natively; 0.85 keeps it inside its tile.
+    renderScale: 0.85,
+    baseStats: {
+      range: 3.0, damage: 3, fireIntervalMs: 1100, pierce: 1,
+      projectileSpeed: 40, damageType: 'standard', splashRadius: 0,
+      incomePerRound: 0,
+      chainCount: 2, chainRange: 1.5, chainDecay: 0.7,
+    },
+    // Both paths set damage with Math.max so the fold order (A then B) never
+    // lets a low-tier B purchase undo a higher A damage value.
+    pathA: [
+      { name: 'Forked Bolt',  cost: 410,   description: 'Chains to 4 targets, weaker decay',                                  apply: (s) => ({ ...s, chainCount: 4, chainDecay: 0.8 }) },
+      { name: 'Thunderclap',  cost: 1350,  description: 'Damage 6, fire rate +22%, chains to 6 targets within 2.0 tiles',      apply: (s) => ({ ...s, damage: Math.max(s.damage, 6), fireIntervalMs: s.fireIntervalMs * 0.82, chainCount: 6, chainRange: 2.0, chainDecay: 0.85 }) },
+      { name: 'Tempest',      cost: 3780,  description: 'Fire rate +12%, chains to 10 targets, no decay',                      apply: (s) => ({ ...s, fireIntervalMs: s.fireIntervalMs * 0.89, chainCount: 10, chainDecay: 1 }) },
+      { name: 'Sky Sunder',   cost: 16200, description: 'Damage 14, fire rate +14%, chains to 20 within 2.5. Every 4th bolt is a Thunderstrike (splash 2.0, dmg 40).', apply: (s) => ({ ...s, damage: Math.max(s.damage, 14), fireIntervalMs: s.fireIntervalMs * 0.875, chainCount: 20, chainRange: 2.5, procEveryNthShot: 4, procNukeDamage: 40, procNukeSplash: 2.0 }) },
+    ],
+    pathB: [
+      { name: 'Capacitor',      cost: 410,   description: 'Damage 5, fire rate +10%',                                                       apply: (s) => ({ ...s, damage: Math.max(s.damage, 5), fireIntervalMs: s.fireIntervalMs * 0.91 }) },
+      { name: 'Ion Lance',      cost: 1350,  description: 'Damage 12, fire rate +11%, +50% dmg vs armored',                                 apply: (s) => ({ ...s, damage: Math.max(s.damage, 12), fireIntervalMs: s.fireIntervalMs * 0.9, armorBonusMult: 0.5 }) },
+      { name: 'Superconductor', cost: 3780,  description: 'Damage 24, fire rate +28%, +100% dmg vs armored',                                apply: (s) => ({ ...s, damage: Math.max(s.damage, 24), fireIntervalMs: s.fireIntervalMs * 0.78, armorBonusMult: 1.0 }) },
+      { name: 'Godbolt',        cost: 16200, description: 'Damage 70, fire rate +16%, +100% vs armored, +75% vs bosses. Applies Static (+20% dmg taken, 2s).', apply: (s) => ({ ...s, damage: Math.max(s.damage, 70), fireIntervalMs: s.fireIntervalMs * 0.86, armorBonusMult: 1.0, bossDamageBonus: 0.75, appliesStatus: 'static', statusDurationMs: 2000, wiltDamageBonus: 0.2 }) },
+    ],
+    baseSprite: { kind: 'decor', key: 'sprite/decor/WoodLampPost' },
+  },
+
+  fairyForge: {
+    id: 'fairyForge',
+    displayName: 'Fairy Forge',
+    description: 'Sets worms ablaze. Burning worms cannot regenerate — Smithing melts their armour.',
+    baseCost: 420,
+    renderScale: 0.9,
+    // Fire from the sprite centre; default { x: 0, y: -0.5 } would fire from the top edge.
+    muzzleOffset: { x: 0, y: 0 },
+    baseStats: {
+      range: 2.4, damage: 1, fireIntervalMs: 400, pierce: 2,
+      projectileSpeed: 9, damageType: 'standard', splashRadius: 0,
+      incomePerRound: 0,
+      appliesStatus: 'burn', statusDurationMs: 2000, statusDoTPerSec: 2,
+    },
+    // Path A from T2 is the "flame lick": splash cone (no pierce), instant
+    // projectile (speed 40) so the visual can be a persistent flame effect.
+    pathA: [
+      { name: 'Bellows',        cost: 318,   description: 'Burn 3/s for 3s, range +15%',                                          apply: (s) => ({ ...s, statusDoTPerSec: 3, statusDurationMs: 3000, range: s.range * 1.15 }) },
+      { name: 'Cinder Cloud',   cost: 1050,  description: 'Flame lick: splash 0.8, damage 2, burn 4/s',                            apply: (s) => ({ ...s, splashRadius: 0.8, damage: Math.max(s.damage, 2), statusDoTPerSec: 4, projectileSpeed: 40 }) },
+      { name: 'Wildfire',       cost: 2940,  description: 'Splash 1.3, damage 4, fire rate +14%, burn 6/s for 4s',                 apply: (s) => ({ ...s, splashRadius: 1.3, damage: Math.max(s.damage, 4), fireIntervalMs: s.fireIntervalMs * 0.875, statusDoTPerSec: 6, statusDurationMs: 4000 }) },
+      { name: 'Solar Crucible', cost: 12600, description: 'Splash 2.2, damage 10, fire rate +17%, burn 14/s. Burning worms take +25% dmg from all towers.', apply: (s) => ({ ...s, splashRadius: 2.2, damage: Math.max(s.damage, 10), fireIntervalMs: s.fireIntervalMs * 0.857, statusDoTPerSec: 14, wiltDamageBonus: 0.25 }) },
+    ],
+    pathB: [
+      { name: 'Tempered',    cost: 318,   description: 'Damage 2, range +25%',                                                                 apply: (s) => ({ ...s, damage: Math.max(s.damage, 2), range: s.range * 1.25 }) },
+      { name: 'Molten Slag', cost: 1050,  description: 'Damage 3, pierce 3. Burning worms lose half their armour (for all towers).',           apply: (s) => ({ ...s, damage: Math.max(s.damage, 3), pierce: Math.max(s.pierce, 3), burnArmorStrip: 0.5 }) },
+      { name: 'White-Hot',   cost: 2940,  description: 'Damage 7, pierce 4, fire rate +14%, burn 5/s. Burning worms lose all armour.',        apply: (s) => ({ ...s, damage: Math.max(s.damage, 7), pierce: Math.max(s.pierce, 4), fireIntervalMs: s.fireIntervalMs * 0.875, statusDoTPerSec: Math.max(s.statusDoTPerSec ?? 0, 5), burnArmorStrip: 1 }) },
+      { name: 'Star-Forge',  cost: 12600, description: 'Damage 18, pierce 6, fire rate +17%, burn 10/s, burn ticks ×2 on bosses.',            apply: (s) => ({ ...s, damage: Math.max(s.damage, 18), pierce: Math.max(s.pierce, 6), fireIntervalMs: s.fireIntervalMs * 0.857, statusDoTPerSec: Math.max(s.statusDoTPerSec ?? 0, 10), burnArmorStrip: 1, burnBossMult: 2 }) },
+    ],
+    baseSprite: { kind: 'decor', key: 'sprite/decor/MiniFairyForge' },
   },
 };
 

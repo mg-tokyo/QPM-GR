@@ -247,5 +247,16 @@ export function generateEndlessWave(round: number): WaveDef {
       startDelayMs: 10000,
     });
   }
+  // Layer 7b §1.2 — past cycle 15, condense stagger to force parallel arrivals.
+  // Buff auras (Fairy Forge, Alchemist) divide DPS across concurrent targets,
+  // so simultaneous arrivals drop per-target DPS by 1/N. Capybara stays at
+  // startDelayMs=10000 (Layer 6 §4.4 mid-round pressure spike).
+  if (cycle >= 15) {
+    for (let i = 0; i < groups.length; i += 1) {
+      const g = groups[i]!;
+      if (g.kind === 'bronzeCapybara') continue;
+      if (g.startDelayMs > 1500) groups[i] = { ...g, startDelayMs: 1500 };
+    }
+  }
   return { round, groups };
 }

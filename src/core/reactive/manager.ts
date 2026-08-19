@@ -6,7 +6,12 @@
 // of JSON Patch ops (verified against fast-json-patch shape in beta source).
 // Subscribers register a JSON Pointer prefix; only patches whose path
 // startsWith that prefix mark the subscriber dirty.
-// Client tier: pointerdown/keydown/throttled pointermove listeners on document.
+// Client tier: pointerdown/keydown/keyup/throttled pointermove on document,
+// blur on window. keyup/blur are "arrival" events (user released the movement
+// key, or focus left the page) — the game commonly writes the settled position
+// atom 1–2 frames AFTER these fire, so those two also schedule a short rAF
+// settling window so held-key walk → stop reflects immediately instead of
+// waiting on OS key auto-repeat or the 5s safety poll.
 // Dynamic tier: 5s safety poll for unclassified atoms.
 
 import { storage } from '../../utils/storage';
@@ -45,6 +50,10 @@ const KILL_SWITCH_KEYS: Readonly<Record<SubscriberTier, string>> = {
 
 const POINTERMOVE_THROTTLE_MS = 150;
 const DYNAMIC_SAFETY_POLL_MS = 5_000;
+// Frames to re-check client/composite entries after keyup/blur. The game's
+// position atom typically settles within 1 frame of key release; 2 covers
+// engines that finalize on the following tick.
+const SETTLING_FRAMES = 2;
 
 // ── Manager ───────────────────────────────────────────────────────────────
 
@@ -53,9 +62,13 @@ export class ReactiveSubscriptionManager {
   private stateEventUnsub: (() => void) | null = null;
   private pointerdownListener: ((e: Event) => void) | null = null;
   private keydownListener:     ((e: Event) => void) | null = null;
+  private keyupListener:       ((e: Event) => void) | null = null;
+  private blurListener:        ((e: Event) => void) | null = null;
   private pointermoveListener: ((e: Event) => void) | null = null;
   private lastPointermoveTs = 0;
   private dynamicPollTimer: ReturnType<typeof setInterval> | null = null;
+  private settlingRafId: number | null = null;
+  private settlingFramesRemaining = 0;
   private flushScheduled = false;
   private nextFlushTriggers: Set<'state' | 'input' | 'safety'> = new Set();
 
@@ -83,6 +96,7 @@ export class ReactiveSubscriptionManager {
     this.stateEventUnsub = null;
     this.detachInputListeners();
     this.stopDynamicPoll();
+    this.cancelSettling();
     this.entries.clear();
     this.flushScheduled = false;
     this.nextFlushTriggers.clear();
@@ -195,7 +209,7 @@ export class ReactiveSubscriptionManager {
     return null;
   }
 
-  private onInputEvent(source: 'pointerdown' | 'keydown' | 'pointermove'): void {
+  private onInputEvent(source: 'pointerdown' | 'keydown' | 'keyup' | 'blur' | 'pointermove'): void {
     if (source === 'pointermove') {
       const now = performance.now();
       if (now - this.lastPointermoveTs < POINTERMOVE_THROTTLE_MS) return;
@@ -206,6 +220,36 @@ export class ReactiveSubscriptionManager {
       if (e.tier === 'client' || e.tier === 'composite') e.dirty = true;
     }
     this.scheduleFlush('input');
+    if (source === 'keyup' || source === 'blur') {
+      this.scheduleClientSettling(SETTLING_FRAMES);
+    }
+  }
+
+  private scheduleClientSettling(frames: number): void {
+    if (typeof requestAnimationFrame === 'undefined') return;
+    if (frames > this.settlingFramesRemaining) this.settlingFramesRemaining = frames;
+    if (this.settlingRafId !== null) return;
+    const tick = (): void => {
+      this.settlingRafId = null;
+      if (this.settlingFramesRemaining <= 0) return;
+      this.settlingFramesRemaining--;
+      for (const e of this.entries.values()) {
+        if (e.tier === 'client' || e.tier === 'composite') e.dirty = true;
+      }
+      this.scheduleFlush('input');
+      if (this.settlingFramesRemaining > 0) {
+        this.settlingRafId = requestAnimationFrame(tick);
+      }
+    };
+    this.settlingRafId = requestAnimationFrame(tick);
+  }
+
+  private cancelSettling(): void {
+    if (this.settlingRafId !== null) {
+      cancelAnimationFrame(this.settlingRafId);
+      this.settlingRafId = null;
+    }
+    this.settlingFramesRemaining = 0;
   }
 
   private onDynamicPoll(): void {
@@ -262,10 +306,16 @@ export class ReactiveSubscriptionManager {
     if (typeof document === 'undefined') return;
     this.pointerdownListener = () => this.onInputEvent('pointerdown');
     this.keydownListener     = () => this.onInputEvent('keydown');
+    this.keyupListener       = () => this.onInputEvent('keyup');
+    this.blurListener        = () => this.onInputEvent('blur');
     this.pointermoveListener = () => this.onInputEvent('pointermove');
     document.addEventListener('pointerdown', this.pointerdownListener, { passive: true, capture: true });
     document.addEventListener('keydown',     this.keydownListener,     { passive: true, capture: true });
+    document.addEventListener('keyup',       this.keyupListener,       { passive: true, capture: true });
     document.addEventListener('pointermove', this.pointermoveListener, { passive: true, capture: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', this.blurListener, { passive: true, capture: true });
+    }
   }
 
   private detachInputListeners(): void {
@@ -274,12 +324,21 @@ export class ReactiveSubscriptionManager {
     if (this.keydownListener) {
       document.removeEventListener('keydown', this.keydownListener, { capture: true });
     }
+    if (this.keyupListener) {
+      document.removeEventListener('keyup', this.keyupListener, { capture: true });
+    }
     if (this.pointermoveListener) {
       document.removeEventListener('pointermove', this.pointermoveListener, { capture: true });
     }
+    if (this.blurListener && typeof window !== 'undefined') {
+      window.removeEventListener('blur', this.blurListener, { capture: true });
+    }
     this.pointerdownListener = null;
     this.keydownListener = null;
+    this.keyupListener = null;
+    this.blurListener = null;
     this.pointermoveListener = null;
+    this.cancelSettling();
   }
 
   private startDynamicPollIfNeeded(): void {

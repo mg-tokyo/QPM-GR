@@ -29,11 +29,14 @@ type SpriteNode = PixiNode & {
   tint?: number;
   alpha?: number;
   zIndex?: number;
+  texture?: unknown;
   destroy?: (opts?: { children?: boolean; texture?: boolean }) => void;
 };
 
 const TINT_WHITE = 0xffffff;
 const TINT_CHILLED = 0x88ccff;
+const TINT_BURN = 0xff8a2a;
+const TINT_STATIC = 0xd8b4ff;
 const DAMAGE_FLASH_MS = 150;
 const BEE_BOB_AMPLITUDE_PX = 24;
 const BEE_BOB_HZ = 2.4;
@@ -49,6 +52,8 @@ interface BalloonSpriteRecord {
   lastPixel: Point;
   hasCamo: boolean;
   hasRegen: boolean;
+  baseTexture: unknown;
+  isBurning: boolean;
 }
 
 const CAMO_ALPHA = 0.6;
@@ -63,6 +68,7 @@ const REGEN_OVERLAY_Y_OFFSET = -16;
 const REGEN_PULSE_HZ = 0.83;
 const REGEN_PULSE_MID = 0.4;
 const REGEN_PULSE_AMPLITUDE = 0.15;
+const BURN_MUTATION_KEY = 'Amberlit';
 
 export interface BalloonPopInfo {
   readonly pixel: Point;
@@ -89,6 +95,28 @@ function buildBalloonCanvas(kind: BalloonId): HTMLCanvasElement | null {
   const def = getBalloonDef(kind);
   const overlays = def.mutationOverlay ? [def.mutationOverlay] : [];
   return getPetSpriteWithMutations(def.spriteName, overlays);
+}
+
+// Per-kind cache of the balloon texture WITH Amberlit stacked on top; built
+// on first burn transition and reused for every burning balloon of that kind.
+const burnTextureCache = new Map<BalloonId, unknown>();
+
+function getBurnTexture(kind: BalloonId): unknown | null {
+  const cached = burnTextureCache.get(kind);
+  if (cached !== undefined) return cached;
+  const def = getBalloonDef(kind);
+  const overlays = def.mutationOverlay ? [def.mutationOverlay, BURN_MUTATION_KEY] : [BURN_MUTATION_KEY];
+  const canvas = getPetSpriteWithMutations(def.spriteName, overlays);
+  const TextureCtor = getStageTextureCtor();
+  if (!canvas || !TextureCtor) return null;
+  try {
+    const tex: unknown = TextureCtor.from(canvas);
+    burnTextureCache.set(kind, tex);
+    return tex;
+  } catch (err) {
+    log.warn('QPM-TD-BALLOON-004', { reason: 'burn_texture_failed', kind }, err);
+    return null;
+  }
 }
 
 function createSprite(canvas: HTMLCanvasElement): SpriteNode | null {
@@ -201,6 +229,8 @@ function addSprite(
     lastPixel: pixel,
     hasCamo,
     hasRegen,
+    baseTexture: sprite.texture,
+    isBurning: false,
   };
 }
 
@@ -220,9 +250,19 @@ function destroyRecord(container: ContainerNode, rec: BalloonSpriteRecord): void
   } catch { /* ignore */ }
 }
 
-function isChilled(b: Balloon): boolean {
-  for (const s of b.statuses) if (s.kind === 'chilled') return true;
+function hasStatus(b: Balloon, kind: Balloon['statuses'][number]['kind']): boolean {
+  for (const s of b.statuses) if (s.kind === kind) return true;
   return false;
+}
+
+// Blend two 0xRRGGBB tints; k = 0 → a, k = 1 → b.
+function mixTint(a: number, b: number, k: number): number {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * k);
+  const g = Math.round(ag + (bg - ag) * k);
+  const bl = Math.round(ab + (bb - ab) * k);
+  return (r << 16) | (g << 8) | bl;
 }
 
 // Bee flies over corners in the design, but corner detection needs path
@@ -233,7 +273,10 @@ function beeBobOffset(nowMs: number): number {
 
 function chooseTint(rec: BalloonSpriteRecord, balloon: Balloon, nowMs: number): number {
   if (nowMs < rec.flashUntilMs) return TINT_WHITE;
-  if (isChilled(balloon)) return TINT_CHILLED;
+  if (hasStatus(balloon, 'chilled')) return TINT_CHILLED;
+  // Burn pulses between the balloon's own colour and orange (~5 Hz).
+  if (hasStatus(balloon, 'burn')) return mixTint(rec.baseTint, TINT_BURN, 0.5 + 0.4 * Math.sin(nowMs / 90));
+  if (hasStatus(balloon, 'static')) return TINT_STATIC;
   return rec.baseTint;
 }
 
@@ -275,6 +318,12 @@ function tickFrame(nowMs: number): void {
     const drawY = balloon.kind === 'yellowBee' ? pixel.y + beeBobOffset(nowMs) : pixel.y;
     rec.sprite.position?.set?.(drawX, drawY);
     rec.sprite.tint = chooseTint(rec, balloon, nowMs);
+    const shouldBurn = hasStatus(balloon, 'burn');
+    if (shouldBurn !== rec.isBurning) {
+      const nextTex = shouldBurn ? getBurnTexture(rec.kind) : rec.baseTexture;
+      if (nextTex) rec.sprite.texture = nextTex;
+      rec.isBurning = shouldBurn;
+    }
     rec.lastPixel = { x: drawX, y: drawY };
     if (rec.overlay) {
       rec.overlay.position?.set?.(drawX, drawY + REGEN_OVERLAY_Y_OFFSET);
@@ -334,6 +383,7 @@ export function stopBalloonRender(): void {
   }
   s.sprites.clear();
   s.popListeners.clear();
+  burnTextureCache.clear();
 }
 
 export function onBalloonPopped(cb: (info: BalloonPopInfo) => void): () => void {

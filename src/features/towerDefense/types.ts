@@ -6,7 +6,9 @@ export type TowerId =
   | 'strawScarecrow'
   | 'bananaGrove'
   | 'owlPerch'
-  | 'gnomeAlchemist';
+  | 'gnomeAlchemist'
+  | 'stormLantern'
+  | 'fairyForge';
 
 export type BalloonId =
   | 'redWorm'
@@ -24,7 +26,7 @@ export type TargetPriority = 'first' | 'last' | 'close' | 'strong' | 'lastTrack'
 export type UpgradePath = 'a' | 'b';
 export type UpgradeTier = 0 | 1 | 2 | 3 | 4;
 export type DamageType = 'standard' | 'explosive' | 'cold';
-export type StatusEffect = 'chilled' | 'wilt' | 'frostbite' | 'burn' | 'sticky' | 'pulled';
+export type StatusEffect = 'chilled' | 'wilt' | 'frostbite' | 'burn' | 'sticky' | 'pulled' | 'static';
 export type BalloonModifier = 'camo' | 'regen';
 
 export interface Point {
@@ -50,8 +52,12 @@ export interface StatusEffectState {
   readonly kind: StatusEffect;
   remainingMs: number;
   readonly speedMultiplier: number;
-  readonly dotPerSec?: number;
-  readonly dmgTakenBonus?: number;
+  dotPerSec?: number;
+  dmgTakenBonus?: number;
+  // Fraction of the victim's armorDR removed while this status is active (0-1).
+  armorStrip?: number;
+  // DoT tick multiplier applied when the victim is a BOSS_KINDS balloon.
+  dotBossMult?: number;
 }
 
 export interface Balloon {
@@ -98,6 +104,13 @@ export interface Projectile {
   readonly statusDoTPerSec?: number;
   readonly statusDmgTakenBonus?: number;
   readonly statusSpeedMultiplier?: number;
+  readonly statusArmorStrip?: number;
+  readonly statusDotBossMult?: number;
+  // Chain lightning: extra targets after the first impact, hop radius (tiles),
+  // per-hop damage multiplier. Only resolved for splashRadius === 0.
+  readonly chainCount?: number;
+  readonly chainRange?: number;
+  readonly chainDecay?: number;
 }
 
 export interface SpawnGroup {

@@ -55,10 +55,11 @@ function tileToPixel(tile: Point): Point {
 
 // Tower sprites are anchored (0.5, 1.0) — tower.pixel is at the sprite's feet.
 // Lift the muzzle half a tile so projectiles + shot effects emerge from the
-// tower's mid-body rather than the ground line.
+// tower's mid-body rather than the ground line. Defs may override per tower.
 const TOWER_MUZZLE_Y_OFFSET = -0.5;
 function towerMuzzle(t: Tower): Point {
-  return { x: t.pixel.x, y: t.pixel.y + TOWER_MUZZLE_Y_OFFSET };
+  const off = getTowerDef(t.kind).muzzleOffset;
+  return { x: t.pixel.x + (off?.x ?? 0), y: t.pixel.y + (off?.y ?? TOWER_MUZZLE_Y_OFFSET) };
 }
 
 function distanceBetween(a: Point, b: Point): number {
@@ -452,6 +453,11 @@ function makeProjectile(
     ...(stats.statusDoTPerSec !== undefined ? { statusDoTPerSec: stats.statusDoTPerSec } : {}),
     ...(stats.wiltDamageBonus !== undefined ? { statusDmgTakenBonus: stats.wiltDamageBonus } : {}),
     ...(stats.stickySpeedMultiplier !== undefined ? { statusSpeedMultiplier: stats.stickySpeedMultiplier } : {}),
+    ...(stats.burnArmorStrip !== undefined ? { statusArmorStrip: stats.burnArmorStrip } : {}),
+    ...(stats.burnBossMult !== undefined ? { statusDotBossMult: stats.burnBossMult } : {}),
+    ...(stats.chainCount !== undefined ? { chainCount: stats.chainCount } : {}),
+    ...(stats.chainRange !== undefined ? { chainRange: stats.chainRange } : {}),
+    ...(stats.chainDecay !== undefined ? { chainDecay: stats.chainDecay } : {}),
   };
   if (stats.appliesStatus !== undefined) {
     return { ...base, appliesStatus: stats.appliesStatus };

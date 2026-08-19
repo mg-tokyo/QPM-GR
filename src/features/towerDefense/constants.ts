@@ -24,7 +24,11 @@ export const REGEN_HP_PER_SEC = 1;
 // Bump when balance changes ship. loadSavedGame() wipes saves whose stored
 // version differs from this — see docs/superpowers/specs/2026-08-13-tower-defense-rebalance-design.md §9.1.
 // v6: T4 upgrades introduced (types.UpgradeTier widened to 0-4).
-export const TD_BALANCE_VERSION = 6;
+// v7: Storm Lantern + Fairy Forge added (new TowerId members; old saves may
+// reference tiles now occupied differently — wipe is the safe migration).
+// v8: Layer 7a endless HP curve rewrite — max(steppedFloor, 1.05^cycle) past
+// R20 makes late-endless HP diverge from stored balloon snapshots.
+export const TD_BALANCE_VERSION = 8;
 
 // Owl Perch shipped in Layer 3, so scripted [C] groups and endless camo rolls
 // are now live. Flip back to false if a regression requires reverting Owl

@@ -24,7 +24,7 @@ type ContainerNode = PixiNode & {
   addChild?: (child: PixiNode) => void;
   removeChild?: (child: PixiNode) => void;
 };
-type GraphicsNode = PixiNode & {
+export type GraphicsNode = PixiNode & {
   circle?: (x: number, y: number, r: number) => GraphicsNode;
   moveTo?: (x: number, y: number) => GraphicsNode;
   lineTo?: (x: number, y: number) => GraphicsNode;
@@ -46,17 +46,21 @@ type SpriteNode = PixiNode & {
 
 const EXPLOSION_MS = 400;
 const POP_MS = 300;
-const REFUND_MS = 800;
+const REFUND_MS = 1100;
 const BEAM_MS = 140;
 const POP_CIRCLE_COUNT = 4;
 const POP_RADIUS_PX = 60;
-const REFUND_FLOAT_PX = 80;
+const REFUND_FLOAT_PX = 140;
+const REFUND_CANVAS_H = 100;
+const REFUND_STROKE_WIDTH = 10;
 const EXPLOSION_COLOR = 0xffaa33;
 const SCARECROW_BEAM_COLOR = '#ffe28a';
 const SCARECROW_BEAM_COLOR_T4A = '#ff5533';
 const SCARECROW_BEAM_COLOR_T4B = '#c866ff';
 const REFUND_TEXT_COLOR = '#7cff9e';
-const REFUND_TEXT_FONT = 'bold 24px system-ui, sans-serif';
+// Sized against WORLD_PX_PER_TILE (256) so grove income reads as ~28% of a
+// tile — proportional to explosion visuals. Previous 24px looked tiny.
+const REFUND_TEXT_FONT = 'bold 72px system-ui, sans-serif';
 const REFUND_TEXT_STROKE = '#0a0a10';
 
 // Numeric fallback tints for pop confetti when a caller passes a kind that
@@ -72,7 +76,7 @@ const POP_KIND_FALLBACK: Record<BalloonId, number> = {
   goldMoab:       0xffcc33,
 };
 
-interface ActiveEffect {
+export interface ActiveEffect {
   readonly createdMs: number;
   readonly lifetimeMs: number;
   tick(nowMs: number): void;
@@ -101,7 +105,7 @@ function colorForPop(info: BalloonPopInfo): number {
   return POP_KIND_FALLBACK[info.kind];
 }
 
-function makeGraphics(): GraphicsNode | null {
+export function makeEffectGraphics(): GraphicsNode | null {
   const Ctor = getStageGraphicsCtor();
   if (!Ctor) return null;
   try {
@@ -119,7 +123,7 @@ function attachEffect(effect: ActiveEffect): void {
 }
 
 function createExplosionEffect(container: ContainerNode, pixel: Point, radiusTiles: number): ActiveEffect | null {
-  const g = makeGraphics();
+  const g = makeEffectGraphics();
   if (!g) return null;
   const worldPx = getWorldPxPerTile();
   const maxRadius = radiusTiles * worldPx;
@@ -147,7 +151,7 @@ function createExplosionEffect(container: ContainerNode, pixel: Point, radiusTil
 }
 
 function createPopEffect(container: ContainerNode, pixel: Point, color: number): ActiveEffect | null {
-  const g = makeGraphics();
+  const g = makeEffectGraphics();
   if (!g) return null;
   g.zIndex = TD_Z_EFFECT;
   container.addChild?.(g);
@@ -187,15 +191,15 @@ function renderTextCanvas(text: string): HTMLCanvasElement | null {
   if (!ctx) return null;
   ctx.font = REFUND_TEXT_FONT;
   const metrics = ctx.measureText(text);
-  const pad = 8;
+  const pad = 16;
   canvas.width = Math.ceil(metrics.width) + pad * 2;
-  canvas.height = 40;
+  canvas.height = REFUND_CANVAS_H;
   const ctx2 = canvas.getContext('2d');
   if (!ctx2) return null;
   ctx2.font = REFUND_TEXT_FONT;
   ctx2.textAlign = 'center';
   ctx2.textBaseline = 'middle';
-  ctx2.lineWidth = 4;
+  ctx2.lineWidth = REFUND_STROKE_WIDTH;
   ctx2.strokeStyle = REFUND_TEXT_STROKE;
   ctx2.strokeText(text, canvas.width / 2, canvas.height / 2);
   ctx2.fillStyle = REFUND_TEXT_COLOR;
@@ -204,7 +208,7 @@ function renderTextCanvas(text: string): HTMLCanvasElement | null {
 }
 
 function createBeamEffect(container: ContainerNode, fromPx: Point, toPx: Point, color: number, lifetimeMs: number): ActiveEffect | null {
-  const g = makeGraphics();
+  const g = makeEffectGraphics();
   if (!g) return null;
   g.zIndex = TD_Z_EFFECT;
   container.addChild?.(g);
@@ -331,6 +335,13 @@ export function spawnBeamEffect(fromPx: Point, toPx: Point, colorHex: string, li
   if (!container) return;
   const effect = createBeamEffect(container, fromPx, toPx, parseHexTint(colorHex), lifetimeMs);
   if (effect) attachEffect(effect);
+}
+
+// Lets sibling render modules (stormForgeEffects.ts) run custom effects on
+// this module's RAF loop and lifetime bookkeeping.
+export function spawnActiveEffect(effect: ActiveEffect): void {
+  if (!state) { effect.destroy(); return; }
+  attachEffect(effect);
 }
 
 function handleBalloonPopped(info: BalloonPopInfo): void {

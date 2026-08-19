@@ -31,8 +31,12 @@ type SpriteNode = PixiNode & {
 
 type RotationMode = 'none' | 'directional' | 'spin';
 
+type GeneratedSpriteKind = 'ember' | 'emberWhite';
+
 interface ProjectileSpec {
   readonly key: string;
+  // When set, the sprite comes from a generated canvas instead of `key`.
+  readonly generated?: GeneratedSpriteKind;
   readonly overlays: readonly string[];
   // Per-tower render scale. Source canvases vary wildly in native size (plant
   // sprites are noticeably larger than item sprites), so each projectile needs
@@ -66,6 +70,9 @@ const PROJECTILE_BASE: Partial<Record<TowerId, ProjectileSpec>> = {
   // Owl Perch: reuses Sprout's baby-carrot dart as a placeholder — Layer 3
   // ships no unique owl projectile (spec §10, no new sprite art).
   owlPerch:       { key: 'sprite/plant/BabyCarrot', overlays: [],           scale: 0.35, rotation: 'directional', rotationOffsetRad: Math.PI },
+  // Molten ember — generated radial gradient (spec §7). 96px canvas at scale 1
+  // ≈ 0.375 tile against WORLD_PX_PER_TILE 256.
+  fairyForge:     { key: 'generated:ember', generated: 'ember', overlays: [], scale: 1.0, rotation: 'none' },
 };
 
 // Towers whose "shot" is an instant beam rather than a traveling projectile.
@@ -87,6 +94,7 @@ function resolveProjectileSpec(
   if (!base) return null;
 
   let key = base.key;
+  let generated = base.generated;
   let scale = base.scale;
   let rotation = base.rotation;
   let rotationOffsetRad = base.rotationOffsetRad;
@@ -193,6 +201,14 @@ function resolveProjectileSpec(
       if (upB >= 4) overlays.add('Rainbow');
       break;
 
+    case 'fairyForge':
+      // Path B T3 White-Hot / T4 Star-Forge → white-core slag ball, larger.
+      // Path A T2+ projectiles are invisible (speed 40, flame-lick effect
+      // draws the shot instead) — handled by returning null below.
+      if (upA >= 2) return null;
+      if (upB >= 3) { generated = 'emberWhite'; scale = 1.15; }
+      break;
+
     default:
       // Kinds outside PROJECTILE_BASE (strawScarecrow, bananaGrove,
       // gnomeAlchemist) never reach here because `base` is null above.
@@ -204,6 +220,7 @@ function resolveProjectileSpec(
     overlays: [...overlays],
     scale,
     rotation,
+    ...(generated !== undefined ? { generated } : {}),
     ...(rotationOffsetRad !== undefined ? { rotationOffsetRad } : {}),
     ...(spinRadPerSec !== undefined ? { spinRadPerSec } : {}),
   };
@@ -253,10 +270,39 @@ interface BuiltSprite {
   spec: ProjectileSpec;
 }
 
+const generatedCache = new Map<GeneratedSpriteKind, HTMLCanvasElement>();
+
+function getGeneratedCanvas(kind: GeneratedSpriteKind): HTMLCanvasElement | null {
+  const hit = generatedCache.get(kind);
+  if (hit) return hit;
+  const size = 96;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  if (kind === 'ember') {
+    g.addColorStop(0, '#fff6d0');
+    g.addColorStop(0.35, '#ffa02a');
+    g.addColorStop(1, 'rgba(255,90,20,0)');
+  } else {
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.35, '#ffe08a');
+    g.addColorStop(1, 'rgba(255,140,40,0)');
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  generatedCache.set(kind, canvas);
+  return canvas;
+}
+
 function buildProjectileSprite(kind: TowerId, upA: UpgradeTier, upB: UpgradeTier): BuiltSprite | null {
   const spec = resolveProjectileSpec(kind, upA, upB);
   if (!spec) return null;
-  const canvas = renderBySpriteKey(spec.key, [...spec.overlays]);
+  const canvas = spec.generated !== undefined
+    ? getGeneratedCanvas(spec.generated)
+    : renderBySpriteKey(spec.key, [...spec.overlays]);
   if (!canvas) return null;
   const sprite = createSprite(canvas, spec.scale);
   if (!sprite) return null;

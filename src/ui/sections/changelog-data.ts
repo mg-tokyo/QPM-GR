@@ -2,6 +2,19 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.26",
+    date: "2026-08-19",
+    notes: [
+      "Added two new Tower Defense towers, Storm Lantern (chain lightning that arcs between balloons, with a Path A that scales to 20-target Tempest chains plus every-4th-shot Thunderstrikes, and a Path B armor-melting Godbolt that stacks a new Static debuff for +20% damage taken) and Fairy Forge (a burn tower whose Path A grows into a Solar Crucible flame cone that makes burning balloons take +25% damage from everything, and a Path B whose Molten Slag, White-Hot, and Star-Forge upgrades progressively strip armor off burning balloons for all towers and double burn ticks against bosses)",
+      "Added a Static status effect and generalized status stacking, damage-taken bonuses from every active status now sum together, armor-strip debuffs work across towers, boss DoT multipliers apply on tick, and refreshing a status keeps the strongest values so a stronger tower always upgrades a weaker tower's debuff on the same balloon",
+      "Improved Tower Defense endless-mode balance, the post-round-20 HP curve now scales smoothly (about 1.05x per round with a floor that never regresses vs the old curve) so late endless keeps escalating instead of stalling, and past cycle 15 waves condense their spacing so groups arrive in parallel to blunt aura-based DPS",
+      "Improved Tower Defense visuals, burning balloons now pulse orange with an Amberlit overlay, Static-hit balloons tint purple, coin refunds from Banana Grove float larger and higher so they read at a glance, tower buttons in the build tray are slightly narrower to fit the two new towers, and the Fairy Forge fires from its center instead of its top edge",
+      "Improved Tower Defense audio, when many balloons pop in the same frame the pop sound is coalesced into one instance scaled by sqrt(count) instead of summing in-phase into a smeared wash, so dense pop moments stay crisp",
+      "Fixed a movement-input staleness where letting go of a walk key or tabbing out of the page could leave QPM features reading a slightly out-of-date player position, keyup and window blur now trigger a two-frame settling window on client and composite atom subscriptions so the settled position propagates immediately instead of waiting on OS key auto-repeat or the 5-second safety poll",
+      "Note: this Tower Defense update bumps the internal balance version, in-progress endless runs saved from the previous version will be wiped once so the new HP curve and towers take effect cleanly",
+    ],
+  },
+  {
     version: "3.3.25",
     date: "2026-08-15",
     notes: [

@@ -1,11 +1,12 @@
 import type { Balloon, Point, Projectile, StatusEffect, Tower } from '../types';
-import { applyDamageToBalloon, applyStatus, getWiltMultiplier, type DamageContext } from './balloon';
+import { applyDamageToBalloon, applyStatus, getStatusDmgTakenBonus, type DamageContext } from './balloon';
 import { getMatchSnapshot, setBalloons, setProjectiles } from '../state';
 import { earn } from './economy';
 import { getBalloonDef, BOSS_KINDS } from '../data/balloonDefs';
 import { positionAt } from './path';
 import { getEffectiveStats } from './tower';
 import { tdPlay } from '../sounds';
+import { isBalloonDetected, type OwlCoverageEntry } from './detection';
 
 const STATUS_DEFAULT_DURATION_MS: Record<StatusEffect, number> = {
   chilled: 2000,
@@ -14,6 +15,7 @@ const STATUS_DEFAULT_DURATION_MS: Record<StatusEffect, number> = {
   burn: 3000,
   sticky: 2000,
   pulled: 500,
+  static: 2000,
 };
 
 const STATUS_DEFAULT_SPEED_MULT: Record<StatusEffect, number> = {
@@ -23,6 +25,7 @@ const STATUS_DEFAULT_SPEED_MULT: Record<StatusEffect, number> = {
   burn: 1,
   sticky: 0.5,
   pulled: -1.5,
+  static: 1,
 };
 
 // Balloons render at ~1-tile scale; 0.5-tile hitbox = full-sprite collision without overshoot.
@@ -36,6 +39,25 @@ export function distance(a: Point, b: Point): number {
 export function spawnProjectile(p: Projectile): void {
   const snap = getMatchSnapshot();
   setProjectiles([...snap.projectiles, p]);
+}
+
+export interface TowerChainInfo {
+  readonly ownerId: string;
+  // Tile-space; points[0] is the first impact, each later point a hop target.
+  readonly points: readonly Point[];
+}
+
+const chainListeners = new Set<(info: TowerChainInfo) => void>();
+
+export function onChainResolved(cb: (info: TowerChainInfo) => void): () => void {
+  chainListeners.add(cb);
+  return () => chainListeners.delete(cb);
+}
+
+function emitChainResolved(info: TowerChainInfo): void {
+  for (const cb of chainListeners) {
+    try { cb(info); } catch { /* listener errors never break the tick */ }
+  }
 }
 
 // Owl A T2/T3 grants an aura bonus to camo victims. Overlapping Owls with
@@ -58,6 +80,76 @@ function computeCamoAuraBonus(victim: Balloon, towers: readonly Tower[]): number
   return best;
 }
 
+interface HitContext {
+  readonly balloons: Balloon[];
+  readonly towers: readonly Tower[];
+  // Children spawned by pops during this tick — never valid chain-hop targets,
+  // otherwise one bolt would eat every layer of a single balloon.
+  readonly spawnedThisTick: Set<string>;
+}
+
+// One projectile hit on one balloon: multipliers, damage, status, boss stun,
+// pop bookkeeping. Shared by direct/splash victims and chain hops.
+function hitVictim(p: Projectile, victim: Balloon, damage: number, ctx: HitContext): void {
+  p.hitBalloonIds.add(victim.id);
+  const chilled = victim.statuses.some((s) => s.kind === 'chilled');
+  const isFrozen = chilled && victim.statuses.some((s) => s.kind === 'chilled' && s.speedMultiplier === 0);
+  const isBoss = BOSS_KINDS.includes(victim.kind);
+  const isArmored = victim.armorDR > 0;
+  let damageMultiplier = 1;
+  if (chilled && p.chilledDamageBonus > 0) damageMultiplier += p.chilledDamageBonus;
+  if (isBoss && p.bossDamageBonus > 0) damageMultiplier += p.bossDamageBonus;
+  if (isArmored && p.armorBonusMult > 0) damageMultiplier += p.armorBonusMult;
+  const camoBonus = computeCamoAuraBonus(victim, ctx.towers);
+  if (camoBonus > 0) damageMultiplier += camoBonus;
+  const statusBonus = getStatusDmgTakenBonus(victim);
+  if (statusBonus > 0) damageMultiplier += statusBonus;
+  if (p.shattersFrozen && isFrozen && !isBoss) damageMultiplier += 1;
+  const dmgCtx: DamageContext = { ignoresArmor: p.ignoresArmor, damageMultiplier };
+  const result = applyDamageToBalloon(victim, damage, p.damageType, dmgCtx);
+  if (result.damageDealt > 0 && p.appliesStatus !== undefined) {
+    applyAppliedStatus(victim, p);
+  }
+  if (result.damageDealt > 0 && p.bossStunMs && isBoss) {
+    victim.stunRemainingMs = Math.max(victim.stunRemainingMs ?? 0, p.bossStunMs);
+  }
+  if (result.popped) {
+    earn(getBalloonDef(victim.kind).popReward);
+    tdPlay('balloonPop');
+    const idx = ctx.balloons.findIndex((x) => x.id === victim.id);
+    if (idx >= 0) ctx.balloons.splice(idx, 1, ...result.children);
+    for (const c of result.children) ctx.spawnedThisTick.add(c.id);
+  }
+}
+
+// Storm Lantern: after the first impact, hop to the nearest un-hit balloon
+// within chainRange, up to chainCount times, damage × decay per hop.
+function resolveChain(p: Projectile, first: Balloon, ctx: HitContext, owls: readonly OwlCoverageEntry[]): void {
+  const hops = p.chainCount ?? 0;
+  const hopRange = p.chainRange ?? 1.5;
+  const decay = p.chainDecay ?? 1;
+  const points: Point[] = [positionAt(first.distance)];
+  let last: Balloon = first;
+  let hopDamage = p.damage;
+  for (let hop = 0; hop < hops; hop++) {
+    hopDamage *= decay;
+    const from = positionAt(last.distance);
+    let next: Balloon | null = null;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (const b of ctx.balloons) {
+      if (p.hitBalloonIds.has(b.id) || ctx.spawnedThisTick.has(b.id)) continue;
+      if (b.modifiers.includes('camo') && !isBalloonDetected(b, owls)) continue;
+      const d = distance(from, positionAt(b.distance));
+      if (d <= hopRange && d < bestD) { bestD = d; next = b; }
+    }
+    if (!next) break;
+    hitVictim(p, next, hopDamage, ctx);
+    points.push(positionAt(next.distance));
+    last = next;
+  }
+  if (points.length > 1) emitChainResolved({ ownerId: p.ownerId, points });
+}
+
 export function tickProjectiles(deltaMs: number): void {
   const snap = getMatchSnapshot();
   if (snap.projectiles.length === 0) return;
@@ -65,6 +157,18 @@ export function tickProjectiles(deltaMs: number): void {
   const balloons: Balloon[] = snap.balloons.slice();
   const surviving: Projectile[] = [];
   const dtSec = deltaMs / 1000;
+  const ctx: HitContext = { balloons, towers: snap.towers, spawnedThisTick: new Set<string>() };
+  // Owl coverage only matters for chain hops onto camo; build lazily once/tick.
+  let owls: OwlCoverageEntry[] | null = null;
+  const getOwls = (): OwlCoverageEntry[] => {
+    if (!owls) {
+      owls = [];
+      for (const t of snap.towers) {
+        if (t.kind === 'owlPerch') owls.push({ tower: t, range: getEffectiveStats(t).range });
+      }
+    }
+    return owls;
+  };
 
   for (const p of snap.projectiles) {
     p.position = {
@@ -102,38 +206,9 @@ export function tickProjectiles(deltaMs: number): void {
       victims.push(impact);
     }
 
-    for (const victim of victims) {
-      p.hitBalloonIds.add(victim.id);
-      const chilled = victim.statuses.some((s) => s.kind === 'chilled');
-      const isFrozen = chilled && victim.statuses.some((s) => s.kind === 'chilled' && s.speedMultiplier === 0);
-      const isBoss = BOSS_KINDS.includes(victim.kind);
-      const isArmored = victim.armorDR > 0;
-      let damageMultiplier = 1;
-      if (chilled && p.chilledDamageBonus > 0) damageMultiplier += p.chilledDamageBonus;
-      if (isBoss && p.bossDamageBonus > 0) damageMultiplier += p.bossDamageBonus;
-      if (isArmored && p.armorBonusMult > 0) damageMultiplier += p.armorBonusMult;
-      const camoBonus = computeCamoAuraBonus(victim, snap.towers);
-      if (camoBonus > 0) damageMultiplier += camoBonus;
-      const wilt = getWiltMultiplier(victim);
-      if (wilt > 0) damageMultiplier += wilt;
-      if (p.shattersFrozen && isFrozen && !isBoss) damageMultiplier += 1;
-      const ctx: DamageContext = {
-        ignoresArmor: p.ignoresArmor,
-        damageMultiplier,
-      };
-      const result = applyDamageToBalloon(victim, p.damage, p.damageType, ctx);
-      if (result.damageDealt > 0 && p.appliesStatus !== undefined) {
-        applyAppliedStatus(victim, p);
-      }
-      if (result.damageDealt > 0 && p.bossStunMs && isBoss) {
-        victim.stunRemainingMs = Math.max(victim.stunRemainingMs ?? 0, p.bossStunMs);
-      }
-      if (result.popped) {
-        earn(getBalloonDef(victim.kind).popReward);
-        tdPlay('balloonPop');
-        const idx = balloons.findIndex((x) => x.id === victim.id);
-        if (idx >= 0) balloons.splice(idx, 1, ...result.children);
-      }
+    for (const victim of victims) hitVictim(p, victim, p.damage, ctx);
+    if (p.splashRadius === 0 && p.chainCount !== undefined && p.chainCount > 0) {
+      resolveChain(p, impact, ctx, getOwls());
     }
     // Black-hole pull (Cauldron T4A) — on any impact with a pull-capable
     // projectile, roll the chance and pull nearby balloons backwards for a
@@ -186,6 +261,8 @@ function applyAppliedStatus(victim: Balloon, p: Projectile): void {
     speedMultiplier,
     ...(p.statusDoTPerSec !== undefined ? { dotPerSec: p.statusDoTPerSec } : {}),
     ...(p.statusDmgTakenBonus !== undefined ? { dmgTakenBonus: p.statusDmgTakenBonus } : {}),
+    ...(p.statusArmorStrip !== undefined ? { armorStrip: p.statusArmorStrip } : {}),
+    ...(p.statusDotBossMult !== undefined ? { dotBossMult: p.statusDotBossMult } : {}),
   };
   applyStatus(victim, status);
 }
