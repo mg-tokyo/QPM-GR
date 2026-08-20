@@ -312,7 +312,8 @@ const QPM_STORAGE_KEYS = [
   // Tower Defense minigame
   'qpm.td.highScore.v1',
   'qpm.td.settings.v1',
-  'qpm.td.saveGame.v1',
+  'qpm.td.saveGame.v1', // legacy single-slot autosave; migrated into qpm.td.saves.v1 on first TD launch
+  'qpm.td.saves.v1',
   'qpm.td.debug.perfOverlay.v1',
   'qpm.td.customDesigns.v1',
 

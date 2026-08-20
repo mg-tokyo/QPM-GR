@@ -6,13 +6,14 @@ import { getPetSpriteWithMutations, renderBySpriteKey } from '../../../sprite-v2
 import { createNamedLogger } from '../../../diagnostics/logger';
 import {
   getStageContainer,
+  onStageContainerRecreated,
   getStageGraphicsCtor,
   getStageSpriteCtor,
-  getStageTextureCtor,
   getWorldPxPerTile,
   tileToPixel,
   TD_Z_BALLOON,
 } from './stage';
+import { getSharedTexture } from './textureCache';
 import { recordRenderTick } from '../debug/perfCounters';
 
 const log = createNamedLogger('td');
@@ -80,6 +81,7 @@ interface RenderState {
   lastFrameMs: number;
   sprites: Map<string, BalloonSpriteRecord>;
   popListeners: Set<(info: BalloonPopInfo) => void>;
+  unsubscribeStage: (() => void) | null;
 }
 
 let state: RenderState | null = null;
@@ -97,39 +99,15 @@ function buildBalloonCanvas(kind: BalloonId): HTMLCanvasElement | null {
   return getPetSpriteWithMutations(def.spriteName, overlays);
 }
 
-// Per-kind cache of the balloon texture WITH Amberlit stacked on top; built
-// on first burn transition and reused for every burning balloon of that kind.
-const burnTextureCache = new Map<BalloonId, unknown>();
-
 function getBurnTexture(kind: BalloonId): unknown | null {
-  const cached = burnTextureCache.get(kind);
-  if (cached !== undefined) return cached;
   const def = getBalloonDef(kind);
   const overlays = def.mutationOverlay ? [def.mutationOverlay, BURN_MUTATION_KEY] : [BURN_MUTATION_KEY];
-  const canvas = getPetSpriteWithMutations(def.spriteName, overlays);
-  const TextureCtor = getStageTextureCtor();
-  if (!canvas || !TextureCtor) return null;
-  try {
-    const tex: unknown = TextureCtor.from(canvas);
-    burnTextureCache.set(kind, tex);
-    return tex;
-  } catch (err) {
-    log.warn('QPM-TD-BALLOON-004', { reason: 'burn_texture_failed', kind }, err);
-    return null;
-  }
+  return getSharedTexture(`balloon:${kind}:burn`, () => getPetSpriteWithMutations(def.spriteName, overlays))?.texture ?? null;
 }
 
-function createSprite(canvas: HTMLCanvasElement): SpriteNode | null {
+function createSprite(texture: unknown): SpriteNode | null {
   const SpriteCtor = getStageSpriteCtor();
-  const TextureCtor = getStageTextureCtor();
-  if (!SpriteCtor || !TextureCtor) return null;
-  let texture: unknown;
-  try {
-    texture = TextureCtor.from(canvas);
-  } catch (err) {
-    log.warn('QPM-TD-BALLOON-001', { reason: 'texture_from_failed' }, err);
-    return null;
-  }
+  if (!SpriteCtor) return null;
   let sprite: SpriteNode;
   try {
     sprite = new SpriteCtor(texture) as SpriteNode;
@@ -142,9 +120,9 @@ function createSprite(canvas: HTMLCanvasElement): SpriteNode | null {
 }
 
 function buildRegenOverlay(pixel: Point): SpriteNode | null {
-  const canvas = renderBySpriteKey(REGEN_OVERLAY_KEY);
-  if (!canvas) return null;
-  const sprite = createSprite(canvas);
+  const tex = getSharedTexture(REGEN_OVERLAY_KEY, () => renderBySpriteKey(REGEN_OVERLAY_KEY));
+  if (!tex) return null;
+  const sprite = createSprite(tex.texture);
   if (!sprite) return null;
   sprite.alpha = REGEN_PULSE_MID;
   sprite.scale?.set?.(REGEN_OVERLAY_SCALE, REGEN_OVERLAY_SCALE);
@@ -191,12 +169,13 @@ function addSprite(
   pixel: Point,
 ): BalloonSpriteRecord | null {
   const def = getBalloonDef(balloon.kind);
-  const canvas = buildBalloonCanvas(balloon.kind);
-  if (!canvas) return null;
-  const sprite = createSprite(canvas);
+  const tex = getSharedTexture(`balloon:${balloon.kind}`, () => buildBalloonCanvas(balloon.kind));
+  if (!tex) return null;
+  const sprite = createSprite(tex.texture);
   if (!sprite) return null;
   const baseTint = parseHexTint(def.tint);
   sprite.tint = baseTint;
+  if (def.scale !== undefined && def.scale !== 1) sprite.scale?.set?.(def.scale, def.scale);
   sprite.position?.set?.(pixel.x, pixel.y);
 
   const hasCamo = balloon.modifiers.includes('camo');
@@ -366,7 +345,16 @@ export function initBalloonRender(): void {
     lastFrameMs: 0,
     sprites: new Map(),
     popListeners: new Set(),
+    unsubscribeStage: null,
   };
+  // Old sprites live on the dead container; drop them and let the next tick
+  // rebuild every in-flight balloon on the new one.
+  state.unsubscribeStage = onStageContainerRecreated((container) => {
+    const s = state;
+    if (!s) return;
+    for (const rec of s.sprites.values()) destroyRecord(container as ContainerNode, rec);
+    s.sprites.clear();
+  });
   state.rafId = requestAnimationFrame(frame);
 }
 
@@ -374,6 +362,7 @@ export function stopBalloonRender(): void {
   const s = state;
   if (!s) return;
   state = null;
+  s.unsubscribeStage?.();
   if (s.rafId !== null) {
     try { cancelAnimationFrame(s.rafId); } catch { /* ignore */ }
   }
@@ -383,7 +372,6 @@ export function stopBalloonRender(): void {
   }
   s.sprites.clear();
   s.popListeners.clear();
-  burnTextureCache.clear();
 }
 
 export function onBalloonPopped(cb: (info: BalloonPopInfo) => void): () => void {

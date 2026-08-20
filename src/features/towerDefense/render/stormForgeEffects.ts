@@ -5,12 +5,14 @@ import { onChainResolved, type TowerChainInfo } from '../engine/projectile';
 import { renderBySpriteKey } from '../../../sprite-v2/compat';
 import {
   getStageContainer,
+  onStageContainerRecreated,
+  peekStageContainer,
   getStageSpriteCtor,
-  getStageTextureCtor,
   getWorldPxPerTile,
   tileToPixel,
   TD_Z_EFFECT,
 } from './stage';
+import { getSharedTexture, type CachedTexture } from './textureCache';
 import { makeEffectGraphics, spawnActiveEffect, type ActiveEffect, type GraphicsNode } from './effects';
 
 type PixiNode = Record<string, unknown>;
@@ -116,25 +118,8 @@ function createBoltEffect(parent: ContainerNode, pointsPx: readonly Point[], sty
   };
 }
 
-// One texture per sprite key for the lifetime of the module — Texture.from on
-// a fresh canvas every shot would leak GPU textures at 30 shots/s.
-interface CachedTexture { readonly texture: unknown; readonly widthPx: number; readonly heightPx: number }
-const textureCache = new Map<string, CachedTexture>();
-
 function textureFor(key: string): CachedTexture | null {
-  const TextureCtor = getStageTextureCtor();
-  if (!TextureCtor) return null;
-  const hit = textureCache.get(key);
-  if (hit) return hit;
-  const canvas = renderBySpriteKey(key, []);
-  if (!canvas) return null;
-  try {
-    const entry: CachedTexture = { texture: TextureCtor.from(canvas), widthPx: canvas.width, heightPx: canvas.height };
-    textureCache.set(key, entry);
-    return entry;
-  } catch {
-    return null;
-  }
+  return getSharedTexture(key, () => renderBySpriteKey(key, []));
 }
 
 interface SpriteEffectOpts {
@@ -175,10 +160,17 @@ function acquireEffectGraphics(parent: ContainerNode): GraphicsNode | null {
   return g;
 }
 
+// Nodes orphaned by a container rebuild must not re-enter the pool.
+function isOnLiveContainer(node: PixiNode): boolean {
+  const parent = (node as { parent?: unknown }).parent;
+  return parent != null && parent === peekStageContainer();
+}
+
 function releaseEffectGraphics(g: GraphicsNode): void {
   g.clear?.();
   (g as GraphicsWithVisibility).visible = false;
   g.alpha = 0;
+  if (!isOnLiveContainer(g)) return;
   if (graphicsPool.length < GRAPHICS_POOL_MAX) graphicsPool.push(g);
 }
 
@@ -204,6 +196,7 @@ function acquireEffectSprite(parent: ContainerNode, texture: unknown): SpriteNod
 function releaseEffectSprite(sprite: SpriteNode): void {
   sprite.visible = false;
   sprite.alpha = 0;
+  if (!isOnLiveContainer(sprite)) return;
   if (spritePool.length < SPRITE_POOL_MAX) spritePool.push(sprite);
 }
 
@@ -367,6 +360,7 @@ function handleChain(info: TowerChainInfo): void {
 interface ModuleState {
   shotUnsubscribe: () => void;
   chainUnsubscribe: () => void;
+  stageUnsubscribe: () => void;
 }
 let state: ModuleState | null = null;
 
@@ -375,6 +369,12 @@ export function initStormForgeEffects(): void {
   state = {
     shotUnsubscribe: onTowerShot(handleShot),
     chainUnsubscribe: onChainResolved(handleChain),
+    // Pooled nodes are parented to the dead container; forget them so the
+    // next acquire creates on the new one. Live effects are ended by effects.ts.
+    stageUnsubscribe: onStageContainerRecreated(() => {
+      spritePool.length = 0;
+      graphicsPool.length = 0;
+    }),
   };
 }
 
@@ -384,7 +384,7 @@ export function stopStormForgeEffects(): void {
   state = null;
   s.shotUnsubscribe();
   s.chainUnsubscribe();
-  textureCache.clear();
+  s.stageUnsubscribe();
   spritePool.length = 0;
   graphicsPool.length = 0;
 }

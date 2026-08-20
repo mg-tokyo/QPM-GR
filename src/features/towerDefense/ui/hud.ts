@@ -10,6 +10,10 @@ import {
 } from '../state';
 import type { MatchSnapshot, Speed } from '../types';
 import { createEnemiesPopover } from './enemiesPopover';
+import { getActiveTrack } from '../engine/path';
+import { canSwitchTrack } from '../tracks/active';
+import { getTrackDisplayName } from '../tracks/registry';
+import { createTrackPopover } from './trackPopover';
 
 const SPEED_VALUES: readonly Speed[] = [1, 2, 3];
 
@@ -20,9 +24,10 @@ interface HudRefs {
   pauseBtn: HTMLButtonElement;
   speedBtns: Map<Speed, HTMLButtonElement>;
   setAutoStartChecked: (v: boolean) => void;
+  trackBtn: HTMLButtonElement;
 }
 
-export function mountHud(host: HTMLElement, onQuit: () => void): () => void {
+export function mountHud(host: HTMLElement, onQuit: () => void, onOpenSaves: () => void): () => void {
   const cleanups: Array<() => void> = [];
 
   const bar = document.createElement('div');
@@ -84,6 +89,24 @@ export function mountHud(host: HTMLElement, onQuit: () => void): () => void {
   enemiesWrap.append(enemiesBtn, enemiesPopover.root);
   cleanups.push(() => enemiesPopover.destroy());
 
+  const trackPopover = createTrackPopover();
+  const trackWrap = document.createElement('div');
+  trackWrap.className = 'qpm-td-tracks-wrap';
+  const trackBtn = createButton('', {
+    variant: 'secondary',
+    size: 'sm',
+    onClick: () => trackPopover.toggle(),
+  });
+  trackBtn.classList.add('qpm-td-tracks-btn');
+  trackWrap.append(trackBtn, trackPopover.root);
+  cleanups.push(() => trackPopover.destroy());
+
+  const savesBtn = createButton(t('feature.towerDefense.saves.button'), {
+    variant: 'secondary',
+    size: 'sm',
+    onClick: () => onOpenSaves(),
+  });
+
   const quitBtn = createButton('Quit', {
     variant: 'danger',
     size: 'sm',
@@ -106,6 +129,8 @@ export function mountHud(host: HTMLElement, onQuit: () => void): () => void {
     speedCluster,
     autoStartToggle.root,
     enemiesWrap,
+    trackWrap,
+    savesBtn,
     quitBtn,
   );
   host.appendChild(bar);
@@ -117,6 +142,7 @@ export function mountHud(host: HTMLElement, onQuit: () => void): () => void {
     pauseBtn,
     speedBtns,
     setAutoStartChecked: autoStartToggle.setChecked,
+    trackBtn,
   };
 
   function render(snap: MatchSnapshot): void {
@@ -135,6 +161,12 @@ export function mountHud(host: HTMLElement, onQuit: () => void): () => void {
     for (const [s, b] of refs.speedBtns) {
       b.classList.toggle('qpm-td-active', !snap.paused && snap.speed === s);
     }
+
+    refs.trackBtn.textContent = t('feature.towerDefense.tracks.button', { name: getTrackDisplayName(getActiveTrack()) });
+    const trackLocked = !canSwitchTrack(snap);
+    refs.trackBtn.disabled = trackLocked;
+    refs.trackBtn.title = trackLocked ? t('feature.towerDefense.tracks.locked') : '';
+    if (trackLocked) trackPopover.close();
 
     refs.setAutoStartChecked(snap.autoStart);
   }

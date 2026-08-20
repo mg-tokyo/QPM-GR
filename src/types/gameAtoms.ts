@@ -123,6 +123,8 @@ export interface QuinoaUserSlotData {
 }
 
 export interface QuinoaUserSlot {
+  /** Slot owner id. Game v985 renamed playerId → userId; older bundles use playerId. */
+  userId?: string;
   playerId?: string;
   type?: string;
   data?: QuinoaUserSlotData;

@@ -1,7 +1,7 @@
-import { createButton, showConfirmDialog } from '../../../ui/components';
+import { createButton } from '../../../ui/components';
 import { t } from '../../../i18n';
 import { getMatchSnapshot, onMatchChange } from '../state';
-import { clearSavedGame, loadHighScore, saveHighScore } from '../persistence';
+import { loadHighScore, saveHighScore } from '../persistence';
 import type { MatchSnapshot, Phase } from '../types';
 
 export function mountGameOverModal(
@@ -58,7 +58,6 @@ export function mountGameOverModal(
 
     if (isEnded && !wasEnded) {
       const best = saveHighScore(snap.round, snap.isEndless);
-      clearSavedGame();
       fillBody(snap, best.highestRoundReached);
       overlay.hidden = false;
     } else if (!isEnded && wasEnded) {
@@ -77,20 +76,4 @@ export function mountGameOverModal(
     }
     try { overlay.remove(); } catch { /* already gone */ }
   };
-}
-
-export function showResumeDialog(
-  _host: HTMLElement,
-  onResume: () => void,
-  onStartNew: () => void,
-): void {
-  void showConfirmDialog({
-    title: t('feature.towerDefense.resumeGame'),
-    message: t('feature.towerDefense.resumePrompt'),
-    confirmLabel: t('feature.towerDefense.resumeGame'),
-    cancelLabel: t('feature.towerDefense.startNew'),
-  }).then((accepted) => {
-    if (accepted) onResume();
-    else onStartNew();
-  });
 }

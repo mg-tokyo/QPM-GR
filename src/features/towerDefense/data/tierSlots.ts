@@ -33,6 +33,7 @@ export const TIER_SLOTS: Readonly<Record<TowerId, readonly UpgradeSlot[]>> = {
   gnomeAlchemist:  ALL_SLOTS,
   stormLantern:    ALL_SLOTS,
   fairyForge:      ALL_SLOTS,
+  pineconeGrove:   ALL_SLOTS,
 };
 
 // (upgA, upgB) → slot. T1 collapses to base (no art distinction). Higher-tier
@@ -189,12 +190,39 @@ const TIER_SCALE_MULT: Readonly<Record<UpgradeSlot, number>> = {
   t4b2a:  1.30,
 };
 
+// Same walk-down semantics as resolveTowerSprite (towerAnchor.ts): primary
+// (higher-tier, ties → A) then other; falls through to the slot-based curve.
+function resolveFromRenderScaleByTier(
+  kind: TowerId,
+  upgA: UpgradeTier,
+  upgB: UpgradeTier,
+): number | null {
+  const map = getTowerDef(kind).renderScaleByTier;
+  if (!map) return null;
+  const primary: 'a' | 'b' = upgA >= upgB ? 'a' : 'b';
+  const other: 'a' | 'b' = primary === 'a' ? 'b' : 'a';
+  const primaryTier = primary === 'a' ? upgA : upgB;
+  const otherTier = other === 'a' ? upgA : upgB;
+  for (let tier = primaryTier; tier >= 1; tier--) {
+    const s = (primary === 'a' ? map.pathA : map.pathB)?.[tier as UpgradeTier];
+    if (s !== undefined) return s;
+  }
+  for (let tier = otherTier; tier >= 1; tier--) {
+    const s = (other === 'a' ? map.pathA : map.pathB)?.[tier as UpgradeTier];
+    if (s !== undefined) return s;
+  }
+  return null;
+}
+
 export function getEffectiveRenderScale(
   kind: TowerId,
   upgA: UpgradeTier,
   upgB: UpgradeTier,
 ): number {
-  const base = getTowerDef(kind).renderScale ?? 1;
+  const def = getTowerDef(kind);
+  const tierScale = resolveFromRenderScaleByTier(kind, upgA, upgB);
+  if (tierScale !== null) return tierScale;
+  const base = def.renderScale ?? 1;
   const slot = resolveUpgradeSlot(upgA, upgB);
   return base * TIER_SCALE_MULT[slot];
 }

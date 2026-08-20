@@ -1,10 +1,8 @@
 import { storage } from '../../utils/storage';
-import type { MatchSnapshot, Speed } from './types';
-import { TD_BALANCE_VERSION } from './constants';
+import type { Speed } from './types';
 
 const HIGH_SCORE_KEY = 'qpm.td.highScore.v1';
 const SETTINGS_KEY = 'qpm.td.settings.v1';
-const SAVE_GAME_KEY = 'qpm.td.saveGame.v1';
 
 export interface HighScore {
   readonly highestRoundReached: number;
@@ -15,6 +13,8 @@ export interface HighScore {
 export interface TdSettings {
   readonly autoStart: boolean;
   readonly defaultSpeed: Speed;
+  // Track chosen most recently; a fresh New Game starts on it if it still resolves.
+  readonly lastTrackId?: string;
 }
 
 const DEFAULT_HIGH_SCORE: HighScore = {
@@ -63,6 +63,7 @@ export function loadSettings(): TdSettings {
   return {
     autoStart: typeof r.autoStart === 'boolean' ? r.autoStart : DEFAULT_SETTINGS.autoStart,
     defaultSpeed: isSpeed(r.defaultSpeed) ? r.defaultSpeed : DEFAULT_SETTINGS.defaultSpeed,
+    ...(typeof r.lastTrackId === 'string' ? { lastTrackId: r.lastTrackId } : {}),
   };
 }
 
@@ -70,51 +71,4 @@ export function saveSettings(patch: Partial<TdSettings>): TdSettings {
   const merged: TdSettings = { ...loadSettings(), ...patch };
   storage.set(SETTINGS_KEY, merged);
   return merged;
-}
-
-export function loadSavedGame(): MatchSnapshot | null {
-  const raw = storage.get<unknown>(SAVE_GAME_KEY, null);
-  if (!raw || typeof raw !== 'object') return null;
-  const wrapper = raw as Record<string, unknown>;
-  const version = wrapper.balanceVersion;
-  const snapshot = wrapper.snapshot;
-  if (typeof version !== 'number' || !snapshot || typeof snapshot !== 'object') {
-    // Legacy bare-snapshot format (pre-wrapper) — wipe.
-    clearSavedGame();
-    return null;
-  }
-  if (version !== TD_BALANCE_VERSION) {
-    clearSavedGame();
-    return null;
-  }
-  const r = snapshot as Record<string, unknown>;
-  if (typeof r.round !== 'number' || typeof r.cash !== 'number' || typeof r.lives !== 'number') return null;
-  if (r.lives <= 0) return null;
-  if (!Array.isArray(r.towers)) return null;
-  return snapshot as MatchSnapshot;
-}
-
-export function saveGame(snap: MatchSnapshot): void {
-  // Only between-rounds state is persisted — Set<string> on projectile hitIds
-  // and mid-flight positions don't round-trip through JSON cleanly.
-  const clean: MatchSnapshot = {
-    ...snap,
-    phase: 'preRound',
-    balloons: [],
-    projectiles: [],
-    pendingPlacement: null,
-    selectedTowerId: null,
-    paused: false,
-  };
-  storage.set(SAVE_GAME_KEY, { balanceVersion: TD_BALANCE_VERSION, snapshot: clean });
-}
-
-export function clearSavedGame(): void {
-  storage.remove(SAVE_GAME_KEY);
-}
-
-export function hasSavedGame(): boolean {
-  // Raw presence check — loadSavedGame() has wipe side effects and we want the
-  // caller (launch.ts) to distinguish "had stored data" from "loaded cleanly".
-  return storage.get<unknown>(SAVE_GAME_KEY, null) !== null;
 }

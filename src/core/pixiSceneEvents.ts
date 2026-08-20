@@ -1,4 +1,3 @@
-// src/core/pixiSceneEvents.ts
 // One-time monkey-patch of PIXI Container.prototype.addChild / removeChild
 // to expose a push-based API for label-matched scene-graph events. Replaces
 // per-invalidation stage walks with true event-driven cache updates.
@@ -26,7 +25,30 @@ type NodeListener = (node: PixiNode) => void;
 
 const addListeners = new Map<string, Set<NodeListener>>();
 const removeListeners = new Map<string, Set<NodeListener>>();
+const addPrefixListeners = new Map<string, Set<NodeListener>>();
+const removePrefixListeners = new Map<string, Set<NodeListener>>();
 let patched = false;
+
+function dispatch(
+  label: string,
+  exact: Map<string, Set<NodeListener>>,
+  prefixed: Map<string, Set<NodeListener>>,
+  child: PixiNode,
+): void {
+  const set = exact.get(label);
+  if (set) {
+    for (const cb of set) {
+      try { cb(child); } catch { /* isolate listener failures */ }
+    }
+  }
+  if (prefixed.size === 0) return;
+  for (const [prefix, pset] of prefixed) {
+    if (!label.startsWith(prefix)) continue;
+    for (const cb of pset) {
+      try { cb(child); } catch { /* isolate listener failures */ }
+    }
+  }
+}
 
 function getStage(): PixiNode | null {
   const root = pageWindow as Window & typeof globalThis & { __QPM_PIXI_CAPTURED__?: PixiCapture };
@@ -59,11 +81,7 @@ function ensurePatched(): boolean {
     for (const child of children) {
       const label = child?.label;
       if (typeof label !== 'string' || label.length === 0) continue;
-      const set = addListeners.get(label);
-      if (!set) continue;
-      for (const cb of set) {
-        try { cb(child); } catch { /* isolate listener failures */ }
-      }
+      dispatch(label, addListeners, addPrefixListeners, child);
     }
     return result;
   };
@@ -72,11 +90,7 @@ function ensurePatched(): boolean {
     for (const child of children) {
       const label = child?.label;
       if (typeof label !== 'string' || label.length === 0) continue;
-      const set = removeListeners.get(label);
-      if (!set) continue;
-      for (const cb of set) {
-        try { cb(child); } catch { /* isolate listener failures */ }
-      }
+      dispatch(label, removeListeners, removePrefixListeners, child);
     }
     return originalRemoveChild.apply(this, children);
   };
@@ -87,7 +101,7 @@ function ensurePatched(): boolean {
 
 const _scanStack: PixiNode[] = [];
 
-function scanExistingByLabel(root: PixiNode, label: string): PixiNode[] {
+function scanExisting(root: PixiNode, matches: (label: string) => boolean): PixiNode[] {
   const stack = _scanStack;
   stack.length = 0;
   stack.push(root);
@@ -98,7 +112,7 @@ function scanExistingByLabel(root: PixiNode, label: string): PixiNode[] {
     if (!node || typeof node !== 'object') continue;
     if (seen.has(node as object)) continue;
     seen.add(node as object);
-    if (typeof node.label === 'string' && node.label === label) out.push(node);
+    if (typeof node.label === 'string' && matches(node.label)) out.push(node);
     if (Array.isArray(node.children)) {
       for (let i = node.children.length - 1; i >= 0; i--) {
         const c = node.children[i];
@@ -120,12 +134,29 @@ function scanExistingByLabel(root: PixiNode, label: string): PixiNode[] {
  * always get the initial scan when they register.
  */
 export function onPixiNodeAdded(label: string, cb: NodeListener): () => void {
+  return registerAdd(addListeners, label, (l) => l === label, cb);
+}
+
+/**
+ * Prefix variant of onPixiNodeAdded — for label families such as
+ * `Pet: <species>` where the exact label is unknown up front.
+ */
+export function onPixiNodeAddedByPrefix(prefix: string, cb: NodeListener): () => void {
+  return registerAdd(addPrefixListeners, prefix, (l) => l.startsWith(prefix), cb);
+}
+
+function registerAdd(
+  registry: Map<string, Set<NodeListener>>,
+  key: string,
+  matches: (label: string) => boolean,
+  cb: NodeListener,
+): () => void {
   const wasPatchable = ensurePatched();
 
-  let set = addListeners.get(label);
+  let set = registry.get(key);
   if (!set) {
     set = new Set();
-    addListeners.set(label, set);
+    registry.set(key, set);
   }
   set.add(cb);
 
@@ -133,7 +164,7 @@ export function onPixiNodeAdded(label: string, cb: NodeListener): () => void {
   if (wasPatchable) {
     const stage = getStage();
     if (stage) {
-      const existing = scanExistingByLabel(stage, label);
+      const existing = scanExisting(stage, matches);
       for (const node of existing) {
         try { cb(node); } catch { /* ignore */ }
       }
@@ -141,10 +172,10 @@ export function onPixiNodeAdded(label: string, cb: NodeListener): () => void {
   }
 
   return () => {
-    const s = addListeners.get(label);
+    const s = registry.get(key);
     if (!s) return;
     s.delete(cb);
-    if (s.size === 0) addListeners.delete(label);
+    if (s.size === 0) registry.delete(key);
   };
 }
 
@@ -155,17 +186,26 @@ export function onPixiNodeAdded(label: string, cb: NodeListener): () => void {
  * `.removeChild()`; consumers should still guard reads on `node.destroyed`.
  */
 export function onPixiNodeRemoved(label: string, cb: NodeListener): () => void {
+  return registerRemove(removeListeners, label, cb);
+}
+
+/** Prefix variant of onPixiNodeRemoved. */
+export function onPixiNodeRemovedByPrefix(prefix: string, cb: NodeListener): () => void {
+  return registerRemove(removePrefixListeners, prefix, cb);
+}
+
+function registerRemove(registry: Map<string, Set<NodeListener>>, key: string, cb: NodeListener): () => void {
   ensurePatched();
-  let set = removeListeners.get(label);
+  let set = registry.get(key);
   if (!set) {
     set = new Set();
-    removeListeners.set(label, set);
+    registry.set(key, set);
   }
   set.add(cb);
   return () => {
-    const s = removeListeners.get(label);
+    const s = registry.get(key);
     if (!s) return;
     s.delete(cb);
-    if (s.size === 0) removeListeners.delete(label);
+    if (s.size === 0) registry.delete(key);
   };
 }

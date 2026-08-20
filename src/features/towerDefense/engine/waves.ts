@@ -10,7 +10,7 @@ import {
   setRound,
 } from '../state';
 import { roundEndBonus } from './economy';
-import { saveGame } from '../persistence';
+import { autosaveRun } from '../saves/store';
 import { SCRIPTED_WAVES, generateEndlessWave, isBossRound } from '../data/waveDefs';
 import { tdPlay } from '../sounds';
 
@@ -113,7 +113,7 @@ export function tickWaveSpawner(deltaMs: number): void {
   setPhase('preRound');
   tdPlay('waveClear');
   resetWaveEngine();
-  try { saveGame(getMatchSnapshot()); } catch { /* best-effort autosave */ }
+  try { autosaveRun(getMatchSnapshot()); } catch { /* best-effort autosave */ }
   // Microtask defer avoids re-entering activeWave state inside the same tick.
   if (getMatchSnapshot().autoStart) {
     queueMicrotask(() => startRound());

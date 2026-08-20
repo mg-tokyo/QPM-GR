@@ -1,4 +1,4 @@
-import type { BalloonId, BalloonModifier, Phase, Point, TowerId, UpgradePath } from './types';
+import type { BalloonId, BalloonModifier, Phase, Point, StatusEffect, TowerId, UpgradePath } from './types';
 import { spawnBalloon } from './engine/balloon';
 import { getMatchSnapshot, notify, setBalloons, setCash as stateSetCash, setPhase as stateSetPhase } from './state';
 import { setForceCamoDetectAll, isForceCamoDetectAll } from './engine/detection';
@@ -17,6 +17,12 @@ import { getTowerDef } from './data/towerDefs';
 import { positionAt } from './engine/path';
 import { shareGlobal } from '../../core/pageContext';
 import { isPerfOverlayEnabled, togglePerfOverlay } from './debug/perfOverlay';
+import { logEndlessProfile, profileEndlessRounds, projectPopIncome, type EndlessRoundProfile } from './debug/endlessProfile';
+import { deleteSave as storeDeleteSave, getActiveSlot, getAutosave, listSlots, saveRunToSlot } from './saves/store';
+import type { SaveEntry, SaveSlotRef } from './saves/types';
+import { canSwitchTrack, switchTrack, type SwitchTrackResult } from './tracks/active';
+import { getActiveTrack } from './engine/path';
+import { getTrackDifficulty, getTrackDisplayName, getTrackLength, listTracks } from './tracks/registry';
 
 interface TowerInspection {
   readonly id: string;
@@ -44,6 +50,33 @@ interface GnomeAuraInfo {
 
 type PlaceResult = { readonly ok: true; readonly id: string } | { readonly ok: false; readonly reason: string };
 
+interface SaveSummary {
+  readonly round: number;
+  readonly isEndless: boolean;
+  readonly cash: number;
+  readonly lives: number;
+  readonly towers: number;
+  readonly savedAt: number;
+  readonly trackId: string;
+}
+
+export interface TdDebugHooks {
+  readonly loadSave: (ref: SaveSlotRef) => void;
+}
+
+function summarize(e: SaveEntry | null): SaveSummary | null {
+  if (!e) return null;
+  return {
+    round: e.snapshot.round,
+    isEndless: e.snapshot.isEndless,
+    cash: e.snapshot.cash,
+    lives: e.snapshot.lives,
+    towers: e.snapshot.towers.length,
+    savedAt: e.savedAt,
+    trackId: e.trackId,
+  };
+}
+
 interface TdDebugBridge {
   injectBalloon(
     kind: BalloonId,
@@ -69,15 +102,30 @@ interface TdDebugBridge {
   isPathLocked(id: string, path: UpgradePath): boolean | null;
   getUpgradeCost(id: string, path: UpgradePath): number | null;
   matchSnapshot(): { phase: Phase; round: number; cash: number; lives: number; towerCount: number; balloonCount: number; projectileCount: number };
-  listBalloons(): ReadonlyArray<{ id: string; kind: BalloonId; hp: number; maxHp: number; distance: number; armorDR: number; modifiers: readonly BalloonModifier[]; pos: Point }>;
+  listBalloons(): ReadonlyArray<{ id: string; kind: BalloonId; hp: number; maxHp: number; distance: number; armorDR: number; modifiers: readonly BalloonModifier[]; statusImmune: boolean; statuses: readonly StatusEffect[]; stunRemainingMs: number; pos: Point }>;
   clearBalloons(): void;
   isPerfOverlayEnabled(): boolean;
   togglePerfOverlay(enable?: boolean): boolean;
+  // Layer 8 §T1 — static endless-generator analysis (spawn window / RBE·s / pop income).
+  profileEndlessRounds(from: number, to: number): readonly EndlessRoundProfile[];
+  logEndlessProfile(from?: number, to?: number): void;
+  projectPopIncome(round: number): number;
+  // Save system — see docs/superpowers/plans/2026-08-19-td-save-system.md.
+  listSaves(): { auto: SaveSummary | null; slots: ReadonlyArray<SaveSummary | null>; active: SaveSlotRef | null };
+  saveToSlot(index: number): boolean;
+  loadSave(ref: SaveSlotRef): void;
+  deleteSave(ref: SaveSlotRef): void;
+  // Tracks — see docs/superpowers/plans/2026-08-19-td-tracks-p1-builtins-selector.md.
+  tracks: {
+    list(): ReadonlyArray<{ id: string; name: string; builtIn: boolean; lengthTiles: number; difficulty: string }>;
+    active(): { id: string; name: string; lengthTiles: number; canSwitch: boolean };
+    set(id: string): Promise<SwitchTrackResult>;
+  };
 }
 
 let installed = false;
 
-export function initTdDebugBridge(): void {
+export function initTdDebugBridge(hooks: TdDebugHooks): void {
   if (installed) return;
   installed = true;
   const bridge: TdDebugBridge = {
@@ -225,6 +273,9 @@ export function initTdDebugBridge(): void {
         distance: b.distance,
         armorDR: b.armorDR,
         modifiers: b.modifiers,
+        statusImmune: b.statusImmune,
+        statuses: b.statuses.map((s) => s.kind),
+        stunRemainingMs: b.stunRemainingMs ?? 0,
         pos: positionAt(b.distance),
       }));
     },
@@ -238,6 +289,49 @@ export function initTdDebugBridge(): void {
     togglePerfOverlay(enable) {
       const host = document.querySelector('.qpm-td-root');
       return togglePerfOverlay(host instanceof HTMLElement ? host : null, enable);
+    },
+    profileEndlessRounds(from, to) {
+      return profileEndlessRounds(from, to);
+    },
+    logEndlessProfile(from, to) {
+      logEndlessProfile(from, to);
+    },
+    projectPopIncome(round) {
+      return projectPopIncome(round);
+    },
+    listSaves() {
+      return {
+        auto: summarize(getAutosave()),
+        slots: listSlots().map(summarize),
+        active: getActiveSlot(),
+      };
+    },
+    saveToSlot(index) {
+      return saveRunToSlot(index, getMatchSnapshot()) !== null;
+    },
+    loadSave(ref) {
+      hooks.loadSave(ref);
+    },
+    deleteSave(ref) {
+      storeDeleteSave(ref);
+    },
+    tracks: {
+      list() {
+        return listTracks().map((tr) => ({
+          id: tr.id,
+          name: getTrackDisplayName(tr),
+          builtIn: tr.builtIn,
+          lengthTiles: getTrackLength(tr),
+          difficulty: getTrackDifficulty(tr),
+        }));
+      },
+      active() {
+        const tr = getActiveTrack();
+        return { id: tr.id, name: getTrackDisplayName(tr), lengthTiles: getTrackLength(tr), canSwitch: canSwitchTrack() };
+      },
+      set(id) {
+        return switchTrack(id);
+      },
     },
   };
   shareGlobal('__QPM_TD_DEBUG__', bridge);

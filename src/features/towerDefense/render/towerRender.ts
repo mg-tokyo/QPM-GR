@@ -13,13 +13,13 @@ import {
   getStageContainer,
   getStageGraphicsCtor,
   getStageSpriteCtor,
-  getStageTextureCtor,
   getWorldPxPerTile,
   onStageContainerRecreated,
   tileToPixel,
   TD_Z_TOWER,
   TD_Z_UI,
 } from './stage';
+import { getSharedTexture } from './textureCache';
 
 const log = createNamedLogger('td');
 
@@ -115,17 +115,9 @@ function buildTowerCanvas(kind: TowerId, upgradesA: number, upgradesB: number): 
   return renderBySpriteKey(sprite.key, mutations);
 }
 
-function createSprite(canvas: HTMLCanvasElement, anchor: { x: number; y: number }): SpriteNode | null {
+function createSprite(texture: unknown, anchor: { x: number; y: number }): SpriteNode | null {
   const SpriteCtor = getStageSpriteCtor();
-  const TextureCtor = getStageTextureCtor();
-  if (!SpriteCtor || !TextureCtor) return null;
-  let texture: unknown;
-  try {
-    texture = TextureCtor.from(canvas);
-  } catch (err) {
-    log.warn('QPM-TD-TOWER-001', { reason: 'texture_from_failed' }, err);
-    return null;
-  }
+  if (!SpriteCtor) return null;
   let sprite: SpriteNode;
   try {
     sprite = new SpriteCtor(texture) as SpriteNode;
@@ -143,9 +135,12 @@ function positionSprite(sprite: SpriteNode, tile: { x: number; y: number }): voi
 }
 
 function addTowerSprite(container: ContainerNode, tower: Tower): TowerSpriteRecord | null {
-  const canvas = buildTowerCanvas(tower.kind, tower.upgradesA, tower.upgradesB);
-  if (!canvas) return null;
-  const sprite = createSprite(canvas, resolveTowerAnchor(tower.kind, tower.upgradesA, tower.upgradesB));
+  const tex = getSharedTexture(
+    `tower:${tower.kind}:${tower.upgradesA}:${tower.upgradesB}`,
+    () => buildTowerCanvas(tower.kind, tower.upgradesA, tower.upgradesB),
+  );
+  if (!tex) return null;
+  const sprite = createSprite(tex.texture, resolveTowerAnchor(tower.kind, tower.upgradesA, tower.upgradesB));
   if (!sprite) return null;
   const scale = getEffectiveRenderScale(tower.kind, tower.upgradesA, tower.upgradesB);
   sprite.scale?.set?.(scale, scale);
@@ -287,9 +282,12 @@ function buildGhost(container: ContainerNode, kind: TowerId, tile: { x: number; 
     s.ghostCustom = rec;
     return true;
   }
-  const canvas = buildTowerCanvas(kind, 0, 0);
-  if (!canvas) return false;
-  const sprite = createSprite(canvas, resolveTowerAnchor(kind, 0, 0));
+  const tex = getSharedTexture(
+    `tower:${kind}:0:0`,
+    () => buildTowerCanvas(kind, 0, 0),
+  );
+  if (!tex) return false;
+  const sprite = createSprite(tex.texture, resolveTowerAnchor(kind, 0, 0));
   if (!sprite) return false;
   const scale = getTowerDef(kind).renderScale;
   if (scale !== undefined) sprite.scale?.set?.(scale, scale);

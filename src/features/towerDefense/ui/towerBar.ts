@@ -1,7 +1,7 @@
 import { t } from '../../../i18n';
 import { renderBySpriteKey } from '../../../sprite-v2/compat';
 import { stitchPlantSprite } from '../../../sprite-v2/stitcher';
-import { ALL_TOWER_IDS, getTowerDef } from '../data/towerDefs';
+import { getTowerDef } from '../data/towerDefs';
 import { beginPlacement, cancelPlacement } from '../engine/tower';
 import { startRound } from '../engine/waves';
 import { getMatchSnapshot, onMatchChange } from '../state';
@@ -14,6 +14,21 @@ const COIN_SPRITE_KEY = 'sprite/ui/Coin';
 const HOTBAR_ICON_SIZE = 128;
 // Must match .qpm-td-tower-icon width/height in ui/styles.ts.
 const HOTBAR_ICON_BOX_PX = 64;
+
+// Ordered by baseCost ascending (cheapest → most expensive).
+const BAR_ORDER: readonly TowerId[] = [
+  'sproutSlinger',
+  'marbleKnight',
+  'pineconeGrove',
+  'frostWizard',
+  'witchsCauldron',
+  'fairyForge',
+  'owlPerch',
+  'stormLantern',
+  'strawScarecrow',
+  'bananaGrove',
+  'gnomeAlchemist',
+];
 
 interface TowerButtonRefs {
   kind: TowerId;
@@ -30,7 +45,7 @@ export function mountTowerBar(host: HTMLElement): () => void {
 
   const buttons: TowerButtonRefs[] = [];
 
-  for (const kind of ALL_TOWER_IDS) {
+  for (const kind of BAR_ORDER) {
     const refs = buildTowerButton(kind);
     buttons.push(refs);
     bar.appendChild(refs.root);

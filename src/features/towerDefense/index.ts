@@ -1,3 +1,5 @@
+import './engine/roundLifecycle';
+
 export type {
   TowerId,
   BalloonId,
@@ -18,9 +20,6 @@ export {
   loadHighScore,
   loadSettings,
   saveSettings,
-  loadSavedGame,
-  clearSavedGame,
-  hasSavedGame,
   type HighScore,
   type TdSettings,
 } from './persistence';

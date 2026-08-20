@@ -1,4 +1,4 @@
-import type { DamageType, Point, StatusEffect, TowerId } from '../types';
+import type { DamageType, Point, StatusEffect, TowerId, UpgradeTier } from '../types';
 
 export interface TowerStats {
   readonly range: number;
@@ -58,6 +58,11 @@ export interface TowerStats {
   // by this fraction for ALL towers; DoT ticks on bosses are multiplied.
   readonly burnArmorStrip?: number;
   readonly burnBossMult?: number;
+  // Pinecone Grove path-drop tower. Absent = classic 'aim' tower.
+  readonly firingMode?: 'aim' | 'pathDrop';
+  readonly spikeLifetimeMs?: number;
+  readonly persistBetweenRounds?: boolean;
+  readonly dropLocation?: 'nearest' | 'farthest' | 'random';
 }
 
 export interface UpgradeDef {
@@ -84,6 +89,14 @@ export interface TowerDef {
   // Tile-space offset from tower.pixel to where shots/effects emerge. Default
   // (see engine/tower.ts towerMuzzle) is { x: 0, y: -0.5 }.
   readonly muzzleOffset?: Point;
+  readonly spriteByTier?: {
+    readonly pathA?: Partial<Record<UpgradeTier, SpriteRef>>;
+    readonly pathB?: Partial<Record<UpgradeTier, SpriteRef>>;
+  };
+  readonly renderScaleByTier?: {
+    readonly pathA?: Partial<Record<UpgradeTier, number>>;
+    readonly pathB?: Partial<Record<UpgradeTier, number>>;
+  };
 }
 
 const DEFS: Record<TowerId, TowerDef> = {
@@ -356,6 +369,47 @@ const DEFS: Record<TowerId, TowerDef> = {
       { name: 'Star-Forge',  cost: 12600, description: 'Damage 18, pierce 6, fire rate +17%, burn 10/s, burn ticks ×2 on bosses.',            apply: (s) => ({ ...s, damage: Math.max(s.damage, 18), pierce: Math.max(s.pierce, 6), fireIntervalMs: s.fireIntervalMs * 0.857, statusDoTPerSec: Math.max(s.statusDoTPerSec ?? 0, 10), burnArmorStrip: 1, burnBossMult: 2 }) },
     ],
     baseSprite: { kind: 'decor', key: 'sprite/decor/MiniFairyForge' },
+  },
+
+  // Math.max(s.damage, N) on every damage-upgrading tier so B path purchases
+  // after A can't undo A's higher damage — same fold-order safety used by
+  // stormLantern and fairyForge above.
+  pineconeGrove: {
+    id: 'pineconeGrove',
+    displayName: 'Pinecone Grove',
+    description: 'Drops pinecone piles on the path. Each cone hits one worm; piles vanish at round end.',
+    baseCost: 300,
+    // PineTree stitches small at natural scale — bump so it reads as a tower.
+    // TIER_SCALE_MULT (base 1.0 → t3 1.15 → t4 1.30) grows it on upgrade.
+    renderScale: 1.6,
+    baseStats: {
+      range: 2.5, damage: 1, fireIntervalMs: 3000, pierce: 5,
+      projectileSpeed: 0, damageType: 'standard', splashRadius: 0,
+      incomePerRound: 0,
+      firingMode: 'pathDrop', spikeLifetimeMs: 30000,
+    },
+    pathA: [
+      { name: 'Deeper Litter',       cost: 220,  description: 'Pierce 10',
+        apply: (s) => ({ ...s, pierce: 10 }) },
+      { name: 'Long-Standing Piles', cost: 750,  description: 'Pierce 15, spike lifetime 60s',
+        apply: (s) => ({ ...s, pierce: 15, spikeLifetimeMs: 60000 }) },
+      { name: 'Spike-o-pult',        cost: 2100, description: 'Range +60%, pierce 25, drops at farthest path point in range',
+        apply: (s) => ({ ...s, range: s.range * 1.6, pierce: 25, dropLocation: 'farthest' }) },
+      { name: 'Perma-Spikes',        cost: 9500, description: 'Pierce 60, dmg 3, piles never expire and survive rounds',
+        apply: (s) => ({ ...s, pierce: 60, damage: Math.max(s.damage, 3), spikeLifetimeMs: Number.POSITIVE_INFINITY, persistBetweenRounds: true }) },
+    ],
+    pathB: [
+      { name: 'Sharpened Cones', cost: 220,  description: 'Damage 2',
+        apply: (s) => ({ ...s, damage: Math.max(s.damage, 2) }) },
+      { name: 'Ironwood',        cost: 750,  description: 'Damage 4, +50% dmg vs armored',
+        apply: (s) => ({ ...s, damage: Math.max(s.damage, 4), armorBonusMult: 0.5 }) },
+      { name: 'White-Hot Cones', cost: 2100, description: 'Damage 8, applies Burn (3 dmg/s, 3s)',
+        apply: (s) => ({ ...s, damage: Math.max(s.damage, 8), appliesStatus: 'burn', statusDurationMs: 3000, statusDoTPerSec: 3 }) },
+      { name: 'Meteoric Cones',  cost: 9500, description: 'Damage 20, pierce 10, +100% vs bosses, splash 0.5',
+        apply: (s) => ({ ...s, damage: Math.max(s.damage, 20), pierce: Math.max(s.pierce, 10), bossDamageBonus: 1.0, splashRadius: 0.5 }) },
+    ],
+    baseSprite: { kind: 'plant', key: 'PineTree' },
+    muzzleOffset: { x: 0, y: 0 },
   },
 };
 

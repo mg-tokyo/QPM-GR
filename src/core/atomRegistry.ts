@@ -235,7 +235,7 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   localPosition: { label: /^local(?:Player)?(?:Position|Pos)(?:Data)?Atom$/i, tier: 'client' },
   userSlots: {
     label: /^(?:room)?[Uu]ser[Ss]lots(?:Data)?Atom$/i,
-    structure: (v) => Array.isArray(v) && v.length > 0 && isRec(v[0]) && 'playerId' in v[0],
+    structure: (v) => Array.isArray(v) && v.length > 0 && isRec(v[0]) && ('userId' in v[0] || 'playerId' in v[0]),
     fallbackSource: { key: 'state', path: ['child', 'data', 'userSlots'] },
     preferState: true,
     tier: 'state',

@@ -22,7 +22,7 @@ import { createNamedLogger } from '../diagnostics/logger';
 import type { Subsystem } from '../diagnostics/types';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 import { getRoomConnection } from '../websocket/api';
-import { getPlayerIdSync } from './playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from './playerContext';
 import { matchesPathPrefix } from './reactive/pathMatcher';
 import type { PatchPath } from './reactive/types';
 
@@ -177,13 +177,8 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
 function resolveMyIdx(state: QuinoaStateSnapshot): number | null {
   const playerId = getPlayerIdSync();
   if (!playerId) return null;
-  const slots = state.child?.data?.userSlots;
-  if (!Array.isArray(slots)) return null;
-  for (let i = 0; i < slots.length; i++) {
-    const slot = slots[i];
-    if (slot && typeof slot === 'object' && (slot as { playerId?: string }).playerId === playerId) return i;
-  }
-  return null;
+  const idx = findSlotIdxByOwner(state.child?.data?.userSlots, playerId);
+  return idx >= 0 ? idx : null;
 }
 
 const EMPTY_PATCHES: readonly PatchOp[] = Object.freeze([]);

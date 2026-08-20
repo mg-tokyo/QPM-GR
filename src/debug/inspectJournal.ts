@@ -4,6 +4,7 @@
  */
 
 import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { getSlotOwnerId } from '../core/playerContext';
 
 export async function inspectJournal() {
   try {
@@ -27,10 +28,10 @@ export async function inspectJournal() {
     let playerSlot: any = null;
 
     if (Array.isArray(slots)) {
-      playerSlot = slots.find((s: any) => String(s?.playerId) === String(playerId));
+      playerSlot = slots.find((s: any) => getSlotOwnerId(s) === String(playerId));
     } else if (slots && typeof slots === 'object') {
       for (const slot of Object.values(slots)) {
-        if (String((slot as any)?.playerId) === String(playerId)) {
+        if (getSlotOwnerId(slot) === String(playerId)) {
           playerSlot = slot;
           break;
         }

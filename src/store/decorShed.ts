@@ -1,5 +1,5 @@
 import { subscribe as stateTreeSubscribe } from '../core/stateTree';
-import { getPlayerIdSync } from '../core/playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from '../core/playerContext';
 import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
@@ -81,7 +81,7 @@ function selectDecorShedSlice(snapshot: QuinoaStateSnapshot): DecorShedSlice {
 
   const userSlots = snapshot.child?.data?.userSlots;
   if (!Array.isArray(userSlots)) return NULL_SLICE;
-  const myIdx = userSlots.findIndex((s) => !!s && s.playerId === playerId);
+  const myIdx = findSlotIdxByOwner(userSlots, playerId);
   if (myIdx < 0) return NULL_SLICE;
   const mySlot = userSlots[myIdx];
   if (!mySlot || typeof mySlot !== 'object') return NULL_SLICE;

@@ -29,7 +29,7 @@ import {
 } from './state';
 import { readAtomValueSync } from '../../core/atomRegistry';
 import { selectSync } from '../../core/stateTree';
-import { getPlayerIdSync } from '../../core/playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from '../../core/playerContext';
 import { notify } from '../../core/notifications';
 import { t } from '../../i18n';
 import type { PlayerAtomValue } from '../../types/gameAtoms';
@@ -400,8 +400,8 @@ function installMpHooks(m: MatchInternal, opponentPlayerId: string, opponentName
 }
 
 function resolveOppSlotIdx(oppPlayerId: string): number {
-  const slots = selectSync((s) => (s.child?.data?.userSlots ?? []) as Array<{ playerId?: string } | null>) ?? [];
-  return slots.findIndex((slot) => slot?.playerId === oppPlayerId);
+  const slots = selectSync((s) => s.child?.data?.userSlots ?? []) ?? [];
+  return findSlotIdxByOwner(slots, oppPlayerId);
 }
 
 export type { EndReason };

@@ -1,6 +1,6 @@
-import { getPetSpriteWithMutations } from '../../../sprite-v2/compat';
 import { t } from '../../../i18n';
 import { ALL_BALLOON_IDS, getBalloonDef } from '../data/balloonDefs';
+import { buildBalloonIconCanvas } from './balloonIcon';
 import type { BalloonId } from '../types';
 
 export interface EnemiesPopoverHandle {
@@ -71,12 +71,8 @@ function buildRow(id: BalloonId): HTMLElement {
 
   const iconSlot = document.createElement('div');
   iconSlot.className = 'qpm-td-enemies-icon';
-  const overlays = def.mutationOverlay ? [def.mutationOverlay] : [];
-  const canvas = getPetSpriteWithMutations(def.spriteName, overlays);
-  if (canvas) {
-    canvas.className = 'qpm-td-enemies-icon-canvas';
-    iconSlot.appendChild(canvas);
-  }
+  const canvas = buildBalloonIconCanvas(id, 'qpm-td-enemies-icon-canvas');
+  if (canvas) iconSlot.appendChild(canvas);
 
   const body = document.createElement('div');
   body.className = 'qpm-td-enemies-body';
@@ -108,6 +104,13 @@ function buildRow(id: BalloonId): HTMLElement {
     immune.className = 'qpm-td-enemies-meta';
     immune.textContent = t('feature.towerDefense.enemies.immune', { types: def.immunities.join(', ') });
     body.appendChild(immune);
+  }
+
+  if (def.statusImmune === true) {
+    const statusImmune = document.createElement('div');
+    statusImmune.className = 'qpm-td-enemies-meta';
+    statusImmune.textContent = t('feature.towerDefense.enemies.statusImmune');
+    body.appendChild(statusImmune);
   }
 
   if (def.children.length > 0) {

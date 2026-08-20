@@ -8,7 +8,8 @@ export type TowerId =
   | 'owlPerch'
   | 'gnomeAlchemist'
   | 'stormLantern'
-  | 'fairyForge';
+  | 'fairyForge'
+  | 'pineconeGrove';
 
 export type BalloonId =
   | 'redWorm'
@@ -18,7 +19,11 @@ export type BalloonId =
   | 'rainbowWorm'
   | 'stoneTurtle'
   | 'bronzeCapybara'
-  | 'goldMoab';
+  | 'goldMoab'
+  | 'rainbowTurtle'
+  | 'goldTurtle'
+  | 'rainbowCapybara'
+  | 'goldCapybara';
 
 export type Phase = 'idle' | 'preRound' | 'inRound' | 'ended';
 export type Speed = 1 | 2 | 3;
@@ -71,6 +76,8 @@ export interface Balloon {
   statuses: StatusEffectState[];
   readonly immunities: readonly DamageType[];
   readonly modifiers: readonly BalloonModifier[];
+  // Rainbow elites: no status effect or boss stun ever attaches (spec §5.1).
+  readonly statusImmune: boolean;
   msSinceDamage: number;
   stunRemainingMs?: number;
 }
@@ -83,6 +90,8 @@ export interface Projectile {
   position: Point;
   readonly velocity: Point;
   pierceRemaining: number;
+  readonly initialPierce: number;
+  readonly isPathDrop?: boolean;
   readonly hitBalloonIds: Set<string>;
   aliveMs: number;
   readonly maxLifetimeMs: number;
@@ -134,6 +143,7 @@ export interface PendingPlacement {
 
 export interface MatchSnapshot {
   readonly phase: Phase;
+  readonly trackId: string;
   readonly round: number;
   readonly isEndless: boolean;
   readonly cash: number;

@@ -3,7 +3,7 @@
 
 import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
 import { subscribeAtomValue } from '../../core/atomRegistry';
-import { getPlayerId } from '../../core/playerContext';
+import { getPlayerId, getSlotOwnerId } from '../../core/playerContext';
 import { computeGardenValueFromCatalog } from './valueCalculator';
 import { computeStorageItemsValue, computePetSellPrice, computePlacedDecorAndEggValue, computeGrowingCropsValue } from './storageValue';
 import { getDecor } from '../../catalogs/gameCatalogs';
@@ -97,7 +97,7 @@ function extractSlotEconomy(
   slotIndex: number,
   playerNameMap: Map<string, string>,
 ): RoomPlayerEconomy | null {
-  const playerId = typeof slot.playerId === 'string' ? slot.playerId.trim() : '';
+  const playerId = getSlotOwnerId(slot) ?? '';
   if (!playerId) return null;
 
   const data = isRecord(slot.data) ? slot.data as Record<string, unknown> : null;

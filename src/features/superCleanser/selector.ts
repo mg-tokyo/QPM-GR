@@ -5,7 +5,7 @@
 
 import { subscribeAtomValue, readAtomValueSync } from '../../core/atomRegistry';
 import { subscribe as stateTreeSubscribe, selectSync as stateTreeSelectSync } from '../../core/stateTree';
-import { getPlayerIdSync } from '../../core/playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from '../../core/playerContext';
 import { subscribeSuperCleanseSettings } from './storage';
 import { WEATHER_MUTATIONS, CROP_CLEANSER_TOOL_ID } from './constants';
 import { cleanups, listeners, isInitialized, markInitialized } from './state';
@@ -99,9 +99,7 @@ function emit(): void {
 function readGrowSlots(state: QuinoaStateSnapshot | null, tileIdx: number, myId: string): unknown {
   const userSlots = state?.child?.data?.userSlots;
   if (!Array.isArray(userSlots)) return null;
-  const myIdx = userSlots.findIndex(
-    (u) => u && typeof u === 'object' && (u as { playerId?: string }).playerId === myId,
-  );
+  const myIdx = findSlotIdxByOwner(userSlots, myId);
   if (myIdx < 0) return null;
   const slot = userSlots[myIdx];
   if (!slot || typeof slot !== 'object') return null;

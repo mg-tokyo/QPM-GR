@@ -1,9 +1,34 @@
 import type { TowerId, UpgradeTier } from '../types';
 import type { SpriteRef } from '../data/towerDefs';
+import { getTowerDef } from '../data/towerDefs';
 import { getTierSlotSprite, resolveUpgradeSlot } from '../data/tierSlots';
 import { getTextureAnchor } from '../../../sprite-v2/compat';
 
+// spriteByTier overrides the slot pipeline. Ties (a === b) favor A; walk the
+// primary path down from current tier to 1, then the other path, then fall
+// through to the slot system. Lets defs supply partial maps without holes.
+function resolveFromSpriteByTier(kind: TowerId, upgradesA: number, upgradesB: number): SpriteRef | null {
+  const def = getTowerDef(kind);
+  const map = def.spriteByTier;
+  if (!map) return null;
+  const primary: 'a' | 'b' = upgradesA >= upgradesB ? 'a' : 'b';
+  const other: 'a' | 'b' = primary === 'a' ? 'b' : 'a';
+  const primaryTier = primary === 'a' ? upgradesA : upgradesB;
+  const otherTier = other === 'a' ? upgradesA : upgradesB;
+  for (let tier = primaryTier; tier >= 1; tier--) {
+    const s = (primary === 'a' ? map.pathA : map.pathB)?.[tier as UpgradeTier];
+    if (s) return s;
+  }
+  for (let tier = otherTier; tier >= 1; tier--) {
+    const s = (other === 'a' ? map.pathA : map.pathB)?.[tier as UpgradeTier];
+    if (s) return s;
+  }
+  return null;
+}
+
 export function resolveTowerSprite(kind: TowerId, upgradesA: number, upgradesB: number): SpriteRef {
+  const tierSprite = resolveFromSpriteByTier(kind, upgradesA, upgradesB);
+  if (tierSprite) return tierSprite;
   return getTierSlotSprite(kind, resolveUpgradeSlot(upgradesA as UpgradeTier, upgradesB as UpgradeTier));
 }
 

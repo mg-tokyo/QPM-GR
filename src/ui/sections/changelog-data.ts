@@ -2,6 +2,21 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.27",
+    date: "2026-08-20",
+    notes: [
+      "Added two new Tower Defense enemy families, Rainbow elites (Rainbow Turtle at round 24, Rainbow Capybara at round 33) that are faster than their base kin and immune to every status effect and boss stun so you have to out-DPS them, and Gold elites (Gold Turtle at round 28, Gold Capybara at round 38) with heavy armor at 70% damage reduction that reward armor-piercing and explosive damage, both kinds keep spawning in scaled groups after their debut, and boss rounds 40, 50, 60 and up escort each MOAB train with a pair of elite capybaras",
+      "Added a save-slot system to Tower Defense, one rolling Continue autosave plus four named slots, with a launch picker that shows a thumbnail plus round, cash, lives and tower count for every save and an in-match Saves button that lets you save the current run, overwrite a slot, load another save without losing the current one, or delete a save, and legacy single-slot saves from before this version are migrated in automatically",
+      "Added track selection to Tower Defense, three new layouts (Gauntlet, Pillars, Spiral) join the original Classic S-curve, choose one from the track picker when starting a new run, or swap tracks mid-game via a new HUD Track button that autosaves your current run first and starts a fresh run on the picked track",
+      "Added Pinecone Grove, a new Tower Defense path-drop tower that plants pinecone piles across the balloon path instead of aiming shots, with a Path A that grows pierce and pile lifetime (Deeper Litter, Long-Standing Piles, Spike-o-pult that drops at the farthest path point in range, Perma-Spikes with permanent piles that survive rounds), and a Path B that stacks damage and effects (Sharpened Cones, Ironwood with armor bonus, White-Hot Cones that apply Burn, Meteoric Cones with splash damage and a boss bonus)",
+      "Fixed a Tower Defense reconnect bug where a dropped WebSocket that came back into a different garden plot could leave the game repainting stale plants under the board, the patch layer now doctors the game's Welcome snapshot too and late-added tile subscribers join the doctored fan-out, so the modified garden survives reconnects, and if a reconnect actually moves you to a different plot the match now auto-quits with a save and a clear notice instead of drifting out of sync",
+      "Improved Tower Defense round warnings and the Enemies popover for the new elites, dedicated warning lines call out Rainbow and Gold elite debuts, each elite renders with its mutation overlay in the enemies list, and Rainbow elites are labeled 'Immune to all status effects and stuns' so their counter is clear",
+      "Improved Tower Defense endless-mode economy and pacing, cash income from popping balloons is progressively taxed past round 30 (down to 15% by round 80+) so late-endless cash stops running away from tower prices, and waves past cycle 12 now split into up to four parallel spawn streams inside a designed 60-second window so massive counts arrive as a coordinated push instead of a single overlong queue",
+      "Improved Tower Defense performance under many towers and heavy waves, effective tower stats are cached per placement change and range checks use squared distance in hot loops, effect textures are shared between shots via a texture cache, and pets on the board are now hidden via a PIXI label subscription instead of a per-frame scene walk",
+      "Fixed Tower Defense failing to launch or resume a saved run (td_stage_init_failed) after the game's version 985 update renamed the slot owner field in room state, QPM now matches your garden slot by the new field with fallback to the old one, which also restores hutch, seed silo and decor shed counts, journal checking, room economy, battleship, super cleanser and pet team sync on the new game version",
+    ],
+  },
+  {
     version: "3.3.26",
     date: "2026-08-19",
     notes: [

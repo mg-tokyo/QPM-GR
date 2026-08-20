@@ -6,8 +6,10 @@ import { onTowerShot, type TowerShotInfo } from '../engine/tower';
 import { getMatchSnapshot } from '../state';
 import { onIncomePayout, type IncomePayoutInfo } from '../engine/economy';
 import { isInstantHitTower } from './projectileRender';
+import { renderBySpriteKey } from '../../../sprite-v2/compat';
 import {
   getStageContainer,
+  onStageContainerRecreated,
   getStageGraphicsCtor,
   getStageSpriteCtor,
   getStageTextureCtor,
@@ -15,6 +17,7 @@ import {
   tileToPixel,
   TD_Z_EFFECT,
 } from './stage';
+import { getSharedTexture } from './textureCache';
 import { recordRenderTick } from '../debug/perfCounters';
 
 const log = createNamedLogger('td');
@@ -48,6 +51,9 @@ const EXPLOSION_MS = 400;
 const POP_MS = 300;
 const REFUND_MS = 1100;
 const BEAM_MS = 140;
+const LOB_MS = 220;
+const LOB_APEX_TILES = 0.5;
+const LOB_SPRITE_SCALE = 0.6;
 const POP_CIRCLE_COUNT = 4;
 const POP_RADIUS_PX = 60;
 const REFUND_FLOAT_PX = 140;
@@ -66,14 +72,18 @@ const REFUND_TEXT_STROKE = '#0a0a10';
 // Numeric fallback tints for pop confetti when a caller passes a kind that
 // balloonDefs didn't tint (yellowBee has no def.tint — uses this table).
 const POP_KIND_FALLBACK: Record<BalloonId, number> = {
-  redWorm:        0xe64545,
-  blueWorm:       0x4589ff,
-  greenWorm:      0x3fbf5f,
-  yellowBee:      0xffdd44,
-  rainbowWorm:    0xff88cc,
-  stoneTurtle:    0x8a8a8a,
-  bronzeCapybara: 0xb87333,
-  goldMoab:       0xffcc33,
+  redWorm:         0xe64545,
+  blueWorm:        0x4589ff,
+  greenWorm:       0x3fbf5f,
+  yellowBee:       0xffdd44,
+  rainbowWorm:     0xff88cc,
+  stoneTurtle:     0x8a8a8a,
+  bronzeCapybara:  0xb87333,
+  goldMoab:        0xffcc33,
+  rainbowTurtle:   0xff88cc,
+  goldTurtle:      0xffcc33,
+  rainbowCapybara: 0xff88cc,
+  goldCapybara:    0xffcc33,
 };
 
 export interface ActiveEffect {
@@ -89,6 +99,7 @@ interface EffectsState {
   popUnsubscribe: (() => void) | null;
   shotUnsubscribe: (() => void) | null;
   incomeUnsubscribe: (() => void) | null;
+  stageUnsubscribe: (() => void) | null;
 }
 
 let state: EffectsState | null = null;
@@ -236,6 +247,46 @@ function createBeamEffect(container: ContainerNode, fromPx: Point, toPx: Point, 
   };
 }
 
+type LobSpriteNode = SpriteNode & { scale?: { set: (x: number, y: number) => void } };
+
+function createLobArcEffect(container: ContainerNode, fromPx: Point, toPx: Point): ActiveEffect | null {
+  const SpriteCtor = getStageSpriteCtor();
+  if (!SpriteCtor) return null;
+  const tex = getSharedTexture('sprite/seed/Pinecone', () => renderBySpriteKey('sprite/seed/Pinecone', []));
+  if (!tex) return null;
+  let sprite: LobSpriteNode;
+  try {
+    sprite = new SpriteCtor(tex.texture) as LobSpriteNode;
+  } catch (err) {
+    log.warn('QPM-TD-FX-004', { reason: 'lob_sprite_ctor_failed' }, err);
+    return null;
+  }
+  sprite.anchor?.set?.(0.5, 0.5);
+  sprite.scale?.set?.(LOB_SPRITE_SCALE, LOB_SPRITE_SCALE);
+  sprite.position?.set?.(fromPx.x, fromPx.y);
+  sprite.zIndex = TD_Z_EFFECT;
+  container.addChild?.(sprite);
+  const createdMs = performance.now();
+  const apexPx = LOB_APEX_TILES * getWorldPxPerTile();
+  return {
+    createdMs,
+    lifetimeMs: LOB_MS,
+    tick(nowMs: number): void {
+      const t = Math.min(1, (nowMs - createdMs) / LOB_MS);
+      const x = fromPx.x + (toPx.x - fromPx.x) * t;
+      const lineY = fromPx.y + (toPx.y - fromPx.y) * t;
+      const y = lineY - apexPx * 4 * t * (1 - t);
+      sprite.position?.set?.(x, y);
+    },
+    destroy(): void {
+      try {
+        container.removeChild?.(sprite);
+        sprite.destroy?.({ children: false, texture: false });
+      } catch { /* ignore */ }
+    },
+  };
+}
+
 function createRefundEffect(container: ContainerNode, pixel: Point, amount: number): ActiveEffect | null {
   const SpriteCtor = getStageSpriteCtor();
   const TextureCtor = getStageTextureCtor();
@@ -354,6 +405,15 @@ function handleBalloonPopped(info: BalloonPopInfo): void {
 }
 
 function handleTowerShot(info: TowerShotInfo): void {
+  if (info.kind === 'pineconeGrove') {
+    const s = state;
+    if (!s) return;
+    const container = getStageContainer() as ContainerNode | null;
+    if (!container) return;
+    const effect = createLobArcEffect(container, tileToPixel(info.from), tileToPixel(info.to));
+    if (effect) attachEffect(effect);
+    return;
+  }
   if (!isInstantHitTower(info.kind)) return;
   const fromPx = tileToPixel(info.from);
   const toPx = tileToPixel(info.to);
@@ -379,7 +439,17 @@ export function initEffects(): void {
     popUnsubscribe: null,
     shotUnsubscribe: null,
     incomeUnsubscribe: null,
+    stageUnsubscribe: null,
   };
+  // In-flight effects hold graphics on the dead container — end them now.
+  state.stageUnsubscribe = onStageContainerRecreated(() => {
+    const s = state;
+    if (!s) return;
+    for (const effect of s.active) {
+      try { effect.destroy(); } catch { /* ignore */ }
+    }
+    s.active = [];
+  });
   state.popUnsubscribe = onBalloonPopped(handleBalloonPopped);
   state.shotUnsubscribe = onTowerShot(handleTowerShot);
   state.incomeUnsubscribe = onIncomePayout(handleIncomePayout);
@@ -396,6 +466,7 @@ export function stopEffects(): void {
   s.popUnsubscribe?.();
   s.shotUnsubscribe?.();
   s.incomeUnsubscribe?.();
+  s.stageUnsubscribe?.();
   for (const effect of s.active) {
     try { effect.destroy(); } catch { /* ignore */ }
   }

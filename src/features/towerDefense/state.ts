@@ -9,10 +9,12 @@ import type {
   Tower,
 } from './types';
 import { STARTING_CASH, STARTING_LIVES } from './constants';
+import { CLASSIC_TRACK_ID } from './tracks/types';
 import { bumpSnapshot } from './debug/perfCounters';
 
 interface MutableState {
   phase: Phase;
+  trackId: string;
   round: number;
   isEndless: boolean;
   cash: number;
@@ -31,6 +33,7 @@ interface MutableState {
 function makeInitial(): MutableState {
   return {
     phase: 'idle',
+    trackId: CLASSIC_TRACK_ID,
     round: 0,
     isEndless: false,
     cash: STARTING_CASH,
@@ -52,7 +55,7 @@ let initialized = false;
 const listeners = new Set<(s: MatchSnapshot) => void>();
 
 // Cached snapshot: getMatchSnapshot was called ~5000/sec during heavy waves,
-// each call allocating a fresh 13-field object literal. Cache the object and
+// each call allocating a fresh 14-field object literal. Cache the object and
 // return the same reference until any setter runs. Every mutation site MUST
 // call invalidateSnapshot() — the setters below and the wholesale state=
 // reassignments in initMatchState/stopMatchState/resetForNewMatch/
@@ -64,6 +67,7 @@ function buildSnapshot(): MatchSnapshot {
   bumpSnapshot();
   return {
     phase: state.phase,
+    trackId: state.trackId,
     round: state.round,
     isEndless: state.isEndless,
     cash: state.cash,
@@ -118,8 +122,11 @@ export function notify(): void {
   }
 }
 
-export function resetForNewMatch(): void {
+// trackId override keeps the current track across Restart-after-death; the
+// baked path in engine/path.ts is untouched by this call.
+export function resetForNewMatch(trackId?: string): void {
   state = makeInitial();
+  if (trackId !== undefined) state.trackId = trackId;
   state.startedAt = Date.now();
   invalidateSnapshot();
   notify();
@@ -133,7 +140,8 @@ export function hydrateFromSnapshot(snap: MatchSnapshot): void {
     id: t.id,
     kind: t.kind,
     tile: t.tile,
-    pixel: t.pixel,
+    // Re-derive: saves from before the engine-space fix stored pixel = tile + 0.5.
+    pixel: { x: t.tile.x, y: t.tile.y },
     fireCooldownMs: 0,
     targetPriority: t.targetPriority,
     upgradesA: t.upgradesA,
@@ -142,6 +150,7 @@ export function hydrateFromSnapshot(snap: MatchSnapshot): void {
   }));
   state = {
     phase: 'preRound',
+    trackId: snap.trackId,
     round: snap.round,
     isEndless: snap.isEndless,
     cash: snap.cash,
@@ -160,8 +169,26 @@ export function hydrateFromSnapshot(snap: MatchSnapshot): void {
   notify();
 }
 
+type PhaseTransitionHook = (prev: Phase, next: Phase) => void;
+const phaseHooks: PhaseTransitionHook[] = [];
+
+export function registerPhaseTransitionHook(hook: PhaseTransitionHook): void {
+  phaseHooks.push(hook);
+}
+
 export function setPhase(phase: Phase): void {
+  const prev = state.phase;
   state.phase = phase;
+  invalidateSnapshot();
+  if (prev !== phase) {
+    for (const h of phaseHooks) {
+      try { h(prev, phase); } catch { /* hook errors never break state */ }
+    }
+  }
+}
+
+export function setTrackId(trackId: string): void {
+  state.trackId = trackId;
   invalidateSnapshot();
 }
 

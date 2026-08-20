@@ -1,56 +1,23 @@
 import type { Point } from '../types';
 import { bumpPosition } from '../debug/perfCounters';
+import { bakeWaypoints, type PathPoint } from '../tracks/bake';
+import { getClassicTrack } from '../tracks/builtins';
+import type { TrackDef } from '../tracks/types';
 
-export interface PathPoint {
-  readonly point: Point;
-  readonly cumulativeDistance: number;
-}
+export type { PathPoint } from '../tracks/bake';
 
-// S-curve across both dirt plots on a 23×12 layout. Enters upper-left
-// boardwalk (0,2), exits upper-right (22,2). Length 70 tiles; crosses the
-// col-11 boardwalk gap only at row 8. Leaves ~133 dirt tiles free for tower
-// placement. Path Y band [2, 8] stays clear of both boardwalk rows (0 and 11).
-const CORNERS: readonly Point[] = [
-  { x:  0, y:  2 },
-  { x: 10, y:  2 },
-  { x: 10, y:  5 },
-  { x:  1, y:  5 },
-  { x:  1, y:  8 },
-  { x: 21, y:  8 },
-  { x: 21, y:  5 },
-  { x: 12, y:  5 },
-  { x: 12, y:  2 },
-  { x: 22, y:  2 },
-];
-
-function buildWaypoints(): readonly PathPoint[] {
-  const out: PathPoint[] = [];
-  const first = CORNERS[0];
-  if (!first) return Object.freeze(out);
-  let cumulative = 0;
-  out.push({ point: first, cumulativeDistance: 0 });
-  for (let i = 1; i < CORNERS.length; i++) {
-    const prev = CORNERS[i - 1];
-    const curr = CORNERS[i];
-    if (!prev || !curr) continue;
-    const dx = Math.sign(curr.x - prev.x);
-    const dy = Math.sign(curr.y - prev.y);
-    let cx = prev.x;
-    let cy = prev.y;
-    while (cx !== curr.x || cy !== curr.y) {
-      cx += dx;
-      cy += dy;
-      cumulative += 1;
-      out.push({ point: { x: cx, y: cy }, cumulativeDistance: cumulative });
-    }
-  }
-  return Object.freeze(out);
-}
-
-const WAYPOINTS = buildWaypoints();
-const LAST_WAYPOINT = WAYPOINTS[WAYPOINTS.length - 1];
-const PATH_LENGTH = LAST_WAYPOINT ? LAST_WAYPOINT.cumulativeDistance : 0;
 const FALLBACK: Point = { x: 0, y: 0 };
+
+function lengthOf(wps: readonly PathPoint[]): number {
+  const last = wps[wps.length - 1];
+  return last ? last.cumulativeDistance : 0;
+}
+
+// Only tracks/active.ts applyTrack() swaps these (together with state.trackId).
+// Baked to classic at import so pre-tracks behaviour is unchanged.
+let activeTrack: TrackDef = getClassicTrack();
+let WAYPOINTS: readonly PathPoint[] = bakeWaypoints(activeTrack.corners);
+let PATH_LENGTH = lengthOf(WAYPOINTS);
 
 // Per-tick memoization: positionAt is called ~200K times/sec at R20+ with the
 // same distance values repeated many times (once per balloon per tower per
@@ -62,6 +29,20 @@ const FALLBACK: Point = { x: 0, y: 0 };
 const posCache = new Map<number, Point>();
 export function resetPositionCache(): void {
   posCache.clear();
+}
+
+export function setActiveTrack(track: TrackDef): boolean {
+  const baked = bakeWaypoints(track.corners);
+  if (baked.length < 2) return false;
+  activeTrack = track;
+  WAYPOINTS = baked;
+  PATH_LENGTH = lengthOf(baked);
+  posCache.clear();
+  return true;
+}
+
+export function getActiveTrack(): TrackDef {
+  return activeTrack;
 }
 
 export function getPath(): readonly PathPoint[] {
@@ -111,4 +92,77 @@ export function getEntryPoint(): Point {
 export function getExitPoint(): Point {
   const last = WAYPOINTS[WAYPOINTS.length - 1];
   return last ? last.point : FALLBACK;
+}
+
+export function nearestPathPointInRange(from: Point, range: number): Point | null {
+  if (PATH_LENGTH <= 0) return null;
+  const rSq = range * range;
+  let bestD = -1;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  for (let d = 0; d <= PATH_LENGTH; d += 0.25) {
+    const p = positionAt(d);
+    const dx = p.x - from.x;
+    const dy = p.y - from.y;
+    const ds = dx * dx + dy * dy;
+    if (ds < bestDistSq) { bestDistSq = ds; bestD = d; }
+  }
+  if (bestDistSq > rSq) return null;
+  const lo = Math.max(0, bestD - 0.25);
+  const hi = Math.min(PATH_LENGTH, bestD + 0.25);
+  for (let d = lo; d <= hi; d += 0.05) {
+    const p = positionAt(d);
+    const dx = p.x - from.x;
+    const dy = p.y - from.y;
+    const ds = dx * dx + dy * dy;
+    if (ds < bestDistSq) { bestDistSq = ds; bestD = d; }
+  }
+  return positionAt(bestD);
+}
+
+// Pick a uniform-random point along the path within `range` of `from`. Two
+// passes: gather in-range distances at 0.5-tile resolution, then jitter the
+// chosen distance by ±0.25 for finer coverage. Returns null if no path point
+// is in range. Piles that always land at the same coord read as a stack, not
+// spread — that's what nearestPathPointInRange did.
+export function randomPathPointInRange(from: Point, range: number): Point | null {
+  if (PATH_LENGTH <= 0) return null;
+  const rSq = range * range;
+  const candidates: number[] = [];
+  for (let d = 0; d <= PATH_LENGTH; d += 0.5) {
+    const p = positionAt(d);
+    const dx = p.x - from.x;
+    const dy = p.y - from.y;
+    if (dx * dx + dy * dy <= rSq) candidates.push(d);
+  }
+  if (candidates.length === 0) return null;
+  const idx = Math.floor(Math.random() * candidates.length);
+  const base = candidates[idx] ?? 0;
+  const jitter = (Math.random() - 0.5) * 0.5;
+  const picked = Math.max(0, Math.min(PATH_LENGTH, base + jitter));
+  return positionAt(picked);
+}
+
+export function farthestPathPointInRange(from: Point, range: number): Point | null {
+  if (PATH_LENGTH <= 0) return null;
+  const rSq = range * range;
+  let bestD = -1;
+  let bestDistSq = -1;
+  for (let d = 0; d <= PATH_LENGTH; d += 0.25) {
+    const p = positionAt(d);
+    const dx = p.x - from.x;
+    const dy = p.y - from.y;
+    const ds = dx * dx + dy * dy;
+    if (ds <= rSq && ds > bestDistSq) { bestDistSq = ds; bestD = d; }
+  }
+  if (bestD < 0) return null;
+  const lo = Math.max(0, bestD - 0.25);
+  const hi = Math.min(PATH_LENGTH, bestD + 0.25);
+  for (let d = lo; d <= hi; d += 0.05) {
+    const p = positionAt(d);
+    const dx = p.x - from.x;
+    const dy = p.y - from.y;
+    const ds = dx * dx + dy * dy;
+    if (ds <= rSq && ds > bestDistSq) { bestDistSq = ds; bestD = d; }
+  }
+  return positionAt(bestD);
 }

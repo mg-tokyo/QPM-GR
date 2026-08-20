@@ -10,7 +10,7 @@ import {
   isPatchStageAvailable,
 } from '../../core/patchStage';
 import { getRoomConnection } from '../../websocket/api';
-import { getPlayerIdSync } from '../../core/playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from '../../core/playerContext';
 import { getPlantSpeciesSafe, isValidPlantSpecies } from '../../utils/game/catalogHelpers';
 import { createNamedLogger } from '../../diagnostics/logger';
 import { initFlameOverlay, markFlameAt, clearAllFlames, destroyFlameOverlay } from './flameOverlay';
@@ -73,14 +73,12 @@ export function localIdxToBoard(localIdx: number): { grid: GridSide; coord: Coor
 }
 
 type StateShape = {
-  child?: { data?: { userSlots?: Array<{ playerId?: string; data?: { garden?: { tileObjects?: Record<string, unknown> } } } | null> } };
+  child?: { data?: { userSlots?: Array<{ userId?: string; playerId?: string; data?: { garden?: { tileObjects?: Record<string, unknown> } } } | null> } };
 };
 
 export function resolveSlotIdx(playerId: string): number {
   const state = getRoomConnection()?.lastRoomStateJsonable as StateShape | undefined;
-  const slots = state?.child?.data?.userSlots;
-  if (!Array.isArray(slots)) return -1;
-  return slots.findIndex(s => s != null && s.playerId === playerId);
+  return findSlotIdxByOwner(state?.child?.data?.userSlots, playerId);
 }
 
 export function resolveMySlotIdx(): number {

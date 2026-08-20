@@ -1,4 +1,4 @@
-import { getPixiRuntime, walkScene } from '../../../core/pixiScene';
+import { onPixiNodeAddedByPrefix, onPixiNodeRemovedByPrefix } from '../../../core/pixiSceneEvents';
 import { createNamedLogger } from '../../../diagnostics/logger';
 
 const log = createNamedLogger('td');
@@ -7,33 +7,26 @@ const log = createNamedLogger('td');
 // Jotai-driven (renderedPetInfosAtom), so the patch-stage state doctor used
 // for garden tiles cannot suppress them — the atom is written after patch
 // subscribers fire (beta RoomConnection.ts:825-829). We hide at the PIXI
-// layer instead by matching PetView container labels.
+// layer instead by matching PetView container labels (`Pet: <species>`,
+// beta PetView.ts:328-332), discovered push-style via the addChild hook.
 //
-// Every PetView wraps its RiveSprite in a Container labeled `Pet: <species>`
-// (beta PetView.ts:328-332). We toggle `visible = false` on those wrappers
-// per frame — matches garden-painter's re-assertion pattern in
-// rivePetOverlay.ts:112-115 (game render code may flip the flag back).
-// Balloons are unrelated PIXI Sprites without any label, so they're unaffected.
+// PetSystem re-asserts `visible = true` on viewport entry (PetSystem.ts:305),
+// so after the real setter runs once we shadow `visible` with an own accessor
+// that swallows writes — no per-frame sweep needed. Restore deletes the
+// accessor and flips the real setter back on.
 
 const PET_LABEL_PREFIX = 'Pet: ';
 
 interface PixiNode {
   label?: unknown;
   visible?: boolean;
-  children?: unknown;
+  destroyed?: unknown;
 }
 
-type TickerNode = {
-  add?: (cb: () => void) => void;
-  remove?: (cb: () => void) => void;
-};
-
 interface HiderState {
-  rafId: number | null;
-  tickerCb: (() => void) | null;
-  ticker: TickerNode | null;
-  hidden: WeakSet<object>;
-  restoreList: PixiNode[];
+  unsubscribeAdded: () => void;
+  unsubscribeRemoved: () => void;
+  hidden: Set<PixiNode>;
 }
 
 let state: HiderState | null = null;
@@ -42,75 +35,57 @@ function isNode(v: unknown): v is PixiNode {
   return !!v && typeof v === 'object';
 }
 
-function getLabel(node: PixiNode): string {
-  const l = node.label;
-  return typeof l === 'string' ? l : '';
-}
-
-function sweep(): void {
+function hide(node: PixiNode): void {
   const s = state;
-  if (!s) return;
-  const rt = getPixiRuntime();
-  if (!rt.ready || !rt.stage) return;
+  if (!s || s.hidden.has(node) || node.destroyed === true) return;
   try {
-    walkScene(rt.stage, (node): void => {
-      if (!isNode(node)) return;
-      if (!getLabel(node).startsWith(PET_LABEL_PREFIX)) return;
-      if (node.visible !== false) node.visible = false;
-      if (!s.hidden.has(node)) {
-        s.hidden.add(node);
-        s.restoreList.push(node);
-      }
-    }, { maxNodes: 20_000 });
+    node.visible = false;
+    Object.defineProperty(node, 'visible', {
+      configurable: true,
+      enumerable: false,
+      get: () => false,
+      set: () => { /* game re-assertions are swallowed while TD runs */ },
+    });
+    s.hidden.add(node);
   } catch (err) {
-    log.warn('QPM-TD-PETHIDE-001', { reason: 'sweep_threw' }, err);
+    log.warn('QPM-TD-PETHIDE-001', { reason: 'hide_threw' }, err);
   }
 }
 
-function frame(): void {
-  const s = state;
-  if (!s) return;
-  sweep();
-  s.rafId = requestAnimationFrame(frame);
+function restore(node: PixiNode): void {
+  try {
+    if (Object.prototype.hasOwnProperty.call(node, 'visible')) {
+      delete (node as { visible?: boolean }).visible;
+    }
+    if (node.destroyed !== true) node.visible = true;
+  } catch { /* ignore */ }
 }
 
 export function initPetHider(): void {
   if (state) return;
+  const hidden = new Set<PixiNode>();
   state = {
-    rafId: null,
-    tickerCb: null,
-    ticker: null,
-    hidden: new WeakSet<object>(),
-    restoreList: [],
+    hidden,
+    unsubscribeAdded: () => {},
+    unsubscribeRemoved: () => {},
   };
-  const rt = getPixiRuntime();
-  const app = rt.app as { ticker?: TickerNode } | null;
-  const ticker = app?.ticker;
-  if (ticker && typeof ticker.add === 'function') {
-    const cb = () => sweep();
-    ticker.add(cb);
-    state.ticker = ticker;
-    state.tickerCb = cb;
-    sweep();
-    return;
-  }
-  state.rafId = requestAnimationFrame(frame);
+  state.unsubscribeAdded = onPixiNodeAddedByPrefix(PET_LABEL_PREFIX, (node) => {
+    if (isNode(node)) hide(node);
+  });
+  state.unsubscribeRemoved = onPixiNodeRemovedByPrefix(PET_LABEL_PREFIX, (node) => {
+    const s = state;
+    if (!s || !isNode(node) || !s.hidden.has(node)) return;
+    s.hidden.delete(node);
+    restore(node);
+  });
 }
 
 export function stopPetHider(): void {
   const s = state;
   if (!s) return;
   state = null;
-  if (s.tickerCb && s.ticker && typeof s.ticker.remove === 'function') {
-    try { s.ticker.remove(s.tickerCb); } catch { /* ignore */ }
-  }
-  if (s.rafId !== null) {
-    try { cancelAnimationFrame(s.rafId); } catch { /* ignore */ }
-  }
-  for (const node of s.restoreList) {
-    try {
-      node.visible = true;
-    } catch { /* ignore */ }
-  }
-  s.restoreList.length = 0;
+  s.unsubscribeAdded();
+  s.unsubscribeRemoved();
+  for (const node of s.hidden) restore(node);
+  s.hidden.clear();
 }

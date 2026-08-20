@@ -52,6 +52,27 @@ export function getPlayerIdFromUrl(): string | null {
   }
 }
 
+/**
+ * Owner id of a userSlot. Game v985 (2026-08-20) renamed `userSlots[].playerId`
+ * → `userSlots[].userId`; accept both so older bundles keep working.
+ */
+export function getSlotOwnerId(slot: unknown): string | null {
+  if (!isRecord(slot)) return null;
+  for (const field of ['userId', 'playerId'] as const) {
+    const candidate = slot[field];
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
+
+/** Index of the slot owned by `ownerId`, or -1. Tolerant of null slots. */
+export function findSlotIdxByOwner(slots: unknown, ownerId: string): number {
+  if (!Array.isArray(slots)) return -1;
+  return slots.findIndex((s) => getSlotOwnerId(s) === ownerId);
+}
+
 function extractPlayerIdFromRecord(player: unknown): string | null {
   if (!player || typeof player !== 'object') return null;
   const record = player as Record<string, unknown>;
@@ -120,11 +141,6 @@ export async function getMyUserSlotIdx(): Promise<number | null> {
   const userSlots = data.userSlots;
   if (!Array.isArray(userSlots)) return null;
 
-  for (let i = 0; i < userSlots.length; i++) {
-    const slot = userSlots[i];
-    if (isRecord(slot) && String(slot.playerId ?? '').trim() === playerId) {
-      return i;
-    }
-  }
-  return null;
+  const found = findSlotIdxByOwner(userSlots, playerId);
+  return found >= 0 ? found : null;
 }

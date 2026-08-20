@@ -1,5 +1,5 @@
 import { select, selectSync, subscribe } from '../../core/stateTree';
-import { getPlayerIdSync } from '../../core/playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from '../../core/playerContext';
 import type { QuinoaStateSnapshot } from '../../types/gameAtoms';
 import type { NativePetTeam, NativePetTeamMember, NativePetTeamEmblem } from './types';
 
@@ -64,12 +64,12 @@ function selectMyPetTeams(state: QuinoaStateSnapshot): NativePetTeam[] {
   const myId = getPlayerIdSync();
   if (!myId) return [];
   const root = state as unknown as {
-    child?: { data?: { userSlots?: Array<{ playerId?: string; data?: { petTeams?: unknown } }> } };
+    child?: { data?: { userSlots?: Array<{ data?: { petTeams?: unknown } }> } };
   };
   const slots = root.child?.data?.userSlots;
   if (!Array.isArray(slots)) return [];
-  const mine = slots.find((s) => s && s.playerId === myId);
-  return normalizeTeamsArray(mine?.data?.petTeams);
+  const idx = findSlotIdxByOwner(slots, myId);
+  return normalizeTeamsArray(idx >= 0 ? slots[idx]?.data?.petTeams : undefined);
 }
 
 export async function readMyOptimisticPetTeams(): Promise<NativePetTeam[]> {

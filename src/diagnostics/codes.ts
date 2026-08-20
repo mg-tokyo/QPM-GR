@@ -6,6 +6,9 @@
 
 import type { ErrorCode, ErrorCodeDefinition } from './types';
 import { TD_CUSTOM_DESIGNS_CODES } from './codes/tdCustomDesigns';
+import { TD_SAVES_CODES } from './codes/tdSaves';
+import { TD_TRACKS_CODES } from './codes/tdTracks';
+import { PATCH_STAGE_CODES } from './codes/patchStage';
 
 const CURRENT_VERSION = '3.2.29';
 
@@ -728,3 +731,6 @@ register({
 // Split into a sibling module because inlining 15 more register() blocks would
 // push this file past the 750-line hard cap.
 for (const def of TD_CUSTOM_DESIGNS_CODES) register(def);
+for (const def of TD_SAVES_CODES) register(def);
+for (const def of TD_TRACKS_CODES) register(def);
+for (const def of PATCH_STAGE_CODES) register(def);

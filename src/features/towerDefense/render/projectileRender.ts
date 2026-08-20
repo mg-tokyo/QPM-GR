@@ -4,11 +4,13 @@ import { renderBySpriteKey } from '../../../sprite-v2/compat';
 import { createNamedLogger } from '../../../diagnostics/logger';
 import {
   getStageContainer,
+  onStageContainerRecreated,
   getStageSpriteCtor,
-  getStageTextureCtor,
   tileToPixel,
   TD_Z_PROJECTILE,
+  TD_Z_PATH_DROP,
 } from './stage';
+import { getSharedTexture } from './textureCache';
 import { spawnExplosionEffect } from './effects';
 import { recordRenderTick } from '../debug/perfCounters';
 
@@ -25,6 +27,7 @@ type SpriteNode = PixiNode & {
   position?: { set: (x: number, y: number) => void };
   rotation?: number;
   alpha?: number;
+  tint?: number;
   zIndex?: number;
   destroy?: (opts?: { children?: boolean; texture?: boolean }) => void;
 };
@@ -233,26 +236,55 @@ interface ProjectileRecord {
   spec: ProjectileSpec;
   spawnedAtMs: number;
   baseAngleRad?: number;
+  isPathDrop?: boolean;
+  // pathDrop-only: per-pile scale wobble baked once on spawn (rotation goes
+  // straight onto sprite). lastPierce/lastAlpha short-circuit redundant writes.
+  wobbleScale?: number;
+  lastPierce?: number;
+  lastAlpha?: number;
+  positioned?: boolean;
+}
+
+// Tint by owner upgrade tier — piles inherit the tower's visual identity.
+// Perma-Spikes (A4) wins gold priority over any B tier because it marks
+// permanent piles; else the highest B tier chooses.
+function pathDropTintFor(upA: UpgradeTier, upB: UpgradeTier): number {
+  if (upA >= 4) return 0xffcc44;
+  if (upB >= 4) return 0xc088ff;
+  if (upB >= 3) return 0xff9966;
+  if (upB >= 2) return 0xd8d8d8;
+  return 0xffffff;
+}
+
+// Individual pile scale — sized down so a stack of 5+ on one tile reads as a
+// spread of nails, not one chunky blob. Wobble (±15%) and pierce-shrink
+// (1.0 → 0.6) still multiply on top of this.
+const PATH_DROP_SPEC: ProjectileSpec = {
+  key: 'sprite/seed/Pinecone',
+  overlays: [],
+  scale: 0.5,
+  rotation: 'none',
+};
+
+function buildPathDropSprite(): BuiltSprite | null {
+  const tex = getSharedTexture(PATH_DROP_SPEC.key, () => renderBySpriteKey(PATH_DROP_SPEC.key, []));
+  if (!tex) return null;
+  const sprite = createSprite(tex.texture, PATH_DROP_SPEC.scale);
+  if (!sprite) return null;
+  return { sprite, spec: PATH_DROP_SPEC };
 }
 
 interface RenderState {
   rafId: number | null;
   sprites: Map<string, ProjectileRecord>;
+  unsubscribeStage: (() => void) | null;
 }
 
 let state: RenderState | null = null;
 
-function createSprite(canvas: HTMLCanvasElement, scale: number): SpriteNode | null {
+function createSprite(texture: unknown, scale: number): SpriteNode | null {
   const SpriteCtor = getStageSpriteCtor();
-  const TextureCtor = getStageTextureCtor();
-  if (!SpriteCtor || !TextureCtor) return null;
-  let texture: unknown;
-  try {
-    texture = TextureCtor.from(canvas);
-  } catch (err) {
-    log.warn('QPM-TD-PROJ-001', { reason: 'texture_from_failed' }, err);
-    return null;
-  }
+  if (!SpriteCtor) return null;
   let sprite: SpriteNode;
   try {
     sprite = new SpriteCtor(texture) as SpriteNode;
@@ -300,11 +332,16 @@ function getGeneratedCanvas(kind: GeneratedSpriteKind): HTMLCanvasElement | null
 function buildProjectileSprite(kind: TowerId, upA: UpgradeTier, upB: UpgradeTier): BuiltSprite | null {
   const spec = resolveProjectileSpec(kind, upA, upB);
   if (!spec) return null;
-  const canvas = spec.generated !== undefined
+  const cacheKey = spec.generated !== undefined
+    ? `proj:gen:${spec.generated}`
+    : (spec.overlays.length > 0
+        ? `${spec.key}|${[...spec.overlays].sort().join(',')}`
+        : spec.key);
+  const tex = getSharedTexture(cacheKey, () => spec.generated !== undefined
     ? getGeneratedCanvas(spec.generated)
-    : renderBySpriteKey(spec.key, [...spec.overlays]);
-  if (!canvas) return null;
-  const sprite = createSprite(canvas, spec.scale);
+    : renderBySpriteKey(spec.key, [...spec.overlays]));
+  if (!tex) return null;
+  const sprite = createSprite(tex.texture, spec.scale);
   if (!sprite) return null;
   return { sprite, spec };
 }
@@ -364,18 +401,22 @@ function tickFrame(): void {
   const seen = new Set<string>();
   for (const p of snap.projectiles) {
     seen.add(p.id);
-    // p.position is plot-tile-space (see tower.ts:262 seeded from tower.pixel,
-    // which is tile-center coords). Convert to world pixels — passing raw tile
-    // values into sprite.position places projectiles at world-pixel (x, y),
-    // effectively at the map's top-left corner and invisible.
+    // p.position is plot-tile-space (seeded from tower.pixel, integer-tile
+    // engine space). Convert to world pixels — passing raw tile values into
+    // sprite.position places projectiles at world-pixel (x, y), effectively
+    // at the map's top-left corner and invisible.
     const worldPixel = tileToPixel(p.position);
     let rec = s.sprites.get(p.id);
     if (!rec) {
-      const info = findOwnerInfo(p.ownerId);
-      if (!info) continue;
-      const built = buildProjectileSprite(info.kind, info.upA, info.upB);
+      const info = p.isPathDrop ? findOwnerInfo(p.ownerId) : null;
+      const built = p.isPathDrop
+        ? buildPathDropSprite()
+        : (() => {
+            const info2 = findOwnerInfo(p.ownerId);
+            return info2 ? buildProjectileSprite(info2.kind, info2.upA, info2.upB) : null;
+          })();
       if (!built) continue;
-      built.sprite.zIndex = TD_Z_PROJECTILE;
+      built.sprite.zIndex = p.isPathDrop ? TD_Z_PATH_DROP : TD_Z_PROJECTILE;
       container.addChild?.(built.sprite);
       rec = {
         sprite: built.sprite,
@@ -383,8 +424,35 @@ function tickFrame(): void {
         splashRadius: p.splashRadius,
         spec: built.spec,
         spawnedAtMs: nowMs,
+        ...(p.isPathDrop ? { isPathDrop: true } : {}),
       };
+      if (p.isPathDrop) {
+        // Bake per-pile visual variety once so a stack reads as many cones.
+        rec.wobbleScale = 0.85 + Math.random() * 0.3;
+        built.sprite.rotation = Math.random() * Math.PI * 2;
+        if (info && built.sprite.tint !== undefined) {
+          built.sprite.tint = pathDropTintFor(info.upA, info.upB);
+        }
+        built.sprite.position?.set?.(worldPixel.x, worldPixel.y);
+        rec.positioned = true;
+      }
       s.sprites.set(p.id, rec);
+    }
+    if (p.isPathDrop) {
+      const initial = p.initialPierce > 0 ? p.initialPierce : 1;
+      const shrink = 0.6 + 0.4 * Math.max(0, Math.min(1, p.pierceRemaining / initial));
+      if (rec.lastPierce !== p.pierceRemaining) {
+        const s2 = rec.spec.scale * shrink * (rec.wobbleScale ?? 1);
+        rec.sprite.scale?.set?.(s2, s2);
+        rec.lastPierce = p.pierceRemaining;
+      }
+      const remainingMs = p.maxLifetimeMs - p.aliveMs;
+      const alpha = remainingMs >= 500 ? 1 : Math.max(0, remainingMs / 500);
+      if (rec.lastAlpha !== alpha) {
+        rec.sprite.alpha = alpha;
+        rec.lastAlpha = alpha;
+      }
+      continue;
     }
     applyRotation(rec, p.velocity.x, p.velocity.y, nowMs);
     rec.sprite.position?.set?.(worldPixel.x, worldPixel.y);
@@ -395,7 +463,8 @@ function tickFrame(): void {
     if (seen.has(id)) continue;
     // Best-effort: expired projectiles (lifetime elapsed without hit) also
     // trigger the explosion visual. Acceptable — visually reads as a fizzle.
-    if (rec.splashRadius > 0) {
+    // pathDrop piles fade out via alpha in tickFrame and never fizzle-explode.
+    if (rec.splashRadius > 0 && !rec.isPathDrop) {
       spawnExplosionEffect(rec.lastPixel, rec.splashRadius);
     }
     try {
@@ -424,7 +493,16 @@ export function initProjectileRender(): void {
   state = {
     rafId: null,
     sprites: new Map(),
+    unsubscribeStage: null,
   };
+  state.unsubscribeStage = onStageContainerRecreated(() => {
+    const s = state;
+    if (!s) return;
+    for (const rec of s.sprites.values()) {
+      try { rec.sprite.destroy?.({ children: false, texture: false }); } catch { /* ignore */ }
+    }
+    s.sprites.clear();
+  });
   state.rafId = requestAnimationFrame(frame);
 }
 
@@ -432,6 +510,7 @@ export function stopProjectileRender(): void {
   const s = state;
   if (!s) return;
   state = null;
+  s.unsubscribeStage?.();
   if (s.rafId !== null) {
     try { cancelAnimationFrame(s.rafId); } catch { /* ignore */ }
   }

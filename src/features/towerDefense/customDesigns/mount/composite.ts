@@ -8,11 +8,11 @@ import { applyMutations } from '../../../../../mg-sprite-render/src';
 import { getRawSpriteCanvas } from '../../../../sprite-v2/compat';
 import {
   getStageSpriteCtor,
-  getStageTextureCtor,
   getStageContainerCtor,
   tileToPixel,
   TD_Z_TOWER,
 } from '../../render/stage';
+import { getSharedTexture } from '../../render/textureCache';
 import { createNamedLogger } from '../../../../diagnostics/logger';
 
 const log = createNamedLogger('td-custom-designs');
@@ -66,17 +66,12 @@ export function buildCustomTowerContainer(
 ): CustomTowerSpriteRecord | null {
   const ContainerCtor = getStageContainerCtor();
   const SpriteCtor = getStageSpriteCtor();
-  const TextureCtor = getStageTextureCtor();
   if (!ContainerCtor) {
     log.error('QPM-TDCDRND-004', { what: 'container', tower: tower.id, designId: design.id });
     return null;
   }
   if (!SpriteCtor) {
     log.error('QPM-TDCDRND-004', { what: 'sprite', tower: tower.id, designId: design.id });
-    return null;
-  }
-  if (!TextureCtor) {
-    log.error('QPM-TDCDRND-004', { what: 'texture', tower: tower.id, designId: design.id });
     return null;
   }
 
@@ -101,21 +96,19 @@ export function buildCustomTowerContainer(
       }
       continue;
     }
-    const composed = document.createElement('canvas');
-    composed.width = raw.width;
-    composed.height = raw.height;
-    const ctx = composed.getContext('2d');
-    if (!ctx) continue;
-    ctx.drawImage(raw, 0, 0);
-    applyMutations(composed, [...slot.mutations], false, slot.tint);
-
-    let texture: unknown;
-    try {
-      texture = TextureCtor.from(composed);
-    } catch {
-      continue;
-    }
-    const sprite = new SpriteCtor(texture) as SpriteNode;
+    const slotKey = `cd:${slot.spriteKey}:${[...slot.mutations].sort().join(',')}:${slot.tint ?? ''}`;
+    const tex = getSharedTexture(slotKey, () => {
+      const composed = document.createElement('canvas');
+      composed.width = raw.width;
+      composed.height = raw.height;
+      const ctx = composed.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(raw, 0, 0);
+      applyMutations(composed, [...slot.mutations], false, slot.tint);
+      return composed;
+    });
+    if (!tex) continue;
+    const sprite = new SpriteCtor(tex.texture) as SpriteNode;
 
     // Scene convention: transform.x/y is customiser-canvas-CENTER relative and
     // each slot renders centered on that point (MG-Sprite-Customiser-V2 renderer).
@@ -126,7 +119,7 @@ export function buildCustomTowerContainer(
 
     container.addChild?.(sprite);
     slots.push({ sprite, spriteKey: slot.spriteKey });
-    mounted.push({ slot, w: composed.width, h: composed.height });
+    mounted.push({ slot, w: tex.widthPx, h: tex.heightPx });
   }
 
   // Container origin = tile center. Pivot on the footing slot's anchor point

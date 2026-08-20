@@ -38,6 +38,23 @@ export function earn(amount: number): void {
   setCash(snap.cash + amount);
 }
 
+// Layer 8 §D.3 — BTD6-style freeplay cash-per-pop tax. Pop income used to
+// scale with balloon count (+15%/round) while threat grew +5%/round; the
+// windowed generator caps counts and this tax removes the remaining overshoot.
+export function popIncomeMult(round: number): number {
+  if (round <= 30) return 1;
+  if (round <= 40) return 0.8;
+  if (round <= 50) return 0.6;
+  if (round <= 60) return 0.4;
+  if (round <= 80) return 0.25;
+  return 0.15;
+}
+
+export function earnPopReward(baseReward: number): void {
+  const round = getMatchSnapshot().round;
+  earn(Math.max(1, Math.round(baseReward * popIncomeMult(round))));
+}
+
 export function refund(totalSpent: number): number {
   const refunded = Math.floor(totalSpent * SELL_REFUND_RATIO);
   earn(refunded);

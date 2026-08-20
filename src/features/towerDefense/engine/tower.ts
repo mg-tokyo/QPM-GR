@@ -19,7 +19,7 @@ import {
   setTargetPriority as stateSetTargetPriority,
 } from '../state';
 import { refund, spend } from './economy';
-import { isOnPath, positionAt } from './path';
+import { isOnPath, positionAt, nearestPathPointInRange, farthestPathPointInRange, randomPathPointInRange } from './path';
 import { isBalloonDetected, type OwlCoverageEntry } from './detection';
 import type { TowerStats } from '../data/towerDefs';
 import { getTowerDef } from '../data/towerDefs';
@@ -49,8 +49,11 @@ function emitTowerShot(info: TowerShotInfo): void {
 let towerCounter = 0;
 let projectileCounter = 0;
 
+// Engine space matches path waypoints: integer tile coordinates, NO +0.5.
+// render/stage.ts tileToPixel adds the +0.5 centering for everything drawn;
+// adding it here too shifted targeting half a tile off the visible range circle.
 function tileToPixel(tile: Point): Point {
-  return { x: tile.x + 0.5, y: tile.y + 0.5 };
+  return { x: tile.x, y: tile.y };
 }
 
 // Tower sprites are anchored (0.5, 1.0) — tower.pixel is at the sprite's feet.
@@ -62,11 +65,17 @@ function towerMuzzle(t: Tower): Point {
   return { x: t.pixel.x + (off?.x ?? 0), y: t.pixel.y + (off?.y ?? TOWER_MUZZLE_Y_OFFSET) };
 }
 
-function distanceBetween(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+// Squared-distance for range gates in hot loops — pickTarget runs per tower
+// per tick and Math.hypot's sqrt+abs dominated the sim cost. Compare against
+// a pre-squared threshold; squaring is monotonic so `close` priority order
+// is preserved.
+function dist2(a: Point, b: Point): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
 }
 
-export function getEffectiveStats(t: Tower): TowerStats {
+function computeEffectiveStats(t: Tower, towers: readonly Tower[]): TowerStats {
   const def = getTowerDef(t.kind);
   let stats: TowerStats = def.baseStats;
   for (let i = 0; i < t.upgradesA; i++) {
@@ -91,7 +100,6 @@ export function getEffectiveStats(t: Tower): TowerStats {
     let damageBonus = 0;
     let doubleShotBonus = 0;
     let capMax = 0.25;
-    const towers = getMatchSnapshot().towers;
     for (const g of towers) {
       if (g.kind !== 'gnomeAlchemist') continue;
       if (g.id === t.id) continue;
@@ -151,7 +159,7 @@ export function getEffectiveStats(t: Tower): TowerStats {
     let groveDamageBonus = 0;
     let groveRangeBonus = 0;
     let groveFireRateBonus = 0;
-    for (const g of getMatchSnapshot().towers) {
+    for (const g of towers) {
       if (g.kind !== 'bananaGrove') continue;
       if (g.id === t.id) continue;
       const dx = Math.abs(g.tile.x - t.tile.x);
@@ -180,6 +188,29 @@ export function getEffectiveStats(t: Tower): TowerStats {
       };
     }
   }
+  return stats;
+}
+
+// Stats fold is O(towers) with ~8 object allocs and sits in every hot loop
+// (tickTowers, pickTarget owl scan, regen suppression, camo aura). Any
+// placement/sell/upgrade/priority change installs a NEW towers array via
+// setTowers (state.ts:226), so array identity is a complete invalidation
+// key; in-place fireCooldownMs/shotCounter mutations don't affect stats.
+let statsCacheTowers: readonly Tower[] | null = null;
+const statsCache = new Map<string, TowerStats>();
+
+export function getEffectiveStats(t: Tower): TowerStats {
+  const towers = getMatchSnapshot().towers;
+  if (statsCacheTowers !== towers) {
+    statsCache.clear();
+    statsCacheTowers = towers;
+  }
+  const hit = statsCache.get(t.id);
+  if (hit) return hit;
+  const stats = computeEffectiveStats(t, towers);
+  // Only cache towers present in the live array — a stale Tower object held
+  // across a sell/hydrate must not poison the cache for a reused id.
+  if (towers.includes(t)) statsCache.set(t.id, stats);
   return stats;
 }
 
@@ -273,7 +304,11 @@ export function updatePlacementTile(tile: Point | null): void {
   const inBounds = isTileWithinPlot(tile);
   const free = inBounds && isTileFree(tile, snap.towers);
   const offPath = inBounds && !isOnPath(tile, 0.5);
-  const isValid = inBounds && free && offPath;
+  const pendingDef = getTowerDef(pending.kind);
+  const needsPathInRange = pendingDef.baseStats.firingMode === 'pathDrop';
+  const hasPathInRange = !needsPathInRange
+    || nearestPathPointInRange(tileToPixel(tile), pendingDef.baseStats.range) !== null;
+  const isValid = inBounds && free && offPath && hasPathInRange;
   const prev = pending.hoverTile;
   if (prev && prev.x === tile.x && prev.y === tile.y && pending.isValid === isValid) return;
   setPendingPlacement({ kind: pending.kind, hoverTile: tile, isValid });
@@ -345,20 +380,15 @@ export function pickTarget(
   tower: Tower,
   stats: TowerStats,
   balloons: readonly Balloon[],
+  owlCoverage: readonly OwlCoverageEntry[],
 ): Balloon | null {
   if (stats.range <= 0 || balloons.length === 0) return null;
 
+  const rangeSq = stats.range * stats.range;
   const inRange: Balloon[] = [];
-  const towers = getMatchSnapshot().towers;
-  // Owl coverage uses effective range so Sharp Eyes / Night Hunter widen it.
-  const owlCoverage: OwlCoverageEntry[] = [];
-  for (const t of towers) {
-    if (t.kind !== 'owlPerch') continue;
-    owlCoverage.push({ tower: t, range: getEffectiveStats(t).range });
-  }
   for (const b of balloons) {
     const pos = positionAt(b.distance);
-    if (distanceBetween(pos, tower.pixel) > stats.range) continue;
+    if (dist2(pos, tower.pixel) > rangeSq) continue;
     if (
       b.modifiers.includes('camo') &&
       !stats.selfDetectsCamo &&
@@ -393,10 +423,10 @@ export function pickTarget(
     case 'close':
       return inRange.reduce((best, b) => {
         const bPos = positionAt(b.distance);
-        const bDist = distanceBetween(bPos, tower.pixel);
+        const bDist2 = dist2(bPos, tower.pixel);
         const bestPos = positionAt(best.distance);
-        const bestDist = distanceBetween(bestPos, tower.pixel);
-        return bDist < bestDist ? b : best;
+        const bestDist2 = dist2(bestPos, tower.pixel);
+        return bDist2 < bestDist2 ? b : best;
       }, inRange[0] as Balloon);
     default:
       return inRange[0] ?? null;
@@ -433,9 +463,10 @@ function makeProjectile(
     position: { x: muzzle.x, y: muzzle.y },
     velocity: { x: nx * stats.projectileSpeed, y: ny * stats.projectileSpeed },
     pierceRemaining: opts.pierceOverride ?? stats.pierce,
+    initialPierce: opts.pierceOverride ?? stats.pierce,
     hitBalloonIds: new Set<string>(),
     aliveMs: 0,
-    maxLifetimeMs: 4000,
+    maxLifetimeMs: stats.spikeLifetimeMs ?? 4000,
     splashRadius: opts.splashOverride ?? stats.splashRadius,
     ignoresArmor: stats.ignoresArmor ?? false,
     bossDamageBonus: stats.bossDamageBonus ?? 0,
@@ -465,16 +496,91 @@ function makeProjectile(
   return base;
 }
 
+function makePathDropProjectile(
+  tower: Tower,
+  stats: TowerStats,
+  dropAt: Point,
+): Projectile {
+  const base: Projectile = {
+    id: `p_${projectileCounter++}`,
+    ownerId: tower.id,
+    damageType: stats.damageType,
+    damage: stats.damage,
+    position: { x: dropAt.x, y: dropAt.y },
+    velocity: { x: 0, y: 0 },
+    pierceRemaining: stats.pierce,
+    initialPierce: stats.pierce,
+    isPathDrop: true,
+    hitBalloonIds: new Set<string>(),
+    aliveMs: 0,
+    maxLifetimeMs: stats.spikeLifetimeMs ?? 30000,
+    splashRadius: stats.splashRadius,
+    ignoresArmor: stats.ignoresArmor ?? false,
+    bossDamageBonus: stats.bossDamageBonus ?? 0,
+    chilledDamageBonus: stats.chilledDamageBonus ?? 0,
+    armorBonusMult: stats.armorBonusMult ?? 0,
+    chillDurationBonus: stats.chillDurationBonus ?? 0,
+    chillSpeedMultiplier: stats.chillOverride?.speedMultiplier ?? CHILLED_SPEED_MULTIPLIER,
+    chillDurationMs: stats.chillOverride?.durationMs ?? CHILLED_DURATION_MS,
+    ...(stats.shattersFrozen ? { shattersFrozen: true } : {}),
+    ...(stats.bossStunMs !== undefined ? { bossStunMs: stats.bossStunMs } : {}),
+    ...(stats.pullOnImpactChance !== undefined ? { pullOnImpactChance: stats.pullOnImpactChance } : {}),
+    ...(stats.pullRadius !== undefined ? { pullRadius: stats.pullRadius } : {}),
+    ...(stats.pullDurationMs !== undefined ? { pullDurationMs: stats.pullDurationMs } : {}),
+    ...(stats.statusDurationMs !== undefined ? { statusDurationMs: stats.statusDurationMs } : {}),
+    ...(stats.statusDoTPerSec !== undefined ? { statusDoTPerSec: stats.statusDoTPerSec } : {}),
+    ...(stats.wiltDamageBonus !== undefined ? { statusDmgTakenBonus: stats.wiltDamageBonus } : {}),
+    ...(stats.stickySpeedMultiplier !== undefined ? { statusSpeedMultiplier: stats.stickySpeedMultiplier } : {}),
+    ...(stats.burnArmorStrip !== undefined ? { statusArmorStrip: stats.burnArmorStrip } : {}),
+    ...(stats.burnBossMult !== undefined ? { statusDotBossMult: stats.burnBossMult } : {}),
+  };
+  if (stats.appliesStatus !== undefined) {
+    return { ...base, appliesStatus: stats.appliesStatus };
+  }
+  return base;
+}
+
 export function tickTowers(deltaMs: number): readonly Projectile[] {
   const snap = getMatchSnapshot();
   const spawned: Projectile[] = [];
+  // Owl coverage uses effective range so Sharp Eyes / Night Hunter widen it.
+  const owlCoverage: OwlCoverageEntry[] = [];
+  for (const t of snap.towers) {
+    if (t.kind === 'owlPerch') owlCoverage.push({ tower: t, range: getEffectiveStats(t).range });
+  }
 
   for (const t of snap.towers) {
     const stats = getEffectiveStats(t);
     if (!Number.isFinite(stats.fireIntervalMs)) continue;
+    if (stats.firingMode === 'pathDrop') {
+      t.fireCooldownMs -= deltaMs;
+      if (t.fireCooldownMs > 0) continue;
+      const from = t.pixel;
+      // Default drops are random-in-range so piles spread along the path
+      // instead of stacking at one point. 'farthest' (T3A Spike-o-pult) and
+      // 'nearest' remain explicit opt-ins.
+      let dropAt: Point | null;
+      if (stats.dropLocation === 'farthest') dropAt = farthestPathPointInRange(from, stats.range);
+      else if (stats.dropLocation === 'nearest') dropAt = nearestPathPointInRange(from, stats.range);
+      else dropAt = randomPathPointInRange(from, stats.range);
+      if (!dropAt) { t.fireCooldownMs = 0; continue; }
+      const piles = Math.max(1, Math.floor(stats.bombsPerShot ?? 1));
+      for (let i = 0; i < piles; i++) {
+        // ±0.15 tile jitter so stacked piles don't render as one dot.
+        // Collision uses p.position, so jitter here keeps hit geometry honest.
+        const jittered: Point = {
+          x: dropAt.x + (Math.random() - 0.5) * 0.3,
+          y: dropAt.y + (Math.random() - 0.5) * 0.3,
+        };
+        spawned.push(makePathDropProjectile(t, stats, jittered));
+      }
+      emitTowerShot({ towerId: t.id, kind: t.kind, from, to: dropAt });
+      t.fireCooldownMs = stats.fireIntervalMs;
+      continue;
+    }
     t.fireCooldownMs -= deltaMs;
     if (t.fireCooldownMs > 0) continue;
-    const target = pickTarget(t, stats, snap.balloons);
+    const target = pickTarget(t, stats, snap.balloons, owlCoverage);
     if (!target) {
       t.fireCooldownMs = 0;
       continue;
@@ -533,6 +639,8 @@ export function tickTowers(deltaMs: number): readonly Projectile[] {
 
 export function resetTowerEngine(seedFromTowers: readonly Tower[] = []): void {
   stickyTargetIds.clear();
+  statsCache.clear();
+  statsCacheTowers = null;
   projectileCounter = 0;
   // Seed above the highest saved `t_<n>` id so post-resume placements can't
   // collide with restored towers — collision would make find-by-id in the

@@ -1,5 +1,5 @@
 import { readAtomValue } from '../../core/atomRegistry';
-import { getPlayerId } from '../../core/playerContext';
+import { getPlayerId, getSlotOwnerId } from '../../core/playerContext';
 import { log } from '../../utils/logger';
 import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 
@@ -151,12 +151,12 @@ async function fetchJournalFromState(): Promise<Journal | null> {
     let playerSlot: any = null;
 
     if (Array.isArray(slots)) {
-      playerSlot = slots.find((s: any) => String(s?.playerId) === String(playerId));
+      playerSlot = slots.find((s: any) => getSlotOwnerId(s) === String(playerId));
       jdbg(`[JOURNAL-DEBUG] Searched array slots, found match: ${!!playerSlot}`);
     } else if (slots && typeof slots === 'object') {
       // userSlots might be an object with numeric keys
       for (const slot of Object.values(slots)) {
-        if (String((slot as any)?.playerId) === String(playerId)) {
+        if (getSlotOwnerId(slot) === String(playerId)) {
           playerSlot = slot;
           break;
         }
@@ -166,7 +166,7 @@ async function fetchJournalFromState(): Promise<Journal | null> {
 
     if (!playerSlot) {
       log('⚠️ Player slot not found');
-      jdbg(`[JOURNAL-DEBUG] Available slot player IDs: ${Array.isArray(slots) ? slots.map((s: any) => s?.playerId).join(', ') : Object.values(slots || {}).map((s: any) => (s as any)?.playerId).join(', ')}`);
+      jdbg(`[JOURNAL-DEBUG] Available slot owner IDs: ${(Array.isArray(slots) ? slots : Object.values(slots || {})).map((s: any) => getSlotOwnerId(s)).join(', ')}`);
       return null;
     }
 

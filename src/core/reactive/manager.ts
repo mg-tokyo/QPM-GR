@@ -15,7 +15,7 @@
 // Dynamic tier: 5s safety poll for unclassified atoms.
 
 import { storage } from '../../utils/storage';
-import { getPlayerIdSync } from '../playerContext';
+import { findSlotIdxByOwner, getPlayerIdSync } from '../playerContext';
 import { subscribeToPatches } from '../stateTree';
 import type { PatchOp } from '../stateTree';
 import type { QuinoaStateSnapshot } from '../../types/gameAtoms';
@@ -200,13 +200,8 @@ export class ReactiveSubscriptionManager {
   private resolveMyIdx(state: QuinoaStateSnapshot): number | null {
     const playerId = getPlayerIdSync();
     if (!playerId) return null;
-    const slots = state.child?.data?.userSlots;
-    if (!Array.isArray(slots)) return null;
-    for (let i = 0; i < slots.length; i++) {
-      const slot = slots[i];
-      if (slot && typeof slot === 'object' && (slot as { playerId?: string }).playerId === playerId) return i;
-    }
-    return null;
+    const idx = findSlotIdxByOwner(state.child?.data?.userSlots, playerId);
+    return idx >= 0 ? idx : null;
   }
 
   private onInputEvent(source: 'pointerdown' | 'keydown' | 'keyup' | 'blur' | 'pointermove'): void {

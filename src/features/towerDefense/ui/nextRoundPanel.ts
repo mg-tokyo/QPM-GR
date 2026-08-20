@@ -1,5 +1,5 @@
 import { t } from '../../../i18n';
-import { getPetSpriteWithMutations } from '../../../sprite-v2/compat';
+import { buildBalloonIconCanvas } from './balloonIcon';
 import { getBalloonDef } from '../data/balloonDefs';
 import { isBossRound } from '../data/waveDefs';
 import { getWaveFor } from '../engine/waves';
@@ -113,6 +113,8 @@ function deriveWarnings(round: number, wave: WaveDef): readonly string[] {
   if (newKinds.has('stoneTurtle'))     warnings.push(t('feature.towerDefense.warning.armorDebut'));
   if (newKinds.has('bronzeCapybara'))  warnings.push(t('feature.towerDefense.warning.miniBossDebut'));
   if (newKinds.has('goldMoab'))        warnings.push(t('feature.towerDefense.warning.bossDebut'));
+  if (newKinds.has('rainbowTurtle') || newKinds.has('rainbowCapybara')) warnings.push(t('feature.towerDefense.warning.rainbowEliteDebut'));
+  if (newKinds.has('goldTurtle') || newKinds.has('goldCapybara'))       warnings.push(t('feature.towerDefense.warning.goldEliteDebut'));
   if (newMods.has('camo'))             warnings.push(t('feature.towerDefense.warning.camoDebut'));
   if (newMods.has('regen'))            warnings.push(t('feature.towerDefense.warning.regenDebut'));
   if (isBossRound(round))              warnings.push(t('feature.towerDefense.warning.bossRound'));
@@ -153,13 +155,8 @@ function buildRow(kind: BalloonId, row: TallyRow): HTMLElement {
 }
 
 function buildIcon(kind: BalloonId): HTMLElement {
-  const def = getBalloonDef(kind);
-  const overlays = def.mutationOverlay ? [def.mutationOverlay] : [];
-  const canvas = getPetSpriteWithMutations(def.spriteName, overlays);
-  if (canvas) {
-    canvas.className = 'qpm-td-next-round-icon';
-    return canvas;
-  }
+  const canvas = buildBalloonIconCanvas(kind, 'qpm-td-next-round-icon');
+  if (canvas) return canvas;
   const fallback = document.createElement('div');
   fallback.className = 'qpm-td-next-round-icon';
   return fallback;
