@@ -1,4 +1,5 @@
 import { pageWindow, isIsolatedContext } from '../core/pageContext';
+import { getPixiCapture } from '../core/pixiCapture';
 import { isDiscordSurface } from '../utils/environment';
 import type { AudioBridge } from './types';
 
@@ -259,7 +260,7 @@ function setupBridgeOnRoot(root: Record<string, unknown>): void {
   const findAssets = (): any => {
     const P: any = (root as any).PIXI || (root as any).__PIXI__;
     if (P?.Assets) return P.Assets;
-    const app: any = (root as any).__QPM_PIXI_CAPTURED__?.app;
+    const app: any = getPixiCapture()?.app;
     if (app?.Assets) return app.Assets;
     return null;
   };

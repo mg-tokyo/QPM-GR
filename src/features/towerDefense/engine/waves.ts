@@ -106,9 +106,8 @@ export function tickWaveSpawner(deltaMs: number): void {
   roundEndBonus(currentRound, isBoss ? 2 : 1);
   const nextRound = currentRound + 1;
   setRound(nextRound, nextRound > PRESCRIPTED_ROUNDS);
-  // In-flight projectiles freeze visually in preRound (sim loop is inRound-gated),
-  // so clear them and reset tower cooldowns to give a clean start-of-round state.
-  setProjectiles([]);
+  // Reset tower cooldowns for a clean start; in-flight projectile cleanup
+  // and Perma-Spikes preservation happen in roundLifecycle's phase hook.
   for (const t of getMatchSnapshot().towers) t.fireCooldownMs = 0;
   setPhase('preRound');
   tdPlay('waveClear');

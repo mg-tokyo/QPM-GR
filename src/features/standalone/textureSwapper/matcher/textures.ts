@@ -3,6 +3,7 @@ import type { SpriteVariantInfo } from '../types';
 import { normalizeSpriteKeyCandidate } from './keys';
 import { parseVariantInfoFromLabel } from './variants';
 import { pageWindow } from '../../../../core/pageContext';
+import { getPixiCapture } from '../../../../core/pixiCapture';
 
 // ---------------------------------------------------------------------------
 // Texture introspection
@@ -154,6 +155,7 @@ function scanTextureContainerForRefKeys(container: any, refMap: Map<object, Set<
 export function buildRuntimeTextureRefKeyMap(): Map<object, Set<string>> {
   const refMap = new Map<object, Set<string>>();
   const root = pageWindow as any;
+  const capture = getPixiCapture() as any;
   const candidates = [
     root?.PIXI?.Cache?._cache,
     root?.__PIXI__?.Cache?._cache,
@@ -161,8 +163,8 @@ export function buildRuntimeTextureRefKeyMap(): Map<object, Set<string>> {
     root?.__PIXI__?.utils?.TextureCache,
     root?.__PIXI_TEXTURE_CACHE__,
     root?.__PIXI_ASSET_CACHE__,
-    root?.__QPM_PIXI_CAPTURED__?.app?.renderer?.textures,
-    root?.__QPM_PIXI_CAPTURED__?.renderer?.textures,
+    capture?.app?.renderer?.textures,
+    capture?.renderer?.textures,
   ];
   for (const candidate of candidates) {
     scanTextureContainerForRefKeys(candidate, refMap);

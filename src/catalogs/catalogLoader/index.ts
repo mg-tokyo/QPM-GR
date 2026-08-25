@@ -4,5 +4,5 @@
 export { getCosmeticOwnership, isCosmeticOwned, isCosmeticAvailable } from './ownership';
 export { startCatalogsDiagnostics, stopCatalogsDiagnostics } from './diagnostics';
 export { getCatalogs, areCatalogsReady, waitForCatalogs, onCatalogsReady } from './readyState';
-export { initCatalogLoader, cleanupCatalogLoader } from './lifecycle';
+export { initCatalogLoader, initCatalogHooksEarly, cleanupCatalogLoader } from './lifecycle';
 export { forceWeatherCatalogRefresh, diagnoseCatalogs } from './debug';

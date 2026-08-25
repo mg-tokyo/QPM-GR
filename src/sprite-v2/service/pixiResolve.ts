@@ -1,6 +1,7 @@
 import type { PixiHooks, SpriteState } from '../types';
 import { createPixiHooks, waitForPixi } from '../hooks';
 import { pageWindow } from '../../core/pageContext';
+import { repairPixiCapture } from '../../core/pixiCapture';
 import type { PixiBundle } from './types';
 import { hasExtractCanvas, updateBootReportRenderer } from './bootReport';
 
@@ -220,11 +221,25 @@ export async function resolvePixiFast(): Promise<PixiBundle> {
   // below) after cheap checks have missed a few times in a row.
   const checkFiber = (): PixiBundle | null => findPixiViaFiber();
 
+  // Every non-capture success repairs __QPM_PIXI_CAPTURED__ so direct
+  // consumers of the global recover when the injected hooks lost the race.
+  const repaired = (bundle: PixiBundle | null, source: string): PixiBundle | null => {
+    if (bundle) {
+      repairPixiCapture(
+        { app: bundle.app ?? null, renderer: bundle.renderer ?? null, version: bundle.version ?? null },
+        source,
+      );
+    }
+    return bundle;
+  };
+
   const cheapCheck = (): PixiBundle | null =>
-    checkInjectedCapture() || checkGlobals() || checkAriesService();
+    checkInjectedCapture()
+    || repaired(checkGlobals(), 'globals')
+    || repaired(checkAriesService(), 'aries-service');
 
   // Try immediately (include fiber — a hit here skips all polling)
-  const hit = cheapCheck() || checkFiber();
+  const hit = cheapCheck() || repaired(checkFiber(), 'fiber');
   if (hit) return hit;
 
   // Poll for up to 15 seconds. Cheap checks every 100ms; the expensive fiber
@@ -250,7 +265,7 @@ export async function resolvePixiFast(): Promise<PixiBundle> {
       performance.now() - lastFiberAt >= FIBER_MIN_INTERVAL_MS
     ) {
       lastFiberAt = performance.now();
-      const fibered = checkFiber();
+      const fibered = repaired(checkFiber(), 'fiber');
       if (fibered) return fibered;
     }
   }
@@ -259,7 +274,9 @@ export async function resolvePixiFast(): Promise<PixiBundle> {
   const waited = await waitForPixi(requirePixiHooks(), 5000).catch(() => ({ app: null, renderer: null, version: null }));
 
   if (waited.renderer || waited.app?.renderer) {
-    return { app: waited.app, renderer: waited.renderer || waited.app?.renderer, version: waited.version };
+    const bundle: PixiBundle = { app: waited.app, renderer: waited.renderer || waited.app?.renderer, version: waited.version };
+    repaired(bundle, 'waited-hooks');
+    return bundle;
   }
 
   const diag = {

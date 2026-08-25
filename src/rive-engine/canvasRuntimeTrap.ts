@@ -73,6 +73,9 @@ const TRAP_TIMEOUT_MS = 60_000;
 let installed = false;
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
 let trapDescriptor: PropertyDescriptor | null = null;
+// Another mod may have its own Object.prototype.runtime trap; save it so
+// uninstall restores their descriptor instead of bare-deleting it.
+let previousDescriptor: PropertyDescriptor | null = null;
 
 function isRiveRuntimeShape(value: unknown): value is LowLevelRive {
   if (!value || typeof value !== 'object') return false;
@@ -95,7 +98,18 @@ function defineDefault(target: object, value: unknown): void {
 function uninstallTrap(): void {
   if (!installed) return;
   try {
-    delete (Object.prototype as Record<string, unknown>).runtime;
+    // Only touch the property if it is still OUR trap — a later mod may have
+    // replaced it, and deleting theirs would break them.
+    const current = Object.getOwnPropertyDescriptor(Object.prototype, 'runtime');
+    if (current && trapDescriptor && current.set === trapDescriptor.set) {
+      if (previousDescriptor) {
+        Object.defineProperty(Object.prototype, 'runtime', previousDescriptor);
+      } else {
+        delete (Object.prototype as Record<string, unknown>).runtime;
+      }
+    } else if (current) {
+      riveLog('canvas-runtime trap: descriptor replaced by third party — leaving as-is');
+    }
   } catch {
     // ignore
   }
@@ -105,6 +119,7 @@ function uninstallTrap(): void {
   }
   installed = false;
   trapDescriptor = null;
+  previousDescriptor = null;
   riveLog('canvas-runtime trap uninstalled');
 }
 
@@ -158,10 +173,15 @@ export function initCanvasRuntimeTrap(): () => void {
   };
 
   try {
+    // Ambient Object (not pageWindow.Object) is intentional here — accepted
+    // realm inconsistency; installing accessors cross-realm can be rejected
+    // by Firefox Xray wrappers. Save any pre-existing descriptor for restore.
+    previousDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, 'runtime') ?? null;
     Object.defineProperty(Object.prototype, 'runtime', trapDescriptor);
   } catch (e) {
     installed = false;
     trapDescriptor = null;
+    previousDescriptor = null;
     riveLog('canvas-runtime trap install failed', e);
     return () => {};
   }

@@ -15,8 +15,13 @@ export const RIGHT_MIN_SPACE = 80;
 export const MIN_INVENTORY_WIDTH = 220;
 export const MIN_INVENTORY_HEIGHT = 160;
 export const MIN_VISIBLE_AREA = 12000;
+// Keep at 12: a closed inventory still leaves a renderable InventoryModal
+// subtree with a few InventoryItemView nodes, so the label/size gates alone
+// pass while closed — this count is what distinguishes open from closed.
 export const MIN_OPEN_ITEM_VIEW_COUNT = 12;
 export const MAX_ANCHOR_MISSES = 3;
+export const ANCHOR_SETTLE_INTERVAL_MS = 150;
+export const ANCHOR_SETTLE_MAX_TRIES = 10;
 export const DEFAULT_CONFIG: BulkFavoriteConfig = { enabled: true };
 
 export const CSS = `

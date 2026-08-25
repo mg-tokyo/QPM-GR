@@ -23,6 +23,7 @@ interface PageWithRoom extends Window {
 const listeners = new Set<NativeSendListener>();
 let patchedRoom: RoomConnection | null = null;
 let originalSendMessage: ((payload: unknown) => unknown) | null = null;
+let patchedWrapper: ((payload: unknown) => unknown) | null = null;
 let stopReconnectTimer: (() => void) | null = null;
 let started = false;
 
@@ -41,10 +42,18 @@ function notifyListeners(type: string, payload: Record<string, unknown>): void {
 function restorePatch(): void {
   if (!patchedRoom || !originalSendMessage) return;
   try {
-    patchedRoom.sendMessage = originalSendMessage as (payload: unknown) => void;
+    // Identity guard: only restore if OUR wrapper is still installed. A
+    // third party that wrapped after us stays; our wrapper keeps delegating
+    // to the saved original, so the chain remains sound.
+    if (patchedRoom.sendMessage === patchedWrapper) {
+      patchedRoom.sendMessage = originalSendMessage as (payload: unknown) => void;
+    } else {
+      diagLog.debug('sendMessage re-wrapped by third party — leaving chain intact');
+    }
   } catch { /* noop */ }
   patchedRoom = null;
   originalSendMessage = null;
+  patchedWrapper = null;
 }
 
 function ensurePatched(): void {
@@ -72,9 +81,11 @@ function ensurePatched(): void {
     room.sendMessage = wrapped;
     patchedRoom = room;
     originalSendMessage = original;
+    patchedWrapper = wrapped;
   } catch {
     patchedRoom = null;
     originalSendMessage = null;
+    patchedWrapper = null;
   }
 }
 

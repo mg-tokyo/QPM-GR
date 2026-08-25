@@ -4,6 +4,8 @@ import type { PixiHooks } from './types';
 import { isDiscordSurface } from '../utils/environment';
 import { pageWindow, isIsolatedContext } from '../core/pageContext';
 import { spriteLog } from './diagnostics';
+import { PIXI_CAPTURE_PAGE_SCRIPT } from './pageScript';
+import { repairPixiCapture } from '../core/pixiCapture';
 
 /**
  * Get the page window context.
@@ -145,420 +147,9 @@ function injectPageContextHooks(): void {
     return;
   }
 
-  const scriptContent = `
-(function() {
-  if (window.__QPM_PIXI_HOOKS_ACTIVE__) return;
-  window.__QPM_PIXI_HOOKS_ACTIVE__ = true;
-  
-  // Storage for captured PIXI objects
-  window.__QPM_PIXI_CAPTURED__ = { app: null, renderer: null, version: null };
-
-  // Sprite bridge state (page context)
-  window.__QPM_SPRITE_BRIDGE__ = window.__QPM_SPRITE_BRIDGE__ || {
-    atlas: {},
-    stats: {
-      loads: 0,
-      errors: 0,
-      lastError: null,
-      lastLoadedAt: 0
-    }
-  };
-
-  function normalizeSpriteKey(raw) {
-    return String(raw || '')
-      .replace(/\\\\/g, '/')
-      .replace(/[?#].*$/, '')
-      .replace(/^\\/+/, '')
-      .replace(/\\.(png|webp|avif|jpg|jpeg|ktx2)$/i, '')
-      .trim()
-      .toLowerCase();
-  }
-
-  function isTextureLike(value) {
-    return !!(
-      value &&
-      typeof value === 'object' &&
-      (value.frame || value._frame) &&
-      (value.source || value.orig || value._orig || value._source)
-    );
-  }
-
-  var collectSeen = typeof WeakSet === 'function' ? new WeakSet() : null;
-
-  function collectTextures(target, container) {
-    if (!container) return;
-    if (collectSeen && container && typeof container === 'object') {
-      if (collectSeen.has(container)) return;
-      collectSeen.add(container);
-    }
-
-    var isMapLike = container && typeof container.entries === 'function' && typeof container.forEach === 'function';
-    if (isMapLike) {
-      try {
-        var mapEntries = container.entries();
-        var step = mapEntries.next();
-        while (!step.done) {
-          var pair = step.value;
-          if (Array.isArray(pair) && pair.length >= 2) {
-            var key = String(pair[0]);
-            var value = pair[1];
-            if (isTextureLike(value)) {
-              target[key] = value;
-              var nk = normalizeSpriteKey(key);
-              if (nk && !target[nk]) target[nk] = value;
-            }
-            if (value && value.textures) collectTextures(target, value.textures);
-          }
-          step = mapEntries.next();
-        }
-      } catch (_) {
-        try {
-          container.forEach(function(value, key) {
-            var k = String(key);
-            if (isTextureLike(value)) {
-              target[k] = value;
-              var nk = normalizeSpriteKey(k);
-              if (nk && !target[nk]) target[nk] = value;
-            }
-            if (value && value.textures) collectTextures(target, value.textures);
-          });
-        } catch (_) {}
-      }
-      return;
-    }
-
-    if (Array.isArray(container)) {
-      for (var i = 0; i < container.length; i++) {
-        collectTextures(target, container[i]);
-      }
-      return;
-    }
-
-    if (typeof container === 'object') {
-      var keys = Object.keys(container);
-      for (var j = 0; j < keys.length; j++) {
-        var objKey = keys[j];
-        var objVal = container[objKey];
-        if (isTextureLike(objVal)) {
-          target[objKey] = objVal;
-          var nko = normalizeSpriteKey(objKey);
-          if (nko && !target[nko]) target[nko] = objVal;
-        }
-        if (objVal && objVal.textures) collectTextures(target, objVal.textures);
-        if (objVal && objVal.frames) collectTextures(target, objVal.frames);
-        if (objVal && objVal._managedTextures) collectTextures(target, objVal._managedTextures);
-        if (objVal && objVal._boundTextures) collectTextures(target, objVal._boundTextures);
-        if (objVal && objVal._uploads) collectTextures(target, objVal._uploads);
-        if (objVal && objVal.texture && typeof objVal.texture === 'object') {
-          if (objVal.texture._managedTextures) collectTextures(target, objVal.texture._managedTextures);
-          if (objVal.texture._boundTextures) collectTextures(target, objVal.texture._boundTextures);
-          if (objVal.texture._uploads) collectTextures(target, objVal.texture._uploads);
-        }
-      }
-    }
-  }
-
-  function readDims(value) {
-    if (!value || typeof value !== 'object') return null;
-    var w = Number(
-      value.width ??
-      value.w ??
-      value.pixelWidth ??
-      (value.source && (value.source.width ?? value.source.pixelWidth)) ??
-      (value.resource && (value.resource.width ?? value.resource.pixelWidth))
-    );
-    var h = Number(
-      value.height ??
-      value.h ??
-      value.pixelHeight ??
-      (value.source && (value.source.height ?? value.source.pixelHeight)) ??
-      (value.resource && (value.resource.height ?? value.resource.pixelHeight))
-    );
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
-    return { w: w, h: h };
-  }
-
-  function dimsMatch(a, b) {
-    if (!a || !b) return false;
-    return Math.abs(a.w - b.w) <= 3 && Math.abs(a.h - b.h) <= 3;
-  }
-
-  function atlasTokens(atlasPath, imagePath) {
-    var tokens = [];
-    function add(v) {
-      var n = normalizeSpriteKey(v);
-      if (n) tokens.push(n);
-    }
-    add(atlasPath);
-    add(imagePath);
-    var p = String(atlasPath || '').replace(/[?#].*$/, '');
-    var i = String(imagePath || '').replace(/[?#].*$/, '');
-    add(p.replace(/\\.[^/.]+$/i, ''));
-    add(i.replace(/\\.[^/.]+$/i, ''));
-    var ps = p.split('/').filter(Boolean).pop() || '';
-    var is = i.split('/').filter(Boolean).pop() || '';
-    add(ps);
-    add(is);
-    add(ps.replace(/\\.[^/.]+$/i, ''));
-    add(is.replace(/\\.[^/.]+$/i, ''));
-    return Array.from(new Set(tokens));
-  }
-
-  function scoreLabels(labels, tokens) {
-    var score = 0;
-    for (var i = 0; i < labels.length; i++) {
-      var n = normalizeSpriteKey(labels[i]);
-      if (!n) continue;
-      for (var t = 0; t < tokens.length; t++) {
-        var tok = tokens[t];
-        if (!tok) continue;
-        if (n === tok) score += 8;
-        else if (n.indexOf(tok) >= 0 || tok.indexOf(n) >= 0) score += 3;
-      }
-    }
-    return score;
-  }
-
-  function findRuntimeAtlasSource(atlasPath, imagePath, atlasData) {
-    var expected = atlasData && atlasData.meta && atlasData.meta.size
-      ? { w: Number(atlasData.meta.size.w || 0), h: Number(atlasData.meta.size.h || 0) }
-      : null;
-    var tokens = atlasTokens(atlasPath, imagePath);
-
-    var renderer =
-      (window.__QPM_PIXI_CAPTURED__ && window.__QPM_PIXI_CAPTURED__.renderer) ||
-      (window.__QPM_PIXI_CAPTURED__ && window.__QPM_PIXI_CAPTURED__.app && window.__QPM_PIXI_CAPTURED__.app.renderer) ||
-      null;
-    var texSys = renderer && renderer.texture;
-    if (!texSys) return null;
-
-    var best = null;
-    function consider(key, value) {
-      if (!value || typeof value !== 'object') return;
-      var src = value.source || value._source || value;
-      if (!src || typeof src !== 'object') return;
-      var dims = readDims(src) || readDims(value);
-      var labels = [
-        String(key || ''),
-        value.label,
-        value.src,
-        value.url,
-        src.label,
-        src.src,
-        src.url,
-        src.path,
-        src.resource && src.resource.src,
-        src.resource && src.resource.url
-      ].filter(Boolean);
-
-      var score = scoreLabels(labels, tokens);
-      if (expected && dimsMatch(dims, expected)) score += 6;
-      if (score <= 0) return;
-
-      if (!best || score > best.score) {
-        best = { score: score, src: src, dims: dims, labels: labels };
-      }
-    }
-
-    var bound = texSys._boundTextures;
-    if (Array.isArray(bound)) {
-      for (var i = 0; i < bound.length; i++) {
-        consider('bound[' + i + ']', bound[i]);
-      }
-    }
-
-    var managed = texSys._managedTextures;
-    if (managed && typeof managed.entries === 'function') {
-      try {
-        var it = managed.entries();
-        var step = it.next();
-        var count = 0;
-        while (!step.done && count++ < 2000) {
-          var pair = step.value;
-          if (Array.isArray(pair) && pair.length >= 2) {
-            consider(pair[0], pair[1]);
-            consider('managed:key', pair[0]);
-          }
-          step = it.next();
-        }
-      } catch (_) {}
-    }
-
-    if (!best) return null;
-    return best.src;
-  }
-
-  function buildAtlasTexturesFromSource(atlasData, atlasSource) {
-    var P = window.PIXI || window.__PIXI__;
-    if (!P || !P.Texture || !P.Rectangle) return {};
-
-    var Texture = P.Texture;
-    var Rectangle = P.Rectangle;
-    var textures = {};
-    var frames = (atlasData && atlasData.frames) || {};
-    var keys = Object.keys(frames);
-
-    for (var i = 0; i < keys.length; i++) {
-      var key = keys[i];
-      var fd = frames[key];
-      if (!fd || !fd.frame) continue;
-
-      var fr = fd.frame;
-      var rot = fd.rotated ? 2 : 0;
-      var w = fd.rotated ? fr.h : fr.w;
-      var h = fd.rotated ? fr.w : fr.h;
-      var frame = new Rectangle(fr.x, fr.y, w, h);
-      var ss = fd.sourceSize || { w: fr.w, h: fr.h };
-      var orig = new Rectangle(0, 0, ss.w, ss.h);
-
-      var trim = null;
-      if (fd.trimmed && fd.spriteSourceSize) {
-        var s = fd.spriteSourceSize;
-        trim = new Rectangle(s.x, s.y, s.w, s.h);
-      }
-
-      var t = null;
-      try {
-        t = new Texture({ source: atlasSource, frame: frame, orig: orig, trim: trim || undefined, rotate: rot || 0 });
-      } catch (_) {
-        try {
-          t = new Texture(atlasSource, frame, orig, trim || undefined, rot || 0);
-        } catch (_) {}
-      }
-      if (!t) continue;
-
-      if (fd.anchor) {
-        try {
-          if (t.defaultAnchor && typeof t.defaultAnchor.set === 'function') {
-            t.defaultAnchor.set(fd.anchor.x, fd.anchor.y);
-          } else {
-            t.defaultAnchor = { x: fd.anchor.x, y: fd.anchor.y };
-          }
-        } catch (_) {}
-      }
-
-      try { t.label = key; } catch (_) {}
-      try { t.updateUvs && t.updateUvs(); } catch (_) {}
-      textures[key] = t;
-    }
-
-    return textures;
-  }
-
-  function bridgeLoadAtlas(atlasPath, _base, imagePath, atlasData) {
-    var bridge = window.__QPM_SPRITE_BRIDGE__;
-    if (!bridge) return Promise.resolve({ ok: false, count: 0, source: 'none', error: 'bridge-missing' });
-
-    var cached = bridge.atlas && bridge.atlas[atlasPath];
-    if (cached && cached.textures && Object.keys(cached.textures).length > 0) {
-      return Promise.resolve({
-        ok: true,
-        count: Object.keys(cached.textures).length,
-        source: cached.source || 'cache',
-        loadedAt: cached.loadedAt || 0
-      });
-    }
-
-    // Passive diagnostics mode: bridge does not actively load or reconstruct atlas textures.
-    bridge.__passiveMisses = bridge.__passiveMisses || {};
-    if (!bridge.__passiveMisses[atlasPath]) {
-      bridge.__passiveMisses[atlasPath] = true;
-      bridge.stats.errors = (bridge.stats.errors || 0) + 1;
-    }
-    bridge.stats.lastError = bridge.stats.lastError || 'passive-loader-disabled';
-    return Promise.resolve({
-      ok: false,
-      count: 0,
-      source: 'passive',
-      error: bridge.stats.lastError
-    });
-  }
-
-  function bridgeGetAtlasTextures(atlasPath) {
-    var bridge = window.__QPM_SPRITE_BRIDGE__;
-    var rec = bridge && bridge.atlas && bridge.atlas[atlasPath];
-    return rec && rec.textures ? rec.textures : null;
-  }
-
-  function bridgeSnapshot() {
-    var bridge = window.__QPM_SPRITE_BRIDGE__;
-    var out = {
-      atlas: {},
-      stats: bridge && bridge.stats ? bridge.stats : {}
-    };
-    if (bridge && bridge.atlas) {
-      var names = Object.keys(bridge.atlas);
-      for (var i = 0; i < names.length; i++) {
-        var name = names[i];
-        var rec = bridge.atlas[name];
-        var count = rec && rec.textures ? Object.keys(rec.textures).length : 0;
-        out.atlas[name] = {
-          loadedAt: rec && rec.loadedAt ? rec.loadedAt : 0,
-          source: rec && rec.source ? rec.source : null,
-          candidate: rec && rec.candidate ? rec.candidate : null,
-          count: count
-        };
-      }
-    }
-    return out;
-  }
-
-  window.__QPM_SPRITE_BRIDGE__.loadAtlas = bridgeLoadAtlas;
-  window.__QPM_SPRITE_BRIDGE__.getAtlasTextures = bridgeGetAtlasTextures;
-  window.__QPM_SPRITE_BRIDGE__.snapshot = bridgeSnapshot;
-  
-  // Hook into a global function, preserving any previous hook
-  function hook(name, cb) {
-    var prev = window[name];
-    window[name] = function() {
-      try { cb.apply(this, arguments); }
-      finally { if (typeof prev === 'function') try { prev.apply(this, arguments); } catch(e) {} }
-    };
-  }
-  
-  // Hook PIXI initialization
-  hook('__PIXI_APP_INIT__', function(app, version) {
-    if (app) {
-      window.__QPM_PIXI_CAPTURED__.app = app;
-      window.__QPM_PIXI_CAPTURED__.version = version;
-      if (app.renderer) window.__QPM_PIXI_CAPTURED__.renderer = app.renderer;
-    }
-  });
-  
-  hook('__PIXI_RENDERER_INIT__', function(renderer, version) {
-    if (renderer) {
-      window.__QPM_PIXI_CAPTURED__.renderer = renderer;
-      window.__QPM_PIXI_CAPTURED__.version = version;
-    }
-  });
-  
-  // Poll for already-existing PIXI globals
-  function checkExisting() {
-    var maybeApp = window.__PIXI_APP__ || window.PIXI_APP || window.app;
-    if (maybeApp && maybeApp.renderer) {
-      window.__QPM_PIXI_CAPTURED__.app = maybeApp;
-      window.__QPM_PIXI_CAPTURED__.renderer = maybeApp.renderer;
-    }
-    var maybeRdr = window.__PIXI_RENDERER__ || window.PIXI_RENDERER__;
-    if (maybeRdr) {
-      window.__QPM_PIXI_CAPTURED__.renderer = maybeRdr;
-    }
-  }
-  
-  checkExisting();
-  var pollCount = 0;
-  var pollInterval = setInterval(function() {
-    checkExisting();
-    if (++pollCount >= 100 || (window.__QPM_PIXI_CAPTURED__.app && window.__QPM_PIXI_CAPTURED__.renderer)) {
-      clearInterval(pollInterval);
-    }
-  }, 100);
-})();
-`;
-
   try {
     const script = document.createElement('script');
-    script.textContent = scriptContent;
+    script.textContent = PIXI_CAPTURE_PAGE_SCRIPT;
     (document.head || document.documentElement).appendChild(script);
     script.remove();
   } catch {
@@ -654,18 +245,10 @@ export function createPixiHooks(): PixiHooks {
     PIXI_VER = v;
     if (wasUnset) appResolver?.(a);
     attachContextLossListener(a);
-    // Update the shared captured object so gardenFilters and other features
-    // can access the PIXI app via root.__QPM_PIXI_CAPTURED__.
-    // On non-Discord, the inline script handles this; on Discord we must do
-    // it here since the inline script is skipped due to CSP.
-    try {
-      const captured = root.__QPM_PIXI_CAPTURED__;
-      if (captured) {
-        captured.app = a;
-        captured.version = v;
-        if (a?.renderer) captured.renderer = a.renderer;
-      }
-    } catch { /* Xray wrapper edge case - ignore */ }
+    // Repair the shared capture so gardenFilters and other direct consumers
+    // of root.__QPM_PIXI_CAPTURED__ see it — creates the object if the
+    // injected script never ran (Discord CSP, late load order).
+    repairPixiCapture({ app: a, renderer: a?.renderer ?? null, version: v ?? null }, 'hook-app-init');
   });
 
   hook('__PIXI_RENDERER_INIT__', (r: any, v: any) => {
@@ -675,13 +258,7 @@ export function createPixiHooks(): PixiHooks {
     RDR = r;
     PIXI_VER = v;
     if (wasUnset) rdrResolver?.(r);
-    try {
-      const captured = root.__QPM_PIXI_CAPTURED__;
-      if (captured) {
-        captured.renderer = r;
-        captured.version = v;
-      }
-    } catch { /* ignore */ }
+    repairPixiCapture({ renderer: r, version: v ?? null }, 'hook-renderer-init');
   });
 
   spriteLog('debug', 'pixi-hook-setup', 'Hook setup', {
@@ -789,6 +366,16 @@ export function createPixiHooks(): PixiHooks {
     }
 
     if (APP) attachContextLossListener(APP);
+
+    // Write back Source 2/3 resolutions — they only set module-local APP/RDR,
+    // leaving __QPM_PIXI_CAPTURED__ consumers dead for the session otherwise.
+    // Fill-only no-op when Source 1 (the capture itself) supplied the values.
+    if (APP || RDR) {
+      repairPixiCapture(
+        { app: APP, renderer: RDR ?? APP?.renderer ?? null, version: PIXI_VER },
+        'hooks-fallback',
+      );
+    }
   };
 
   tryResolveExisting();

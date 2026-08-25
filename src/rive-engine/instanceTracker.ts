@@ -1,6 +1,6 @@
 // src/rive-engine/instanceTracker.ts
 
-import { pageWindow } from '../core/pageContext';
+import { getPixiCapture } from '../core/pixiCapture';
 import type {
   RiveInstance, RiveArtboard, RiveStateMachine, RiveViewModelInstance,
 } from './types';
@@ -86,9 +86,7 @@ interface BatchRendererInfo {
 }
 
 function findBatchRenderer(): BatchRendererInfo | null {
-  const captured = (pageWindow as Record<string, unknown>).__QPM_PIXI_CAPTURED__ as
-    { app?: Record<string, unknown> } | undefined;
-  const app = captured?.app;
+  const app = getPixiCapture()?.app;
   if (!app) return null;
 
   const direct = app.riveSpriteBatchRenderer;

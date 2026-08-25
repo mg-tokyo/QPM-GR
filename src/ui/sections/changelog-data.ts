@@ -2,6 +2,19 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.28",
+    date: "2026-08-25",
+    notes: [
+      "Fixed Bulk Favorite buttons and other canvas-anchored features (item tooltips, storage value and inventory capacity overlays, garden filters, texture swapper, shop Buy All, pet Rive tracking) staying dead for the whole session when QPM is not first in your userscript load order, every late PIXI resolution path now repairs the shared capture so those features recover no matter where QPM sits in the load order",
+      "Fixed Bulk Favorite depending on incidental page changes to notice the inventory opening, it now reacts directly to the game's active modal state with a brief settle burst, no longer mis-anchors to another mod's canvas, and its diagnostics row only reports ok once the inventory anchor has actually resolved",
+      "Fixed Rive pet sprites, texture swaps and captured catalogs occasionally missing for a session when browser storage was slow to initialize, the Rive runtime trap, .riv fetch hook and catalog capture hooks now install before QPM waits on storage so they beat the game's first asset loads",
+      "Improved coexistence with other Magic Garden mods, QPM no longer overwrites another mod's sprite service or console helper globals, only restores its fetch, sendMessage, Object.keys and Rive runtime patches when its own wrapper is still on top, checks that a shared jotai store actually works before trusting it and recaptures if one stops responding, and finds the Activity Log content pane by structure instead of by position",
+      "Fixed the shop enhancer injecting a second Buy All button alongside Aries Mod when Aries loads after QPM, QPM now keeps watching for a late Aries for 60 seconds and yields to it with a notice",
+      "Fixed Super Cleanser key presses being swallowed by Insta Action, its handler now registers ahead of Garden QoL so it always gets first look at the key",
+      "Fixed Tower Defense Pinecone Grove Perma-Spikes piles being wiped at the end of every round, round-end cleanup now runs through the hook that honors the Perma-Spikes upgrade so permanent piles survive into the next round",
+    ],
+  },
+  {
     version: "3.3.27",
     date: "2026-08-20",
     notes: [

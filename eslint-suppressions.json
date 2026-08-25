@@ -100,11 +100,6 @@
       "count": 1
     }
   },
-  "src/features/locker/guard.ts": {
-    "no-restricted-properties": {
-      "count": 7
-    }
-  },
   "src/features/mutations/reminder/highlights.ts": {
     "qpm/no-inline-ui-strings": {
       "count": 1
@@ -284,9 +279,6 @@
     }
   },
   "src/sprite-v2/hooks.ts": {
-    "max-lines": {
-      "count": 1
-    },
     "no-restricted-globals": {
       "count": 1
     }

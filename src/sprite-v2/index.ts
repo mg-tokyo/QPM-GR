@@ -8,6 +8,8 @@ import { clearVariantCache, getCacheStats } from './cache';
 import { clearSpriteDataUrlCache } from './compat';
 import * as api from './api';
 import { yieldToBrowser, delay } from '../utils/scheduling/scheduling';
+import { repairPixiCapture } from '../core/pixiCapture';
+import { exposeSpriteGlobals, exposeSpriteCatalogApi } from './exposeGlobals';
 import { spriteLog } from './diagnostics';
 import { ctxRef, createInitialState } from './service/state';
 import { notifyWarmup } from './service/warmup';
@@ -101,6 +103,9 @@ async function start(): Promise<SpriteService> {
   if (!renderer) {
     throw new Error('No PIXI renderer found');
   }
+  // Late-boot retries funnel through start(); this heals __QPM_PIXI_CAPTURED__
+  // for direct consumers even when every hook path lost the race.
+  repairPixiCapture({ app: app ?? null, renderer, version: typeof pixiVersion === 'string' ? pixiVersion : null }, 'sprite-boot');
 
   ctxRef.current!.state.ctors = getCtors(app, renderer);
   ctxRef.current!.state.runtimeTextureHints = Array.isArray(resolved?.runtimeHints)
@@ -402,26 +407,9 @@ async function start(): Promise<SpriteService> {
     },
   };
 
-  // Expose to global (both runtime window and userscript window for console compatibility)
-  const win = getRuntimeWindow();
-  const targets = new Set<any>([win, window]);
-  for (const target of targets) {
-    if (!target) continue;
-    (target as any).__MG_SPRITE_STATE__ = ctxRef.current.state;
-    (target as any).__MG_SPRITE_CFG__ = ctxRef.current.cfg;
-    (target as any).__MG_SPRITE_SERVICE__ = service;
-    (target as any).MG_SPRITE_HELPERS = service;
-  }
-
-  for (const target of targets) {
-    if (!target) continue;
-    (target as any).getSpriteWithMutations = service.getSpriteWithMutations;
-    (target as any).getBaseSprite = service.getBaseSprite;
-    (target as any).buildSpriteVariant = service.buildVariant;
-    (target as any).listSpritesByCategory = service.list;
-    (target as any).renderSpriteToCanvas = service.renderToCanvas;
-    (target as any).renderSpriteToDataURL = service.renderToDataURL;
-  }
+  // Expose to global (both runtime window and userscript window for console
+  // compatibility) — collision-safe rules live in exposeGlobals.ts.
+  exposeSpriteGlobals(service);
 
   const spriteCatalogApi = {
     open() {
@@ -462,10 +450,7 @@ async function start(): Promise<SpriteService> {
     },
     curVariant: () => computeVariantSignature(ctxRef.current!.state),
   };
-  for (const target of targets) {
-    if (!target) continue;
-    (target as any).MGSpriteCatalog = spriteCatalogApi;
-  }
+  exposeSpriteCatalogApi(spriteCatalogApi);
 
   spriteLog('debug', 'sprite-v2-initialized', 'Sprite system initialized', {
     version: ctxRef.current.state.version,

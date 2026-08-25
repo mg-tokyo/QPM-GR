@@ -11,16 +11,19 @@ import { extractCtorsFromRows, injectPanelBuyAll, removeBuyAllButtons, resetCtor
 import { removeInjected } from '../../../core/pixiScene';
 import type { ShopCategory } from '../../../types/shops';
 import { storage, SHOP_ENHANCER_MODE_KEY, type ShopEnhancerMode } from '../../../utils/storage';
-import { isAriesInstalled } from '../../../integrations/ariesDetection';
+import { isAriesInstalled, watchForLateAries } from '../../../integrations/ariesDetection';
 import { notifyOncePerSession } from '../../../core/notifications';
 import { t } from '../../../i18n';
 
 const POLL_TIMER_ID = 'shop-enhancer-poll';
 const POLL_INTERVAL_MS = 300;
 
+const LATE_ARIES_WINDOW_MS = 60_000;
+
 let started = false;
 let activeCategory: ShopCategory | null = null;
 let lastChildCount = -1;
+let lateAriesCleanup: (() => void) | null = null;
 
 function applyEnhancements(category: ShopCategory): void {
   diag.debug(`Applying enhancements for ${category}`);
@@ -134,6 +137,24 @@ export function startShopEnhancer(): void {
 
   started = true;
   startDetection(handleShopOpen, handleShopClose);
+
+  // Auto mode started because Aries was absent — but Aries may just be later
+  // in the load order. Watch for a late detection and yield to it (otherwise
+  // both mods inject Buy All).
+  if (mode === 'auto') {
+    lateAriesCleanup = watchForLateAries(LATE_ARIES_WINDOW_MS, () => {
+      lateAriesCleanup = null;
+      diag.debug('Aries detected late — stopping shop enhancer');
+      stopShopEnhancer();
+      notifyOncePerSession({
+        key: 'shopEnhancer.disabledForAries',
+        feature: 'shopEnhancer',
+        level: 'info',
+        message: t('feature.shopEnhancer.disabledForAries'),
+      });
+    });
+  }
+
   publishOk('Started', { mode });
   diag.debug('Started');
 }
@@ -141,6 +162,10 @@ export function startShopEnhancer(): void {
 export function stopShopEnhancer(): void {
   if (!started) return;
   started = false;
+  if (lateAriesCleanup) {
+    lateAriesCleanup();
+    lateAriesCleanup = null;
+  }
   timerManager.unregister(POLL_TIMER_ID);
   stopDetection();
   resetCtorCache();

@@ -73,6 +73,25 @@ import {
   buildDisplayLogsWithHistory,
 } from './patchHooks';
 
+// Structural fallback for the content pane — the old `querySelectorAll('div.McFlex')[1]`
+// was positional and broke the moment another mod inserted an earlier McFlex.
+// The content pane is the McFlex that directly contains a list-like McFlex
+// child (same structure the list derivation below relies on).
+function findContentByStructure(root: HTMLElement): HTMLElement | null {
+  for (const el of Array.from(root.querySelectorAll('div.McFlex'))) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (el.getAttribute(TOOLBAR_ATTR) === '1') continue;
+    const hasListChild = Array.from(el.children).some((child) =>
+      child instanceof HTMLElement
+      && child.classList.contains('McFlex')
+      && child.getAttribute(TOOLBAR_ATTR) !== '1');
+    if (hasListChild) return el;
+  }
+  return null;
+}
+
+let contentAnchorWarned = false;
+
 function findActivityModal(): ModalRef | null {
   const titles = Array.from(document.querySelectorAll(TITLE_SELECTOR));
   const title = titles.find((node) => /activity\s*log/i.test(node.textContent || ''));
@@ -82,8 +101,16 @@ function findActivityModal(): ModalRef | null {
   if (!(root instanceof HTMLElement)) return null;
 
   const content = root.querySelector('div.McFlex.css-iek5kf')
-    ?? root.querySelectorAll('div.McFlex')[1];
-  if (!(content instanceof HTMLElement)) return null;
+    ?? findContentByStructure(root);
+  if (!(content instanceof HTMLElement)) {
+    // Modal exists but no structurally-valid content pane — bail rather than
+    // inject into the wrong node. Warn once per session.
+    if (!contentAnchorWarned) {
+      contentAnchorWarned = true;
+      warnFeature('QPM-FEATURE-004', { what: 'modal:content-anchor' });
+    }
+    return null;
+  }
 
   const list = (
     content.querySelector(NATIVE_LIST_SELECTOR)

@@ -1,9 +1,10 @@
 import { storage } from '../../../utils/storage';
 import { createNamedLogger } from '../../../diagnostics/logger';
 import { buildError } from '../../../diagnostics/result';
+import { healthBus } from '../../../diagnostics/healthBus';
 import type { Subsystem } from '../../../diagnostics/types';
 import { CONFIG_KEY, DEFAULT_CONFIG } from './constants';
-import type { BulkFavoriteConfig } from './types';
+import type { AnchorMissReason, BulkFavoriteConfig } from './types';
 
 export const FEATURE_SUBSYSTEM: Subsystem = 'feature:bulkFavorite';
 export const FEATURE_NAME = 'bulkFavorite';
@@ -28,8 +29,34 @@ export const ui = {
   lastRenderSignature: '',
   lastLayoutSignature: '',
   anchorMissCount: 0,
+  lastAnchorMiss: null as AnchorMissReason | null,
   lockUiSpriteCache: null as { locked: string; unlocked: string } | null,
 };
+
+// Honest health: 'ok' only after a real anchor resolve; degraded (via the
+// FEATURE-004 fan-out) when the modal is known-open but the anchor never
+// settles. The bus owns the degraded→ok hysteresis (§7.2).
+let anchorHealthOk = false;
+
+export function publishAnchorResolved(): void {
+  if (anchorHealthOk) return;
+  anchorHealthOk = true;
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'ok',
+    message: 'Inventory anchor resolved',
+  });
+}
+
+export function noteAnchorDegraded(reason: AnchorMissReason): void {
+  anchorHealthOk = false;
+  warnFeature('QPM-FEATURE-004', { what: 'anchor:resolve', reason });
+}
+
+export function resetAnchorHealth(): void {
+  anchorHealthOk = false;
+}
 
 function loadConfig(): BulkFavoriteConfig {
   const saved = storage.get<Partial<BulkFavoriteConfig> | null>(CONFIG_KEY, null);

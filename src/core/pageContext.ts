@@ -62,11 +62,35 @@ function wrapForPageWindow(value: unknown): unknown {
   return value;
 }
 
+const warnedCollisions = new Set<string>();
+
 /**
  * Mirror a value onto both the page window and sandbox window.
  * Useful for sharing captured stores across co-existing scripts.
+ * `opts.ifAbsent` skips the write when another script already owns the name
+ * (collisions are logged either way; console.warn directly — pageContext
+ * must stay dependency-light, no logger import).
  */
-export function shareGlobal(name: string, value: unknown): void {
+export function shareGlobal(name: string, value: unknown, opts?: { ifAbsent?: boolean }): void {
+  let existing: unknown;
+  try {
+    existing = (pageWindowRef as unknown as Record<string, unknown>)[name];
+  } catch {
+    existing = undefined;
+  }
+  const collides = existing !== undefined && existing !== null && existing !== value;
+  if (collides && opts?.ifAbsent) {
+    if (!warnedCollisions.has(name)) {
+      warnedCollisions.add(name);
+      console.warn(`[QPM] shareGlobal: '${name}' already defined by another script — leaving as-is`);
+    }
+    return;
+  }
+  if (collides && !warnedCollisions.has(name)) {
+    warnedCollisions.add(name);
+    console.warn(`[QPM] shareGlobal: overwriting existing '${name}'`);
+  }
+
   try {
     (pageWindowRef as unknown as Record<string, unknown>)[name] = wrapForPageWindow(value);
   } catch {}
@@ -75,6 +99,27 @@ export function shareGlobal(name: string, value: unknown): void {
     try {
       (sandboxWindow as unknown as Record<string, unknown>)[name] = value;
     } catch {}
+  }
+}
+
+/**
+ * Get (or create) a plain object global on the PAGE window. Creation goes
+ * through cloneInto on Firefox so page-context readers can see it.
+ * Returns null only if both read and create fail (hostile Xray edge).
+ */
+export function ensurePageObject(name: string): Record<string, unknown> | null {
+  try {
+    const existing = (pageWindowRef as unknown as Record<string, unknown>)[name];
+    if (existing !== null && typeof existing === 'object') {
+      return existing as Record<string, unknown>;
+    }
+  } catch {}
+  try {
+    const created = (isIsolatedContext && _cloneInto ? _cloneInto({}, pageWindowRef) : {}) as Record<string, unknown>;
+    (pageWindowRef as unknown as Record<string, unknown>)[name] = created;
+    return (pageWindowRef as unknown as Record<string, unknown>)[name] as Record<string, unknown>;
+  } catch {
+    return null;
   }
 }
 

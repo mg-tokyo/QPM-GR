@@ -29,6 +29,13 @@ export interface InventoryAnchor {
   source: 'InventoryItems' | 'InventoryContent';
 }
 
+export type AnchorMissReason = 'no-capture' | 'no-canvas' | 'no-modal' | 'below-threshold';
+
+export interface AnchorResolveResult {
+  anchor: InventoryAnchor | null;
+  miss: AnchorMissReason | null;
+}
+
 export interface SidebarLayout {
   placement: SidebarPlacement;
   left: number;

@@ -1,7 +1,7 @@
 import { storage } from '../../../utils/storage';
 import { notify } from '../../../core/notifications';
 import { dispatchCustomEventAll } from '../../../core/pageContext';
-import { pageWindow } from '../../../core/pageContext';
+import { getPixiCapture } from '../../../core/pixiCapture';
 import { serviceReady, onSpritesReady } from '../../../sprite-v2/compat';
 import { invalidateByFamilyRoot as invalidateThumbCache } from '../../../ui/standalone/textureSwapperWindow/thumbnailCache';
 import { invalidateSpecies as invalidateStitcherCache } from '../../../sprite-v2/stitcher';
@@ -519,9 +519,8 @@ export function initTextureSwapper(): () => void {
       ctx.cleanups.push(initPetSwapHook());
 
       try {
-        const captured = (pageWindow as Record<string, unknown>).__QPM_PIXI_CAPTURED__ as
-          { app?: { view?: unknown; canvas?: unknown } } | undefined;
-        const canvas = (captured?.app?.view ?? captured?.app?.canvas) as HTMLCanvasElement | null | undefined;
+        const app = getPixiCapture()?.app as { view?: unknown; canvas?: unknown } | null | undefined;
+        const canvas = (app?.view ?? app?.canvas) as HTMLCanvasElement | null | undefined;
         if (canvas instanceof HTMLCanvasElement) {
           const onRestore = () => {
             ctx.layerBOriginals = new WeakMap();

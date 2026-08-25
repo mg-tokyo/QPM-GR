@@ -398,23 +398,47 @@ const RECONNECT_POLL_MS = 2000;
 let patchedConnection: RoomConnectionLike | null = null;
 let originalSendMessage: ((payload: unknown) => unknown) | null = null;
 let originalTrySendMessageNow: ((payload: unknown) => boolean) | null = null;
+let wrappedSendRef: ((payload: unknown) => unknown) | null = null;
+let wrappedTryRef: ((payload: unknown) => boolean) | null = null;
 let stopReconnectTimer: (() => void) | null = null;
 
 function restoreNativePatch(): void {
   if (!patchedConnection) return;
+  // Identity guard per slot: only restore what still holds OUR wrapper.
+  // A wrapper another script layered on top stays; ours delegates to the
+  // saved original via closure, so the chain remains sound either way.
   if (originalSendMessage) {
-    try { patchedConnection.sendMessage = originalSendMessage; } catch { /* noop */ }
+    try {
+      // eslint-disable-next-line no-restricted-properties -- locker guard IS the sanctioned sendMessage patch layer; this is unwrap, not a send
+      if (patchedConnection.sendMessage === wrappedSendRef) {
+        // eslint-disable-next-line no-restricted-properties -- restoring the saved original, not sending
+        patchedConnection.sendMessage = originalSendMessage;
+      } else {
+        log.debug('sendMessage re-wrapped by third party — leaving chain intact');
+      }
+    } catch { /* noop */ }
   }
   if (originalTrySendMessageNow) {
-    try { patchedConnection.trySendMessageNow = originalTrySendMessageNow; } catch { /* noop */ }
+    try {
+      // eslint-disable-next-line no-restricted-properties -- locker guard IS the sanctioned patch layer; identity check, not a send
+      if (patchedConnection.trySendMessageNow === wrappedTryRef) {
+        // eslint-disable-next-line no-restricted-properties -- restoring the saved original, not sending
+        patchedConnection.trySendMessageNow = originalTrySendMessageNow;
+      } else {
+        log.debug('trySendMessageNow re-wrapped by third party — leaving chain intact');
+      }
+    } catch { /* noop */ }
   }
   patchedConnection = null;
   originalSendMessage = null;
   originalTrySendMessageNow = null;
+  wrappedSendRef = null;
+  wrappedTryRef = null;
 }
 
 function ensureNativeHookPatched(): void {
   const room = (pageWindow as PageWindowWithRoomConnection).MagicCircle_RoomConnection;
+  // eslint-disable-next-line no-restricted-properties -- locker guard IS the sanctioned patch layer; presence check, not a send
   if (!room || typeof room.sendMessage !== 'function') return;
   if (patchedConnection === room) return;
 
@@ -422,6 +446,7 @@ function ensureNativeHookPatched(): void {
 
   // ── sendMessage: catches the classic path (HatchEgg, SellPet, SellAllCrops,
   //    PickupDecor, RemoveGardenObject, PickupObject, ...).
+  // eslint-disable-next-line no-restricted-properties -- capturing the original to wrap; the wrapper is what enforces the locker rules
   const originalSend = room.sendMessage.bind(room);
   const wrappedSend = (payload: unknown): unknown => {
     if (payload && typeof payload === 'object') {
@@ -445,6 +470,7 @@ function ensureNativeHookPatched(): void {
   //    mirrors "connection closed" semantics, which sendQuinoaRpc handles by
   //    rejecting the pending command — the callers use `void sendQuinoaRpc(...)`
   //    so the rejection is swallowed. The user still sees the Locker toast.
+  // eslint-disable-next-line no-restricted-properties -- capturing the original to wrap; the wrapper is what enforces the locker rules
   const rawTry = room.trySendMessageNow;
   const originalTry = typeof rawTry === 'function' ? rawTry.bind(room) : null;
   const wrappedTry = originalTry
@@ -467,18 +493,24 @@ function ensureNativeHookPatched(): void {
     : null;
 
   try {
+    // eslint-disable-next-line no-restricted-properties -- installing the locker wrapper (the sanctioned patch), not sending
     room.sendMessage = wrappedSend;
     if (wrappedTry) {
+      // eslint-disable-next-line no-restricted-properties -- installing the locker wrapper (the sanctioned patch), not sending
       room.trySendMessageNow = wrappedTry;
     }
     patchedConnection = room;
     originalSendMessage = originalSend;
     originalTrySendMessageNow = originalTry;
+    wrappedSendRef = wrappedSend;
+    wrappedTryRef = wrappedTry;
     publishOk();
   } catch (err) {
     patchedConnection = null;
     originalSendMessage = null;
     originalTrySendMessageNow = null;
+    wrappedSendRef = null;
+    wrappedTryRef = null;
     warnFeature('QPM-FEATURE-003', { what: 'patch' }, err);
   }
 }

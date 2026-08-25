@@ -1,4 +1,4 @@
-import { pageWindow } from '../../../core/pageContext';
+import { getPixiRefs } from '../../../core/pixiCapture';
 import {
   MIN_INVENTORY_WIDTH,
   MIN_INVENTORY_HEIGHT,
@@ -6,18 +6,14 @@ import {
   MIN_OPEN_ITEM_VIEW_COUNT,
 } from './constants';
 import type {
+  AnchorResolveResult,
   InventoryAnchor,
   PixiBounds,
-  PixiCaptureLike,
   PixiDisplayObject,
   PixiNodeMatch,
   PixiRendererLike,
   Rect,
 } from './types';
-
-function getPageWindow(): Window & typeof globalThis {
-  return pageWindow as Window & typeof globalThis;
-}
 
 function getDisplayLabel(node: PixiDisplayObject): string {
   return typeof node.label === 'string' ? node.label : '';
@@ -145,17 +141,6 @@ function countVisibleInventoryItemViews(
   return count;
 }
 
-function resolveRendererCanvas(renderer: PixiRendererLike): HTMLCanvasElement | null {
-  const classCanvas = document.querySelector('.QuinoaCanvas canvas');
-  if (classCanvas instanceof HTMLCanvasElement) return classCanvas;
-
-  if (renderer.view instanceof HTMLCanvasElement) return renderer.view;
-  if (renderer.canvas instanceof HTMLCanvasElement) return renderer.canvas;
-
-  const anyCanvas = document.querySelector('canvas');
-  return anyCanvas instanceof HTMLCanvasElement ? anyCanvas : null;
-}
-
 function toCssRect(bounds: PixiBounds, renderer: PixiRendererLike, canvas: HTMLCanvasElement): Rect | null {
   const canvasRect = canvas.getBoundingClientRect();
   if (canvasRect.width <= 0 || canvasRect.height <= 0) return null;
@@ -192,28 +177,24 @@ function isRectOpenAndVisible(rect: Rect): boolean {
   return true;
 }
 
-export function resolveInventoryAnchor(): InventoryAnchor | null {
-  const root = getPageWindow() as Window & typeof globalThis & { __QPM_PIXI_CAPTURED__?: PixiCaptureLike };
-  const captured = root.__QPM_PIXI_CAPTURED__;
-  if (!captured) return null;
+export function resolveInventoryAnchor(): AnchorResolveResult {
+  const refs = getPixiRefs();
+  if (!refs?.stage) return { anchor: null, miss: 'no-capture' };
+  const renderer = refs.renderer as PixiRendererLike;
+  const stage = refs.stage as PixiDisplayObject;
 
-  const app = captured.app;
-  const renderer = captured.renderer ?? app?.renderer;
-  const stage = app?.stage;
-  if (!renderer || !stage) return null;
-
-  const canvas = resolveRendererCanvas(renderer);
-  if (!canvas) return null;
+  const canvas = refs.canvas;
+  if (!canvas) return { anchor: null, miss: 'no-canvas' };
 
   // Guard against HUD/hotbar containers that may reuse inventory-like labels.
   // The actual full inventory view is wrapped by InventoryModal when open.
   const modalMatch = findLargestNodeByLabel(stage, (label) => label === 'InventoryModal');
-  if (!modalMatch) return null;
+  if (!modalMatch) return { anchor: null, miss: 'no-modal' };
 
   const modalRect = toCssRect(modalMatch.bounds, renderer, canvas);
-  if (!modalRect) return null;
+  if (!modalRect) return { anchor: null, miss: 'no-modal' };
   if (modalRect.width < window.innerWidth * 0.45 || modalRect.height < window.innerHeight * 0.35) {
-    return null;
+    return { anchor: null, miss: 'no-modal' };
   }
 
   const itemsMatch = findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryItems');
@@ -233,9 +214,10 @@ export function resolveInventoryAnchor(): InventoryAnchor | null {
       MIN_OPEN_ITEM_VIEW_COUNT,
     );
     if (viewCount >= MIN_OPEN_ITEM_VIEW_COUNT) {
-      return { rect, source: candidate.source };
+      const anchor: InventoryAnchor = { rect, source: candidate.source };
+      return { anchor, miss: null };
     }
   }
 
-  return null;
+  return { anchor: null, miss: 'below-threshold' };
 }

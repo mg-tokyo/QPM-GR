@@ -28,6 +28,7 @@ import { startMutationReminder } from '../features/mutations/reminder';
 import { startMutationTracker } from '../features/mutations/tracker';
 import { startMountStateTracker } from '../store/mountState';
 import { startLocker } from '../features/locker/index';
+import { startSuperCleanser } from '../features/superCleanser';
 import { startGardenQol } from '../features/gardenQol/index';
 import { startCropBoostTracker } from '../features/pets/cropBoostTracker';
 import { startPetOptimizer } from '../features/pets/optimizer';
@@ -162,6 +163,13 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
 
   // Phase 7c: Action guard
   startLocker();
+  // superCleanser's capture-phase keydown MUST register before gardenQol's
+  // instaAction (which calls stopImmediatePropagation) or it never fires.
+  try {
+    startSuperCleanser();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'phase:superCleanser' }, error);
+  }
   startGardenQol();
   await yieldToBrowser();
 

@@ -102,13 +102,7 @@ export function waitForAriesDetection(timeoutMs = 3000): Promise<boolean> {
     // predicate also matches when such a node is a descendant of an added
     // element (Aries's HUD tree lands as a single mount).
     handle = onAdded(
-      (el) =>
-        el instanceof Element &&
-        (
-          el.classList?.contains('qws2') === true ||
-          el.matches?.('[data-aries-value-row],[data-aries-coin-value]') === true ||
-          el.querySelector?.('.qws2,[data-aries-value-row],[data-aries-coin-value]') !== null
-        ),
+      ariesNodePredicate,
       () => {
         const s = checkSignals();
         if (s !== null) finish(s);
@@ -120,6 +114,60 @@ export function waitForAriesDetection(timeoutMs = 3000): Promise<boolean> {
   });
 
   return inflight;
+}
+
+function ariesNodePredicate(el: unknown): boolean {
+  return el instanceof Element &&
+    (
+      el.classList?.contains('qws2') === true ||
+      el.matches?.('[data-aries-value-row],[data-aries-coin-value]') === true ||
+      el.querySelector?.('.qws2,[data-aries-value-row],[data-aries-coin-value]') !== null
+    );
+}
+
+/**
+ * Keep watching for Aries AFTER a negative one-shot resolve — the 3s window
+ * loses the race when Aries loads late in the userscript order. On late
+ * detection the session cache is updated and `cb` fires once. Returns a
+ * cleanup; also self-cleans after `windowMs` or on detection.
+ */
+export function watchForLateAries(windowMs: number, cb: () => void): () => void {
+  let handle: { disconnect(): void } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let done = false;
+
+  const cleanup = (): void => {
+    if (done) return;
+    done = true;
+    if (handle) { handle.disconnect(); handle = null; }
+    if (timer !== null) { clearTimeout(timer); timer = null; }
+  };
+
+  const fire = (source: DetectionSource): void => {
+    commit(source);
+    cleanup();
+    try { cb(); } catch { /* isolate callback failures */ }
+  };
+
+  const immediate = checkSignals();
+  if (immediate !== null) {
+    // Fire async so the caller finishes registration before the callback runs.
+    timer = setTimeout(() => { timer = null; fire(immediate); }, 0);
+    return cleanup;
+  }
+
+  handle = onAdded(
+    ariesNodePredicate,
+    () => {
+      if (done) return;
+      const s = checkSignals();
+      if (s !== null) fire(s);
+    },
+    { callForExisting: false },
+  );
+
+  timer = setTimeout(cleanup, windowMs);
+  return cleanup;
 }
 
 /** For the healthBus subsystem publish. */

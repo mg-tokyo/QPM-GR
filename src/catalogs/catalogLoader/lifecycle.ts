@@ -16,18 +16,17 @@ import { fetchCosmeticOwnership } from './ownership';
 import { areHookCapturableCatalogsAllCaptured } from './scan';
 import { catalogLog, errorCallbacks, readyCallbacks } from './state';
 
+let hooksInstalledEarly = false;
+
 /**
- * Initialize the catalog loader
- * MUST be called as early as possible (ideally at document-start)
+ * Storage-free slice of catalog-loader init: Object.* hook install + the
+ * removal timers. Called from bootstrap() BEFORE the first await so catalogs
+ * the game iterates during slow GM-storage init aren't missed. Idempotent.
  */
-export function initCatalogLoader(): void {
-  catalogLog('Initializing catalog loader...');
+export function initCatalogHooksEarly(): void {
+  if (hooksInstalledEarly) return;
+  hooksInstalledEarly = true;
   installHooks();
-  startAbilityColorPolling();
-  startMutationColorPolling();
-  startWeatherCatalogPolling();
-  startCosmeticCatalogPolling();
-  void fetchCosmeticOwnership();
 
   // Hook removal policy: interval re-check clears hooks as soon as every
   // hook-capturable catalog is in; hard deadline is an unconditional
@@ -43,6 +42,20 @@ export function initCatalogLoader(): void {
     hooksLifecycle.hardDeadlineTimer = null;
     tryRemoveHooks('hard deadline');
   }, HOOKS_HARD_DEADLINE_MS);
+}
+
+/**
+ * Initialize the catalog loader
+ * MUST be called as early as possible (ideally at document-start)
+ */
+export function initCatalogLoader(): void {
+  catalogLog('Initializing catalog loader...');
+  initCatalogHooksEarly();
+  startAbilityColorPolling();
+  startMutationColorPolling();
+  startWeatherCatalogPolling();
+  startCosmeticCatalogPolling();
+  void fetchCosmeticOwnership();
 }
 
 /**

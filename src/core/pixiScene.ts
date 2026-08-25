@@ -2,7 +2,7 @@
 // Shared PIXI scene graph access, traversal, and manipulation utilities.
 // Consolidates patterns from gardenFilters, bulkFavorite, and universalProbe.
 
-import { pageWindow } from './pageContext';
+import { getPixiCapture } from './pixiCapture';
 import { healthBus } from '../diagnostics/healthBus';
 import type { Subsystem } from '../diagnostics/types';
 import { visibleInterval } from '../utils/scheduling/timerManager';
@@ -100,18 +100,12 @@ export function startPixiSceneDiagnostics(): void {
 
 /** Get the captured PIXI app, renderer, stage, and canvas. */
 export function getPixiRuntime(): PixiRuntime {
-  const root = pageWindow as Window & typeof globalThis & Record<string, unknown>;
-  const captured = isObject(root.__QPM_PIXI_CAPTURED__)
-    ? root.__QPM_PIXI_CAPTURED__
-    : null;
+  const captured = getPixiCapture();
 
-  const app = isObject(captured?.app) ? captured.app as Record<string, unknown> : null;
+  const app = captured?.app ?? null;
   const renderer =
-    isObject(captured?.renderer)
-      ? captured.renderer as Record<string, unknown>
-      : isObject(app?.renderer)
-        ? app.renderer as Record<string, unknown>
-        : null;
+    captured?.renderer
+      ?? (isObject(app?.renderer) ? app.renderer as Record<string, unknown> : null);
   const stage = isObject(app?.stage) ? app.stage as Record<string, unknown> : null;
   const canvas = resolveCanvas(renderer);
 

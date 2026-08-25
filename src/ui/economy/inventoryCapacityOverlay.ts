@@ -20,7 +20,7 @@ import {
   getInventoryCapacityConfig,
   subscribeToInventoryCapacityConfig,
 } from '../../features/economy/inventoryCapacity';
-import { pageWindow } from '../../core/pageContext';
+import { getPixiRefs } from '../../core/pixiCapture';
 import { subscribeAtomValue } from '../../core/atomRegistry';
 import { createNamedLogger } from '../../diagnostics/logger';
 
@@ -48,11 +48,6 @@ interface PixiRenderer {
   screen?: { width?: number; height?: number };
   view?: unknown;
   canvas?: unknown;
-}
-
-interface PixiCapture {
-  app?: { stage?: PixiNode; renderer?: PixiRenderer };
-  renderer?: PixiRenderer;
 }
 
 interface PixiBounds { x: number; y: number; width: number; height: number; }
@@ -101,15 +96,6 @@ function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
   return null;
 }
 
-function resolveCanvas(renderer: PixiRenderer): HTMLCanvasElement | null {
-  const cls = document.querySelector('.QuinoaCanvas canvas');
-  if (cls instanceof HTMLCanvasElement) return cls;
-  if (renderer.view instanceof HTMLCanvasElement) return renderer.view;
-  if (renderer.canvas instanceof HTMLCanvasElement) return renderer.canvas;
-  const any = document.querySelector('canvas');
-  return any instanceof HTMLCanvasElement ? any : null;
-}
-
 // ---------------------------------------------------------------------------
 // Pixi refs
 // ---------------------------------------------------------------------------
@@ -121,16 +107,13 @@ interface PixiRefs {
 }
 
 function getRefs(): PixiRefs | null {
-  const root = pageWindow as Window & typeof globalThis & { __QPM_PIXI_CAPTURED__?: PixiCapture };
-  const captured = root.__QPM_PIXI_CAPTURED__;
-  if (!captured) return null;
-  const app = captured.app;
-  const renderer = captured.renderer ?? app?.renderer;
-  const stage = app?.stage;
-  if (!renderer || !stage) return null;
-  const canvas = resolveCanvas(renderer);
-  if (!canvas) return null;
-  return { renderer, stage, canvas };
+  const shared = getPixiRefs();
+  if (!shared?.stage || !shared.canvas) return null;
+  return {
+    renderer: shared.renderer as PixiRenderer,
+    stage: shared.stage as PixiNode,
+    canvas: shared.canvas,
+  };
 }
 
 // ---------------------------------------------------------------------------

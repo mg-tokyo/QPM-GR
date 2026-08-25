@@ -107,8 +107,15 @@ export function initCustomSkinsInterceptor(): () => void {
 
   return () => {
     if (originalFetch) {
-      (pageWindow as Record<string, unknown>).fetch = originalFetch;
-      originalFetch = null;
+      // Identity guard: restore only if our wrapper is still on top. A later
+      // third-party wrapper stays; ours keeps delegating via originalFetch
+      // (so it must stay set in that case).
+      if ((pageWindow as Record<string, unknown>).fetch === interceptedFetch) {
+        (pageWindow as Record<string, unknown>).fetch = originalFetch;
+        originalFetch = null;
+      } else {
+        log.debug('fetch re-wrapped by third party — leaving chain intact');
+      }
     }
     if (unsubscribeStateChange) {
       unsubscribeStateChange();

@@ -8,7 +8,7 @@
 // notifies subscribers the moment a node is added or removed. Idempotent —
 // safe to call ensurePatched() from multiple modules; only patches once.
 
-import { pageWindow } from './pageContext';
+import { getPixiCapture } from './pixiCapture';
 
 interface PixiNode {
   label?: unknown;
@@ -51,8 +51,8 @@ function dispatch(
 }
 
 function getStage(): PixiNode | null {
-  const root = pageWindow as Window & typeof globalThis & { __QPM_PIXI_CAPTURED__?: PixiCapture };
-  return root.__QPM_PIXI_CAPTURED__?.app?.stage ?? null;
+  const app = getPixiCapture()?.app as PixiCapture['app'] | null;
+  return app?.stage ?? null;
 }
 
 /**

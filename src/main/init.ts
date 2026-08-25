@@ -60,7 +60,6 @@ import { startCapsuleTracker } from '../features/dawn/capsule';
 import { startDawnCaptureTracker } from '../features/dawn/capture';
 import { startThunderchargerTracker } from '../features/thunder/charger';
 import { startChargedAbilities } from '../features/chargedAbilities';
-import { startSuperCleanser } from '../features/superCleanser';
 import { initDawnEconomy } from '../store/dawnEconomy';
 import { initGmExportBridge } from '../utils/gmExportBridge';
 import { startWebsocketDiagnostics } from '../websocket/api';
@@ -69,7 +68,7 @@ import {
   logCatalogStatus,
   onCatalogsReady,
 } from '../catalogs/gameCatalogs';
-import { startCatalogsDiagnostics } from '../catalogs/catalogLoader';
+import { startCatalogsDiagnostics, initCatalogHooksEarly } from '../catalogs/catalogLoader';
 import { initDiagnostics, mountDiagnosticsBadge } from '../diagnostics/init';
 import { startBundleInfoDiagnostics } from '../diagnostics/bundleInfo';
 import { exposeLateDebugApis } from '../debug/mainApi';
@@ -151,26 +150,6 @@ function scheduleLateSpriteBoot(applyServiceOnBoot: (service: SpriteService) => 
 
 async function initialize(): Promise<void> {
   diag.debug('Quinoa Pet Manager initializing');
-
-  // Install the canvas-runtime trap FIRST. It must be in place before the
-  // game's first RiveFile constructor runs (otherwise we miss the only
-  // assignment that ever exposes the canvas-advanced runtime instance).
-  // The trap auto-removes once both expected rive runtimes are wrapped.
-  try {
-    disposers.canvasRuntimeTrap = initCanvasRuntimeTrap();
-  } catch (error) {
-    warnCore('QPM-INIT-001', { what: 'canvasRuntimeTrap' }, error);
-  }
-
-  // Install the .riv fetch hook next — must be in place before the game's
-  // initial bundle loads run, otherwise we miss every .riv request and
-  // setAssetInterceptor can't reverse-resolve bytes back to a URL.
-  // initRivFetchInterceptor is idempotent and has no init dependencies.
-  try {
-    disposers.rivFetchInterceptor = initRivFetchInterceptor();
-  } catch (error) {
-    warnCore('QPM-INIT-001', { what: 'rivFetchInterceptor' }, error);
-  }
 
   registerDebugBootstrap();
   const debugGlobalsEnabled = isDebugGlobalsEnabled();
@@ -420,14 +399,6 @@ async function initialize(): Promise<void> {
     warnCore('QPM-INIT-001', { what: 'chargedAbilities' }, error);
   }
 
-  // Phase 11b — Super Cleanser (reactive selector + capture-phase keydown,
-  // independent of instaAction. Depends on stateTree + atomRegistry ready.)
-  try {
-    startSuperCleanser();
-  } catch (error) {
-    warnCore('QPM-INIT-001', { what: 'superCleanser' }, error);
-  }
-
   // Phase 11b — Weather predictions (lightweight, non-blocking)
   await yieldToBrowser();
   fetchWeatherPredictions().catch((error) => {
@@ -488,6 +459,29 @@ async function initialize(): Promise<void> {
 
 export async function bootstrap(): Promise<void> {
   installGlobalHandlers();
+
+  // Rive traps must install BEFORE the first await — slow GM storage lets the
+  // game's first RiveFile construction / .riv fetch beat the hooks otherwise.
+  // Both install paths are storage-free (verified). The trap auto-removes
+  // once the expected rive runtimes are wrapped.
+  try {
+    disposers.canvasRuntimeTrap = initCanvasRuntimeTrap();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'canvasRuntimeTrap' }, error);
+  }
+  try {
+    disposers.rivFetchInterceptor = initRivFetchInterceptor();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'rivFetchInterceptor' }, error);
+  }
+  // Catalog Object.* hooks are storage-free too — catalogs the game iterates
+  // while GM storage initializes would otherwise be missed for the session.
+  try {
+    initCatalogHooksEarly();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'catalogHooksEarly' }, error);
+  }
+
   await initializeStorage();
   startStorageDiagnostics();
   if (isDevModeEnabled()) diag.debug('Dev mode on');

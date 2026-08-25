@@ -9,6 +9,7 @@
 // button) so we cache the node reference and re-walk only when it dies.
 
 import { pageWindow } from '../../../core/pageContext';
+import { getPixiRefs } from '../../../core/pixiCapture';
 import { onPixiNodeAdded, onPixiNodeRemoved } from '../../../core/pixiSceneEvents';
 import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL, OBJECT_CARD_LABEL } from './types';
 
@@ -133,15 +134,6 @@ function findAllNodesByLabel(root: PixiNode, label: string): PixiNode[] {
   return out;
 }
 
-function resolveCanvas(renderer: PixiRenderer): HTMLCanvasElement | null {
-  const cls = document.querySelector('.QuinoaCanvas canvas');
-  if (cls instanceof HTMLCanvasElement) return cls;
-  if (renderer.view instanceof HTMLCanvasElement) return renderer.view;
-  if (renderer.canvas instanceof HTMLCanvasElement) return renderer.canvas;
-  const any = document.querySelector('canvas');
-  return any instanceof HTMLCanvasElement ? any : null;
-}
-
 interface PixiRefs {
   renderer: PixiRenderer;
   stage: PixiNode;
@@ -149,16 +141,13 @@ interface PixiRefs {
 }
 
 function getRefs(): PixiRefs | null {
-  const root = pageWindow as Window & typeof globalThis & { __QPM_PIXI_CAPTURED__?: PixiCapture };
-  const captured = root.__QPM_PIXI_CAPTURED__;
-  if (!captured) return null;
-  const app = captured.app;
-  const renderer = captured.renderer ?? app?.renderer;
-  const stage = app?.stage;
-  if (!renderer || !stage) return null;
-  const canvas = resolveCanvas(renderer);
-  if (!canvas) return null;
-  return { renderer, stage, canvas };
+  const shared = getPixiRefs();
+  if (!shared?.stage || !shared.canvas) return null;
+  return {
+    renderer: shared.renderer as PixiRenderer,
+    stage: shared.stage as PixiNode,
+    canvas: shared.canvas,
+  };
 }
 
 // ---------------------------------------------------------------------------

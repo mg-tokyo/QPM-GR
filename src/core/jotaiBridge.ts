@@ -173,10 +173,68 @@ function isAtomCacheLike(value: unknown): value is AtomCacheLike {
 }
 
 function isValidStore(store: unknown): store is JotaiStore {
-  return !!store && 
+  return !!store &&
     typeof (store as JotaiStore).get === 'function' &&
     typeof (store as JotaiStore).set === 'function' &&
     typeof (store as JotaiStore).sub === 'function';
+}
+
+/**
+ * Functional probe: a duck-typed store from a shared global can be broken
+ * (another mod's half-initialised or stale store). Try one real get() against
+ * a known atom from the cache before caching the candidate for the session.
+ * No probe-able atom available → accept provisionally (true).
+ */
+function probeStore(store: JotaiStore): boolean {
+  const cache = getAtomCache();
+  if (!cache) return true;
+  let probeAtom: unknown;
+  try {
+    // Only entry KEYS are guaranteed to be real atoms (values may be atom
+    // states); require the jotai atom shape (`read` fn) to avoid a false
+    // negative from get()-ing a non-atom on a healthy store.
+    if (typeof cache.entries === 'function') {
+      let scanned = 0;
+      for (const [key] of cache.entries()) {
+        if (key && typeof (key as { read?: unknown }).read === 'function') {
+          probeAtom = key;
+          break;
+        }
+        if (++scanned >= 50) break;
+      }
+    }
+  } catch {
+    return true;
+  }
+  if (probeAtom === undefined) return true;
+  try {
+    store.get(probeAtom);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Consecutive store.get failures on the central read path. At the threshold
+// the cached storeRef is invalidated so the next read re-runs capture —
+// recovers from a shared store that died mid-session.
+const STORE_FAILURE_THRESHOLD = 3;
+let consecutiveStoreGetFailures = 0;
+
+function noteStoreGetSuccess(): void {
+  consecutiveStoreGetFailures = 0;
+}
+
+function noteStoreGetFailure(): void {
+  consecutiveStoreGetFailures += 1;
+  if (consecutiveStoreGetFailures >= STORE_FAILURE_THRESHOLD) {
+    consecutiveStoreGetFailures = 0;
+    if (storeRef) {
+      diagLog.debug('Jotai store failing reads — invalidating cached store for recapture');
+      storeRef = null;
+      lastCaptureMode = null;
+    }
+  }
 }
 
 /**
@@ -216,7 +274,9 @@ function getExistingStore(): JotaiStore | null {
   try {
     const ariesStore = (pageWindow as any)?.AriesMod?.services?.jotaiStore;
     if (isValidStore(ariesStore) && !ariesStore.__polyfill) {
-      return { ...ariesStore, __source: 'aries' } as JotaiStore;
+      const candidate = { ...ariesStore, __source: 'aries' } as JotaiStore;
+      if (probeStore(candidate)) return candidate;
+      diagLog.debug('Aries jotai store failed functional probe — skipping');
     }
   } catch {}
 
@@ -225,7 +285,8 @@ function getExistingStore(): JotaiStore | null {
     try {
       const candidate = (pageWindow as any)[key];
       if (isValidStore(candidate) && !candidate.__polyfill) {
-        return candidate;
+        if (probeStore(candidate)) return candidate;
+        diagLog.debug(`Shared jotai store '${key}' failed functional probe — skipping`);
       }
     } catch {}
   }
@@ -233,7 +294,8 @@ function getExistingStore(): JotaiStore | null {
   // 3) Check our own shared global
   const shared = readSharedGlobal<JotaiStore>(STORE_GLOBAL_KEY);
   if (isValidStore(shared) && !shared.__polyfill) {
-    return shared;
+    if (probeStore(shared)) return shared;
+    diagLog.debug('Own shared jotai store failed functional probe — skipping');
   }
 
   return null;
@@ -846,7 +908,14 @@ export async function readAtomValue<T = unknown>(atom: any): Promise<T> {
   try {
     const store = await ensureJotaiStore();
     if (!store.__polyfill) {
-      return store.get(atom) as T;
+      try {
+        const value = store.get(atom) as T;
+        noteStoreGetSuccess();
+        return value;
+      } catch (err) {
+        noteStoreGetFailure();
+        throw err;
+      }
     }
   } catch {}
 

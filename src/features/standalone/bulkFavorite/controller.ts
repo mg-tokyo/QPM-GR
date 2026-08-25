@@ -1,12 +1,24 @@
 import { onInventoryChange } from '../../../store/inventory';
 import { onSpritesReady } from '../../../sprite-v2/compat';
 import { healthBus } from '../../../diagnostics/healthBus';
+import { subscribeAtomValue } from '../../../core/atomRegistry';
 import {
   DEBOUNCE_MS,
   RESIZE_DEBOUNCE_MS,
   IMMEDIATE_SYNC_THROTTLE_MS,
+  ANCHOR_SETTLE_INTERVAL_MS,
+  ANCHOR_SETTLE_MAX_TRIES,
 } from './constants';
-import { FEATURE_SUBSYSTEM, configRef, log, saveConfig, ui } from './state';
+import {
+  FEATURE_SUBSYSTEM,
+  configRef,
+  log,
+  noteAnchorDegraded,
+  resetAnchorHealth,
+  saveConfig,
+  ui,
+  warnFeature,
+} from './state';
 import { ensureStyles, hideSidebar, renderSidebar, syncSidebar } from './sidebar';
 
 let observer: MutationObserver | null = null;
@@ -15,6 +27,70 @@ let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let inventoryUnsubscribe: (() => void) | null = null;
 let resizeListener: (() => void) | null = null;
 let spritesReadyUnsubscribe: (() => void) | null = null;
+let modalUnsub: (() => void) | null = null;
+let modalRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let settleTimer: ReturnType<typeof setTimeout> | null = null;
+let inventoryModalOpen = false;
+
+function cancelSettleBurst(): void {
+  if (settleTimer) {
+    clearTimeout(settleTimer);
+    settleTimer = null;
+  }
+}
+
+// Bounded one-shot burst (≤1.5s) per modal-open event, not a standing
+// interval — PIXI layout lags the atom flip, so poll the anchor briefly.
+function runSettleBurst(triesLeft: number): void {
+  syncSidebar(true);
+  if (ui.sidebar) return;
+  if (triesLeft <= 0) {
+    if (inventoryModalOpen) {
+      noteAnchorDegraded(ui.lastAnchorMiss ?? 'no-modal');
+    }
+    return;
+  }
+  settleTimer = setTimeout(() => {
+    settleTimer = null;
+    runSettleBurst(triesLeft - 1);
+  }, ANCHOR_SETTLE_INTERVAL_MS);
+}
+
+function onModalChange(value: unknown): void {
+  const isInventory = value === 'inventory';
+  if (isInventory === inventoryModalOpen) return;
+  inventoryModalOpen = isInventory;
+  cancelSettleBurst();
+  if (isInventory) {
+    runSettleBurst(ANCHOR_SETTLE_MAX_TRIES);
+  } else {
+    hideSidebar();
+  }
+}
+
+function trySubscribeModal(retriesLeft = 15): void {
+  if (modalUnsub) return;
+
+  subscribeAtomValue('activeModal', (value) => onModalChange(value))
+    .then((unsub) => {
+      if (!unsub) {
+        if (retriesLeft > 0 && observer) {
+          modalRetryTimer = setTimeout(() => {
+            modalRetryTimer = null;
+            trySubscribeModal(retriesLeft - 1);
+          }, 1000);
+        }
+        return;
+      }
+      if (!observer) {
+        // Feature stopped while the subscription resolved
+        unsub();
+        return;
+      }
+      modalUnsub = unsub;
+    })
+    .catch((err) => warnFeature('QPM-FEATURE-004', { what: 'activeModal:subscribe' }, err));
+}
 
 function handleMutations(): void {
   // Mutation observer should only manage visibility/position.
@@ -118,14 +194,15 @@ export function startBulkFavorite(): void {
   resizeListener = handleResize;
   window.addEventListener('resize', resizeListener);
 
+  // Primary open/close trigger — the inventory is a PIXI modal that can emit
+  // zero DOM mutations; the MutationObserver above is only a fallback for
+  // when the jotai store never materializes.
+  trySubscribeModal();
+
   syncSidebar(true);
   log.info('Started');
-  healthBus.publish({
-    subsystem: FEATURE_SUBSYSTEM,
-    category: 'feature',
-    status: 'ok',
-    message: 'Observing inventory modal',
-  });
+  // No unconditional 'ok' here — the bus row stays 'starting' until the first
+  // real anchor resolve (publishAnchorResolved in sidebar.ts).
 }
 
 export function stopBulkFavorite(): void {
@@ -169,9 +246,22 @@ export function stopBulkFavorite(): void {
     spritesReadyUnsubscribe = null;
   }
 
+  if (modalRetryTimer) {
+    clearTimeout(modalRetryTimer);
+    modalRetryTimer = null;
+  }
+  if (modalUnsub) {
+    modalUnsub();
+    modalUnsub = null;
+  }
+  cancelSettleBurst();
+  inventoryModalOpen = false;
+  resetAnchorHealth();
+
   ui.lastLayoutSignature = '';
   ui.lastRenderSignature = '';
   ui.anchorMissCount = 0;
+  ui.lastAnchorMiss = null;
   ui.lockUiSpriteCache = null;
 
   hideSidebar();

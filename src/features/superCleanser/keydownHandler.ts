@@ -2,6 +2,8 @@
 // slot on the current tile. Independent of instaAction — register the
 // capture listener before instaAction's so this runs first; if we don't
 // intercept (early returns below), instaAction still fires as normal.
+// Ordering is enforced in src/main/phases.ts Phase 7c: startSuperCleanser()
+// runs immediately before startGardenQol() (which registers instaAction).
 
 import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';

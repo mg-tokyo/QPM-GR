@@ -12,7 +12,7 @@ import {
   MAX_ANCHOR_MISSES,
   CSS,
 } from './constants';
-import { log, ui } from './state';
+import { log, publishAnchorResolved, ui } from './state';
 import { getProduceGroups, getGroupsSignature } from './groups';
 import { resolveInventoryAnchor } from './scanner';
 import { handleToggle } from './actions';
@@ -246,8 +246,9 @@ export function hideSidebar(): void {
 }
 
 export function syncSidebar(refreshContent: boolean, forceHideOnMiss = false): void {
-  const anchor = resolveInventoryAnchor();
+  const { anchor, miss } = resolveInventoryAnchor();
   if (!anchor) {
+    ui.lastAnchorMiss = miss;
     if (forceHideOnMiss) {
       hideSidebar();
       return;
@@ -272,6 +273,8 @@ export function syncSidebar(refreshContent: boolean, forceHideOnMiss = false): v
     ui.closeProbeTimer = null;
   }
   ui.anchorMissCount = 0;
+  ui.lastAnchorMiss = null;
+  publishAnchorResolved();
 
   if (!ui.sidebar) {
     showSidebar(anchor);

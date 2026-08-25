@@ -1,4 +1,5 @@
 import { pageWindow } from '../../../core/pageContext';
+import { getPixiCapture } from '../../../core/pixiCapture';
 import { getMapSnapshot, type MapSnapshot } from '../../garden/bridge';
 import { ctx, MAX_WALK_DEPTH } from './types';
 
@@ -12,9 +13,7 @@ import { ctx, MAX_WALK_DEPTH } from './types';
 
 export function getPixiApp(): any {
   try {
-    const captured = (pageWindow as Record<string, unknown>).__QPM_PIXI_CAPTURED__ as
-      { app?: unknown } | undefined;
-    return (captured?.app) ?? null;
+    return getPixiCapture()?.app ?? null;
   } catch {
     return null;
   }

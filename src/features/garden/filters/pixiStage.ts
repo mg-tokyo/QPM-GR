@@ -1,4 +1,4 @@
-import { pageWindow } from '../../../core/pageContext';
+import { getPixiCapture } from '../../../core/pixiCapture';
 import { warnFeature } from './_diagnostics';
 import { DIM_ALPHA, TILE_LABEL_CAPTURE_RE, TILE_LABEL_TEST_RE } from './constants';
 import type { TileNode } from './types';
@@ -11,12 +11,7 @@ import { getExcludeMutationsState } from './controller';
  */
 export function getPixiApp(): any {
   try {
-    const captured = (pageWindow as Record<string, unknown>).__QPM_PIXI_CAPTURED__ as
-      { app?: unknown } | undefined;
-    if (captured && captured.app) {
-      return captured.app;
-    }
-    return null;
+    return getPixiCapture()?.app ?? null;
   } catch (error) {
     warnFeature('QPM-FEATURE-004', { what: 'getPixiApp' }, error);
     return null;

@@ -16,29 +16,53 @@ export const hooksLifecycle: {
   hardDeadlineTimer: null,
 };
 
+// QPM's installed wrappers — used to identity-guard restore so we never wipe
+// a wrapper another mod layered on top of ours.
+let hookedKeysRef: typeof Object.keys | null = null;
+let hookedValuesRef: typeof Object.values | null = null;
+let hookedEntriesRef: typeof Object.entries | null = null;
+
+function isNonNative(fn: unknown): boolean {
+  try {
+    return typeof fn === 'function' && !Function.prototype.toString.call(fn).includes('[native code]');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Install hooks on Object.keys, Object.values, Object.entries
  * These intercept all iterations over objects in the game code
  */
 export function installHooks(): void {
   try {
-    NativeObject.keys = function hookedKeys(target: object): string[] {
+    // If another mod wrapped Object.* before QPM loaded, our module-scope
+    // "original" snapshot is their wrapper, not the native fn. Capture still
+    // works (we delegate to it), but surface it once for diagnosability.
+    if (isNonNative(originalKeys) || isNonNative(originalValues) || isNonNative(originalEntries)) {
+      diagLog.warn('QPM-CATALOG-004', { what: 'non-native-original-snapshot' });
+    }
+
+    hookedKeysRef = function hookedKeys(target: object): string[] {
       maybeCapture(target);
       return originalKeys.call(NativeObject, target);
     };
+    NativeObject.keys = hookedKeysRef;
 
     if (originalValues) {
-      NativeObject.values = function hookedValues<T>(target: Record<string, T>): T[] {
+      hookedValuesRef = function hookedValues<T>(target: Record<string, T>): T[] {
         maybeCapture(target);
         return originalValues.call(NativeObject, target);
-      };
+      } as typeof Object.values;
+      NativeObject.values = hookedValuesRef;
     }
 
     if (originalEntries) {
-      NativeObject.entries = function hookedEntries<T>(target: Record<string, T>): [string, T][] {
+      hookedEntriesRef = function hookedEntries<T>(target: Record<string, T>): [string, T][] {
         maybeCapture(target);
         return originalEntries.call(NativeObject, target);
-      };
+      } as typeof Object.entries;
+      NativeObject.entries = hookedEntriesRef;
     }
 
     catalogLog('Object.* hooks installed');
@@ -48,16 +72,30 @@ export function installHooks(): void {
 }
 
 /**
- * Remove hooks and restore original Object methods
+ * Restore original Object methods — identity-guarded: only restore a slot if
+ * it still holds QPM's wrapper; a later mod's wrapper is left in place
+ * (it delegates to ours, which delegates to the original — chain stays sound).
  */
 export function removeHooks(): void {
   try {
-    NativeObject.keys = originalKeys;
+    if (!hookedKeysRef || NativeObject.keys === hookedKeysRef) {
+      NativeObject.keys = originalKeys;
+    } else {
+      catalogLog('Object.keys wrapped by third party — leaving in place');
+    }
     if (originalValues) {
-      NativeObject.values = originalValues;
+      if (!hookedValuesRef || NativeObject.values === hookedValuesRef) {
+        NativeObject.values = originalValues;
+      } else {
+        catalogLog('Object.values wrapped by third party — leaving in place');
+      }
     }
     if (originalEntries) {
-      NativeObject.entries = originalEntries;
+      if (!hookedEntriesRef || NativeObject.entries === hookedEntriesRef) {
+        NativeObject.entries = originalEntries;
+      } else {
+        catalogLog('Object.entries wrapped by third party — leaving in place');
+      }
     }
     catalogLog('Object.* hooks removed');
   } catch {

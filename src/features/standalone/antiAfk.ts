@@ -136,6 +136,10 @@ async function resolveCurrentPosition(): Promise<XY | null> {
   return lastKnownPosition;
 }
 
+// Deliberately suppresses lifecycle events for EVERY capture-phase listener
+// registered after ours — including other userscripts'. That is the feature's
+// intent (the game must never see the tab go hidden), but it means co-existing
+// mods lose these events too while Anti-AFK is enabled.
 function swallowLifecycleEvents(): void {
   const add = (target: EventTargetLike, type: string): void => {
     const handler = (event: Event): void => {

@@ -144,8 +144,16 @@ export function initRivFetchInterceptor(): () => void {
 
   return () => {
     if (originalFetch) {
-      (pageWindow as Record<string, unknown>).fetch = originalFetch;
-      originalFetch = null;
+      // Identity guard: only restore if our wrapper is still on top. If a
+      // third party wrapped after us, leaving ours under theirs is safe —
+      // it delegates to the saved fetch (so originalFetch must stay set).
+      // Restoring blindly would wipe their wrapper.
+      if ((pageWindow as Record<string, unknown>).fetch === interceptedFetch) {
+        (pageWindow as Record<string, unknown>).fetch = originalFetch;
+        originalFetch = null;
+      } else {
+        riveLog('.riv fetch interceptor: fetch re-wrapped by third party — leaving chain intact');
+      }
     }
     fingerprintToUrl.clear();
     installed = false;
