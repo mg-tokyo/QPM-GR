@@ -40,13 +40,14 @@ function cancelSettleBurst(): void {
 }
 
 // Bounded one-shot burst (≤1.5s) per modal-open event, not a standing
-// interval — PIXI layout lags the atom flip, so poll the anchor briefly.
+// interval — PIXI layout lags the atom flip, so poll the anchor briefly. Runs
+// the full window even once shown: the modal springs up from the docked bar
+// and a PIXI-only animation emits no DOM mutations to re-sync the layout.
 function runSettleBurst(triesLeft: number): void {
   syncSidebar(true);
-  if (ui.sidebar) return;
   if (triesLeft <= 0) {
-    if (inventoryModalOpen) {
-      noteAnchorDegraded(ui.lastAnchorMiss ?? 'no-modal');
+    if (inventoryModalOpen && !ui.sidebar) {
+      noteAnchorDegraded(ui.lastAnchorMiss ?? 'no-modal', ui.lastAnchorMissDetail);
     }
     return;
   }
@@ -60,6 +61,7 @@ function onModalChange(value: unknown): void {
   const isInventory = value === 'inventory';
   if (isInventory === inventoryModalOpen) return;
   inventoryModalOpen = isInventory;
+  ui.modalConfirmedOpen = isInventory;
   cancelSettleBurst();
   if (isInventory) {
     runSettleBurst(ANCHOR_SETTLE_MAX_TRIES);
@@ -256,12 +258,14 @@ export function stopBulkFavorite(): void {
   }
   cancelSettleBurst();
   inventoryModalOpen = false;
+  ui.modalConfirmedOpen = false;
   resetAnchorHealth();
 
   ui.lastLayoutSignature = '';
   ui.lastRenderSignature = '';
   ui.anchorMissCount = 0;
   ui.lastAnchorMiss = null;
+  ui.lastAnchorMissDetail = null;
   ui.lockUiSpriteCache = null;
 
   hideSidebar();

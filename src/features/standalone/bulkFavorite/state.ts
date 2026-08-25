@@ -4,7 +4,7 @@ import { buildError } from '../../../diagnostics/result';
 import { healthBus } from '../../../diagnostics/healthBus';
 import type { Subsystem } from '../../../diagnostics/types';
 import { CONFIG_KEY, DEFAULT_CONFIG } from './constants';
-import type { AnchorMissReason, BulkFavoriteConfig } from './types';
+import type { AnchorMissDetail, AnchorMissReason, BulkFavoriteConfig } from './types';
 
 export const FEATURE_SUBSYSTEM: Subsystem = 'feature:bulkFavorite';
 export const FEATURE_NAME = 'bulkFavorite';
@@ -30,6 +30,9 @@ export const ui = {
   lastLayoutSignature: '',
   anchorMissCount: 0,
   lastAnchorMiss: null as AnchorMissReason | null,
+  lastAnchorMissDetail: null as AnchorMissDetail | null,
+  /** Set from the activeModal atom; relaxes the scanner's open/closed heuristics. */
+  modalConfirmedOpen: false,
   lockUiSpriteCache: null as { locked: string; unlocked: string } | null,
 };
 
@@ -49,9 +52,9 @@ export function publishAnchorResolved(): void {
   });
 }
 
-export function noteAnchorDegraded(reason: AnchorMissReason): void {
+export function noteAnchorDegraded(reason: AnchorMissReason, detail: AnchorMissDetail | null): void {
   anchorHealthOk = false;
-  warnFeature('QPM-FEATURE-004', { what: 'anchor:resolve', reason });
+  warnFeature('QPM-FEATURE-004', { what: 'anchor:resolve', reason, ...(detail ?? {}) });
 }
 
 export function resetAnchorHealth(): void {

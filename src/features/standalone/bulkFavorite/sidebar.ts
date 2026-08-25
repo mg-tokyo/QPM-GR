@@ -246,9 +246,10 @@ export function hideSidebar(): void {
 }
 
 export function syncSidebar(refreshContent: boolean, forceHideOnMiss = false): void {
-  const { anchor, miss } = resolveInventoryAnchor();
+  const { anchor, miss, detail } = resolveInventoryAnchor({ confirmedOpen: ui.modalConfirmedOpen });
   if (!anchor) {
     ui.lastAnchorMiss = miss;
+    ui.lastAnchorMissDetail = detail;
     if (forceHideOnMiss) {
       hideSidebar();
       return;
@@ -274,6 +275,7 @@ export function syncSidebar(refreshContent: boolean, forceHideOnMiss = false): v
   }
   ui.anchorMissCount = 0;
   ui.lastAnchorMiss = null;
+  ui.lastAnchorMissDetail = null;
   publishAnchorResolved();
 
   if (!ui.sidebar) {

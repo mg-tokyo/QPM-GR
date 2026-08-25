@@ -29,11 +29,20 @@ export interface InventoryAnchor {
   source: 'InventoryItems' | 'InventoryContent';
 }
 
-export type AnchorMissReason = 'no-capture' | 'no-canvas' | 'no-modal' | 'below-threshold';
+export type AnchorMissReason = 'no-capture' | 'no-canvas' | 'no-modal' | 'modal-small' | 'below-threshold';
+
+export interface AnchorResolveOptions {
+  /** True when the game's activeModal atom says the inventory is active. */
+  confirmedOpen: boolean;
+}
+
+/** Measurements the miss decision was made on — attached to the degraded row. */
+export type AnchorMissDetail = Record<string, unknown>;
 
 export interface AnchorResolveResult {
   anchor: InventoryAnchor | null;
   miss: AnchorMissReason | null;
+  detail: AnchorMissDetail | null;
 }
 
 export interface SidebarLayout {

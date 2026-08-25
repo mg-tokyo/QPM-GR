@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.29",
+    date: "2026-08-25",
+    notes: [
+      "Fixed Bulk Favorite buttons never appearing on wide windows or small inventories, the old size heuristic rejected an open inventory narrower than 45% of the screen (any window wider than about 1630px) or shorter than two rows, the scanner now trusts the game's active modal state and skips those size gates when the inventory is confirmed open",
+      "Fixed Bulk Favorite buttons landing in the wrong place after the inventory spring-up animation, the anchor settle burst now runs its full window instead of stopping at the first hit",
+      "Improved Bulk Favorite diagnostics, anchor failures now record the viewport, canvas, modal rectangle, candidate containers and the new modal-small reason so a missing sidebar can be traced from the Diagnostics window",
+    ],
+  },
+  {
     version: "3.3.28",
     date: "2026-08-25",
     notes: [

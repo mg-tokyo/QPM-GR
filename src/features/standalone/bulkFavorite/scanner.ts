@@ -6,6 +6,9 @@ import {
   MIN_OPEN_ITEM_VIEW_COUNT,
 } from './constants';
 import type {
+  AnchorMissDetail,
+  AnchorMissReason,
+  AnchorResolveOptions,
   AnchorResolveResult,
   InventoryAnchor,
   PixiBounds,
@@ -161,10 +164,10 @@ function toCssRect(bounds: PixiBounds, renderer: PixiRendererLike, canvas: HTMLC
   };
 }
 
-function isRectOpenAndVisible(rect: Rect): boolean {
-  if (rect.width < MIN_INVENTORY_WIDTH || rect.height < MIN_INVENTORY_HEIGHT) {
-    return false;
-  }
+function isRectOpenAndVisible(rect: Rect, relaxed: boolean): boolean {
+  if (rect.width < MIN_INVENTORY_WIDTH) return false;
+  // A confirmed-open inventory with ≤2 rows is shorter than the strict floor.
+  if (!relaxed && rect.height < MIN_INVENTORY_HEIGHT) return false;
 
   const right = rect.left + rect.width;
   const bottom = rect.top + rect.height;
@@ -177,25 +180,51 @@ function isRectOpenAndVisible(rect: Rect): boolean {
   return true;
 }
 
-export function resolveInventoryAnchor(): AnchorResolveResult {
+// The InventoryModal container exists in BOTH the docked (passive) bar and the
+// expanded modal; the game's activeModal atom is the authoritative open signal.
+// The viewport-ratio and item-count gates below only exist to tell those two
+// states apart when the atom is unavailable — with confirmedOpen they are
+// skipped, because the modal is capped at 9 items/row (~734px) and fails a
+// 45%-of-viewport test on any window wider than ~1630px.
+function rectSummary(rect: Rect | null): string | null {
+  if (!rect) return null;
+  return `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}`;
+}
+
+export function resolveInventoryAnchor(opts?: AnchorResolveOptions): AnchorResolveResult {
+  const confirmedOpen = opts?.confirmedOpen === true;
+  const detail: AnchorMissDetail = {
+    confirmedOpen,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+  };
+  const miss = (reason: AnchorMissReason): AnchorResolveResult => ({ anchor: null, miss: reason, detail });
+
   const refs = getPixiRefs();
-  if (!refs?.stage) return { anchor: null, miss: 'no-capture' };
+  detail.capture = refs ? { app: !!refs.app, renderer: !!refs.renderer, stage: !!refs.stage } : null;
+  if (!refs?.stage) return miss('no-capture');
   const renderer = refs.renderer as PixiRendererLike;
   const stage = refs.stage as PixiDisplayObject;
+  detail.stageChildren = Array.isArray(stage.children) ? stage.children.length : null;
 
   const canvas = refs.canvas;
-  if (!canvas) return { anchor: null, miss: 'no-canvas' };
+  if (!canvas) return miss('no-canvas');
+  detail.canvas = `${canvas.className || canvas.tagName} ${canvas.width}x${canvas.height}`;
 
   // Guard against HUD/hotbar containers that may reuse inventory-like labels.
   // The actual full inventory view is wrapped by InventoryModal when open.
   const modalMatch = findLargestNodeByLabel(stage, (label) => label === 'InventoryModal');
-  if (!modalMatch) return { anchor: null, miss: 'no-modal' };
+  if (!modalMatch) return miss('no-modal');
 
   const modalRect = toCssRect(modalMatch.bounds, renderer, canvas);
-  if (!modalRect) return { anchor: null, miss: 'no-modal' };
-  if (modalRect.width < window.innerWidth * 0.45 || modalRect.height < window.innerHeight * 0.35) {
-    return { anchor: null, miss: 'no-modal' };
+  detail.modalRect = rectSummary(modalRect);
+  if (!modalRect) return miss('no-modal');
+  if (
+    !confirmedOpen &&
+    (modalRect.width < window.innerWidth * 0.45 || modalRect.height < window.innerHeight * 0.35)
+  ) {
+    return miss('modal-small');
   }
+  const minViewCount = confirmedOpen ? 1 : MIN_OPEN_ITEM_VIEW_COUNT;
 
   const itemsMatch = findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryItems');
   const contentMatch = findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryContent');
@@ -204,20 +233,20 @@ export function resolveInventoryAnchor(): AnchorResolveResult {
   if (itemsMatch) candidates.push({ match: itemsMatch, source: 'InventoryItems' });
   if (contentMatch) candidates.push({ match: contentMatch, source: 'InventoryContent' });
 
+  const tried: string[] = [];
   for (const candidate of candidates) {
     const rect = toCssRect(candidate.match.bounds, renderer, canvas);
-    if (!rect || !isRectOpenAndVisible(rect)) continue;
-
-    const viewCount = countVisibleInventoryItemViews(
-      candidate.match.node,
-      candidate.match.bounds,
-      MIN_OPEN_ITEM_VIEW_COUNT,
-    );
-    if (viewCount >= MIN_OPEN_ITEM_VIEW_COUNT) {
-      const anchor: InventoryAnchor = { rect, source: candidate.source };
-      return { anchor, miss: null };
+    const open = !!rect && isRectOpenAndVisible(rect, confirmedOpen);
+    const viewCount = open
+      ? countVisibleInventoryItemViews(candidate.match.node, candidate.match.bounds, minViewCount)
+      : -1;
+    tried.push(`${candidate.source} ${rectSummary(rect)} open=${open} views=${viewCount}`);
+    if (open && viewCount >= minViewCount) {
+      const anchor: InventoryAnchor = { rect: rect!, source: candidate.source };
+      return { anchor, miss: null, detail: null };
     }
   }
+  detail.candidates = tried;
 
-  return { anchor: null, miss: 'below-threshold' };
+  return miss('below-threshold');
 }
