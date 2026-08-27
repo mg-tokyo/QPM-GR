@@ -2,6 +2,30 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.30",
+    date: "2026-08-27",
+    notes: [
+      "Added an Activity tab to the Pets window, a ledger of every pet event (ability procs, feeds, hatches, sells, potions, mounts, team applies) with the pet sprite, ability squares, STR at the time, the affected crops or pets, local time, and a ×N collapse for repeated procs; entries come from the game's own activity log so new abilities render without a QPM update, and history is kept locally beyond the game's 25-entry limit",
+      "Added Bad Luck Protection support for the game's new pity system, a Bad Luck Protection tracker in the Trackers hub lists every seed, egg and capsule with the exact guarantee thresholds (Rainbow by 2000, Gold by 200, rare patch crops by 500, rarest egg species by 40, Dawnbreaker Spore by 400, Ube by 80) and an observed miss streak for each outcome, with a progress bar toward the guarantee",
+      "Added a compact Bad Luck Protection line to the item detail window for seeds, eggs and capsules showing observed misses against each guarantee threshold",
+      "Note on observed streaks, the game keeps the real counters server-side and never sends them to the client, so QPM can only count pulls it watches while running, accounts created before 26 Aug 2026 started every in-game counter at 50%, and Gold or Rainbow crops granted by pet abilities cannot be told apart from natural rolls at harvest so an observed streak may reset earlier than the game's",
+      "Fixed the Dawn Capsule pull tracker never recording opens, it was reading the wrong activity log field name so capsule stats stayed empty",
+      "Fixed Shop Restock alerts never firing for tracked items in the Snow and Thunder shops, only the Dawn shop was being scanned, every weather shop the game exposes is now processed, including any new weather shop that appears in future without needing a QPM update",
+      "Improved the Shop Restock window so weather shop filter chips, item lists, sort order and weather-only badges come from the game's own shop data instead of fixed lists, the Thunder shop now has its own chip and rows, and items sold in a weather shop show the correct weather badge automatically",
+      "Fixed Thunder shop rows being dropped from the restock data and from remembered item detail windows because the accepted shop list was hardcoded",
+      "Improved Buy All inventory cap handling, tool stack limits now come from each tool's in-game maximum instead of a fixed list of four tools, and the inventory full message shows the real owned and limit counts",
+      "Improved the Shop Restock buy flow for weather shops, purchase requests, ownership confirmation and auto-store now work for any item type a weather shop can carry rather than assuming seeds",
+      "Improved the Dawn Capsule tracker to read expected pull odds from the game's item data and to track any capsule type separately, so a new capsule is tracked without a QPM update",
+      "Fixed shop discovery persisting the game's seed, tool and egg shop keys as extra shops, the stale entries are cleaned up on load",
+      "Removed unused hardcoded egg hatch and rainbow/gold odds tables",
+      "Fixed QPM settings, trackers and presets silently reverting to old values after a reload once the browser's localStorage filled up (large Garden Painter presets or texture swaps could do this), QPM's fast-read storage mirror now lives in IndexedDB instead of localStorage, existing values migrate once at startup, the old localStorage copies are removed, and a duplicate Garden Painter preset copy plus the retired pet team log are cleaned up to free space",
+      "Improved the Pets window Activity tab with category filters (abilities, feeding, hatch and sell, potions, mounts), a per-pet dropdown, ledger or compact density, Today and Yesterday grouping, an unread count on the tab while you are viewing another tab, and a Clear button for the local history",
+      "Improved the Bad Luck Protection tracker with Tracking and Reference tabs, Tracking shows an estimated in-game counter (account age floor plus observed misses) per outcome with a log of observed hits marked lucky or guaranteed, Reference lists every egg, plant and capsule threshold, and the hub tile shows whichever counter is closest to its guarantee",
+      "Fixed Trackers hub card icons for pet species and alias-named plants (like Four Leaf Clover) rendering blank when no mutation tint was requested",
+      "Added German, Spanish, French and Portuguese translations for the Activity tab and the Bad Luck Protection tracker",
+    ],
+  },
+  {
     version: "3.3.29",
     date: "2026-08-25",
     notes: [

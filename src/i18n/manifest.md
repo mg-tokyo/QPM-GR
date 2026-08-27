@@ -80,3 +80,4 @@ Ordered by string count (smallest → largest). Each invocation of `/language` p
 | 34 | Pets Window | `petsWindow/mainWindow.ts`, `managerTab.ts`, `teamEditor.ts`, `teamList.ts`, `teamSummary.ts`, `comparisonPanel.ts`, `helpers.ts` | ~50 | done | done | done | pending |
 | 35 | Pet Optimizer Window | `petOptimizerWindow/window.ts`, `card.ts`, `filters.ts`, `results.ts`, `sell.ts`, `actions.ts`, `summary.ts`, `statusSection.ts`, `familyGroups.ts`, `familyNav.ts` | ~50 | done | done | done | pending |
 | 36 | Public Rooms Window | `publicRoomsWindow/mainWindow.ts`, `roomsList.ts`, `gardenPane.ts`, `inspectorShell.ts`, `inspectorPanes.ts` | ~30 | done | done | done | pending |
+| 37 | Pet Activity tab | `petsWindow/activityTab/*` | ~65 | pending | pending | pending | pending |

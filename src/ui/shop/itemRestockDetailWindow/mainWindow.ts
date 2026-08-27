@@ -139,6 +139,7 @@ export function openItemRestockDetail(item: RestockItem, itemName: string): void
     // ── Overview card (shown immediately with RestockItem data) ──
     const overview = buildOverviewCard(safeItemName, item.shop_type, item, spriteUrl);
     contentRoot.appendChild(overview.container);
+    watchDetach(root, () => overview.dispose());
 
     // ── Placeholder for event card (hidden initially) ──
     let eventCard: EventCardHandle | null = null;

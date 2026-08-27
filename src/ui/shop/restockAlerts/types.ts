@@ -26,6 +26,7 @@ export const SEED_SILO_STORAGE_ID     = 'seedsilo';
 export const DECOR_SHED_STORAGE_ID    = 'decorshed';
 export const SEED_SILO_WS_STORAGE_ID  = 'SeedSilo';
 export const DECOR_SHED_WS_STORAGE_ID = 'DecorShed';
+/** Fallback tool caps, used only while the item catalog (`maxInventoryQuantity`) is unavailable. */
 export const TOOL_STACK_LIMIT   = 99;
 export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan', 'replenishpotion', 'xppotion']);
 export const ALERT_DEBUG_ENABLED = false;
@@ -34,7 +35,8 @@ export const ALERT_DEBUG_ENABLED = false;
 // Types
 // ---------------------------------------------------------------------------
 
-export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'dawn' | 'snow' | 'weather';
+/** Standard singular types, the 'weather' event pseudo-type, or any weather-gated shop id (dawn, snow, thunder, runtime-discovered). */
+export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'weather' | (string & {});
 
 export interface AlertModel {
   key: string;
@@ -45,8 +47,10 @@ export interface AlertModel {
   quantity: number;
   priceCoins: number | null;
   weatherBound?: boolean;
-  /** V16 ItemType hint for PurchaseShopItem ('Seed'|'Egg'|'Tool'|'Decor'). */
+  /** Game ItemType hint for PurchaseShopItem ('Seed'|'Egg'|'Tool'|'Decor'|future). */
   itemType?: string;
+  /** Wire id field for PurchaseShopItem (`species`, `eggId`, …) when known from the shop entry. */
+  idField?: string;
   /** When true, this is a weather event alert (no Buy All button). */
   isWeatherAlert?: boolean;
   /** Remaining duration for weather alerts (ms). */

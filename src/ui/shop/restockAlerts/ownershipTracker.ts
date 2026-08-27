@@ -2,6 +2,8 @@
 // Inventory snapshot handling, ownership state machine, and confirmation tracking.
 
 import { canonicalItemId } from '../../../utils/restock/dataService';
+import { isWeatherShopType } from '../../../types/shops';
+import { getShopEntryIdentity } from '../../../store/shopStockParsers';
 import { warnFeature } from './_diagnostics';
 import type { InventoryData, InventoryItem } from '../../../store/inventory';
 import {
@@ -109,8 +111,6 @@ export function normalizeShopType(rawType: unknown): RestockShopType | null {
   if (type === 'egg' || type === 'eggs') return 'egg';
   if (type === 'decor' || type === 'decoration' || type === 'decorations') return 'decor';
   if (type === 'tool' || type === 'tools') return 'tool';
-  if (type === 'dawn') return 'dawn';
-  if (type === 'snow') return 'snow';
   return null;
 }
 
@@ -206,7 +206,8 @@ export function getInventoryItemKey(item: InventoryItem): string | null {
 
   const seedId = firstString([item.species, raw?.species, raw?.seedName]);
   if (seedId) return toCanonicalKey('seed', seedId);
-  return null;
+  const generic = getShopEntryIdentity(raw);
+  return generic ? toCanonicalKey(generic.itemType.toLowerCase(), generic.id) : null;
 }
 
 export function buildInventoryKeyCounts(data: InventoryData): Map<string, number> {
@@ -308,18 +309,17 @@ export function buildDecorShedKeyCounts(myDataValue: unknown): Map<string, numbe
 // Ownership counting and baseline
 // ---------------------------------------------------------------------------
 
-export function resolveDawnOwnershipKey(dawnKey: string): string {
-  if (!dawnKey.startsWith('dawn:')) return dawnKey;
-  const suffix = dawnKey.slice('dawn:'.length);
-  for (const prefix of ['seed', 'tool', 'egg', 'decor'] as const) {
-    const candidate = `${prefix}:${suffix}`;
-    if (alertState.inventoryKeyCounts.has(candidate)) return candidate;
+/** Weather-shop keys (`dawn:x`) own nothing directly — map to whichever item-type key (`seed:x`, `crystal:x`, …) the player holds. */
+export function resolveOwnershipKey(key: string): string {
+  const sep = key.indexOf(':');
+  if (sep <= 0 || !isWeatherShopType(key.slice(0, sep))) return key;
+  const suffix = key.slice(sep);
+  for (const source of [alertState.inventoryKeyCounts, alertState.seedSiloKeyCounts, alertState.decorShedKeyCounts]) {
+    for (const candidate of source.keys()) {
+      if (candidate !== key && candidate.endsWith(suffix)) return candidate;
+    }
   }
-  for (const prefix of ['seed', 'tool', 'egg', 'decor'] as const) {
-    const candidate = `${prefix}:${suffix}`;
-    if (alertState.seedSiloKeyCounts.has(candidate) || alertState.decorShedKeyCounts.has(candidate)) return candidate;
-  }
-  return dawnKey;
+  return key;
 }
 
 export function combinedOwnedCount(
@@ -328,7 +328,7 @@ export function combinedOwnedCount(
   seedSiloCounts: Map<string, number>,
   decorShedCounts: Map<string, number>,
 ): number {
-  const resolvedKey = resolveDawnOwnershipKey(key);
+  const resolvedKey = resolveOwnershipKey(key);
   const inventoryQty = inventoryCounts.get(resolvedKey) ?? 0;
   if (resolvedKey.startsWith('seed:')) return inventoryQty + (seedSiloCounts.get(resolvedKey) ?? 0);
   if (resolvedKey.startsWith('decor:')) return inventoryQty + (decorShedCounts.get(resolvedKey) ?? 0);
@@ -336,7 +336,7 @@ export function combinedOwnedCount(
 }
 
 function readOwnedCountFromBaseline(key: string, baseline: OwnershipBaseline): number {
-  const resolvedKey = resolveDawnOwnershipKey(key);
+  const resolvedKey = resolveOwnershipKey(key);
   let total = 0;
   if (baseline.includeInventory) total += alertState.inventoryKeyCounts.get(resolvedKey) ?? 0;
   if (baseline.includeSeedSilo)  total += alertState.seedSiloKeyCounts.get(resolvedKey) ?? 0;
@@ -349,9 +349,10 @@ export function hasOwnershipSource(baseline: OwnershipBaseline): boolean {
 }
 
 export async function waitForOwnershipBaselines(shopType: RestockShopType): Promise<void> {
-  const requiresSeedSilo      = shopType === 'seed' || shopType === 'dawn';
-  const requiresDecorShed     = shopType === 'decor' || shopType === 'dawn';
-  const requiresToolInventory = shopType === 'tool' || shopType === 'dawn';
+  const isWeatherShop         = isWeatherShopType(shopType);
+  const requiresSeedSilo      = shopType === 'seed' || isWeatherShop;
+  const requiresDecorShed     = shopType === 'decor' || isWeatherShop;
+  const requiresToolInventory = shopType === 'tool' || isWeatherShop;
   const ready = (): boolean =>
     alertState.hasInventoryBaseline &&
     (!requiresSeedSilo      || alertState.hasSeedSiloBaseline) &&
@@ -363,8 +364,8 @@ export async function waitForOwnershipBaselines(shopType: RestockShopType): Prom
 
 export function captureOwnershipBaseline(key: string, shopType: RestockShopType): OwnershipBaseline {
   const includeInventory  = alertState.hasInventoryBaseline;
-  const includeSeedSilo   = (shopType === 'seed'  || shopType === 'dawn') && alertState.hasSeedSiloBaseline;
-  const includeDecorShed  = (shopType === 'decor' || shopType === 'dawn') && alertState.hasDecorShedBaseline;
+  const includeSeedSilo   = (shopType === 'seed'  || isWeatherShopType(shopType)) && alertState.hasSeedSiloBaseline;
+  const includeDecorShed  = (shopType === 'decor' || isWeatherShopType(shopType)) && alertState.hasDecorShedBaseline;
   const baseline: OwnershipBaseline = {
     count: 0,
     includeInventory,

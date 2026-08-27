@@ -228,7 +228,7 @@ export function getAbilityColor(abilityName: string): { base: string; glow: stri
   return { base, glow, text: '#FFF' };
 }
 
-function renderAbilitySquares(abilities: string[], size: number = 14): string {
+export function renderAbilitySquares(abilities: string[], size: number = 14): string {
   if (!abilities || abilities.length === 0) return '';
   const displayed = abilities.slice(0, 4);
   return displayed.map(ability => {
@@ -237,16 +237,22 @@ function renderAbilitySquares(abilities: string[], size: number = 14): string {
   }).join('');
 }
 
-function calculatePetStrength(species: string, xp: number, targetScale: number): number {
+export function calculatePetStrength(species: string, xp: number, targetScale: number): number {
   const maxStrength = calculateMaxStrength(targetScale, species);
   const xpPerLevel = getSpeciesXpPerLevel(species);
-  
+
   if (!xpPerLevel || xpPerLevel <= 0 || !maxStrength) return 0;
-  
+
   const level = Math.min(30, Math.floor(xp / xpPerLevel));
   const baseStrength = 50;
   const strengthPerLevel = (maxStrength - baseStrength) / 30;
   return Math.min(maxStrength, Math.round(baseStrength + level * strengthPerLevel));
+}
+
+export function calculatePetLevel(species: string, xp: number): number | null {
+  const xpPerLevel = getSpeciesXpPerLevel(species);
+  if (!xpPerLevel || xpPerLevel <= 0) return null;
+  return Math.min(30, Math.floor(xp / xpPerLevel));
 }
 
 /** Returns complete pet card HTML with abilities + sprite + name + STR. */

@@ -1,5 +1,17 @@
 import { healthBus } from '../diagnostics/healthBus';
 import type { Subsystem } from '../diagnostics/types';
+import { EXPORT_EXCLUDE_KEYS, EXPORT_EXCLUDE_PREFIXES, QPM_DYNAMIC_KEY_PREFIXES, QPM_STORAGE_KEYS } from './storageKeys';
+import {
+  hydrateMirror,
+  isMirrorAvailable,
+  mirrorGet,
+  mirrorHas,
+  mirrorKeys,
+  mirrorRemove,
+  mirrorSet,
+  setMirrorFailureHandler,
+} from './storageMirror';
+export { QPM_STORAGE_KEYS, SHOP_ENHANCER_MODE_KEY, SHOP_ENHANCER_MODES, type ShopEnhancerMode } from './storageKeys';
 
 type LegacyGmGetValue = (key: string) => string | undefined;
 type LegacyGmSetValue = (key: string, value: string) => void;
@@ -29,353 +41,8 @@ export interface Storage {
   clear(): void;
 }
 
-/**
- * All QPM storage keys (for comprehensive clearing)
- */
-const QPM_STORAGE_KEYS = [
-  // Shop Restock Tracker
-  'qpm.shopRestocks.v1',
-  'qpm.shopRestockConfig.v1',
-  'qpm.shopRestocks.migration',
-
-  // XP Tracker
-  'qpm.xpTrackerProcs.v1',
-  'qpm.xpTrackerConfig.v1',
-  'qpm.petXpObservations.v1',
-
-  // Auto Favorite
-  'qpm.autoFavorite.v1',
-  'qpm.bulkFavorite.v1',
-  'qpm.autoReconnect.enabled.v1',
-  'qpm.autoReconnect.delayMs.v1',
-
-  // Pet Hatching Tracker
-  'qpm.petHatchingTracker.knownPetIds.v1',
-  'qpm.hatchStats.v1',
-
-  // Garden Battleship
-  'qpm.battleship.record.v1',
-
-  // Stats
-  'quinoa:stats:v1',
-
-  // Mutation Tracking
-  'qpm.mutationValueTracking.v1',
-  'qpm.weatherMutationTracking.v1',
-
-  // Pet Food Rules
-  'quinoa-pet-food-rules',
-
-  // XP Tracker window layout
-  'qpm.xpTrackerWindow.layout.v1',
-
-  // Ability Tracker window layout
-  'qpm.trackerWindow.layout.v1',
-
-  // Turtle Timer window layout
-  'qpm.turtleTimerWindow.layout.v1',
-
-  // UI State
-  'quinoa-ui-panel-position',
-  'quinoa-ui-panel-collapsed',
-  'quinoa-ui-notifications-collapsed',
-  'quinoa-ui-notifications-detail-expanded',
-  'quinoa-ui-tracker-target-mode',
-  'quinoa-ui-tracker-target-pet',
-  'quinoa-ui-tracker-ability-filter',
-  'quinoa-ui-mutation-tracker-source',
-  'quinoa-ui-mutation-tracker-detail',
-  'qpm-tracker-settings',
-  'qpm.home-tiles.v1',
-  'qpm.home-tiles.v2',
-  'qpm.home-tiles.v3',
-
-  // Main data
-  'quinoa-pet-manager',
-  'quinoaData',
-
-  // Player identity
-  'quinoa:selfPlayerId',
-
-  // Pet Teams
-  'qpm.petTeams.config.v1',
-  'qpm.petTeams.feedPolicy.v1',
-  'qpm.petTeams.logs.v1',
-  'qpm.petTeams.uiState.v1',
-  'qpm.petFloatingCards.v1',
-  'qpm.petTeams.sync.enabled.v1',
-  'qpm.petTeams.sync.idMap.v1',
-
-  // Charged Abilities (player-activated ability awareness panel)
-  'qpm.chargedAbilities.panel.v1',
-  'qpm.chargedAbilities.expanded.v1',
-  'qpm.chargedAbilities.autoOpenOverlay.v1',
-
-  // Super Cleanser (multi-slot cleanse fanout)
-  'qpm.superCleanser.enabled.v1',
-  'qpm.superCleanser.autoOpenPanel.v1',
-  'qpm.superCleanser.filterMode.v1',
-  'qpm.superCleanser.filterMutations.v1',
-  'qpm.superCleanser.panel.position.v1',
-
-  // Blobling Customiser presets
-  'qpm.bloblingPresets.v1',
-
-  // Shop Restock (Supabase)
-  'qpm.restockCache',
-  'qpm.restockCache.v2',
-  'qpm.restockCache.v3',
-  'qpm.restock.refreshBudget.v1',
-  'qpm.restock.dismissedCycles.v1',
-  'qpm.restock.detailWindows.v1',
-  'qpm.restock.detailScale.v1',
-  'qpm.restock.soundConfig.v1',
-  'qpm.restock.customSounds.v1',
-  'qpm.dashboardModules',
-
-  // Pet Optimizer
-  'qpm.petOptimizer.config.v4',
-  'petOptimizer:config.v2',
-  'petOptimizer:config.v3',
-
-  // Sprite Debug
-  'qpm.debug.sprite.allowLegacyFallbackOnKtx2',
-
-  // Dev mode
-  'qpm.dev.enabled',
-
-  // Activity Log Enhancer
-  'qpm.activityLogEnhanced.entries.v1',
-  'qpm.activityLogEnhanced.entries.v2',
-  'qpm.activityLogEnhanced.entries.v3',
-  'qpm.activityLogEnhanced.filters.v1',
-  'qpm.activityLog.history.v1',
-  'qpm.activityLog.history.backup.v1',
-  'qpm.activityLog.history.meta.v1',
-  'qpm.activityLog.filter.action.v1',
-  'qpm.activityLog.filter.type.v1',
-  'qpm.activityLog.filter.order.v1',
-  'qpm.activityLog.filter.petSpecies.v1',
-  'qpm.activityLog.filter.plantSpecies.v1',
-  'qpm.activityLog.migration.v1',
-  'qpm.activityLog.ariesImport.v1',
-  'qpm.activityLog.enabled.v1',
-  'qpm.activityLog.debug.summary.v1',
-
-  // Sell All Pets
-  'qpm.petTeams.sellAllPets.v1',
-
-  // Controller
-  'qpm.controller.enabled.v1',
-  'qpm.controller.bindings.v1',
-  'qpm.controller.cursorSpeed.v1',
-
-  // Storage Value
-  'qpm.storageValue.v1',
-  'qpm.trackers.storageValue.migrated.v1',
-
-  // Texture Manipulator
-  'qpm.textureSwaps.v1',
-
-  // Blobling Custom Skins
-  'qpm.bloblingCustomSkins.v1',
-
-  // Custom Cards (native card presets)
-  'qpm.customCards.presets.v1',
-  'qpm.customCards.overridesExpanded.v1',
-
-  // Action Guard (Locker)
-  'qpm.locker.config.v1',
-
-  // Garden QOL (insta-harvest, aries hold)
-  'qpm.gardenQol.config.v1',
-
-  // Crop Boost / Size Indicator / Tile Value / Tile ETA
-  'cropBoostTracker:config',
-  'qpm.cropSize.v1',
-  'cropSizeIndicator:config',
-  'qpm.tileValue.v1',
-  'qpm.tileEta.v1',
-
-  // Journal
-  'journal:notes',
-
-  // Pet Hutch keybind
-  'petHutch:keybind',
-
-  // Public Rooms
-  'publicRooms:refreshInterval',
-  'player-inspector:journal-expanded',
-
-  // Pet Hub
-  'petHub:ariesImportOnce.v1',
-
-  // Pets Window tab
-  'qpm.petsWindow.activeTab',
-
-  // Section collapse state
-  'qpm.sectionCollapsed',
-
-  // Legacy UI state
-  'quinoa-ui-panel-size',
-  'quinoa-mutation-reminder-config',
-
-  // Turtle Timer
-  'qpm-turtle-manual-overrides',
-  'qpm-turtle-completion-log',
-
-  // Garden Filters
-  'qpm.gardenFilters.v1',
-
-  // Texture Debug
-  'qpm.textureSwaps.debugLogs',
-
-  // Garden Painter presets
-  'qpm.gardenPainter.presets.v1',
-
-  // Garden Painter (window state for the texture manipulator)
-  'qpm.gardenPainter.gridOpen.v1',
-  'qpm.gardenPainter.disableGating.v1',
-  'qpm.gardenPainter.gatingDebug.v1',
-  'qpm.gardenPainter.slideOutTab.v1',
-
-  // Rive Engine
-  'qpm.riveEngine.debug.v1',
-
-  // Rive Control (persistent per-target Rive rules)
-  'qpm.riveRules.v1',
-  // Note: file overrides are persisted in IndexedDB (qpm-rive-overrides),
-  // not via this layer, because they're multi-MB binary blobs that exceed
-  // the localStorage quota. See src/rive-engine/fileOverrideStore.ts.
-
-  // Restock cache / tracked
-  'qpm.restockCache.v4',
-  'qpm.ariedam.gamedata',
-  'qpm.restock.tracked',
-  'qpm.restock.ui.v1',
-
-  // Dawn capsule pull history
-  'qpm.capsulePulls.v1',
-
-  // Hub visible cards
-  'qpm.utilityHub.visibleCards',
-  'qpm.toolsHub.visibleCards',
-  'qpm.trackersHub.visibleTrackers',
-
-  // Stats Hub
-  'qpm.statsHub.filters.v1',
-
-  // Turtle Timer tab
-  'qpm.turtleTimer.activeTab',
-
-  // Debug globals opt-in
-  'qpm.debug.globals.v1',
-
-  // Version checker
-  'qpm.versionCheck.v1',
-
-  // Inventory Capacity
-  'qpm.inventoryCapacity.v1',
-  'qpm.inventoryCapacity.customSounds.v1',
-
-  // Feed Keybinds
-  'qpm.feed-keybinds.v1',
-
-  // Shop Keybinds
-  'qpm.shop-keybinds.v1',
-  'qpm.panelHotkey.v1',
-
-  // Hub State
-  'qpm.hub.state.v1',
-  'qpm.hub.migrated.v1',
-
-  // Locale
-  'qpm.localeOverride.v1',
-
-  // Diagnostics
-  'qpm.diagnostics.errorBuffer.v1',
-  'qpm.diagnostics.errorBuffer.migration.v1',
-
-  // Shop Enhancer (Aries co-existence gate)
-  'qpm.shopEnhancer.mode',
-
-  // Reactive rollout kill switches (design §5b). Default false; per-tier so
-  // regressions can be bisected without a rebuild.
-  'qpm.perf.reactive.stateEnabled',
-  'qpm.perf.reactive.clientEnabled',
-  'qpm.perf.reactive.compositeEnabled',
-  'qpm.perf.reactive.dynamicEnabled',
-
-  // Tour system (dynamic keys: qpm.tour.<windowId>)
-  // Cleared by storage.clear() via the qpm.* prefix match
-
-  // Tower Defense minigame
-  'qpm.td.highScore.v1',
-  'qpm.td.settings.v1',
-  'qpm.td.saveGame.v1', // legacy single-slot autosave; migrated into qpm.td.saves.v1 on first TD launch
-  'qpm.td.saves.v1',
-  'qpm.td.debug.perfOverlay.v1',
-  'qpm.td.customDesigns.v1',
-
-  // Audio subsystem (per-feature volume overrides)
-  'qpm.audio.prefs.v1',
-];
-
-/** Shop enhancer mode key. Values: 'auto' | 'force-on' | 'force-off'. */
-export const SHOP_ENHANCER_MODE_KEY = 'qpm.shopEnhancer.mode';
-export type ShopEnhancerMode = 'auto' | 'force-on' | 'force-off';
-export const SHOP_ENHANCER_MODES: readonly ShopEnhancerMode[] = ['auto', 'force-on', 'force-off'];
-
-/**
- * Dynamic key prefixes for window position/size/state keys that are generated at runtime.
- * These are NOT in QPM_STORAGE_KEYS because the suffixes are per-window-id.
- */
-const QPM_DYNAMIC_KEY_PREFIXES = [
-  'qpm-window-pos-',
-  'qpm-window-size-',
-  'qpm-window-state-',
-] as const;
-
-/** Keys excluded from settings export — runtime logs, caches, legacy data, ephemeral state. */
-const EXPORT_EXCLUDE_KEYS: readonly string[] = [
-  // Activity log history (regenerated, ~4 MB)
-  'qpm.activityLog.history.v1',
-  'qpm.activityLog.history.backup.v1',
-  'qpm.activityLog.debug.summary.v1',
-  'qpm.activityLogEnhanced.entries.v1',
-  'qpm.activityLogEnhanced.entries.v2',
-  'qpm.activityLogEnhanced.entries.v3',
-
-  // Pet teams action log (regenerated, ~1 MB)
-  'qpm.petTeams.logs.v1',
-
-  // Turtle completion log
-  'qpm-turtle-completion-log',
-
-  // Caches (regenerated from network/game)
-  'qpm.petHatchingTracker.knownPetIds.v1',
-  'qpm.petXpObservations.v1',
-  'qpm.ariedam.gamedata',
-
-  // Legacy keys (superseded, nothing reads them)
-  'qpm-auto-feed-config',
-  'qpm-auto-shop-config',
-  'quinoa-auto-shop-config',
-  'qpm-hatching-helper-config',
-  'qpm-hatching-helper-stats-v1',
-  'petOptimizer:config.v2',
-  'petOptimizer:config.v3',
-];
-
-/** Key prefixes excluded from settings export. */
-const EXPORT_EXCLUDE_PREFIXES: readonly string[] = [
-  // Restock cache (all versions, regenerated from Supabase)
-  'qpm.restockCache',
-
-  // Tour/discovery state (ephemeral)
-  'qpm.tour.',
-  'qpm.discovered.',
-];
+/** Keys whose owning code is gone; deleted once at init so they stop occupying quota. */
+const ORPHANED_KEYS: readonly string[] = ['qpm.petTeams.logs.v1'];
 
 /** Runtime-registered dynamic (e.g. player-scoped) keys — fallback discovery for exportAllValues(). */
 const dynamicKeys = new Set<string>();
@@ -389,7 +56,6 @@ export function registerDynamicKey(key: string): void {
 }
 
 const globalScope = globalThis as Record<string, unknown>;
-const modernCache = new Map<string, string>();
 const READ_CACHE_MISSING = Symbol('storage.read.missing');
 const readCache = new Map<string, unknown>();
 
@@ -399,6 +65,7 @@ let modernGm: ModernGmStorageApi | null = null;
 let storageInitialized = false;
 let storageInitPromise: Promise<void> | null = null;
 let modernWriteQueue: Promise<void> = Promise.resolve();
+let mirrorFailureReported = false;
 
 function getLocalStorageSafe(): globalThis.Storage | null {
   try {
@@ -419,12 +86,15 @@ export function readLocalRaw(key: string): string | null {
   }
 }
 
-function writeLocalRaw(key: string, raw: string): void {
+function writeLocalRaw(key: string, raw: string): boolean {
   const ls = getLocalStorageSafe();
-  if (!ls) return;
+  if (!ls) return false;
   try {
     ls.setItem(key, raw);
-  } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function removeLocalKey(key: string): void {
@@ -443,6 +113,29 @@ function listLocalKeys(): string[] {
   } catch {
     return [];
   }
+}
+
+// Mirror facade. The in-memory map always serves reads; IndexedDB persists it. Without
+// IDB the persistence falls back to localStorage, where a failed (quota) write must
+// remove the stale copy rather than leave it to be read back on the next load.
+function mirrorWrite(key: string, raw: string): void {
+  mirrorSet(key, raw);
+  if (!isMirrorAvailable() && !writeLocalRaw(key, raw)) removeLocalKey(key);
+}
+
+function mirrorDelete(key: string): void {
+  mirrorRemove(key);
+  removeLocalKey(key);
+}
+
+function mirrorRead(key: string): string | null {
+  const raw = mirrorGet(key);
+  if (raw != null || isMirrorAvailable()) return raw;
+  return readLocalRaw(key);
+}
+
+function mirrorKeyList(): string[] {
+  return Array.from(new Set([...mirrorKeys(), ...listLocalKeys()]));
 }
 
 function serialize(value: unknown): string {
@@ -533,41 +226,56 @@ function enqueueModernWrite(task: () => Promise<void>): void {
     .catch(() => undefined);
 }
 
-function syncModernMirrorSet(key: string, raw: string): void {
-  modernCache.set(key, raw);
-  writeLocalRaw(key, raw);
-}
-
-function syncModernMirrorRemove(key: string): void {
-  modernCache.delete(key);
-  removeLocalKey(key);
-}
-
-async function hydrateModernCache(): Promise<void> {
-  if (!modernGm) return;
-
-  const keys = modernGm.listValues ? await modernGm.listValues().catch(() => []) : [];
-  if (keys.length > 0) {
-    const values = await Promise.all(
-      keys.map(async (key) => {
-        const raw = await modernGm!.getValue<string | null>(key, null).catch(() => null);
-        return { key, raw };
-      }),
-    );
-    for (const { key, raw } of values) {
-      if (typeof raw !== 'string') continue;
-      modernCache.set(key, raw);
-      writeLocalRaw(key, raw);
-    }
+/** Synchronous durable read: legacy GM only — modern GM is async and is copied into the mirror at init. */
+function readGmRaw(key: string): string | null {
+  if (runtime === 'legacy-gm' && legacyGm) {
+    try {
+      const gmRaw = legacyGm.getValue(key);
+      return typeof gmRaw === 'string' ? gmRaw : null;
+    } catch {}
   }
+  return null;
+}
 
+async function hydrateFromModernGm(): Promise<void> {
+  if (!modernGm) return;
+  const keys = modernGm.listValues ? await modernGm.listValues().catch(() => []) : [];
+  if (keys.length === 0) return;
+  const values = await Promise.all(
+    keys.map(async (key) => {
+      const raw = await modernGm!.getValue<string | null>(key, null).catch(() => null);
+      return { key, raw };
+    }),
+  );
+  for (const { key, raw } of values) {
+    if (typeof raw === 'string' && !mirrorHas(key)) mirrorSet(key, raw);
+  }
+}
+
+/**
+ * One-time move of the old localStorage mirrors into IndexedDB. A localStorage copy may be
+ * stale (quota-blocked writes), so it is only adopted when neither the mirror nor GM holds
+ * the key; either way it is deleted to hand the origin quota back to the game.
+ */
+function migrateLocalMirrors(): void {
+  if (!isMirrorAvailable() || runtime === 'local-storage') return;
   for (const key of listLocalKeys()) {
     if (!isQpmKey(key)) continue;
     const raw = readLocalRaw(key);
-    if (typeof raw === 'string' && !modernCache.has(key)) {
-      modernCache.set(key, raw);
-    }
+    if (raw != null && !mirrorHas(key) && readGmRaw(key) == null) mirrorSet(key, raw);
+    removeLocalKey(key);
   }
+}
+
+function reportMirrorFailure(error: unknown): void {
+  if (mirrorFailureReported) return;
+  mirrorFailureReported = true;
+  healthBus.publish({
+    subsystem: STORAGE_SUBSYSTEM,
+    category: 'core',
+    status: 'degraded',
+    message: `IndexedDB mirror write failed; reads fall back to GM (${error instanceof Error ? error.message : String(error)})`,
+  });
 }
 
 export function initializeStorage(): Promise<void> {
@@ -575,17 +283,16 @@ export function initializeStorage(): Promise<void> {
   if (storageInitPromise) return storageInitPromise;
 
   refreshRuntime();
-  if (runtime !== 'modern-gm') {
-    storageInitialized = true;
-    return Promise.resolve();
-  }
-
+  setMirrorFailureHandler(reportMirrorFailure);
   storageInitPromise = (async () => {
     try {
-      await hydrateModernCache();
+      await hydrateMirror();
+      if (runtime === 'modern-gm') await hydrateFromModernGm();
+      migrateLocalMirrors();
+      for (const key of ORPHANED_KEYS) storage.remove(key);
     } catch {}
     // Reads issued before hydration cached fallbacks for keys hydration just populated;
-    // clear so the next get() re-reads from the freshly-hydrated modernCache.
+    // clear so the next get() re-reads from the freshly-hydrated mirror.
     readCache.clear();
     storageInitialized = true;
   })().finally(() => {
@@ -609,92 +316,38 @@ export function startStorageDiagnostics(): void {
   if (storageBusRegistered) return;
   storageBusRegistered = true;
   refreshRuntime();
+  const mirror = isMirrorAvailable() ? 'indexedDB' : 'localStorage';
   healthBus.register(STORAGE_SUBSYSTEM, {
     category: 'core',
     status: 'ok',
-    message: `runtime=${runtime}`,
+    message: `runtime=${runtime} mirror=${mirror}`,
   });
   healthBus.publish({
     subsystem: STORAGE_SUBSYSTEM,
     category: 'core',
     status: 'ok',
-    message: `runtime=${runtime}`,
+    message: `runtime=${runtime} mirror=${mirror}`,
     metrics: {
       runtime,
+      mirror,
       registeredKeys: QPM_STORAGE_KEYS.length,
     },
   });
 }
 
-function readModernRaw(key: string): string | null {
-  if (modernCache.has(key)) {
-    return modernCache.get(key) ?? null;
-  }
-  return readLocalRaw(key);
-}
-
 function collectPrefixMatches(prefixes: readonly string[]): string[] {
   const out = new Set<string>();
-
-  for (const key of QPM_STORAGE_KEYS) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) {
-      out.add(key);
-    }
-  }
-
-  for (const key of dynamicKeys) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) {
-      out.add(key);
-    }
-  }
-
-  for (const key of modernCache.keys()) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) {
-      out.add(key);
-    }
-  }
-
-  for (const key of listLocalKeys()) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) {
-      out.add(key);
-    }
-  }
-
+  const matches = (key: string): boolean => prefixes.some((prefix) => key.startsWith(prefix));
+  for (const key of QPM_STORAGE_KEYS) if (matches(key)) out.add(key);
+  for (const key of dynamicKeys) if (matches(key)) out.add(key);
+  for (const key of mirrorKeyList()) if (matches(key)) out.add(key);
   return Array.from(out);
 }
 
 export function removeStorageKeysByPrefix(prefixes: readonly string[]): number {
   if (prefixes.length === 0) return 0;
-  refreshRuntime();
-
   const keys = collectPrefixMatches(prefixes);
-  if (keys.length === 0) return 0;
-
-  for (const key of keys) {
-    readCache.set(key, READ_CACHE_MISSING);
-    if (runtime === 'modern-gm') {
-      syncModernMirrorRemove(key);
-    } else {
-      removeLocalKey(key);
-    }
-  }
-
-  if (runtime === 'legacy-gm' && legacyGm) {
-    for (const key of keys) {
-      try {
-        legacyGm.deleteValue(key);
-      } catch {}
-    }
-  } else if (runtime === 'modern-gm' && modernGm) {
-    const keysToDelete = [...keys];
-    enqueueModernWrite(async () => {
-      if (!modernGm) return;
-      for (const key of keysToDelete) {
-        await modernGm.deleteValue(key).catch(() => undefined);
-      }
-    });
-  }
-
+  for (const key of keys) storage.remove(key);
   return keys.length;
 }
 
@@ -707,22 +360,12 @@ export const storage: Storage = {
 
     refreshRuntime();
 
-    let raw: string | null = null;
-    if (runtime === 'legacy-gm' && legacyGm) {
-      // Prefer localStorage: it's written synchronously by our mirror, so under
-      // async-persistence script managers (e.g. SMM) it's fresher than the GM cache.
-      raw = readLocalRaw(key);
-      if (raw == null) {
-        try {
-          const gmRaw = legacyGm.getValue(key);
-          raw = typeof gmRaw === 'string' ? gmRaw : null;
-        } catch {}
-      }
-    } else if (runtime === 'modern-gm') {
-      raw = readModernRaw(key);
-    } else {
-      raw = readLocalRaw(key);
-    }
+    // Mirror first: it is written synchronously, so it is fresher than GM values a
+    // script manager baked in at page load. GM is the durable fallback; a leftover
+    // localStorage copy only matters for reads issued before the mirror hydrated.
+    let raw = mirrorRead(key);
+    if (raw == null) raw = readGmRaw(key);
+    if (raw == null) raw = readLocalRaw(key);
 
     if (raw == null) {
       readCache.set(key, READ_CACHE_MISSING);
@@ -737,19 +380,16 @@ export const storage: Storage = {
     const raw = serialize(value);
     refreshRuntime();
     readCache.set(key, value);
+    mirrorWrite(key, raw);
 
     if (runtime === 'legacy-gm' && legacyGm) {
       try {
         legacyGm.setValue(key, raw);
       } catch {}
-      // Mirror to localStorage: under async-persistence script managers (e.g. SMM),
-      // GM_setValue syncs in the background, so a refresh before it completes loses the write.
-      writeLocalRaw(key, raw);
       return;
     }
 
     if (runtime === 'modern-gm' && modernGm) {
-      syncModernMirrorSet(key, raw);
       enqueueModernWrite(async () => {
         if (!modernGm) return;
         await modernGm.setValue(key, raw).catch(() => undefined);
@@ -757,31 +397,28 @@ export const storage: Storage = {
       return;
     }
 
-    writeLocalRaw(key, raw);
+    // No script manager: localStorage is the durable store (the IDB mirror doubles as backup).
+    if (isMirrorAvailable() && !writeLocalRaw(key, raw)) removeLocalKey(key);
   },
 
   remove(key: string): void {
     refreshRuntime();
     readCache.set(key, READ_CACHE_MISSING);
+    mirrorDelete(key);
 
     if (runtime === 'legacy-gm' && legacyGm) {
       try {
         legacyGm.deleteValue(key);
       } catch {}
-      removeLocalKey(key);
       return;
     }
 
     if (runtime === 'modern-gm' && modernGm) {
-      syncModernMirrorRemove(key);
       enqueueModernWrite(async () => {
         if (!modernGm) return;
         await modernGm.deleteValue(key).catch(() => undefined);
       });
-      return;
     }
-
-    removeLocalKey(key);
   },
 
   clear(): void {
@@ -827,8 +464,8 @@ function isExportExcluded(key: string): boolean {
 
 /**
  * Serialises all currently-stored QPM values (from QPM_STORAGE_KEYS, dynamic keys, and
- * matching localStorage keys) to a plain object of JSON strings, excluding dynamic window
- * layout keys. Output format matches storage.set, ready for import or Starweaver Mod Manager.
+ * the mirror) to a plain object of JSON strings, excluding dynamic window layout keys.
+ * Output format matches storage.set, ready for import or Starweaver Mod Manager.
  */
 export function exportAllValues(): Record<string, string> {
   const out: Record<string, string> = {};
@@ -842,13 +479,8 @@ export function exportAllValues(): Record<string, string> {
   for (const key of dynamicKeys) {
     if (isQpmKey(key)) candidateKeys.add(key);
   }
-  for (const key of listLocalKeys()) {
+  for (const key of mirrorKeyList()) {
     if (isQpmKey(key)) candidateKeys.add(key);
-  }
-  if (runtime === 'modern-gm') {
-    for (const key of modernCache.keys()) {
-      if (isQpmKey(key)) candidateKeys.add(key);
-    }
   }
   if (runtime === 'legacy-gm' && legacyGm?.listValues) {
     try {

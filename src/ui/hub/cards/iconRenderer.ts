@@ -3,7 +3,9 @@
 import type { CardIcon, BunchedSpriteEntry } from './types';
 import {
   getAnySpriteDataUrl,
+  getPetSpriteDataUrl,
   getPetSpriteDataUrlWithMutations,
+  getCropSpriteDataUrl,
   getCropSpriteDataUrlWithMutations,
   onSpritesReady,
 } from '../../../sprite-v2/compat';
@@ -13,12 +15,22 @@ import {
  * Returns empty string if sprites aren't loaded yet.
  */
 function resolveSpriteUrl(spriteKey: string, mutations?: readonly string[]): string {
-  if (mutations?.length) {
-    const muts = mutations as string[];
-    const petMatch = spriteKey.match(/^(?:sprite\/)?pet\/(.+)$/);
-    if (petMatch?.[1]) return getPetSpriteDataUrlWithMutations(petMatch[1], muts);
-    const plantMatch = spriteKey.match(/^(?:sprite\/)?plant\/(.+)$/);
-    if (plantMatch?.[1]) return getCropSpriteDataUrlWithMutations(plantMatch[1], muts);
+  // Pet species (non-egg) live in Rive only; plants with catalog names differing
+  // from atlas keys (e.g. FourLeafClover → CloverFourLeaf) need alias-aware lookup.
+  // Route through the type-specific compat APIs so Rive/alias fallback runs even
+  // when no mutations were requested — the 'any' atlas path misses both cases.
+  const muts = mutations?.length ? (mutations as string[]) : null;
+  const petMatch = spriteKey.match(/^(?:sprite\/)?pet\/(.+)$/);
+  if (petMatch?.[1]) {
+    return muts
+      ? getPetSpriteDataUrlWithMutations(petMatch[1], muts)
+      : getPetSpriteDataUrl(petMatch[1]);
+  }
+  const plantMatch = spriteKey.match(/^(?:sprite\/)?plant\/(.+)$/);
+  if (plantMatch?.[1]) {
+    return muts
+      ? getCropSpriteDataUrlWithMutations(plantMatch[1], muts)
+      : getCropSpriteDataUrl(plantMatch[1]);
   }
   return getAnySpriteDataUrl(spriteKey);
 }

@@ -66,6 +66,15 @@ const BASE_STYLES = `
 }
 .qpm-pets__tab:hover { color: #e0e0e0; }
 .qpm-pets__tab--active { color: #8f82ff; border-color: #8f82ff; }
+.qpm-pets__tab[data-unread]:not([data-unread=""])::after {
+  content: attr(data-unread);
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: var(--qpm-accent);
+  color: var(--qpm-text);
+}
 .qpm-pets__settings-wrap {
   position: relative;
   margin-bottom: 6px;

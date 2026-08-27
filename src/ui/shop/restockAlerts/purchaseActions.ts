@@ -6,6 +6,8 @@ import { warnFeature } from './_diagnostics';
 import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { isRoomSocketOpen, sendRoomAction, type WebSocketSendResult } from '../../../websocket/api';
 import { getShopStockState } from '../../../store/shopStock';
+import { isWeatherShopType } from '../../../types/shops';
+import { findCatalogIdCaseInsensitive, getToolMaxInventoryQuantity, isItemCatalogLoaded } from '../../../catalogs/shopEligibility';
 import {
   BUY_SEND_DELAY_MS,
   BUY_ACTION_THROTTLE_MS,
@@ -38,7 +40,7 @@ import {
   debugLog,
   debugLogError,
   toCanonicalKey,
-  resolveDawnOwnershipKey,
+  resolveOwnershipKey,
 } from './ownershipTracker';
 import { setAlertBusy, setAlertPendingConfirmation } from './alertDom';
 import { processShopStock } from './stockProcessor';
@@ -53,10 +55,14 @@ export function normalizeToolId(value: string): string {
   return compact;
 }
 
+/** Cap comes from the tool blueprint's `maxInventoryQuantity`; the literal set is only a catalog-unavailable fallback. */
 export function getToolInventoryLimitFromKey(key: string): number | null {
   if (!key.startsWith('tool:')) return null;
   const rawToolId = key.slice('tool:'.length);
   const normalized = normalizeToolId(rawToolId);
+  const catalogId = findCatalogIdCaseInsensitive('item', rawToolId) ?? findCatalogIdCaseInsensitive('item', normalized);
+  if (catalogId) return getToolMaxInventoryQuantity(catalogId);
+  if (isItemCatalogLoaded()) return null;
   return TOOL_LIMITED_IDS.has(normalized) ? TOOL_STACK_LIMIT : null;
 }
 
@@ -85,7 +91,7 @@ export function applyInventoryCapToQuantity(
   canonicalKey: string,
   requested: number,
 ): number {
-  if (shopType !== 'tool' && shopType !== 'dawn' && shopType !== 'snow') return requested;
+  if (shopType !== 'tool' && !isWeatherShopType(shopType)) return requested;
   const limit = getToolInventoryLimitFromKey(canonicalKey);
   if (limit == null) return requested;
   const owned = getOwnedToolCount(itemId, canonicalKey);
@@ -103,10 +109,7 @@ export function shouldLockDismissForPurchaseCompletion(key: string): boolean {
 
 type PurchaseSendFailureReason = WebSocketSendResult['reason'] | 'socket_not_open';
 
-/**
- * Map shop type → V16 ItemType string for the standard 4 shops.
- * Dawn/Snow shops can carry multiple item types, so they use itemTypeHint.
- */
+/** Standard shops carry one item type; weather shops mix types, so they rely on the hints from the shop entry. */
 const SHOP_TO_ITEM_TYPE: Record<string, string> = {
   seed: 'Seed',
   egg:  'Egg',
@@ -114,16 +117,15 @@ const SHOP_TO_ITEM_TYPE: Record<string, string> = {
   decor: 'Decor',
 };
 
-/**
- * Build the V16 ShopItemTarget discriminated union for a given shop + item ID.
- * For Dawn shop, itemTypeHint disambiguates (defaults to 'Seed' if unknown).
- */
+/** `idField` (from the shop entry) makes the payload shape follow the game for item types QPM has never seen. */
 function buildShopItemTarget(
   shopType: RestockShopType,
   itemId: string,
   itemTypeHint?: string,
+  idField?: string,
 ): { itemType: string } & Record<string, unknown> {
   const itemType = itemTypeHint ?? SHOP_TO_ITEM_TYPE[shopType] ?? 'Seed';
+  if (idField) return { itemType, [idField]: itemId };
   switch (itemType) {
     case 'Seed':  return { itemType: 'Seed',  species: itemId };
     case 'Egg':   return { itemType: 'Egg',   eggId: itemId };
@@ -133,8 +135,8 @@ function buildShopItemTarget(
   }
 }
 
-export function sendPurchase(shopType: RestockShopType, itemId: string, itemTypeHint?: string): WebSocketSendResult {
-  const item = buildShopItemTarget(shopType, itemId, itemTypeHint);
+export function sendPurchase(shopType: RestockShopType, itemId: string, itemTypeHint?: string, idField?: string): WebSocketSendResult {
+  const item = buildShopItemTarget(shopType, itemId, itemTypeHint, idField);
   return sendRoomAction('PurchaseShopItem', { shop: shopType, item } as unknown as Record<string, unknown>, { throttleMs: BUY_ACTION_THROTTLE_MS });
 }
 
@@ -181,12 +183,12 @@ export function resolveAutoStoreTarget(
     debugLog('Auto-store target resolved', { key, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
     return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
   }
-  if (shopType === 'dawn') {
-    const resolvedKey = resolveDawnOwnershipKey(key);
+  if (isWeatherShopType(shopType)) {
+    const resolvedKey = resolveOwnershipKey(key);
     if (resolvedKey.startsWith('seed:')) {
       const existingCount = alertState.seedSiloKeyCounts.get(resolvedKey) ?? 0;
       if (existingCount <= 0) {
-        debugLog('Auto-store target skipped for dawn seed', { key, resolvedKey, existingSeedCountInSilo: existingCount });
+        debugLog('Auto-store target skipped for weather-shop seed', { key, resolvedKey, existingSeedCountInSilo: existingCount });
         return null;
       }
       debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo', existingSeedCountInSilo: existingCount });
@@ -195,13 +197,13 @@ export function resolveAutoStoreTarget(
     if (resolvedKey.startsWith('decor:')) {
       const existingCount = alertState.decorShedKeyCounts.get(resolvedKey) ?? 0;
       if (existingCount <= 0) {
-        debugLog('Auto-store target skipped for dawn decor', { key, resolvedKey, existingDecorCountInShed: existingCount });
+        debugLog('Auto-store target skipped for weather-shop decor', { key, resolvedKey, existingDecorCountInShed: existingCount });
         return null;
       }
       debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
       return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
     }
-    debugLog('Auto-store target not applicable for dawn item type', { key, resolvedKey });
+    debugLog('Auto-store target not applicable for weather-shop item type', { key, resolvedKey });
     return null;
   }
   debugLog('Auto-store target not applicable for shop type', { key, shopType });
@@ -417,7 +419,7 @@ async function buyAllForAlert(model: AlertModel, quantity: number): Promise<BuyA
       debugLog('Buy-all send loop halted: room socket not open', { key: model.key, requested, sent, index: i });
       break;
     }
-    const result = sendPurchase(model.shopType, model.itemId, model.itemType);
+    const result = sendPurchase(model.shopType, model.itemId, model.itemType, model.idField);
     if (!result.ok) {
       firstFailureReason = result.reason ?? null;
       debugLog('Buy-all send failed', { key: model.key, requested, sent, index: i, reason: firstFailureReason });
@@ -465,17 +467,19 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
   try {
     const cappedRequested = applyInventoryCapToQuantity(buyModel.shopType, buyModel.itemId, buyModel.key, requested);
     if (cappedRequested <= 0) {
+      const owned = getOwnedToolCount(buyModel.itemId, buyModel.key);
+      const limit = getToolInventoryLimitFromKey(buyModel.key);
       debugLog('Buy-all skipped because inventory cap is already reached', {
         key: buyModel.key,
         label: buyModel.label,
         requested,
         cappedRequested,
-        owned: getOwnedToolCount(buyModel.itemId, buyModel.key),
-        limit: getToolInventoryLimitFromKey(buyModel.key),
+        owned,
+        limit,
       });
       setAlertPendingConfirmation(active, false);
       active.statusEl.style.color = '#fde68a';
-      active.statusEl.textContent = 'Inventory full (99/99)';
+      active.statusEl.textContent = `Inventory full (${owned}/${limit ?? owned})`;
       setAlertBusy(active, false);
       processShopStock(getShopStockState());
       return;

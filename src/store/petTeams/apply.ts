@@ -1,6 +1,6 @@
 import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
-import { logTeamEvent } from '../petTeamsLogs';
+import { logQpmPetEvent } from '../petActivity';
 import { sendRoomAction } from '../../websocket/api';
 import { findEmptyGardenTile, PLACE_PET_DEFAULTS, resolveMyUserSlotIdx } from '../../features/pets/teamActions';
 import { getHutchCapacity, INVENTORY_MAX } from '../hutch';
@@ -205,7 +205,16 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     store.config.activeTeamId = teamId;
     store.config.lastAppliedAt = Date.now();
     saveConfig();
-    logTeamEvent(teamId, team.name, applied, errors);
+    const snaps = getActivePetInfos().filter((p) => !!p.species).slice(0, 3).map((p) => ({
+      id: p.petId ?? p.slotId ?? teamId, species: p.species ?? '', name: p.name, mutations: p.mutations,
+      targetScale: p.targetScale ?? 1, xp: p.xp ?? 0, abilities: p.abilities, str: null, maxStr: null, level: null,
+    }));
+    const lead = snaps[0];
+    if (lead) {
+      logQpmPetEvent({ kind: 'team', action: 'applyTeam', pet: lead,
+        targets: snaps.map((pet) => ({ kind: 'pet' as const, pet })),
+        values: { teamName: team.name, applied, errors: errors.length } });
+    }
     return {
       applied,
       errors,

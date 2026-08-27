@@ -1,12 +1,14 @@
 import { storage } from '../../../utils/storage';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
+import { getToolSpawnWeights } from '../../../catalogs/shopEligibility';
 import { createFeatureDiagnostics } from '../../../diagnostics/featureDiagnostics';
 import type { Subsystem } from '../../../diagnostics/types';
 import {
-  CAPSULE_OPEN_ACTION,
+  CAPSULE_OPEN_ACTION_RE,
+  OPEN_ACTION_PREFIX_RE,
   CAPSULE_PULLS_STORAGE_KEY,
   MAX_PULL_RECORDS,
-  DAWN_CAPSULE_RATES,
+  RARE_PULL_RATE_THRESHOLD,
 } from './constants';
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:dawnCapsule';
@@ -16,18 +18,28 @@ const { diag, ensureBusRegistered, publishOk, warnFeature } =
 export interface CapsulePullRecord {
   timestamp: number;
   speciesIds: string[];
+  /** Tool id of the capsule (`DawnCapsule`, …). */
   capsuleType: string;
 }
 
-export interface CapsuleStats {
+export interface CapsuleTypeStats {
+  toolId: string;
   totalOpens: number;
   totalSpecies: number;
   speciesDistribution: Record<string, number>;
+  /** Normalised from the tool blueprint's `floraSpawnWeights`; empty until catalogs load. */
   expectedRates: Record<string, number>;
   actualRates: Record<string, number>;
+  /** Local count only — the game's pity counters are server-side and not mirrored here. */
   pullsSinceLast: Record<string, number>;
   sessionOpens: number;
   sessionSpecies: string[];
+}
+
+export interface CapsuleStats {
+  byCapsule: Record<string, CapsuleTypeStats>;
+  totalOpens: number;
+  sessionOpens: number;
 }
 
 let pullHistory: CapsulePullRecord[] = [];
@@ -40,11 +52,7 @@ const listeners = new Set<(stats: CapsuleStats) => void>();
 
 function loadHistory(): void {
   const stored = storage.get<CapsulePullRecord[] | null>(CAPSULE_PULLS_STORAGE_KEY, null);
-  if (Array.isArray(stored)) {
-    pullHistory = stored.slice(-MAX_PULL_RECORDS);
-  } else {
-    pullHistory = [];
-  }
+  pullHistory = Array.isArray(stored) ? stored.slice(-MAX_PULL_RECORDS) : [];
 }
 
 function saveHistory(): void {
@@ -54,11 +62,28 @@ function saveHistory(): void {
   storage.set(CAPSULE_PULLS_STORAGE_KEY, pullHistory);
 }
 
-function computeStats(): CapsuleStats {
+function resolveCapsuleToolId(action: unknown): string | null {
+  if (typeof action !== 'string') return null;
+  const direct = CAPSULE_OPEN_ACTION_RE.exec(action);
+  if (direct) return direct[1]!;
+  const generic = OPEN_ACTION_PREFIX_RE.exec(action);
+  if (generic && Object.keys(getToolSpawnWeights(generic[1]!)).length > 0) return generic[1]!;
+  return null;
+}
+
+function computeExpectedRates(toolId: string): Record<string, number> {
+  const weights = getToolSpawnWeights(toolId);
+  const total = Object.values(weights).reduce((sum, w) => sum + w, 0);
+  if (total <= 0) return {};
+  const rates: Record<string, number> = {};
+  for (const [species, weight] of Object.entries(weights)) rates[species] = weight / total;
+  return rates;
+}
+
+function computeTypeStats(toolId: string, records: CapsulePullRecord[], session: CapsulePullRecord[]): CapsuleTypeStats {
   const speciesDistribution: Record<string, number> = {};
   let totalSpecies = 0;
-
-  for (const record of pullHistory) {
+  for (const record of records) {
     for (const species of record.speciesIds) {
       speciesDistribution[species] = (speciesDistribution[species] ?? 0) + 1;
       totalSpecies++;
@@ -67,44 +92,60 @@ function computeStats(): CapsuleStats {
 
   const actualRates: Record<string, number> = {};
   if (totalSpecies > 0) {
-    for (const [species, count] of Object.entries(speciesDistribution)) {
-      actualRates[species] = count / totalSpecies;
-    }
+    for (const [species, count] of Object.entries(speciesDistribution)) actualRates[species] = count / totalSpecies;
   }
 
+  const expectedRates = computeExpectedRates(toolId);
   const pullsSinceLast: Record<string, number> = {};
-  const rareSpecies = ['Ube', 'Dawnbreaker'];
-  for (const rare of rareSpecies) {
+  for (const [rare, rate] of Object.entries(expectedRates)) {
+    if (rate >= RARE_PULL_RATE_THRESHOLD) continue;
     let sinceLast = 0;
     let found = false;
-    for (let i = pullHistory.length - 1; i >= 0; i--) {
-      for (const species of pullHistory[i]!.speciesIds) {
-        if (species === rare) {
-          found = true;
-          break;
-        }
+    for (let i = records.length - 1; i >= 0 && !found; i--) {
+      for (const species of records[i]!.speciesIds) {
+        if (species === rare) { found = true; break; }
         sinceLast++;
       }
-      if (found) break;
     }
     pullsSinceLast[rare] = found ? sinceLast : totalSpecies;
   }
 
   const sessionSpecies: string[] = [];
-  for (const record of sessionPulls) {
-    sessionSpecies.push(...record.speciesIds);
-  }
+  for (const record of session) sessionSpecies.push(...record.speciesIds);
 
   return {
-    totalOpens: pullHistory.length,
+    toolId,
+    totalOpens: records.length,
     totalSpecies,
     speciesDistribution,
-    expectedRates: { ...DAWN_CAPSULE_RATES },
+    expectedRates,
     actualRates,
     pullsSinceLast,
-    sessionOpens: sessionPulls.length,
+    sessionOpens: session.length,
     sessionSpecies,
   };
+}
+
+function computeStats(): CapsuleStats {
+  const historyByType = new Map<string, CapsulePullRecord[]>();
+  for (const record of pullHistory) {
+    const bucket = historyByType.get(record.capsuleType) ?? [];
+    bucket.push(record);
+    historyByType.set(record.capsuleType, bucket);
+  }
+  const sessionByType = new Map<string, CapsulePullRecord[]>();
+  for (const record of sessionPulls) {
+    const bucket = sessionByType.get(record.capsuleType) ?? [];
+    bucket.push(record);
+    sessionByType.set(record.capsuleType, bucket);
+  }
+
+  const byCapsule: Record<string, CapsuleTypeStats> = {};
+  for (const [toolId, records] of historyByType) {
+    byCapsule[toolId] = computeTypeStats(toolId, records, sessionByType.get(toolId) ?? []);
+  }
+
+  return { byCapsule, totalOpens: pullHistory.length, sessionOpens: sessionPulls.length };
 }
 
 function emit(): void {
@@ -122,7 +163,8 @@ function processActivityLogs(rawValue: unknown): void {
   if (!rawValue || typeof rawValue !== 'object') return;
 
   const data = rawValue as Record<string, unknown>;
-  const activityLog = data.activityLog;
+  // Game key is `activityLogs` (plural, verified v1019); singular kept as a fallback.
+  const activityLog = Array.isArray(data.activityLogs) ? data.activityLogs : data.activityLog;
   if (!Array.isArray(activityLog)) return;
 
   if (activityLog.length <= lastSeenLogLength) {
@@ -138,7 +180,8 @@ function processActivityLogs(rawValue: unknown): void {
     if (!entry || typeof entry !== 'object') continue;
     const logEntry = entry as Record<string, unknown>;
 
-    if (logEntry.action !== CAPSULE_OPEN_ACTION) continue;
+    const toolId = resolveCapsuleToolId(logEntry.action);
+    if (!toolId) continue;
 
     const params = logEntry.parameters as Record<string, unknown> | undefined;
     if (!params) continue;
@@ -161,13 +204,13 @@ function processActivityLogs(rawValue: unknown): void {
     const record: CapsulePullRecord = {
       timestamp,
       speciesIds: validSpecies,
-      capsuleType: 'DawnCapsule',
+      capsuleType: toolId,
     };
 
     pullHistory.push(record);
     sessionPulls.push(record);
     changed = true;
-    diag.debug(`Capsule opened: ${validSpecies.join(', ')}`);
+    diag.debug(`${toolId} opened: ${validSpecies.join(', ')}`);
   }
 
   if (changed) {

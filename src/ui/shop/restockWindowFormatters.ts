@@ -4,7 +4,7 @@
 import {
   RARITY_COLORS,
   RARITY_GLOW,
-  SHOP_CYCLE_INTERVALS,
+  getShopCycleInterval,
 } from './restockWindowConstants';
 import { t } from '../../i18n';
 
@@ -69,7 +69,7 @@ export function rateColor(rate: number | null): string {
 
 export function formatFrequency(rate: number | null, shopType: string): string {
   if (rate === null || rate === undefined || rate <= 0) return '';
-  const interval = SHOP_CYCLE_INTERVALS[shopType];
+  const interval = getShopCycleInterval(shopType);
   if (!interval) return '';
   if (rate >= 0.95) return t('feature.shopRestock.everyRestock');
   const expectedMs = interval / rate;

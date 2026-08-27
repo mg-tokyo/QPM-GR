@@ -108,6 +108,41 @@ export function toNonNegativeInteger(value: unknown): number | null {
 
 // Item field derivation
 
+export interface ShopEntryIdentity {
+  /** Game ItemType string ('Seed' | 'Egg' | 'Tool' | 'Decor' | future). */
+  itemType: string;
+  /** The wire field carrying the id (`species`, `eggId`, `toolId`, `decorId`, or a future `<kind>Id`). */
+  idField: string;
+  id: string;
+}
+
+const KNOWN_ID_FIELDS: ReadonlyArray<{ field: string; itemType: string }> = [
+  { field: 'species', itemType: 'Seed' },
+  { field: 'eggId',   itemType: 'Egg' },
+  { field: 'toolId',  itemType: 'Tool' },
+  { field: 'decorId', itemType: 'Decor' },
+];
+
+/**
+ * Identify a shop entry's item type and id field without a fixed type list:
+ * explicit `itemType` wins, known fields next, then any `<kind>Id` string field.
+ */
+export function getShopEntryIdentity(entry: Record<string, unknown> | null | undefined): ShopEntryIdentity | null {
+  if (!entry) return null;
+  const explicitType = typeof entry.itemType === 'string' && entry.itemType ? entry.itemType : null;
+  for (const { field, itemType } of KNOWN_ID_FIELDS) {
+    const value = entry[field];
+    if (typeof value === 'string' && value) return { itemType: explicitType ?? itemType, idField: field, id: value };
+  }
+  for (const [key, value] of Object.entries(entry)) {
+    const match = /^([a-z]+)Id$/.exec(key);
+    if (!match || key === 'itemId' || typeof value !== 'string' || !value) continue;
+    const stem = match[1]!;
+    return { itemType: explicitType ?? stem.charAt(0).toUpperCase() + stem.slice(1), idField: key, id: value };
+  }
+  return null;
+}
+
 export function deriveItemId(category: ShopCategory, entry: ShopInventoryEntry): string | null {
   switch (category) {
     case 'seeds':
@@ -119,12 +154,7 @@ export function deriveItemId(category: ShopCategory, entry: ShopInventoryEntry):
     case 'decor':
       return entry.decorId != null ? String(entry.decorId) : entry.id != null ? String(entry.id) : null;
     default:
-      return entry.species != null ? String(entry.species)
-        : entry.eggId != null ? String(entry.eggId)
-        : entry.toolId != null ? String(entry.toolId)
-        : entry.decorId != null ? String(entry.decorId)
-        : entry.id != null ? String(entry.id)
-        : null;
+      return getShopEntryIdentity(entry)?.id ?? (entry.id != null ? String(entry.id) : null);
   }
 }
 

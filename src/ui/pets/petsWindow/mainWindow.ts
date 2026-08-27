@@ -25,6 +25,10 @@ import { btn, showToast, normalizeKeybind, isEditableTarget, createKeybindButton
 import { buildManagerTab } from './managerTab';
 import { startFeedKeybinds, stopFeedKeybinds } from '../../../features/pets/feedKeybinds';
 import { t } from '../../../i18n';
+import { createNamedLogger } from '../../../diagnostics/logger';
+import type { ActivityTabHandle } from './activityTab';
+
+const uiLog = createNamedLogger('ui.window');
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -82,10 +86,11 @@ function renderPetsWindow(root: HTMLElement): void {
   body.className = 'qpm-pets__body';
   container.appendChild(body);
 
-  type TabId = 'manager' | 'pet-optimizer';
+  type TabId = 'manager' | 'pet-optimizer' | 'activity';
   const tabDefs: Array<{ id: TabId; label: string; lazy: boolean }> = [
     { id: 'manager', label: t('feature.petsWindow.tabManager'), lazy: false },
     { id: 'pet-optimizer', label: `\uD83C\uDFAF ${t('feature.petsWindow.tabOptimizer')}`, lazy: true },
+    { id: 'activity', label: t('feature.petsWindow.tabActivity'), lazy: true },
   ];
   const validTabIds = new Set<string>(tabDefs.map((d) => d.id));
   const savedTab = storage.get<string>(PETS_TAB_KEY, 'manager');
@@ -351,7 +356,7 @@ function renderPetsWindow(root: HTMLElement): void {
     panel.style.overflow = 'hidden';
 
     const scrollTargets = panel.querySelectorAll<HTMLElement>(
-      '.qpm-mgr__teams, .qpm-mgr__editor, .qpm-editor, .qpm-tcmp-grid, .qpm-window-body, .qpm-pet-optimizer-root',
+      '.qpm-mgr__teams, .qpm-mgr__editor, .qpm-editor, .qpm-tcmp-grid, .qpm-window-body, .qpm-pet-optimizer-root, .qpm-pact__list',
     );
     scrollTargets.forEach((target) => {
       if (!target.style.minHeight) target.style.minHeight = '0';
@@ -392,6 +397,25 @@ function renderPetsWindow(root: HTMLElement): void {
         errDiv.textContent = t('feature.petsWindow.optimizerLoadError');
         panel.appendChild(errDiv);
       });
+    } else if (id === 'activity' && !lazyLoaded.has('activity')) {
+      lazyLoaded.add('activity');
+      const panel = panels['activity']!;
+      import('./activityTab').then(({ renderActivityTab }) => {
+        panel.innerHTML = '';
+        activityHandle = renderActivityTab(panel);
+        activityHandle.onUnread((n) => {
+          const b = tabBtns['activity'];
+          if (b) b.dataset.unread = n > 0 && activeTab !== 'activity' ? String(n) : '';
+        });
+        allCleanups.push(() => activityHandle?.cleanup());
+        if (tourApi) {
+          tourApi.checkTour(tabToWindowId['activity'], panel);
+          tourApi.startDiscovery(tabToWindowId['activity'], panel);
+        }
+      }).catch((err) => {
+        uiLog.warn('QPM-UI-002', { what: 'activityTab', id: WINDOW_ID }, err);
+        panel.textContent = t('feature.petActivity.loadError');
+      });
     } else {
       // Non-lazy tab or already loaded — check tour + start discovery
       const panel = panels[id];
@@ -401,6 +425,8 @@ function renderPetsWindow(root: HTMLElement): void {
         tourApi.startDiscovery(wid, panel);
       }
     }
+
+    if (id === 'activity') activityHandle?.markRead();
 
     renderCompareStageBadge();
     requestAnimationFrame(() => reassertScrollChain(panels[id]));
@@ -417,6 +443,7 @@ function renderPetsWindow(root: HTMLElement): void {
   }
 
   let managerState: ManagerState | null = null;
+  let activityHandle: ActivityTabHandle | null = null;
 
   for (const def of tabDefs) {
     const tabBtn = document.createElement('div');
@@ -450,6 +477,7 @@ function renderPetsWindow(root: HTMLElement): void {
   const tabToWindowId: Record<TabId, string> = {
     'manager': 'qpm-pets-manager',
     'pet-optimizer': 'qpm-pets-optimizer',
+    'activity': 'qpm-pets-activity',
   };
 
   type TourApi = {
@@ -473,7 +501,7 @@ function renderPetsWindow(root: HTMLElement): void {
   const onPetsWindowSwitchTab = (event: Event): void => {
     const detail = (event as CustomEvent<{ tab?: string; teamId?: string | null }>).detail;
     if (!detail?.tab) return;
-    if (detail.tab !== 'manager' && detail.tab !== 'pet-optimizer') return;
+    if (detail.tab !== 'manager' && detail.tab !== 'pet-optimizer' && detail.tab !== 'activity') return;
     switchTab(detail.tab);
     if (detail.tab === 'manager' && managerState) {
       managerState.selectTeam(detail.teamId ?? null);

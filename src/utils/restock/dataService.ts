@@ -3,6 +3,8 @@
 import { storage } from '../storage';
 import { log } from '../logger';
 import { isDebugGlobalsEnabled } from '../debugGlobals';
+import { STANDARD_RESTOCK_SHOP_TYPES } from '../../types/shops';
+import { getWeatherGatedShopIds } from '../../store/shopRegistry';
 import {
   errorRestockFetch,
   publishRestockOk,
@@ -101,10 +103,14 @@ const RESTOCK_ACCURACY_COLUMNS = [
 // Track whether the server supports extended columns (auto-detected on first success).
 let serverSupportsExtended: boolean | null = null;
 
-// v6 key forces a fresh fetch after adding snow shop type.
-const CACHE_KEY = 'qpm.restockCache.v6';
+// v7 key forces a fresh fetch after weather-shop rows stopped being filtered by a literal list.
+const CACHE_KEY = 'qpm.restockCache.v7';
 const REFRESH_BUDGET_KEY = 'qpm.restock.refreshBudget.v1';
-const ALLOWED_SHOP_TYPES = new Set(['seed', 'egg', 'decor', 'tool', 'dawn', 'snow']);
+
+/** Standard types, the weather-event pseudo-type, and every weather-gated shop id the registry knows (grows at runtime). */
+function isAllowedShopType(shopType: string): boolean {
+  return STANDARD_RESTOCK_SHOP_TYPES.has(shopType) || shopType === 'weather' || getWeatherGatedShopIds().includes(shopType);
+}
 
 const RESTOCK_REFRESH_WINDOW_MS_DEFAULT = 2 * 60 * 60 * 1000; // 2 hours
 const RESTOCK_REFRESH_MAX_DEFAULT = 5;
@@ -284,7 +290,7 @@ function emitRestockDataUpdated(detail: RestockDataUpdatedDetail): void {
 // Cache management
 
 function sanitizeItems(items: RestockItem[]): RestockItem[] {
-  const filtered = items.filter((item) => !!item.item_id && ALLOWED_SHOP_TYPES.has(item.shop_type));
+  const filtered = items.filter((item) => !!item.item_id && isAllowedShopType(item.shop_type));
   return deduplicateItems(filtered);
 }
 

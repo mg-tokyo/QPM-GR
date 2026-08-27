@@ -285,7 +285,8 @@ export function classifyWeather(canvas: HTMLCanvasElement): 'weather' | 'noweath
   }
 }
 
-export type DetailedWeather = 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'unknown';
+export const DETAILED_WEATHER_KINDS = ['sunny', 'rain', 'snow', 'dawn', 'amber', 'thunderstorm', 'unknown'] as const;
+export type DetailedWeather = (typeof DETAILED_WEATHER_KINDS)[number];
 
 export function detectDetailedWeather(canvas: HTMLCanvasElement): DetailedWeather {
   const base = classifyWeather(canvas);

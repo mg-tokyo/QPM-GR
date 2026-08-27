@@ -38,23 +38,6 @@ export interface PetFeedPolicy {
 }
 
 // ---------------------------------------------------------------------------
-// Event log
-// ---------------------------------------------------------------------------
-
-export type PetLogEventType = 'ability' | 'feed' | 'team';
-
-export interface PetLogEvent {
-  id: string;                        // UUID
-  type: PetLogEventType;
-  petItemId?: string;
-  petName?: string;
-  petSpecies?: string;
-  detail: string;                    // Human-readable summary
-  timestamp: number;
-  extra?: Record<string, unknown>;   // type-specific metadata
-}
-
-// ---------------------------------------------------------------------------
 // Unified pet pool (active + hutch + inventory)
 // ---------------------------------------------------------------------------
 

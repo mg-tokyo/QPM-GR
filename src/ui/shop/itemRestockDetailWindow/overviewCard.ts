@@ -5,6 +5,38 @@ import type { OverviewHandle } from './types';
 import { CARD_STYLE } from './constants';
 import { makeCardHeader } from './cardShared';
 import { fmtAbsoluteWithZone, fmtCountdown, fmtDuration, fmtPercent, fmtRelative } from './format';
+import { getShopFacingCatalogEntry } from '../../../catalogs/shopEligibility';
+import { getPityOutcomes, pityCounterKey, type PityKind } from '../../../catalogs/pityThresholds';
+import { subscribePity } from '../../../store/pityTracker';
+
+function pityKindFor(itemId: string): PityKind | null {
+  const kind = getShopFacingCatalogEntry(itemId)?.kind;
+  return kind === 'plant' ? 'seed' : kind === 'egg' ? 'egg' : kind === 'item' ? 'capsule' : null;
+}
+
+/** One line: `Rainbow 37/2000 · Gold 3/200` — observed misses against each guarantee. */
+function buildPityRow(itemId: string): { root: HTMLElement; dispose: () => void } | null {
+  const kind = pityKindFor(itemId);
+  const outcomes = kind ? getPityOutcomes({ kind, id: itemId }) : [];
+  if (!kind || outcomes.length === 0) return null;
+
+  const root = document.createElement('div');
+  root.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;';
+  const label = document.createElement('span');
+  label.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);white-space:nowrap;';
+  label.textContent = t('feature.itemDetail.badLuckProtection');
+  label.title = t('feature.itemDetail.pityObservedTitle');
+  const value = document.createElement('span');
+  value.style.cssText = 'font-size:12px;font-weight:var(--qpm-weight-semibold);color:var(--qpm-text);font-variant-numeric:tabular-nums;text-align:right;';
+  root.append(label, value);
+
+  const unsubscribe = subscribePity((state) => {
+    value.textContent = outcomes
+      .map((o) => `${o.outcomeId} ${state.counters[pityCounterKey(kind, itemId, o.outcomeId)]?.misses ?? 0}/${o.thresholdPulls}`)
+      .join(' · ');
+  });
+  return { root, dispose: unsubscribe };
+}
 
 export function buildOverviewCard(
   itemName: string,
@@ -271,6 +303,9 @@ export function buildOverviewCard(
   accSubtitle.style.cssText = 'font-size:10px;color:rgba(232,224,255,0.35);margin-top:4px;';
   accuracyRateRow.appendChild(accSubtitle);
   infoSection.appendChild(accuracyRateRow);
+
+  const pityRow = buildPityRow(item.item_id);
+  if (pityRow) infoSection.appendChild(pityRow.root);
   card.appendChild(infoSection);
 
   // Browse events button
@@ -300,6 +335,7 @@ export function buildOverviewCard(
 
   return {
     container: card,
+    dispose: () => pityRow?.dispose(),
     setEventCount: (count: number, totalSightings?: number) => {
       browseBtn.disabled = count === 0;
       browseBtn.style.opacity = count === 0 ? '0.4' : '1';

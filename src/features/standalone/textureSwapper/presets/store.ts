@@ -26,9 +26,6 @@ function notifyListeners(): void {
 function saveConfig(): void {
   state.config.updatedAt = Date.now();
   storage.set(state.resolvedKey, state.config);
-  if (state.resolvedKey !== PRESETS_STORAGE_KEY) {
-    storage.set(PRESETS_STORAGE_KEY, state.config);
-  }
   notifyListeners();
 }
 
@@ -64,6 +61,8 @@ export async function initGardenPainterPresets(): Promise<void> {
 
   state.resolvedKey = scopedKey;
   registerDynamicKey(scopedKey);
+  // The unscoped key was only ever a pre-migration seed; presets can be >1 MB, so don't keep two copies.
+  if (unscoped) storage.remove(PRESETS_STORAGE_KEY);
 }
 
 export function stopGardenPainterPresets(): void {

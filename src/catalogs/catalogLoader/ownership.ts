@@ -5,7 +5,7 @@ import { catalogLog, cosmeticOwnership, publishCatalogs } from './state';
 
 let cosmeticOwnershipFetchInFlight: Promise<void> | null = null;
 
-function getRoomApiBase(): string | null {
+export function getRoomApiBase(): string | null {
   try {
     const pathname = pageWindow.location?.pathname ?? '';
     const segments = pathname.split('/').filter(Boolean);

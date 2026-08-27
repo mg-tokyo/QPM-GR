@@ -1805,10 +1805,5 @@
     "max-lines": {
       "count": 1
     }
-  },
-  "src/utils/storage.ts": {
-    "max-lines": {
-      "count": 1
-    }
   }
 }

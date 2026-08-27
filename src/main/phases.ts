@@ -18,7 +18,7 @@ import { startBulkFavorite } from '../features/standalone/bulkFavorite';
 import { initializeFoodRules } from '../features/pets/foodRules';
 import { startSellSnapshotWatcher } from '../store/sellSnapshot';
 import { initPetTeamsStore } from '../store/petTeams';
-import { initPetTeamsLogs } from '../store/petTeamsLogs';
+import { initPetActivityStore } from '../store/petActivity';
 import { initPetTeamsSync } from '../store/petTeamsSync';
 import { startGardenBridge } from '../features/garden/bridge';
 import { initializeGardenFilters } from '../features/garden/filters';
@@ -103,6 +103,8 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   await startPetHatchingTracker().catch((error) => {
     warnCore('QPM-INIT-001', { what: 'phase:petHatchingTracker' }, error);
   });
+  const { startPityTracker } = await import('../store/pityTracker');
+  startPityTracker();
   await yieldToBrowser();
 
   // Phase 3: Auto-favorite and bulk operations
@@ -113,7 +115,7 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   await yieldToBrowser();
 
   // Phase 3b: Pet Teams (needs inventory + pet stores ready)
-  initPetTeamsLogs();
+  initPetActivityStore();
   initPetTeamsStore();
   await yieldToBrowser();
 

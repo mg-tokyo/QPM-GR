@@ -8,13 +8,16 @@ import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '..
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { storage } from '../../utils/storage';
 import { getWeatherDef } from '../../catalogs/gameCatalogs';
+import { areShopCatalogsLoaded, getShopEligibleItemIds } from '../../catalogs/shopEligibility';
+import { getWeatherShopIds } from '../../store/shopRegistry';
+import { isWeatherShopType } from '../../types/shops';
 import type { RestockItem } from '../../utils/restock/dataService';
 import {
   TRACKED_KEY,
   UI_STATE_KEY,
   ARIEDAM_KEY,
   ARIEDAM_TTL_MS,
-  CELESTIAL_IDS,
+  isCelestialItem,
 } from './restockWindowConstants';
 
 // ---------------------------------------------------------------------------
@@ -174,7 +177,7 @@ export async function initGameData(): Promise<void> {
 export function getItemMeta(itemId: string, shopType: string): ItemMeta | null {
   const direct = itemMetaCache.get(`${shopType}:${itemId}`);
   if (direct) return direct;
-  if (shopType === 'dawn' || shopType === 'snow') {
+  if (isWeatherShopType(shopType)) {
     return itemMetaCache.get(`seed:${itemId}`)
       ?? itemMetaCache.get(`egg:${itemId}`)
       ?? itemMetaCache.get(`tool:${itemId}`)
@@ -224,13 +227,44 @@ export function getItemPrice(itemId: string, shopType: string): number {
 
 export function getCatalogOrder(itemId: string, shopType: string): number | null {
   let order = itemCatalogOrder.get(`${shopType}:${itemId}`);
-  if (!Number.isFinite(order) && (shopType === 'dawn' || shopType === 'snow')) {
+  if (!Number.isFinite(order) && isWeatherShopType(shopType)) {
     order = itemCatalogOrder.get(`seed:${itemId}`)
       ?? itemCatalogOrder.get(`egg:${itemId}`)
       ?? itemCatalogOrder.get(`tool:${itemId}`)
       ?? itemCatalogOrder.get(`decor:${itemId}`);
   }
   return Number.isFinite(order) ? (order as number) : null;
+}
+
+function makeEmptyRestockRow(itemId: string, shopType: string): RestockItem {
+  return {
+    item_id: itemId,
+    shop_type: shopType,
+    current_probability: null,
+    appearance_rate: null,
+    predicted_next_ms: null,
+    estimated_next_timestamp: null,
+    median_interval_ms: null,
+    last_seen: null,
+    average_quantity: null,
+    total_quantity: 0,
+    total_occurrences: 0,
+    algorithm_version: null,
+    algorithm_updated_at: null,
+    recent_intervals_ms: null,
+    empirical_weight: null,
+    empirical_probability: null,
+    fallback_rate: null,
+    baseline_interval_ms: null,
+    ema_interval_ms: null,
+    weather_intervals: null,
+    is_dormant: null,
+    current_weather: null,
+    weather_baseline_ms: null,
+    weather_samples: null,
+    weather_used: null,
+    weather_rejected_reason: null,
+  };
 }
 
 export function mergeToolFallbackRows(items: RestockItem[]): RestockItem[] {
@@ -252,149 +286,43 @@ export function mergeToolFallbackRows(items: RestockItem[]): RestockItem[] {
   const merged = items.slice();
   for (const toolId of toolCatalogIds) {
     if (existingToolIds.has(toolId)) continue;
-    merged.push({
-      item_id: toolId,
-      shop_type: 'tool',
-      current_probability: null,
-      appearance_rate: null,
-      predicted_next_ms: null,
-      estimated_next_timestamp: null,
-      median_interval_ms: null,
-      last_seen: null,
-      average_quantity: null,
-      total_quantity: 0,
-      total_occurrences: 0,
-      algorithm_version: null,
-      algorithm_updated_at: null,
-      recent_intervals_ms: null,
-      empirical_weight: null,
-      empirical_probability: null,
-      fallback_rate: null,
-      baseline_interval_ms: null,
-      ema_interval_ms: null,
-      weather_intervals: null,
-      is_dormant: null,
-      current_weather: null,
-      weather_baseline_ms: null,
-      weather_samples: null,
-      weather_used: null,
-      weather_rejected_reason: null,
-    });
+    merged.push(makeEmptyRestockRow(toolId, 'tool'));
   }
   return merged;
 }
 
-/** All items that can appear in the Dawn shop. */
-const DAWN_SHOP_ITEM_IDS = [
-  'Daisy', 'Lavender', 'Saffron', 'Eggplant', 'Ube',
-  'Dawnbreaker', 'DawnCelestial', 'DawnEgg',
-] as const;
+/** Catalog-unavailable fallback only; the live membership comes from blueprints' `eligibleShops`. */
+const WEATHER_SHOP_FALLBACK_ITEM_IDS: Record<string, readonly string[]> = {
+  dawn: ['Daisy', 'Lavender', 'Saffron', 'Eggplant', 'Ube', 'Dawnbreaker', 'DawnCelestial', 'DawnEgg'],
+  snow: [
+    'Snowdrop', 'Leek', 'PineTree', 'Squash', 'Poinsettia',
+    'SnowEgg', 'ChilledPotion', 'FrozenPotion',
+    'WoodCaribou', 'StoneCaribou', 'MarbleCaribou', 'ColoredStringLights',
+  ],
+};
 
-export function mergeDawnFallbackRows(items: RestockItem[]): RestockItem[] {
-  const existingDawnIds = new Set<string>();
-  for (const row of items) {
-    if (row.shop_type === 'dawn') existingDawnIds.add(row.item_id);
+/** Adds an empty row for every item a weather shop can carry, so shops appear even before the restock API has seen them. */
+export function mergeWeatherShopFallbackRows(items: RestockItem[]): RestockItem[] {
+  const catalogsLoaded = areShopCatalogsLoaded();
+  const shopIds = catalogsLoaded ? getWeatherShopIds() : Object.keys(WEATHER_SHOP_FALLBACK_ITEM_IDS);
+  let merged: RestockItem[] | null = null;
+  for (const shopId of shopIds) {
+    const ids = catalogsLoaded ? getShopEligibleItemIds(shopId) : (WEATHER_SHOP_FALLBACK_ITEM_IDS[shopId] ?? []);
+    if (ids.length === 0) continue;
+    const existing = new Set<string>();
+    for (const row of items) {
+      if (row.shop_type === shopId) existing.add(row.item_id);
+    }
+    for (const id of ids) {
+      if (existing.has(id)) continue;
+      (merged ??= items.slice()).push(makeEmptyRestockRow(id, shopId));
+    }
   }
-
-  const missing: string[] = [];
-  for (const id of DAWN_SHOP_ITEM_IDS) {
-    if (existingDawnIds.has(id)) continue;
-    missing.push(id);
-  }
-
-  if (missing.length === 0) return items;
-
-  const merged = items.slice();
-  for (const id of missing) {
-    merged.push({
-      item_id: id,
-      shop_type: 'dawn',
-      current_probability: null,
-      appearance_rate: null,
-      predicted_next_ms: null,
-      estimated_next_timestamp: null,
-      median_interval_ms: null,
-      last_seen: null,
-      average_quantity: null,
-      total_quantity: 0,
-      total_occurrences: 0,
-      algorithm_version: null,
-      algorithm_updated_at: null,
-      recent_intervals_ms: null,
-      empirical_weight: null,
-      empirical_probability: null,
-      fallback_rate: null,
-      baseline_interval_ms: null,
-      ema_interval_ms: null,
-      weather_intervals: null,
-      is_dormant: null,
-      current_weather: null,
-      weather_baseline_ms: null,
-      weather_samples: null,
-      weather_used: null,
-      weather_rejected_reason: null,
-    });
-  }
-  return merged;
-}
-
-/** All items that can appear in the Snow shop. */
-const SNOW_SHOP_ITEM_IDS = [
-  'Snowdrop', 'Leek', 'PineTree', 'Squash', 'Poinsettia',
-  'SnowEgg', 'ChilledPotion', 'FrozenPotion',
-  'WoodCaribou', 'StoneCaribou', 'MarbleCaribou', 'ColoredStringLights',
-] as const;
-
-export function mergeSnowFallbackRows(items: RestockItem[]): RestockItem[] {
-  const existingSnowIds = new Set<string>();
-  for (const row of items) {
-    if (row.shop_type === 'snow') existingSnowIds.add(row.item_id);
-  }
-
-  const missing: string[] = [];
-  for (const id of SNOW_SHOP_ITEM_IDS) {
-    if (existingSnowIds.has(id)) continue;
-    missing.push(id);
-  }
-
-  if (missing.length === 0) return items;
-
-  const merged = items.slice();
-  for (const id of missing) {
-    merged.push({
-      item_id: id,
-      shop_type: 'snow',
-      current_probability: null,
-      appearance_rate: null,
-      predicted_next_ms: null,
-      estimated_next_timestamp: null,
-      median_interval_ms: null,
-      last_seen: null,
-      average_quantity: null,
-      total_quantity: 0,
-      total_occurrences: 0,
-      algorithm_version: null,
-      algorithm_updated_at: null,
-      recent_intervals_ms: null,
-      empirical_weight: null,
-      empirical_probability: null,
-      fallback_rate: null,
-      baseline_interval_ms: null,
-      ema_interval_ms: null,
-      weather_intervals: null,
-      is_dormant: null,
-      current_weather: null,
-      weather_baseline_ms: null,
-      weather_samples: null,
-      weather_used: null,
-      weather_rejected_reason: null,
-    });
-  }
-  return merged;
+  return merged ?? items;
 }
 
 export function isCelestial(itemId: string | null | undefined): boolean {
-  return !!itemId && CELESTIAL_IDS.has(itemId);
+  return !!itemId && isCelestialItem(itemId);
 }
 
 // ---------------------------------------------------------------------------

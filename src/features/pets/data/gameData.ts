@@ -25,58 +25,6 @@ export const PET_ABILITY_PROBABILITIES = {
   },
 } as const;
 
-/** Special pet hatch overlay rates. */
-export const SPECIAL_PET_RATES = {
-  rainbow: 0.001,
-  golden: 0.01,
-} as const;
-
-/** Pet species rates by egg type. */
-export const EGG_PET_RATES = {
-  Common: {
-    Worm: 0.60,
-    Snail: 0.35,
-    Bee: 0.05,
-  },
-
-  Uncommon: {
-    Chicken: 0.65,
-    Bunny: 0.25,
-    Dragonfly: 0.10,
-  },
-
-  Rare: {
-    Pig: 0.80,
-    Cow: 0.15,
-    Turkey: 0.05,
-  },
-
-  Legendary: {
-    Turtle: 0.30,
-    Goat: 0.10,
-    Squirrel: 0.60,
-  },
-
-  Mythical: {
-    Capybara: 0.05,
-    Butterfly: 0.75,
-    Peacock: 0.20,
-  },
-
-  // Dawn content (PR-2644) — rates confirmed from beta eggsDex
-  Dawn: {
-    Sheep: 0.60,
-    Horse: 0.35,
-    Hedgehog: 0.05,
-  },
-
-  Horse: {
-    Pony: 0.60,
-    Horse: 0.35,
-    FireHorse: 0.05,
-  },
-} as const;
-
 /** Maps pet species to their possible abilities. */
 export const PET_ABILITY_POOLS = {
   // Common Eggs

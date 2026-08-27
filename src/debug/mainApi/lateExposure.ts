@@ -40,6 +40,8 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   const { getHatchStatsSnapshot, resetHatchStats } = await import('../../store/hatchStatsStore');
   (QPM_DEBUG_API as any).hatchStats = getHatchStatsSnapshot;
   (QPM_DEBUG_API as any).resetHatchStats = resetHatchStats;
+  const { getPitySnapshot, resetPityTracker } = await import('../../store/pityTracker');
+  (QPM_DEBUG_API as any).pity = { snapshot: getPitySnapshot, reset: resetPityTracker };
   const { resetStats } = await import('../../store/stats');
   (QPM_DEBUG_API as any).resetStats = resetStats;
   const { getStatsRecorderStatus } = await import('../../store/statsRecorder');

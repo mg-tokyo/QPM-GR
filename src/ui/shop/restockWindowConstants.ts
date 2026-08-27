@@ -2,6 +2,9 @@
 // Static data constants for the Shop Restock window.
 
 import type { DetailedWeather } from '../../utils/game/weatherDetection';
+import { STANDARD_RESTOCK_SHOP_TYPES } from '../../types/shops';
+import { getShopWeatherKind, getWeatherShopIds } from '../../store/shopRegistry';
+import { areShopCatalogsLoaded, getItemCatalogRarity, getItemEligibleShops } from '../../catalogs/shopEligibility';
 
 // Time-limited seasonal items -- hidden from history after expiry.
 // Key: "shopType:itemId"  Value: expiry timestamp (ms UTC)
@@ -54,16 +57,28 @@ export const CELESTIAL_BG_TINT  = 'color-mix(in srgb, var(--qpm-gold) 4%, transp
 export const CELESTIAL_BG_HOVER = 'color-mix(in srgb, var(--qpm-gold) 9%, transparent)';
 export const CELESTIAL_BORDER   = 'color-mix(in srgb, var(--qpm-gold) 22%, transparent)';
 
-export const SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3, dawn: 4, snow: 5, weather: 6 };
+const STANDARD_SHOP_ORDER: Record<string, number> = { seed: 0, egg: 1, decor: 2, tool: 3 };
 
-export const SHOP_CYCLE_INTERVALS: Record<string, number> = {
+/** Standard shops first, weather shops in registry order, weather events last. */
+export function getShopOrder(shopType: string): number {
+  const standard = STANDARD_SHOP_ORDER[shopType];
+  if (standard !== undefined) return standard;
+  if (shopType === 'weather') return 99;
+  const index = getWeatherShopIds().indexOf(shopType);
+  return index >= 0 ? 10 + index : 98;
+}
+
+const STANDARD_SHOP_CYCLE_INTERVALS: Record<string, number> = {
   seed:  5  * 60 * 1000,
   egg:   15 * 60 * 1000,
   decor: 60 * 60 * 1000,
   tool:  10 * 60 * 1000,
-  dawn:  0,  // Dawn Shop has no timer-based cycle (weather-gated)
-  snow:  0,  // Snow Shop has no timer-based cycle (weather-gated by Frost)
 };
+
+/** Weather-gated shops have no timer cycle → 0. */
+export function getShopCycleInterval(shopType: string): number {
+  return STANDARD_SHOP_CYCLE_INTERVALS[shopType] ?? 0;
+}
 
 export const TRACKED_KEY    = 'qpm.restock.tracked';
 export const UI_STATE_KEY   = 'qpm.restock.ui.v1';
@@ -73,18 +88,28 @@ export const SEARCH_DEBOUNCE_MS = 140;
 export const UI_STATE_SAVE_DEBOUNCE_MS = 180;
 export const HISTORY_CHUNK_SIZE = 40;
 
-export const WEATHER_LOCKED_EGG_IDS = new Set(['SnowEgg', 'DawnEgg', 'ThunderEgg']);
-
-export const WEATHER_LOCK_MAP: Record<string, DetailedWeather> = {
+/** Catalog-unavailable fallback only; live answers come from blueprints' `eligibleShops`. */
+const WEATHER_LOCK_FALLBACK: Record<string, DetailedWeather> = {
   'SnowEgg': 'snow',
   'DawnEgg': 'dawn',
   'ThunderEgg': 'thunderstorm',
 };
 
+/** Weather an item is locked behind: its blueprint's weather shop, unless a standard shop also sells it. */
 export function getRequiredWeather(itemId: string): DetailedWeather | null {
-  return WEATHER_LOCK_MAP[itemId] ?? null;
+  const shops = getItemEligibleShops(itemId);
+  if (shops.length > 0) {
+    if (shops.some((id) => STANDARD_RESTOCK_SHOP_TYPES.has(id))) return null;
+    for (const id of shops) {
+      const kind = getShopWeatherKind(id);
+      if (kind) return kind;
+    }
+    return null;
+  }
+  return areShopCatalogsLoaded() ? null : (WEATHER_LOCK_FALLBACK[itemId] ?? null);
 }
 
+/** Curated highlight set (pods, MythicalEgg) on top of catalog rarity `Celestial`. */
 export const CELESTIAL_IDS = new Set([
   'Starweaver', 'StarweaverPod',
   'Moonbinder', 'MoonbinderPod', 'MoonCelestial',
@@ -93,24 +118,31 @@ export const CELESTIAL_IDS = new Set([
   'SunCelestial', 'MythicalEgg',
 ]);
 
-export const SHOP_FILTERS = [
+export function isCelestialItem(itemId: string): boolean {
+  if (CELESTIAL_IDS.has(itemId)) return true;
+  return getItemCatalogRarity(itemId)?.toLowerCase() === 'celestial';
+}
+
+export interface ShopFilter { label: string; value: string }
+
+const SHOP_FILTERS_HEAD: readonly ShopFilter[] = [
   { label: 'All', value: 'all' },
   { label: 'Celestial', value: 'celestial' },
   { label: 'Seeds', value: 'seed' },
   { label: 'Eggs', value: 'egg' },
   { label: 'Decor', value: 'decor' },
   { label: 'Tools', value: 'tool' },
-  { label: 'Dawn', value: 'dawn' },
-  { label: 'Snow', value: 'snow' },
-  { label: 'Weather', value: 'weather' },
-] as const;
+];
 
-export const CATEGORY_LABELS: Record<string, string> = {
-  seed: 'Seeds',
-  egg: 'Eggs',
-  decor: 'Decor',
-  tool: 'Tools',
-  dawn: 'Dawn',
-  snow: 'Snow',
-  weather: 'Weather',
-};
+const SHOP_FILTERS_TAIL: readonly ShopFilter[] = [
+  { label: 'Weather', value: 'weather' },
+];
+
+/** Fixed chips plus one per weather shop the registry knows (dawn, snow, thunder, future). */
+export function getShopFilters(): ShopFilter[] {
+  const weatherShops = getWeatherShopIds().map((id) => ({
+    label: id.charAt(0).toUpperCase() + id.slice(1),
+    value: id,
+  }));
+  return [...SHOP_FILTERS_HEAD, ...weatherShops, ...SHOP_FILTERS_TAIL];
+}

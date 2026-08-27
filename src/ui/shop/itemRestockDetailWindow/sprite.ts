@@ -3,6 +3,7 @@ import { canvasToDataUrl } from '../../../utils/dom/canvasHelpers';
 import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { storage } from '../../../utils/storage';
 import { getWeatherDef } from '../../../catalogs/gameCatalogs';
+import { STANDARD_RESTOCK_SHOP_TYPES, isWeatherShopType } from '../../../types/shops';
 import { ARIEDAM_KEY } from './constants';
 
 export function getItemSpriteUrl(shopType: string, itemId: string): string | null {
@@ -23,16 +24,17 @@ export function getItemSpriteUrl(shopType: string, itemId: string): string | nul
     return url;
   };
 
-  // Dawn shop items are seeds/eggs — resolve using seed/egg sprite lookups
-  const resolveShopType = shopType === 'dawn' ? 'seed' : shopType;
-
   const directUrl = tryResolve(itemId);
   if (directUrl) return directUrl;
 
-  for (const variantId of getItemIdVariants(resolveShopType, itemId)) {
-    if (!variantId || variantId === itemId) continue;
-    const variantUrl = tryResolve(variantId);
-    if (variantUrl) return variantUrl;
+  // Weather shops mix item types — try every standard family's aliases.
+  const variantShopTypes = isWeatherShopType(shopType) ? [...STANDARD_RESTOCK_SHOP_TYPES] : [shopType];
+  for (const variantShopType of variantShopTypes) {
+    for (const variantId of getItemIdVariants(variantShopType, itemId)) {
+      if (!variantId || variantId === itemId) continue;
+      const variantUrl = tryResolve(variantId);
+      if (variantUrl) return variantUrl;
+    }
   }
 
   if (shopType === 'tool') {

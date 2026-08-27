@@ -81,11 +81,17 @@ function getAlertSpriteUrl(shopType: RestockShopType, itemId: string, label: str
   if (alertSpriteUrlCache.has(cacheKey)) return alertSpriteUrlCache.get(cacheKey) ?? null;
 
   const candidates = getAlertSpriteCandidates(shopType, itemId, label);
+  const SEED_PREFIXES  = ['sprite/seed/', 'seed/', 'sprite/crop/', 'crop/', 'sprite/plant/', 'plant/'];
+  const EGG_PREFIXES   = ['sprite/egg/', 'egg/', 'sprite/pet/', 'pet/'];
+  const DECOR_PREFIXES = ['sprite/decor/', 'decor/', 'sprite/item/', 'item/'];
+  const TOOL_PREFIXES  = ['sprite/item/', 'item/', 'sprite/tool/', 'tool/'];
+  // Weather shops mix item types — try every family.
   const keyPrefixes =
-    shopType === 'seed'  ? ['sprite/seed/', 'seed/', 'sprite/crop/', 'crop/', 'sprite/plant/', 'plant/'] :
-    shopType === 'egg'   ? ['sprite/egg/', 'egg/', 'sprite/pet/', 'pet/'] :
-    shopType === 'decor' ? ['sprite/decor/', 'decor/', 'sprite/item/', 'item/'] :
-                           ['sprite/item/', 'item/', 'sprite/tool/', 'tool/'];
+    shopType === 'seed'  ? SEED_PREFIXES :
+    shopType === 'egg'   ? EGG_PREFIXES :
+    shopType === 'decor' ? DECOR_PREFIXES :
+    shopType === 'tool'  ? TOOL_PREFIXES :
+                           [...SEED_PREFIXES, ...EGG_PREFIXES, ...DECOR_PREFIXES, ...TOOL_PREFIXES];
 
   for (const candidate of candidates) {
     const canvasUrl = tryResolveSpriteFromCanvas(candidate);

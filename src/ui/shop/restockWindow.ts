@@ -22,8 +22,8 @@ import { onSpritesReady } from '../../sprite-v2/compat';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
 import {
-  SHOP_FILTERS,
-  SHOP_ORDER,
+  getShopFilters,
+  getShopOrder,
   ITEM_HIDDEN,
   ITEM_EXPIRY,
   SEARCH_DEBOUNCE_MS,
@@ -36,8 +36,7 @@ import {
   loadTracked,
   saveTracked,
   mergeToolFallbackRows,
-  mergeDawnFallbackRows,
-  mergeSnowFallbackRows,
+  mergeWeatherShopFallbackRows,
   getItemName,
   getCatalogOrder,
   initGameData,
@@ -129,10 +128,11 @@ function renderShopRestockWindow(root: HTMLElement): void {
     weather: 'feature.shopRestock.filterWeather',
   };
 
-  for (const f of SHOP_FILTERS) {
+  for (const f of getShopFilters()) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = t(FILTER_LABEL_KEYS[f.value] ?? '', undefined, f.label);
+    const labelKey = FILTER_LABEL_KEYS[f.value];
+    btn.textContent = labelKey ? t(labelKey, undefined, f.label) : f.label;
     btn.dataset.filter = f.value;
     btn.style.cssText = [
       'padding:4px 8px', 'font-size:12px', 'border-radius:4px', 'cursor:pointer',
@@ -424,7 +424,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
       ? detail.items
       : getRestockDataSync();
     if (!updated) return;
-    shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(updated)));
+    shopData = mergeWeatherShopFallbackRows(mergeToolFallbackRows(updated));
     rebuildAllData();
     scheduleRender(true, true);
     updateLastUpdated();
@@ -573,8 +573,8 @@ function renderShopRestockWindow(root: HTMLElement): void {
     } else {
       // Default: shop type (Seeds/Eggs/Decor) -> in-game catalog order -> name fallback
       filtered = filtered.slice().sort((a, b) => {
-        const shopA = SHOP_ORDER[a.shop_type] ?? 99;
-        const shopB = SHOP_ORDER[b.shop_type] ?? 99;
+        const shopA = getShopOrder(a.shop_type);
+        const shopB = getShopOrder(b.shop_type);
         if (shopA !== shopB) return shopA - shopB;
 
         const orderA = getCatalogOrder(a.item_id, a.shop_type);
@@ -740,14 +740,14 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
     const cached = getRestockDataSync();
     if (!force && cached?.length) {
-      shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(cached)));
+      shopData = mergeWeatherShopFallbackRows(mergeToolFallbackRows(cached));
       rebuildAllData();
       scheduleRender(true, true);
       updateLastUpdated();
     }
 
     try {
-      shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(await fetchRestockData(force))));
+      shopData = mergeWeatherShopFallbackRows(mergeToolFallbackRows(await fetchRestockData(force)));
       rebuildAllData();
       scheduleRender(true, true);
       updateLastUpdated();
@@ -770,7 +770,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
 
   // Kick off both in parallel -- game data load doesn't block restock data
   void initGameData().then(() => {
-    shopData = mergeSnowFallbackRows(mergeDawnFallbackRows(mergeToolFallbackRows(shopData)));
+    shopData = mergeWeatherShopFallbackRows(mergeToolFallbackRows(shopData));
     rebuildAllData();
     scheduleRender(true, true);
   });

@@ -10,8 +10,9 @@ import type { DetailShopType, DetailWindowRegistryEntry } from './types';
 import { DETAIL_WINDOW_REGISTRY_KEY, DETAIL_WINDOW_REGISTRY_MAX } from './constants';
 import { openItemRestockDetail } from './mainWindow';
 
+/** Shop ids are runtime-discovered, so any non-empty string is a valid detail shop type. */
 export function isDetailShopType(value: unknown): value is DetailShopType {
-  return value === 'seed' || value === 'egg' || value === 'decor' || value === 'tool' || value === 'weather' || value === 'dawn';
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function loadDetailWindowRegistry(): DetailWindowRegistryEntry[] {

@@ -74,6 +74,8 @@ export interface EggCatalogEntry {
   tileRef?: TileRef;
   name?: string;
   faunaSpawnWeights: unknown; // Can be array or object, varies by game version
+  /** Bad Luck Protection: species → forced-hatch pull count (game v1019+) */
+  speciesPityThresholdPulls?: Record<string, number>;
   secondsToHatch: number;
   coinPrice?: number;
   creditPrice?: number;

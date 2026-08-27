@@ -85,16 +85,16 @@ function resolvePetForFeedBySlotId(
   return pets.find((pet) => pet.slotId === normalizedSlotId) ?? null;
 }
 
-function sendFeedPetMessage(petItemId: string, cropItemId: string): boolean {
+function sendFeedPetMessage(petItemId: string, cropItemId: string, cropSpecies: string | null = null): boolean {
   const sent = sendRoomAction('FeedPet', { petItemId, cropItemId }, { throttleMs: 120 });
   if (!sent.ok && sent.reason !== 'throttled') {
     warnFeature('QPM-FEATURE-001', { type: 'FeedPet', reason: sent.reason ?? 'unknown' });
     return false;
   }
 
-  // Dispatch event so petTeamsLogs can record feed events without direct coupling.
+  // Dispatch event so petActivity can record feed events without direct coupling.
   try {
-    window.dispatchEvent(new CustomEvent('qpm:feedPet', { detail: { petItemId, cropItemId } }));
+    window.dispatchEvent(new CustomEvent('qpm:feedPet', { detail: { petItemId, cropItemId, cropSpecies } }));
   } catch (e) {
     warnFeature('QPM-FEATURE-004', { what: 'emit:feedPet' }, e);
   }
@@ -251,7 +251,7 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
     available: plan.availableCount,
   });
 
-  const sent = sendFeedPetMessage(plan.petId, crop.id);
+  const sent = sendFeedPetMessage(plan.petId, crop.id, crop.species ?? crop.name ?? null);
   if (!sent) {
     return {
       success: false,

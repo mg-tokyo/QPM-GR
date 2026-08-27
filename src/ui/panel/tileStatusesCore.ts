@@ -366,6 +366,47 @@ export function startActivityLogStatus(el: HTMLElement, addLiveCleanup: AddLiveC
   }).catch((err) => logTileImportFailed('activity-log', err));
 }
 
+export function startPityStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
+  Promise.all([
+    import('../../store/pityTracker'),
+    import('../../catalogs/pityThresholds'),
+    import('../../i18n'),
+  ]).then(([pity, thresholds, { t }]) => {
+    if (version !== getCurrentVersion()) return;
+    const render = (): void => {
+      if (version !== getCurrentVersion()) return;
+      // Closest-to-guarantee counter, by observed misses as a share of its threshold.
+      let best: { item: string; outcome: string; misses: number; threshold: number; ratio: number } | null = null;
+      const snapshot = pity.getPitySnapshot();
+      const createdAt = snapshot.account?.createdAt ?? null;
+      for (const [key, counter] of Object.entries(snapshot.counters)) {
+        const parsed = thresholds.parsePityCounterKey(key);
+        if (!parsed || counter.totalPulls === 0) continue;
+        const outcome = thresholds.getPityOutcomes({ kind: parsed.kind, id: parsed.itemId })
+          .find((o) => o.outcomeId === parsed.outcomeId);
+        if (!outcome) continue;
+        const estimate = thresholds.estimatePityCount(counter, outcome.thresholdPulls, createdAt);
+        const ratio = estimate / outcome.thresholdPulls;
+        if (!best || ratio > best.ratio) {
+          best = { item: parsed.itemId, outcome: parsed.outcomeId, misses: estimate, threshold: outcome.thresholdPulls, ratio };
+        }
+      }
+      if (!best) {
+        setStatusText(el, t('feature.pity.tileIdle'), 'muted');
+        return;
+      }
+      const proximity = thresholds.getPityProximity(best.misses, best.threshold);
+      setStatusText(
+        el,
+        truncateStatusText(t('feature.pity.tileStatus', { item: best.item, outcome: best.outcome, misses: best.misses, threshold: best.threshold })),
+        proximity === 'due' || proximity === 'imminent' ? 'positive' : 'normal',
+      );
+    };
+    const unsubscribe = pity.subscribePity(render);
+    addLiveCleanup(version, unsubscribe);
+  }).catch((err) => logTileImportFailed('pity-tracker', err));
+}
+
 export function startProtectionStatus(el: HTMLElement, addLiveCleanup: AddLiveCleanup, version: number): void {
   Promise.all([
     import('../../features/economy/inventoryCapacity'),

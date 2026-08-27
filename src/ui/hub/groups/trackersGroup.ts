@@ -9,6 +9,7 @@ import {
   startCropBoostStatus,
   startShopRestockStatus,
   startActivityLogStatus,
+  startPityStatus,
 } from '../../panel/tileStatusesCore';
 
 async function awaitCatalogs(): Promise<void> {
@@ -55,6 +56,11 @@ function makeTrackerExpanded(key: string): (container: HTMLElement) => (() => vo
               injectReplayButton('trackers-v2-xp');
             });
           }
+        } else if (key === 'pity') {
+          await awaitCatalogs();
+          const { renderPityTrackerContent } = await import('../../stats/pityTrackerWindow');
+          spinner.remove();
+          contentCleanup = renderPityTrackerContent(container);
         } else if (key === 'crops') {
           const { renderCropBoostContent } = await import('../../pets/cropBoostTrackerWindow');
           // renderCropBoostSection overwrites root.style.cssText with overflow-y:auto
@@ -202,6 +208,37 @@ export function getTrackersGroup(): HubGroupDef {
     onDetach: () => openDetachedTracker('trackers-v2-crops', '🌱 Crop Boosts', 'crops', '800px'),
   };
 
+  const pityCard: LauncherCardConfig = {
+    key: 'pity',
+    label: t('hub.trackers.pity.label'),
+    description: t('hub.trackers.pity.description'),
+    icon: {
+      kind: 'sprite',
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- CardIcon API requires an emoji fallback until the sprite loads
+      value: '🍀', fallback: '🍀',
+      bunched: [
+        { spriteKey: 'sprite/plant/FourLeafClover', offsetX: -7, offsetY: 1, scale: 0.85 },
+        { spriteKey: 'sprite/pet/ThunderEgg', offsetX: 7, offsetY: -1, scale: 0.8 },
+      ],
+    },
+    labelColor: 'var(--qpm-positive)',
+    tier: 'launcher',
+    tile: {
+      tileId: 'pity-tracker',
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- TileMeta.icon is an emoji string by API contract
+      icon: '🍀',
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- per-tile tint; TileMeta.color takes a raw rgba string for glow math
+      color: 'rgba(134, 239, 172, 0.28)',
+      defaultStatus: 'No pulls observed yet',
+      statusProvider: startPityStatus,
+    },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);margin-top:2px;';
+      el.textContent = t('hub.trackers.pity.summary');
+    },
+    onOpen: () => openDetachedTracker('trackers-v2-pity', t('hub.trackers.pity.label'), 'pity', '820px'),
+  };
+
   const shopRestockCard: LauncherCardConfig = {
     key: 'shop-restock',
     label: t('hub.trackers.shopRestock.label'),
@@ -303,6 +340,6 @@ export function getTrackersGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/Turtle', offsetX: 9, offsetY: 6, scale: 0.7 },
       ],
     },
-    cards: [abilityCard, xpCard, turtleCard, cropsCard, shopRestockCard, activityLogCard, chargedAbilitiesCard],
+    cards: [abilityCard, xpCard, turtleCard, cropsCard, pityCard, shopRestockCard, activityLogCard, chargedAbilitiesCard],
   };
 }

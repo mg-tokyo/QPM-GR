@@ -4,7 +4,9 @@
 import { storage } from '../../../utils/storage';
 import { canonicalItemId, getItemIdVariants } from '../../../utils/restock/dataService';
 import type { ShopStockCategoryState, ShopStockItem, ShopStockState } from '../../../store/shopStock';
-import type { ShopCategory } from '../../../types/shops';
+import { getShopEntryIdentity } from '../../../store/shopStockParsers';
+import { isWeatherGatedShop } from '../../../store/shopRegistry';
+import { isWeatherShopType, type ShopCategory } from '../../../types/shops';
 import {
   TRACKED_KEY,
   type RestockShopType,
@@ -92,9 +94,9 @@ export function isTrackedItem(tracked: Set<string>, shopType: RestockShopType, i
   }
   if (lowerTracked.has(`${shopType}:${canonical}`.toLowerCase())) return true;
 
-  // Dawn shop carries items from all categories — if an item is tracked under
-  // its underlying type (e.g. seed:DawnCelestial), it should alert from dawn too.
-  if (shopType === 'dawn') {
+  // Weather shops carry items from all categories — if an item is tracked under
+  // its underlying type (e.g. seed:DawnCelestial), it should alert from there too.
+  if (isWeatherShopType(shopType)) {
     for (const prefix of ['seed', 'egg', 'tool', 'decor'] as const) {
       const crossCanonical = canonicalItemId(prefix, itemId);
       if (tracked.has(`${prefix}:${crossCanonical}`)) return true;
@@ -119,9 +121,7 @@ export function categoryToShopType(category: ShopCategory): RestockShopType | nu
     case 'eggs':   return 'egg';
     case 'decor':  return 'decor';
     case 'tools':  return 'tool';
-    case 'dawn':   return 'dawn';
-    case 'snow':   return 'snow';
-    default:       return null;
+    default:       return isWeatherGatedShop(category) ? category : null;
   }
 }
 
@@ -152,33 +152,15 @@ export function getItemQuantity(item: ShopStockItem): number {
   return 0;
 }
 
-/**
- * Detect the V16 ItemType for a dawn shop entry from the presence of
- * type-specific ID fields when raw.itemType isn't set explicitly.
- */
-function detectDawnItemType(raw: Record<string, unknown>): string | undefined {
-  if (typeof raw.itemType === 'string') return raw.itemType;
-  if (raw.species != null) return 'Seed';
-  if (raw.eggId != null) return 'Egg';
-  if (raw.toolId != null) return 'Tool';
-  if (raw.decorId != null) return 'Decor';
-  return undefined;
-}
-
 export function getPurchaseItemId(shopType: RestockShopType, item: ShopStockItem): string {
   const raw = item.raw as Record<string, unknown> | undefined;
   if (shopType === 'seed')  return firstString([raw?.species, item.id, raw?.id]) ?? item.id;
   if (shopType === 'egg')   return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
   if (shopType === 'decor') return firstString([raw?.decorId, item.id, raw?.id]) ?? item.id;
   if (shopType === 'tool')  return firstString([raw?.toolId,  item.id, raw?.id]) ?? item.id;
-  if (shopType === 'dawn') {
-    // Dawn shop carries mixed item types — detect type from raw fields
-    const itemType = raw ? detectDawnItemType(raw) : undefined;
-    if (itemType === 'Egg')   return firstString([raw?.eggId,   item.id, raw?.id]) ?? item.id;
-    if (itemType === 'Tool')  return firstString([raw?.toolId,  item.id, raw?.id]) ?? item.id;
-    if (itemType === 'Decor') return firstString([raw?.decorId, item.id, raw?.id]) ?? item.id;
-    // Default: treat as seed (most Dawn items are seeds)
-    return firstString([raw?.species, item.id, raw?.id]) ?? item.id;
+  if (isWeatherShopType(shopType)) {
+    // Weather shops carry mixed item types — the entry's own id field decides
+    return getShopEntryIdentity(raw)?.id ?? firstString([item.id, raw?.id]) ?? item.id;
   }
   return item.id;
 }
@@ -225,7 +207,7 @@ function getStockCycleId(
 export function processShopStock(state: ShopStockState): void {
   const tracked = loadTrackedSet();
   const seenKeys = new Set<string>();
-  const categories: ShopCategory[] = ['seeds', 'eggs', 'decor', 'tools', 'dawn'];
+  const categories = Object.keys(state.categories) as ShopCategory[];
 
   for (const category of categories) {
     const shopType = categoryToShopType(category);
@@ -318,9 +300,8 @@ export function processShopStock(state: ShopStockState): void {
       }
 
       const raw = item.raw as Record<string, unknown> | undefined;
-      const resolvedItemType = shopType === 'dawn' && raw
-        ? detectDawnItemType(raw)
-        : raw?.itemType as string | undefined;
+      const identity = getShopEntryIdentity(raw);
+      const resolvedItemType = identity?.itemType ?? (raw?.itemType as string | undefined);
       upsertAlert({
         key: canonicalKey,
         shopType,
@@ -330,6 +311,7 @@ export function processShopStock(state: ShopStockState): void {
         quantity: currentQty,
         priceCoins: item.priceCoins ?? null,
         ...(resolvedItemType != null ? { itemType: resolvedItemType } : {}),
+        ...(identity ? { idField: identity.idField } : {}),
       });
 
       const active = activeAlerts.get(canonicalKey);

@@ -413,6 +413,17 @@ export function getEggSpawnWeights(eggId: string): Record<string, number> {
   return { ...egg.faunaSpawnWeights } as Record<string, number>;
 }
 
+/** Bad Luck Protection species thresholds; empty when the catalog predates v1019 */
+export function getEggSpeciesPityThresholds(eggId: string): Record<string, number> {
+  const raw = getEggType(eggId)?.speciesPityThresholdPulls;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [species, value] of Object.entries(raw)) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) out[species] = value;
+  }
+  return out;
+}
+
 // ============================================================================
 // ITEM CATALOG ACCESS
 // ============================================================================
@@ -483,6 +494,7 @@ export function getAllDecor(): string[] {
   if (!catalog) return [];
   return Object.keys(catalog);
 }
+
 
 // ============================================================================
 // MUTATION CATALOG ACCESS

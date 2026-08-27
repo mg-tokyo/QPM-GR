@@ -1,4 +1,5 @@
-export type DetailShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'weather' | 'dawn';
+/** Standard singular types, the 'weather' event pseudo-type, or any weather-gated shop id (dawn, snow, thunder, runtime-discovered). */
+export type DetailShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'weather' | (string & {});
 
 export interface DetailWindowRegistryEntry {
   shopType: DetailShopType;
@@ -33,6 +34,8 @@ export interface OverviewHandle {
   setAccuracyRate: (accuratePct: number, accurateCount: number, totalCount: number) => void;
   setLastSeen: (timestamp: number | null) => void;
   browseBtn: HTMLButtonElement;
+  /** Tears down live subscriptions (pity row); call when the card leaves the DOM. */
+  dispose: () => void;
 }
 
 export interface EventCardHandle {

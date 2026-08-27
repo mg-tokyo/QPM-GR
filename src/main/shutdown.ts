@@ -8,7 +8,7 @@ import { stopActivityLogEnhancer } from '../features/activity/activityLogNativeE
 import { stopAbilityTriggerStore } from '../store/abilityLogs';
 import { stopNativeFeedIntercept } from '../features/pets/nativeFeedIntercept';
 import { stopPetTeamsStore } from '../store/petTeams';
-import { stopPetTeamsLogs } from '../store/petTeamsLogs';
+import { stopPetActivityStore } from '../store/petActivity';
 import { stopPetTeamsSync } from '../store/petTeamsSync';
 import { stopPetsWindow } from '../ui/pets/petsWindow';
 import { stopInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOverlay';
@@ -19,6 +19,7 @@ import { stopSeedSiloStore } from '../store/seedSilo';
 import { stopDecorShedStore } from '../store/decorShed';
 import { stopDawnShopTracker } from '../features/dawn/shop';
 import { stopCapsuleTracker } from '../features/dawn/capsule';
+import { stopPityTracker } from '../store/pityTracker';
 import { stopChargedAbilities } from '../features/chargedAbilities';
 import { stopDawnCaptureTracker } from '../features/dawn/capture';
 import { stopThunderchargerTracker } from '../features/thunder/charger';
@@ -95,7 +96,7 @@ export function installGlobalHandlers(): void {
     stopNativeFeedIntercept();
     stopPetTeamsSync();
     stopPetTeamsStore();
-    stopPetTeamsLogs();
+    stopPetActivityStore();
     stopPetsWindow();
     stopInventoryCapacityOverlay();
     stopInventoryCapacity();
@@ -105,6 +106,7 @@ export function installGlobalHandlers(): void {
     stopDecorShedStore();
     stopDawnShopTracker();
     stopCapsuleTracker();
+    stopPityTracker();
     stopChargedAbilities();
     stopDawnCaptureTracker();
     stopThunderchargerTracker();

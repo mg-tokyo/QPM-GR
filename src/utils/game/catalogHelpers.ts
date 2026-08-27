@@ -7,14 +7,18 @@ import {
   getAllAbilities,
   getPlantSpecies,
   getPetSpecies,
+  getEggType,
+  getItem,
   getMutation,
   getAbilityDef,
   areCatalogsReady,
+  onCatalogsReady,
   waitForCatalogs,
   getFloraBlueprint,
   getSlotOffsets,
   isMultiHarvest,
   getCropMaxScale,
+  getPetMaxScale,
   getCosmeticCatalog,
   getCosmeticsByType,
   getCosmeticByFilename,
@@ -24,7 +28,15 @@ import {
 import type { FloraBlueprint, SlotOffset } from '../../catalogs/gameCatalogs';
 import type { CosmeticCatalogEntry } from '../../catalogs/types';
 
-export { areCatalogsReady, waitForCatalogs };
+export { areCatalogsReady, onCatalogsReady, waitForCatalogs };
+
+export function getEggSafe(eggId: string) {
+  return areCatalogsReady() ? getEggType(eggId) : null;
+}
+
+export function getItemSafe(itemId: string) {
+  return areCatalogsReady() ? getItem(itemId) : null;
+}
 
 export function getPlantSpeciesSafe(): string[] {
   return areCatalogsReady() ? getAllPlantSpecies() : [];
@@ -48,6 +60,16 @@ export function getPlantSafe(species: string) {
 
 export function getPetSafe(species: string) {
   return areCatalogsReady() ? getPetSpecies(species) : null;
+}
+
+export function getPetMaxScaleSafe(species: string): number | null {
+  return areCatalogsReady() ? getPetMaxScale(species) : null;
+}
+
+export function getAbilityDescriptionSafe(abilityId: string): string | null {
+  if (!areCatalogsReady()) return null;
+  const desc = getAbilityDef(abilityId)?.description;
+  return typeof desc === 'string' && desc.trim() ? desc : null;
 }
 
 export function isValidPlantSpecies(species: string): boolean {
