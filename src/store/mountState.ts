@@ -1,7 +1,7 @@
-// Dual-source mount tracker: atom subscription (primary) + WS intercept (fallback).
-// ridePet/dismountPet mirror the native flow: send WS action, write myRiddenPetIdAtom, send SetRiddenPet.
+// Dual-source mount tracker: state-tree `riddenPetId` (authoritative, primary)
+// + WS intercept (fallback; unwrapped RidePet/DismountPet from the observer).
 
-import { subscribeAtomValue, writeRegistryAtom } from '../core/atomRegistry';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { onNativeSend } from '../websocket/nativeSendObserver';
 import { onActionSent, sendRoomAction } from '../websocket/api';
 import { createStoreDiagnostics } from './_storeDiagnostics';
@@ -22,17 +22,6 @@ function emit(nextId: string | null): void {
   for (const cb of listeners) {
     try { cb(currentRiddenPetId); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notify' }, error); }
   }
-}
-
-/** Write myRiddenPetIdAtom and send SetRiddenPet. Best-effort — failures are logged, not thrown. */
-async function syncRiddenState(petId: string | null): Promise<void> {
-  try {
-    await writeRegistryAtom('riddenPetId', petId);
-  } catch (err) {
-    diag.warn('QPM-STORE-002', { atom: 'riddenPetId', phase: 'write' }, err);
-  }
-
-  sendRoomAction('SetRiddenPet', { petId }, { throttleMs: 0, skipThrottle: true });
 }
 
 /** Start tracking ridden pet state. Call after startNativeSendObserver(). */
@@ -98,26 +87,22 @@ export function onRiddenPetChange(cb: RiddenPetChangeCallback): () => void {
   return () => { listeners.delete(cb); };
 }
 
-/** Mount a pet: WS RidePet first (server needs it before atom for displacement logic), then atom + sync. */
+// RidePet/DismountPet are the whole native flow on v1040: the client no
+// longer sends SetRiddenPet and riddenPetId is server-authoritative state.
 export function ridePet(petItemId: string): void {
   const result = sendRoomAction('RidePet', { petItemId }, { throttleMs: 500 });
   if (!result.ok) {
     diag.log.debug('RidePet send failed', { reason: result.reason });
     return;
   }
-
   emit(petItemId);
-  void syncRiddenState(petItemId);
 }
 
-/** Dismount: WS DismountPet first (server resolves landing tile), then clear atom + sync. */
 export function dismountPet(): void {
   const result = sendRoomAction('DismountPet', {}, { throttleMs: 500 });
   if (!result.ok) {
     diag.log.debug('DismountPet send failed', { reason: result.reason });
     return;
   }
-
   emit(null);
-  void syncRiddenState(null);
 }

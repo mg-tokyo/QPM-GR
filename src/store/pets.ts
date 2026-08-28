@@ -1,4 +1,5 @@
-// Bridge for active pet information via myPrimitivePetSlotsAtom.
+// Bridge for active pet information via the `activePetSlots` registry key
+// (state tree: userSlots[me].data.petSlots — the authoritative array).
 
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { getHungerCapForSpecies, DEFAULT_HUNGER_CAP } from '../features/pets/data/petHungerCaps';

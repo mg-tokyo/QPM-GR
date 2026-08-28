@@ -63,6 +63,7 @@ import { startChargedAbilities } from '../features/chargedAbilities';
 import { initDawnEconomy } from '../store/dawnEconomy';
 import { initGmExportBridge } from '../utils/gmExportBridge';
 import { startWebsocketDiagnostics } from '../websocket/api';
+import { startCommandSequencer } from '../websocket/commandSequencer';
 import {
   initCatalogLoader,
   logCatalogStatus,
@@ -314,6 +315,15 @@ async function initialize(): Promise<void> {
   await initStateTree().catch((error) => {
     warnCore('QPM-INIT-001', { what: 'stateTree' }, error);
   });
+
+  // Command sequencer MUST wrap the connection BEFORE the locker (phase 7c)
+  // and the native-send observer so it is the innermost layer: a sequence
+  // number is then allocated only for messages that actually hit the wire.
+  try {
+    startCommandSequencer();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'commandSequencer' }, error);
+  }
 
   // Reactive subscription manager: attaches to stateTree.subscribeToPatches
   // (and later to DOM input events). Kill switches (`qpm.perf.reactive.*Enabled`)

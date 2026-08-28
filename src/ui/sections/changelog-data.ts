@@ -2,6 +2,20 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.31",
+    date: "2026-08-28",
+    notes: [
+      "Fixed every QPM pet and item action (feeding, swapping, storing, placing, locking, potions, mounting, selling) for the game's v1040 update, the game moved its gameplay commands to a new sequenced command format and QPM now speaks it, with one shared sequence counter for QPM's sends and the game's own so they stay in step, previously a QPM send could throw the game's counter off and leave your own clicks silently ignored until a refresh",
+      "Fixed the Pets window active team, hunger readings, hutch swaps and mount tracking on v1040, the game removed the data sources QPM read active pet slots and the ridden pet from, both now come straight from the server state so they work again and stay correct after reconnects",
+      "Fixed mounting and dismounting through QPM sending an extra ridden-pet message the game no longer accepts",
+      "Fixed favorite toggles from Auto Favorite and the pet team using a command name the game does not have, they now send the game's lock command",
+      "Improved stepping to a pet before feeds and potions, the pet's tile is now computed from its walking path the way the game does so actions on a moving pet land instead of being rejected for distance, and an unresolved pet position is logged in Diagnostics",
+      "Improved QPM's outgoing send pacing with a small budget (30 at once, 10 per second) kept below the server's rate limit, so bulk feeds, favorites and swaps no longer trip the game's limiter and lock out your own actions",
+      "Improved reconnect handling, any QPM command still waiting on the server when the connection drops is failed cleanly and the sequence is reseeded from the game's welcome message instead of drifting",
+      "Improved the WS Monitor debug view to label each command result with its command type and ok or rejection code, and added QPM-WS-006 to QPM-WS-010 diagnostics for rejected commands, result timeouts and send budget exhaustion",
+    ],
+  },
+  {
     version: "3.3.30",
     date: "2026-08-27",
     notes: [

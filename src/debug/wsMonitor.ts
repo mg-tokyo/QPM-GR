@@ -5,6 +5,7 @@
 import { pageWindow } from '../core/pageContext';
 import { onActionSent } from '../websocket/api';
 import type { RoomActionType } from '../websocket/api';
+import { isQuinoaCommandResult } from '../websocket/envelope';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,7 +144,10 @@ export function createWsMonitor(): WsMonitor {
       return;
     }
 
-    console.groupCollapsed('%c⬇ RECV  %c' + msgType + '%c  ' + timestamp(), STYLE_RECV, STYLE_RECV, STYLE_TIME);
+    const label = isQuinoaCommandResult(parsed)
+      ? `${msgType} ${parsed.commandType ?? '?'} ${parsed.ok ? 'ok' : `REJECTED:${parsed.code ?? '?'}`}`
+      : msgType;
+    console.groupCollapsed('%c⬇ RECV  %c' + label + '%c  ' + timestamp(), STYLE_RECV, STYLE_RECV, STYLE_TIME);
     console.log(parsed);
     console.groupEnd();
   }

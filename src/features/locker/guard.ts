@@ -9,6 +9,7 @@ import { getCropMaxScaleSafe } from '../../utils/game/catalogHelpers';
 import { getLockerConfig } from './state';
 import { evaluateAction, type InventorySnapshot, type TileContext } from './rules';
 import { isRecord } from '../../utils/typeGuards';
+import { unwrapQuinoaCommand } from '../../websocket/envelope';
 import type { GuardResult } from './types';
 import { criticalInterval } from '../../utils/scheduling/timerManager';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
@@ -330,24 +331,6 @@ function evaluatePetSell(itemId: string): GuardResult {
 
 // ── Core evaluate helper ───────────────────────────────────────────────────
 
-/**
- * IMPORTANT: Unwraps the game's QuinoaCommand RPC envelope (HarvestCrop/PurchaseShopItem/potPlant
- * go through sendQuinoaRpc → trySendMessageNow this way) so rules.ts sees the inner actionType.
- * Without this, the switch hits `default: return PASS` and those rules silently no-op.
- * No-op for QPM's own sendRoomAction preflight path.
- */
-function unwrapQuinoaCommand(
-  actionType: string,
-  payload: Record<string, unknown>,
-): { actionType: string; payload: Record<string, unknown> } {
-  if (actionType !== 'QuinoaCommand') return { actionType, payload };
-  const cmd = payload.command;
-  if (!isRecord(cmd)) return { actionType, payload };
-  const innerType = cmd.type;
-  if (typeof innerType !== 'string' || innerType.length === 0) return { actionType, payload };
-  return { actionType: innerType, payload: cmd };
-}
-
 function evaluate(
   actionType: string,
   payload: Record<string, unknown>,
@@ -355,6 +338,7 @@ function evaluate(
   const config = getLockerConfig();
   if (!config.enabled) return PASS;
 
+  // Rules match the inner gameplay type; QPM's own preflight is already flat.
   const unwrapped = unwrapQuinoaCommand(actionType, payload);
   const effectiveType = unwrapped.actionType;
   const effectivePayload = unwrapped.payload;

@@ -24,6 +24,7 @@ import {
 } from './stateTree';
 import type { Selector as StateTreeSelector } from './stateTree';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
+import { findSlotIdxByOwner, getPlayerIdSync } from './playerContext';
 
 const diagLog = createNamedLogger('atomRegistry');
 const ATOM_SUBSYSTEM: Subsystem = 'atomRegistry';
@@ -42,6 +43,15 @@ import type {
 
 function isRec(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** The local player's userSlot from a state snapshot, or null before identity resolves. */
+function selectMyUserSlot(state: QuinoaStateSnapshot): QuinoaUserSlot | null {
+  const playerId = getPlayerIdSync();
+  if (!playerId) return null;
+  const slots = state.child?.data?.userSlots;
+  const idx = findSlotIdxByOwner(slots, playerId);
+  return idx >= 0 ? (slots?.[idx] ?? null) : null;
 }
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -248,19 +258,18 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   },
 
   // ── Pets ──────────────────────────────────────────────────────────────
-  // NOTE: label regex is broad (matches myPetSlotsAtom, myPetSlotInfosAtom,
-  // myPrimitivePetSlotsAtom, etc.) but we specifically want the atom whose
-  // value is `myData.petSlots` — a full-object array of PetSlot records.
-  // `myPetSlotInfosAtom` returns `myUserSlot.petSlotInfos` (a Record of
-  // per-pet runtime info that shows up in-cache as position-shaped entries
-  // on some bundles) and MUST NOT win. `prefer` picks the Primitive variant.
-  // Beta source: myAtoms.ts:967 `myPrimitivePetSlotsAtom`.
+  // Sourced from the state tree, not a label: v1040 dropped
+  // myPrimitivePetSlotsAtom (third rename) and the broad label regex then
+  // matched myPetSlotInfosAtom — a position-shaped Record, not the pet array.
+  // Deliberately the AUTHORITATIVE array (`myData.petSlots`), never
+  // myPredictedPetSlotsAtom: QPM's feed/swap/hutch logic must act on server
+  // truth, not on an optimistic prediction the server may roll back.
   activePetSlots: {
-    label: /^my(?:Primitive)?Pet(?:Slots|SlotInfos)(?:Data)?Atom$/i,
-    prefer: (l) => /^myPrimitivePetSlotsAtom$/i.test(l),
-    structure: (v) =>
-      Array.isArray(v) && v.length > 0 && isRec(v[0]) &&
-      ('petId' in v[0] || 'slotId' in v[0]),
+    stateTreeSelector: (state) => {
+      const slots = selectMyUserSlot(state)?.data?.petSlots;
+      return Array.isArray(slots) ? slots : null;
+    },
+    bootFallbackLabel: /^my(?:Authoritative|Primitive)PetSlotsAtom$/i,
     tier: 'state',
     statePath: '/child/data/userSlots/{myIdx}/data/petSlots',
   },
@@ -355,7 +364,19 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
   selectedSlotId: { label: /^mySelectedSlotIdAtom$/, defaultValue: null, tier: 'client' },
 
   // ── Mount ──────────────────────────────────────────────────────────────
-  riddenPetId: { label: /^myRiddenPetId(?:Atom)?$/i, defaultValue: null, tier: 'client' },
+  // Authoritative value from the slot (top level, NOT under `data` —
+  // live-verified v1040); myPredictedRiddenPetIdAtom is the optimistic one.
+  riddenPetId: {
+    stateTreeSelector: (state) => {
+      const slot = selectMyUserSlot(state);
+      if (!slot) return null;
+      return typeof slot.riddenPetId === 'string' ? slot.riddenPetId : null;
+    },
+    bootFallbackLabel: /^my(?:Authoritative)?RiddenPetId(?:Atom)?$/i,
+    defaultValue: null,
+    tier: 'state',
+    statePath: '/child/data/userSlots/{myIdx}/riddenPetId',
+  },
 
   // ── Actions ───────────────────────────────────────────────────────────
   action: { label: /^(?:current|room)?[Aa]ction(?:Data)?Atom$/i, tier: 'composite' },
@@ -787,6 +808,9 @@ export async function writeRegistryAtom<K extends AtomRegistryKey>(
   const resolution = resolveAtom(key);
   if (!resolution) {
     throw new Error(`[AtomRegistry] Cannot write: atom '${key}' not resolved`);
+  }
+  if (resolution.atom === null) {
+    throw new Error(`[AtomRegistry] Cannot write: '${key}' is state-tree sourced (server-authoritative)`);
   }
   await writeRawAtomValue(resolution.atom, value);
 }

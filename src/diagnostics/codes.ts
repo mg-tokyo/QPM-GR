@@ -9,6 +9,7 @@ import { TD_CUSTOM_DESIGNS_CODES } from './codes/tdCustomDesigns';
 import { TD_SAVES_CODES } from './codes/tdSaves';
 import { TD_TRACKS_CODES } from './codes/tdTracks';
 import { PATCH_STAGE_CODES } from './codes/patchStage';
+import { WEBSOCKET_CODES } from './codes/websocket';
 
 const CURRENT_VERSION = '3.2.29';
 
@@ -30,64 +31,7 @@ export function listCodes(): readonly ErrorCodeDefinition[] {
 // These exist so that buildError() resolves cleanly during Phase 1; the
 // subsystems they describe do not yet publish to the bus.
 
-register({
-  code: 'QPM-WS-001',
-  subsystem: 'websocket',
-  category: 'core',
-  severity: 'warn',
-  title: 'No active connection',
-  description: 'sendRoomAction() called before a room connection was established.',
-  userAction: 'Reconnect to the game (refresh the tab if it persists).',
-  devNotes: 'src/websocket/api.ts — guards against missing MagicCircle_RoomConnection.',
-  sinceVersion: CURRENT_VERSION,
-  // §9 — fires only during user-driven sends; user can act (reconnect/refresh); not transient
-  // (each fire is a real failed action). Default warn throttle (30s) suppresses send-spam.
-  notifyUser: true,
-});
-
-register({
-  code: 'QPM-WS-002',
-  subsystem: 'websocket',
-  category: 'core',
-  severity: 'info',
-  title: 'Throttled',
-  description: 'sendRoomAction() was throttled by the per-key rate limit.',
-  devNotes: 'src/websocket/api.ts — throttle bucket per (type, key).',
-  sinceVersion: CURRENT_VERSION,
-});
-
-register({
-  code: 'QPM-WS-003',
-  subsystem: 'websocket',
-  category: 'core',
-  severity: 'warn',
-  title: 'WebSocket send failed',
-  description: 'sendRoomAction() returned ok:false from the underlying connection.',
-  devNotes: 'src/websocket/api.ts — non-ok return path.',
-  sinceVersion: CURRENT_VERSION,
-});
-
-register({
-  code: 'QPM-WS-004',
-  subsystem: 'websocket',
-  category: 'core',
-  severity: 'warn',
-  title: 'Invalid payload',
-  description: 'sendRoomAction() rejected a payload that failed validation.',
-  devNotes: 'src/websocket/api.ts — validatePayload(); likely a caller bug.',
-  sinceVersion: CURRENT_VERSION,
-});
-
-register({
-  code: 'QPM-WS-005',
-  subsystem: 'websocket',
-  category: 'core',
-  severity: 'info',
-  title: 'Locker blocked send',
-  description: 'A registered preflight (locker guard) blocked the send.',
-  devNotes: 'src/websocket/api.ts — registerSendPreflight() returned ok:false.',
-  sinceVersion: CURRENT_VERSION,
-});
+// QPM-WS-* live in ./codes/websocket.ts (registered at the bottom).
 
 register({
   code: 'QPM-ATOM-001',
@@ -498,6 +442,18 @@ register({
   sinceVersion: CURRENT_VERSION,
 });
 
+register({
+  code: 'QPM-PET-001',
+  subsystem: 'feature:pets',
+  category: 'feature',
+  severity: 'warn',
+  title: 'Pet position unresolved for ghost step',
+  description: 'ghostStepToPet() could not resolve the target pet\'s tile (pet missing from petSlotInfos, or a motion shape petTileFromMotion does not understand). The potion/feed action is still sent without stepping, so the server rejects it for proximity. context.reason is pet-not-in-state | motion-unresolved; context.motionKind is the unrecognised kind.',
+  devNotes: 'src/utils/ghostStep.ts — throttled 30 s per pet. A new motion kind in a game bundle should be ported into petTileFromMotion.',
+  sinceVersion: CURRENT_VERSION,
+  notifyUser: false,
+});
+
 // UI: Notification hub itself (§4.4 borderline → promoted Phase 5.4). The hub
 // is the user-facing end of the logger pipeline; if it breaks, the user gets
 // zero feedback for everything else, so its own degradation is uniquely
@@ -734,3 +690,4 @@ for (const def of TD_CUSTOM_DESIGNS_CODES) register(def);
 for (const def of TD_SAVES_CODES) register(def);
 for (const def of TD_TRACKS_CODES) register(def);
 for (const def of PATCH_STAGE_CODES) register(def);
+for (const def of WEBSOCKET_CODES) register(def);

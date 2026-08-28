@@ -301,6 +301,11 @@ export const QPM_STORAGE_KEYS = [
 
   // Audio subsystem (per-feature volume overrides)
   'qpm.audio.prefs.v1',
+
+  // WebSocket QuinoaCommand envelope + wire sequencer kill switches
+  'qpm.ws.envelope.enabled',
+  'qpm.ws.sequencer.enabled',
+  'qpm.ws.transport.v1',
 ];
 
 /** Shop enhancer mode key. Values: 'auto' | 'force-on' | 'force-off'. */

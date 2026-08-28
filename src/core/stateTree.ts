@@ -43,6 +43,19 @@ let sourceUnsubscribe: (() => void) | null = null;
 let welcomeUnsubscribe: (() => void) | null = null;
 let activeSource: 'roomPatches' | 'stateAtom' | 'none' = 'none';
 
+export interface WelcomeMeta {
+  at: number;
+  publishedAtServerMs: number | null;
+  /** Server command frontier at Welcome — the sequencer's seed value. */
+  executedCommandSequence: number | null;
+}
+let lastWelcome: WelcomeMeta | null = null;
+
+/** Metadata of the most recent Welcome (connect/reconnect), or null before one arrives. */
+export function getLastWelcomeMeta(): WelcomeMeta | null {
+  return lastWelcome;
+}
+
 interface Subscriber {
   readonly id: number;
   readonly selector: Selector<unknown>;
@@ -221,7 +234,12 @@ function tryAttachRoomPatchSubscription(): boolean {
     // was empty or absent (older bundles).
     if (typeof rc.subscribeToWelcome === 'function') {
       try {
-        const welcomeResult: unknown = rc.subscribeToWelcome((welcomeState: unknown) => {
+        const welcomeResult: unknown = rc.subscribeToWelcome((welcomeState, publishedAtServerMs, executedCommandSequence) => {
+          lastWelcome = {
+            at: Date.now(),
+            publishedAtServerMs: typeof publishedAtServerMs === 'number' ? publishedAtServerMs : null,
+            executedCommandSequence: typeof executedCommandSequence === 'number' ? executedCommandSequence : null,
+          };
           if (welcomeState && typeof welcomeState === 'object') onStateEvent(welcomeState);
         });
         if (welcomeResult && typeof welcomeResult === 'object' && 'unsubscribe' in welcomeResult) {
@@ -328,6 +346,7 @@ export function stopStateTree(): void {
   currentSnapshot = null;
   ready = false;
   lastFireTs = 0;
+  lastWelcome = null;
   activeSource = 'none';
   selectorSuppressLog = new WeakSet<Selector<unknown>>();
 }
@@ -514,5 +533,6 @@ function exposeDebugBridge(): void {
     snapshot: () => currentSnapshot,
     subs: () => subscriberSummary(),
     pendingCount: () => pending.length,
+    welcome: () => lastWelcome,
   });
 }

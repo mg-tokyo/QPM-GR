@@ -128,6 +128,27 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     }
     return out;
   };
+  const {
+    getCommandSequencerStats,
+    isEnvelopeEnabled,
+    setEnvelopeEnabled,
+    isSequencerEnabled,
+    setSequencerEnabled,
+  } = await import('../../websocket/commandSequencer');
+  const { transportAudit, resolveTransport, getSendBudgetStats } = await import('../../websocket/transport');
+  const { sendToggleLockItem } = await import('../../features/pets/teamActions');
+  const commandSequencer = {
+    stats: getCommandSequencerStats,
+    isEnvelopeEnabled,
+    setEnvelopeEnabled,
+    isSequencerEnabled,
+    setSequencerEnabled,
+    transportAudit,
+    resolveTransport,
+    sendBudget: getSendBudgetStats,
+    // Real QPM send through sendRoomAction (reversible) for live transport checks.
+    debugToggleLock: sendToggleLockItem,
+  };
   const { getRiveRules, reapplyAllRiveRules } = await import('../../features/standalone/riveControl');
   const riveControl = {
     rules: () => getRiveRules(),
@@ -153,6 +174,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     setReactiveKillSwitch,
     getReactiveKillSwitches,
     debugReactiveRouting,
+    commandSequencer,
     riveControl,
     setDevMode,
     isDevMode,

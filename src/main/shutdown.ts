@@ -32,6 +32,7 @@ import { stopWeatherHub } from '../store/weatherHub';
 import { destroyEconomyTracker } from '../store/economyTracker';
 import { stopNativeSendObserver } from '../websocket/nativeSendObserver';
 import { stopWebsocketDiagnostics } from '../websocket/api';
+import { stopCommandSequencer } from '../websocket/commandSequencer';
 import { stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
 import { stopJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { stopSpriteV2Diagnostics } from '../sprite-v2/index';
@@ -118,6 +119,9 @@ export function installGlobalHandlers(): void {
     stopWeatherHub();
     destroyEconomyTracker();
     stopNativeSendObserver();
+    // Innermost wrapper — unwrap last (outer wrappers' identity guards keep
+    // the chain sound regardless).
+    stopCommandSequencer();
     stopWebsocketDiagnostics();
     stopCatalogsDiagnostics();
     stopJotaiBridgeDiagnostics();

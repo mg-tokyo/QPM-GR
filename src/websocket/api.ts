@@ -1,14 +1,42 @@
 // src/websocket/api.ts
 // Centralized send facade for room WebSocket actions.
 
-import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
-import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
 import { pageWindow } from '../core/pageContext';
-import { visibleInterval } from '../utils/scheduling/timerManager';
+import {
+  buildEnvelope,
+  newRequestId,
+  type QuinoaCommandResultMessage,
+} from './envelope';
+import { resolveTransport, takeSendToken, withQpmOrigin } from './transport';
+import {
+  cancelCommandRequest,
+  isCommandSequencerActive,
+  isEnvelopeEnabled,
+  trackCommandRequest,
+} from './commandSequencer';
+import { wsCounters, maybePublishRecovery, startWebsocketHealth, stopWebsocketHealth } from './health';
+import {
+  PET_TEAM_ICON_IDS,
+  isFiniteNumber,
+  isNonEmptyString,
+  type MovePetTeamPayload,
+  type PickupPetPayload,
+  type PlacePetPayload,
+  type PlayerPositionPayload,
+  type PurchaseShopItemPayload,
+  type PutInStoragePayload,
+  type RetrievePayload,
+  type SavePetTeamPayload,
+  type SetPetTeamEmblemPayload,
+  type SwapFromStoragePayload,
+  type SwapPayload,
+} from './validation';
+
+export { sendSetPlayerData, type CosmeticColor, type SetPlayerDataPayload } from './playerData';
+export type { QuinoaCommandResultMessage } from './envelope';
 
 const log = createNamedLogger('websocket');
-const WS_SUBSYSTEM: Subsystem = 'websocket';
 
 export type RoomActionType =
   | 'ToggleLockItem'
@@ -58,6 +86,15 @@ export type WebSocketSendFailureReason =
 export interface WebSocketSendResult {
   ok: boolean;
   reason?: WebSocketSendFailureReason;
+  transport?: 'legacy' | 'envelope';
+  /** Envelope sends only. */
+  requestId?: string;
+  /**
+   * Envelope sends only. Resolves with the server's QuinoaCommandResult;
+   * rejects with QuinoaCommandTimeoutError after 5 s or on reconnect — the
+   * outcome is then UNKNOWN, never a confirmed failure.
+   */
+  awaitResult?: () => Promise<QuinoaCommandResultMessage>;
 }
 
 /**
@@ -66,11 +103,28 @@ export interface WebSocketSendResult {
  */
 export type RoomPatchListener = (patches: unknown, fullState: unknown) => void;
 
+/** Payload of `subscribeToRoomFrames` (v1040 `publishRoomFrame`). */
+export interface RoomFrame {
+  events?: unknown[];
+  publishedAtServerMs?: number;
+  /** Server frontier: highest command sequence executed so far. */
+  executedCommandSequence?: number;
+  state?: { patches?: unknown; nextState?: unknown };
+}
+
 export interface RoomConnection {
   sendMessage: (payload: unknown) => void;
+  /**
+   * Immediate send; returns false (and drops the message) when disconnected
+   * or before Welcome. QuinoaCommand envelopes MUST use this — `sendMessage`
+   * would queue them for a later session where their sequence is invalid.
+   */
+  trySendMessageNow?: (payload: unknown) => boolean;
   ws?: WebSocket | null;
   socket?: WebSocket | null;
   currentWebSocket?: WebSocket | null;
+  isConnected?: () => boolean;
+  isCommandSessionReady?: boolean;
   /**
    * Fires `cb(patches, fullState)` on every room state update. Returns
    * either a bare unsubscribe function (older bundles) or
@@ -82,13 +136,21 @@ export interface RoomConnection {
    */
   subscribeToPatches?: (cb: RoomPatchListener) => unknown;
   /**
-   * Subscribe to Welcome messages: fires on initial connection and after
-   * reconnections; if already connected when subscribing, fires immediately
-   * with the current state. Returns a bare unsubscribe function. Verified
-   * at RoomConnection.ts:172-184 (Thundershop bundle). Only present on
-   * newer bundles.
+   * Fires on initial connection and after every reconnect; if already
+   * connected when subscribing, fires immediately with the current
+   * publication. Live v1040 passes `(state, publishedAtServerMs,
+   * executedCommandSequence)`. Returns a bare unsubscribe function.
    */
-  subscribeToWelcome?: (cb: (state: unknown) => void) => unknown;
+  subscribeToWelcome?: (
+    cb: (state: unknown, publishedAtServerMs?: number, executedCommandSequence?: number) => void,
+  ) => unknown;
+  /** Fires on every RoomFrame (v1040). Returns a bare unsubscribe function. */
+  subscribeToRoomFrames?: (cb: (frame: RoomFrame) => void) => unknown;
+  lastDistributedRoomPublication?: {
+    state?: unknown;
+    publishedAtServerMs?: number;
+    executedCommandSequence?: number;
+  };
   /**
    * Synchronous snapshot of the last-delivered room state. Alternative to
    * subscribing when only a one-shot read is needed. Present when
@@ -101,39 +163,6 @@ interface PageWithRoomConnection extends Window {
   MagicCircle_RoomConnection?: RoomConnection;
   __mga_lastScopePath?: string[];
 }
-
-type PlacePetPayload = {
-  itemId: string;
-  position: { x: number; y: number };
-  tileType: string;
-  localTileIndex: number;
-};
-
-type PlayerPositionPayload = {
-  position: { x: number; y: number };
-};
-
-type RetrievePayload = { itemId: string; storageId: string; toInventoryIndex?: number; quantity?: number };
-type PutInStoragePayload = { itemId: string; storageId: string; toStorageIndex?: number; quantity?: number };
-type PickupPetPayload = { petId: string };
-type SwapPayload = { petSlotId: string; petInventoryId: string };
-type SwapFromStoragePayload = { petSlotId: string; storagePetId: string; storageId: string };
-type PetTeamEmblemPayload =
-  | { type: 'number'; number: number }
-  | { type: 'pet'; petSpecies: string }
-  | { type: 'icon'; icon: string };
-type SavePetTeamPayload = { teamId: string | null; name: string; petIds: string[] };
-type MovePetTeamPayload = { movePetTeamId: string; toPetTeamIndex: number };
-type SetPetTeamEmblemPayload = { teamId: string; emblem: PetTeamEmblemPayload };
-
-const PET_TEAM_ICON_IDS = new Set([
-  'rainbow', 'gold', 'thunder', 'dawn', 'amber', 'wet', 'chilled', 'frozen', 'coin', 'egg',
-]);
-/** V16 unified shop purchase payload. itemType values: 'Seed'|'Egg'|'Tool'|'Decor'. */
-type PurchaseShopItemPayload = {
-  shop: string;
-  item: { itemType: string } & Record<string, unknown>;
-};
 
 type SendPreflightFn = (type: string, payload: Record<string, unknown>) => { ok: boolean; reason?: string };
 let sendPreflightFn: SendPreflightFn | null = null;
@@ -173,14 +202,6 @@ function getScopePath(): string[] {
   const dynamic = (pageWindow as PageWithRoomConnection).__mga_lastScopePath;
   if (Array.isArray(dynamic) && dynamic.length > 0) return dynamic.slice();
   return [...DEFAULT_SCOPE_PATH];
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function validatePayload(type: RoomActionType, payload: Record<string, unknown>): boolean {
@@ -382,10 +403,6 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
   }
 }
 
-// ---------------------------------------------------------------------------
-// Action-sent listeners — fire after a successful sendMessage()
-// ---------------------------------------------------------------------------
-
 export type ActionSentListener = (type: RoomActionType, payload: Record<string, unknown>) => void;
 const actionSentListeners = new Set<ActionSentListener>();
 
@@ -395,113 +412,58 @@ export function onActionSent(listener: ActionSentListener): () => void {
   return () => { actionSentListeners.delete(listener); };
 }
 
-// ---------------------------------------------------------------------------
-// Diagnostics — health bus registration + counters (Phase 2 §13)
-// ---------------------------------------------------------------------------
-
-const counters = {
-  sends: 0,
-  throttles: 0,
-  failures: 0,
-  invalidPayloads: 0,
-  lockerBlocks: 0,
-  noConnections: 0,
-};
-
-let diagnosticsStarted = false;
-let connectionPollStop: (() => void) | null = null;
-let metricsTickStop: (() => void) | null = null;
-let connectionEverSeen = false;
-
-function snapshotMetrics(): Readonly<Record<string, number>> {
-  return {
-    sends: counters.sends,
-    throttles: counters.throttles,
-    failures: counters.failures,
-    invalidPayloads: counters.invalidPayloads,
-    lockerBlocks: counters.lockerBlocks,
-    noConnections: counters.noConnections,
-  };
-}
-
-function serializeCounters(): string {
-  return `${counters.sends}|${counters.throttles}|${counters.failures}|${counters.invalidPayloads}|${counters.lockerBlocks}|${counters.noConnections}`;
-}
-
-function publishWsHealth(
-  status?: SubsystemHealth['status'],
-  message?: string,
-): void {
-  if (!diagnosticsStarted) return;
-  healthBus.publish({
-    subsystem: WS_SUBSYSTEM,
-    category: 'core',
-    ...(status === undefined ? {} : { status }),
-    ...(message === undefined ? {} : { message }),
-    metrics: snapshotMetrics(),
-  });
-}
-
-function maybePublishRecovery(): void {
-  if (!diagnosticsStarted) return;
-  const current = healthBus.read(WS_SUBSYSTEM);
-  if (!current) return;
-  if (current.status === 'degraded' || current.status === 'failed') {
-    publishWsHealth('recovering', 'Send succeeded — recovering');
-  }
-}
-
-/**
- * Wire the websocket subsystem into the diagnostics health bus. Idempotent.
- * Must run after initDiagnostics() so the bus exists.
- */
 export function startWebsocketDiagnostics(): void {
-  if (diagnosticsStarted) return;
-  diagnosticsStarted = true;
-
-  healthBus.register(WS_SUBSYSTEM, {
-    category: 'core',
-    status: 'starting',
-    message: 'Waiting for room connection',
-  });
-
-  if (hasRoomConnection()) {
-    connectionEverSeen = true;
-    publishWsHealth('ok', 'Connected');
-  } else {
-    connectionPollStop = visibleInterval('qpm-ws-diag-connect', () => {
-      if (!hasRoomConnection()) return;
-      connectionEverSeen = true;
-      publishWsHealth('ok', 'Connected');
-      if (connectionPollStop) {
-        connectionPollStop();
-        connectionPollStop = null;
-      }
-    }, 1500);
-  }
-
-  // Slow metrics tick — only publish when counters actually change, so the
-  // bus diff stays cheap (§6.4 budget).
-  let lastSnapshot = serializeCounters();
-  metricsTickStop = visibleInterval('qpm-ws-diag-metrics', () => {
-    const snap = serializeCounters();
-    if (snap === lastSnapshot) return;
-    lastSnapshot = snap;
-    publishWsHealth(undefined, connectionEverSeen ? 'Connected' : undefined);
-  }, 60_000);
+  startWebsocketHealth(hasRoomConnection);
 }
 
 export function stopWebsocketDiagnostics(): void {
-  if (!diagnosticsStarted) return;
-  if (connectionPollStop) {
-    connectionPollStop();
-    connectionPollStop = null;
+  stopWebsocketHealth();
+}
+
+function shouldEnvelope(connection: RoomConnection, type: string): boolean {
+  if (!isEnvelopeEnabled()) return false;
+  // Mirror whatever transport the game was observed using for this type;
+  // the allowlist only covers types the game hasn't sent yet this session.
+  if (resolveTransport(type).transport !== 'envelope') return false;
+  return typeof connection.trySendMessageNow === 'function'
+    // Without the sequencer the placeholder commandSequence would be
+    // silently dropped by the server — legacy flat is the safe fallback.
+    && isCommandSequencerActive(connection);
+}
+
+/**
+ * Put one already-validated, already-throttled action on the wire. Shared by
+ * sendRoomAction and the QPM FULL PRIVATE overlay's replacement body, so the
+ * envelope-vs-legacy decision lives in exactly one place. Throws only if the
+ * native send throws.
+ */
+export function transmitRoomAction(
+  connection: RoomConnection,
+  type: string,
+  payload: Record<string, unknown>,
+): WebSocketSendResult {
+  const scopePath = getScopePath();
+  if (shouldEnvelope(connection, type)) {
+    const envelope = buildEnvelope(scopePath, type, payload, newRequestId());
+    const resultPromise = trackCommandRequest(envelope);
+    // Most callers never await the result; a timeout must not surface as an
+    // unhandled rejection.
+    resultPromise.catch(() => { /* observed via awaitResult() */ });
+    const sent = withQpmOrigin(() => connection.trySendMessageNow!(envelope));
+    if (!sent) {
+      cancelCommandRequest(envelope.requestId);
+      return { ok: false, reason: 'no_connection' };
+    }
+    wsCounters.enveloped++;
+    return {
+      ok: true,
+      transport: 'envelope',
+      requestId: envelope.requestId,
+      awaitResult: () => resultPromise,
+    };
   }
-  if (metricsTickStop) {
-    metricsTickStop();
-    metricsTickStop = null;
-  }
-  diagnosticsStarted = false;
+  withQpmOrigin(() => connection.sendMessage({ scopePath, type, ...payload }));
+  return { ok: true, transport: 'legacy' };
 }
 
 export function sendRoomAction(
@@ -509,136 +471,70 @@ export function sendRoomAction(
   payload: Record<string, unknown>,
   options?: { throttleMs?: number; skipThrottle?: boolean },
 ): WebSocketSendResult {
-  if (!validatePayload(type, payload)) {
-    counters.invalidPayloads++;
-    log.warn('QPM-WS-004', { type });
+  // The game has no ToggleFavoriteItem command (absent from every bundle and
+  // beta source; ToggleLockItem is the real one). Kept as an accepted input
+  // for callers; remapped here so an envelope never carries an unknown type.
+  const actionType: RoomActionType = type === 'ToggleFavoriteItem' ? 'ToggleLockItem' : type;
+
+  if (!validatePayload(actionType, payload)) {
+    wsCounters.invalidPayloads++;
+    log.warn('QPM-WS-004', { type: actionType });
     return { ok: false, reason: 'invalid_payload' };
   }
 
   if (sendPreflightFn) {
-    const check = sendPreflightFn(type, payload);
+    const check = sendPreflightFn(actionType, payload);
     if (!check.ok) {
-      counters.lockerBlocks++;
+      wsCounters.lockerBlocks++;
       return { ok: false, reason: 'locker_blocked' };
     }
   }
 
   const connection = getRoomConnection();
   if (!connection) {
-    counters.noConnections++;
-    log.warn('QPM-WS-001', { type });
+    wsCounters.noConnections++;
+    log.warn('QPM-WS-001', { type: actionType });
     return { ok: false, reason: 'no_connection' };
   }
 
   const throttleMs = Math.max(0, Math.floor(options?.throttleMs ?? DEFAULT_THROTTLE_MS));
   if (!options?.skipThrottle && throttleMs > 0) {
-    const key = getThrottleKey(type, payload);
+    const key = getThrottleKey(actionType, payload);
     const now = Date.now();
     const prev = lastSentAt.get(key) ?? 0;
     if (now - prev < throttleMs) {
-      counters.throttles++;
+      wsCounters.throttles++;
       return { ok: false, reason: 'throttled' };
     }
     lastSentAt.set(key, now);
   }
 
-  try {
-    connection.sendMessage({
-      scopePath: getScopePath(),
-      type,
-      ...payload,
-    });
-    // Notify listeners after successful send
-    for (const cb of actionSentListeners) {
-      try { cb(type, payload); } catch { /* ignore listener errors */ }
-    }
-    counters.sends++;
-    maybePublishRecovery();
-    return { ok: true };
-  } catch (err) {
-    counters.failures++;
-    log.error('QPM-WS-003', { type }, err);
-    return { ok: false, reason: 'send_failed' };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SetPlayerData — cosmetic/name changes (scopePath: ['Room'], not Quinoa)
-// ---------------------------------------------------------------------------
-
-export type CosmeticColor =
-  | 'Red' | 'Orange' | 'Yellow' | 'Green'
-  | 'Blue' | 'Purple' | 'White' | 'Black';
-
-export interface SetPlayerDataPayload {
-  name?: string;
-  cosmetic?: {
-    color: CosmeticColor;
-    avatar: [string, string, string, string];
-  };
-}
-
-const PLAYER_NAME_MAX = 32;
-const SET_PLAYER_DATA_COOLDOWN_MS = 2000;
-let lastSetPlayerDataAt = 0;
-
-export function sendSetPlayerData(payload: SetPlayerDataPayload): WebSocketSendResult {
-  if (!payload.name && !payload.cosmetic) {
-    counters.invalidPayloads++;
-    log.warn('QPM-WS-005', { reason: 'empty_payload' });
-    return { ok: false, reason: 'invalid_payload' };
-  }
-
-  if (payload.name != null) {
-    const trimmed = payload.name.trim();
-    if (trimmed.length === 0 || trimmed.length > PLAYER_NAME_MAX) {
-      counters.invalidPayloads++;
-      log.warn('QPM-WS-005', { reason: 'invalid_name' });
-      return { ok: false, reason: 'invalid_payload' };
-    }
-  }
-
-  if (payload.cosmetic) {
-    const { color, avatar } = payload.cosmetic;
-    if (!color || typeof color !== 'string') {
-      counters.invalidPayloads++;
-      return { ok: false, reason: 'invalid_payload' };
-    }
-    if (!Array.isArray(avatar) || avatar.length !== 4 || avatar.some(s => !isNonEmptyString(s))) {
-      counters.invalidPayloads++;
-      return { ok: false, reason: 'invalid_payload' };
-    }
-  }
-
-  const now = Date.now();
-  if (now - lastSetPlayerDataAt < SET_PLAYER_DATA_COOLDOWN_MS) {
-    counters.throttles++;
+  // Global budget: the server allows ~300 commands per ~10 s window for the
+  // whole socket (measured 2026-08-28) and rate-limits the USER's own actions
+  // once it's gone. QPM keeps itself to a third of that.
+  if (!takeSendToken()) {
+    wsCounters.throttles++;
+    log.warn('QPM-WS-010', { type: actionType });
     return { ok: false, reason: 'throttled' };
   }
 
-  const connection = getRoomConnection();
-  if (!connection) {
-    counters.noConnections++;
-    log.warn('QPM-WS-001', { type: 'SetPlayerData' });
-    return { ok: false, reason: 'no_connection' };
-  }
-
   try {
-    const message: Record<string, unknown> = {
-      scopePath: ['Room'],
-      type: 'SetPlayerData',
-    };
-    if (payload.name != null) message.name = payload.name.trim();
-    if (payload.cosmetic) message.cosmetic = payload.cosmetic;
-
-    connection.sendMessage(message);
-    lastSetPlayerDataAt = now;
-    counters.sends++;
+    const result = transmitRoomAction(connection, actionType, payload);
+    if (!result.ok) {
+      wsCounters.noConnections++;
+      log.warn('QPM-WS-001', { type: actionType, reason: result.reason });
+      return result;
+    }
+    // Notify listeners after successful send
+    for (const cb of actionSentListeners) {
+      try { cb(actionType, payload); } catch { /* ignore listener errors */ }
+    }
+    wsCounters.sends++;
     maybePublishRecovery();
-    return { ok: true };
+    return result;
   } catch (err) {
-    counters.failures++;
-    log.error('QPM-WS-003', { type: 'SetPlayerData' }, err);
+    wsCounters.failures++;
+    log.error('QPM-WS-003', { type: actionType }, err);
     return { ok: false, reason: 'send_failed' };
   }
 }

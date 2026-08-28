@@ -119,6 +119,8 @@ export interface QuinoaInventory {
 export interface QuinoaUserSlotData {
   inventory?: QuinoaInventory;
   shopPurchases?: Record<string, unknown>;
+  /** Authoritative active pets (v1040: `{ id, petSpecies, xp, hunger, mutations, targetScale, abilities, … }`). */
+  petSlots?: unknown[];
   [key: string]: unknown;
 }
 
@@ -128,6 +130,8 @@ export interface QuinoaUserSlot {
   playerId?: string;
   type?: string;
   data?: QuinoaUserSlotData;
+  /** Lives on the slot, NOT under `data` (live-verified v1040). */
+  riddenPetId?: string | null;
   [key: string]: unknown;
 }
 

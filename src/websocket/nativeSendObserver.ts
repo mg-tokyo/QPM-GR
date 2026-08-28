@@ -1,11 +1,13 @@
 // src/websocket/nativeSendObserver.ts
-// Centralized observer for ALL outgoing sendMessage calls (native game + QPM).
-// Wraps MagicCircle_RoomConnection.sendMessage to fire registered listeners
-// for every message type + payload. Purely observational — never blocks.
+// Centralized observer for ALL outgoing sends (native game + QPM). Wraps
+// MagicCircle_RoomConnection.sendMessage AND trySendMessageNow (v1040 routes
+// every gameplay command through the latter as a QuinoaCommand envelope) and
+// fires listeners with the UNWRAPPED action type. Purely observational.
 
 import { pageWindow } from '../core/pageContext';
 import { criticalInterval } from '../utils/scheduling/timerManager';
 import { createNamedLogger } from '../diagnostics/logger';
+import { unwrapQuinoaCommand } from './envelope';
 
 const diagLog = createNamedLogger('websocket');
 
@@ -13,6 +15,7 @@ export type NativeSendListener = (type: string, payload: Record<string, unknown>
 
 interface RoomConnection {
   sendMessage: (payload: unknown) => void;
+  trySendMessageNow?: (payload: unknown) => boolean;
   [key: string]: unknown;
 }
 
@@ -23,7 +26,9 @@ interface PageWithRoom extends Window {
 const listeners = new Set<NativeSendListener>();
 let patchedRoom: RoomConnection | null = null;
 let originalSendMessage: ((payload: unknown) => unknown) | null = null;
+let originalTrySend: ((payload: unknown) => boolean) | null = null;
 let patchedWrapper: ((payload: unknown) => unknown) | null = null;
+let patchedTryWrapper: ((payload: unknown) => boolean) | null = null;
 let stopReconnectTimer: (() => void) | null = null;
 let started = false;
 
@@ -39,21 +44,35 @@ function notifyListeners(type: string, payload: Record<string, unknown>): void {
   }
 }
 
+function observe(payload: unknown): void {
+  if (!payload || typeof payload !== 'object') return;
+  const rec = payload as Record<string, unknown>;
+  const outerType = typeof rec.type === 'string' ? rec.type : null;
+  if (!outerType) return;
+  const { actionType, payload: inner } = unwrapQuinoaCommand(outerType, rec);
+  notifyListeners(actionType, inner);
+}
+
 function restorePatch(): void {
-  if (!patchedRoom || !originalSendMessage) return;
+  if (!patchedRoom) return;
   try {
     // Identity guard: only restore if OUR wrapper is still installed. A
     // third party that wrapped after us stays; our wrapper keeps delegating
     // to the saved original, so the chain remains sound.
-    if (patchedRoom.sendMessage === patchedWrapper) {
+    if (originalSendMessage && patchedRoom.sendMessage === patchedWrapper) {
       patchedRoom.sendMessage = originalSendMessage as (payload: unknown) => void;
-    } else {
+    } else if (originalSendMessage) {
       diagLog.debug('sendMessage re-wrapped by third party — leaving chain intact');
+    }
+    if (originalTrySend && patchedTryWrapper && patchedRoom.trySendMessageNow === patchedTryWrapper) {
+      patchedRoom.trySendMessageNow = originalTrySend;
     }
   } catch { /* noop */ }
   patchedRoom = null;
   originalSendMessage = null;
+  originalTrySend = null;
   patchedWrapper = null;
+  patchedTryWrapper = null;
 }
 
 function ensurePatched(): void {
@@ -66,26 +85,32 @@ function ensurePatched(): void {
 
   const original = room.sendMessage.bind(room);
   const wrapped = (payload: unknown): unknown => {
-    // Observe before passing through
-    if (payload && typeof payload === 'object') {
-      const rec = payload as Record<string, unknown>;
-      const actionType = typeof rec.type === 'string' ? rec.type : null;
-      if (actionType) {
-        notifyListeners(actionType, rec);
-      }
-    }
+    observe(payload);
     return original(payload);
   };
+  const rawTry = room.trySendMessageNow;
+  const originalTry = typeof rawTry === 'function' ? rawTry.bind(room) : null;
+  const wrappedTry = originalTry
+    ? (payload: unknown): boolean => {
+        observe(payload);
+        return originalTry(payload);
+      }
+    : null;
 
   try {
     room.sendMessage = wrapped;
+    if (wrappedTry) room.trySendMessageNow = wrappedTry;
     patchedRoom = room;
     originalSendMessage = original;
+    originalTrySend = originalTry;
     patchedWrapper = wrapped;
+    patchedTryWrapper = wrappedTry;
   } catch {
     patchedRoom = null;
     originalSendMessage = null;
+    originalTrySend = null;
     patchedWrapper = null;
+    patchedTryWrapper = null;
   }
 }
 
@@ -108,8 +133,9 @@ export function onNativeSend(listener: NativeSendListener): () => void {
  *
  * Ordering invariant: this observer must start AFTER startLocker() in
  * src/features/locker/index.ts, so that the observer's captured "original"
- * is the locker wrapper (chain: observer → locker → raw). Reversing this
- * order silently drops observer visibility on every locker-blocked send.
+ * is the locker wrapper (chain: observer → locker → sequencer → raw).
+ * Reversing this order silently drops observer visibility on every
+ * locker-blocked send.
  */
 export function startNativeSendObserver(): void {
   if (started) return;

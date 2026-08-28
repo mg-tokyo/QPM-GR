@@ -139,6 +139,7 @@ export const petInspectorApi = {
         'myPetInventoryAtom',
         'myPetHutchPetItemsAtom',
         'myPrimitivePetSlotsAtom',
+        'myPredictedPetSlotsAtom',
         'petInfosAtom'
       ];
 
