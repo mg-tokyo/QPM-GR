@@ -146,10 +146,12 @@ export function startShopRestockAlerts(): void {
     alertState.inventoryKeyItemQuantities = new Map<string, Map<string, number>>();
     alertState.seedSiloKeyCounts         = new Map<string, number>();
     alertState.decorShedKeyCounts        = new Map<string, number>();
+    alertState.toolShackKeyCounts        = new Map<string, number>();
     alertState.toolInventoryKeyCounts    = new Map<string, number>();
     alertState.hasInventoryBaseline      = false;
     alertState.hasSeedSiloBaseline       = false;
     alertState.hasDecorShedBaseline      = false;
+    alertState.hasToolShackBaseline      = false;
     alertState.hasToolInventoryBaseline  = false;
 
     void startShopRegistry().catch((error) => {
@@ -261,10 +263,12 @@ export function stopShopRestockAlerts(): void {
   alertState.inventoryKeyItemQuantities = new Map<string, Map<string, number>>();
   alertState.seedSiloKeyCounts          = new Map<string, number>();
   alertState.decorShedKeyCounts         = new Map<string, number>();
+  alertState.toolShackKeyCounts         = new Map<string, number>();
   alertState.toolInventoryKeyCounts     = new Map<string, number>();
   alertState.hasInventoryBaseline       = false;
   alertState.hasSeedSiloBaseline        = false;
   alertState.hasDecorShedBaseline       = false;
+  alertState.hasToolShackBaseline       = false;
   alertState.hasToolInventoryBaseline   = false;
   alertState.currentCoinsCount     = 0;
   alertState.hasCoinsBaseline      = false;

@@ -142,7 +142,7 @@
   },
   "src/features/standalone/antiAfk.ts": {
     "no-restricted-properties": {
-      "count": 2
+      "count": 1
     }
   },
   "src/features/standalone/autoFavorite.ts": {

@@ -38,11 +38,13 @@ export const alertState = {
   inventoryKeyItemQuantities:  new Map<string, Map<string, number>>(),
   seedSiloKeyCounts:           new Map<string, number>(),
   decorShedKeyCounts:          new Map<string, number>(),
+  toolShackKeyCounts:          new Map<string, number>(),
   toolInventoryKeyCounts:      new Map<string, number>(),
 
   hasInventoryBaseline:     false,
   hasSeedSiloBaseline:      false,
   hasDecorShedBaseline:     false,
+  hasToolShackBaseline:     false,
   hasToolInventoryBaseline: false,
   currentCoinsCount: 0,
   hasCoinsBaseline: false,

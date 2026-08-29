@@ -6,6 +6,7 @@ import { canonicalItemId, getItemIdVariants } from '../../../utils/restock/dataS
 import type { ShopStockCategoryState, ShopStockItem, ShopStockState } from '../../../store/shopStock';
 import { getShopEntryIdentity } from '../../../store/shopStockParsers';
 import { isWeatherGatedShop } from '../../../store/shopRegistry';
+import { getItemCatalogName } from '../../../catalogs/shopEligibility';
 import { isWeatherShopType, type ShopCategory } from '../../../types/shops';
 import {
   TRACKED_KEY,
@@ -307,7 +308,8 @@ export function processShopStock(state: ShopStockState): void {
         shopType,
         itemId: purchaseItemId,
         stockCycleId,
-        label: item.label || canonicalId,
+        // Shop entries usually carry only the raw id (`HungerShard`); the blueprint has the display name.
+        label: getItemCatalogName(purchaseItemId) ?? (item.label || canonicalId),
         quantity: currentQty,
         priceCoins: item.priceCoins ?? null,
         ...(resolvedItemType != null ? { itemType: resolvedItemType } : {}),

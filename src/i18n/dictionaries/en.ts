@@ -917,6 +917,10 @@ const en: Dictionary = {
   'feature.pity.refAllPlants': 'Every plant ({count}) guarantees {list}',
   'feature.pity.refVariant': '{patch} → {variant}',
   'feature.pity.refFixedSpots': 'Plants with fixed crop spots (like a Thunderspire\'s Stormcaps) keep a separate counter per crop.',
+  'feature.pity.trackLabel': 'Track:',
+  'feature.pity.trackSeeds': 'Plants',
+  'feature.pity.trackEggs': 'Eggs',
+  'feature.pity.trackCapsules': 'Capsules',
 
   // ── Feature: Storage Value ─────────────────────────────────────────────
   'feature.storageValue.notDetected': 'Not detected in your garden',

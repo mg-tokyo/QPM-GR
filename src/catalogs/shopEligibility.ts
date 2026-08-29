@@ -40,6 +40,44 @@ export function getItemEligibleShops(itemId: string): string[] {
   return readStringArray(getShopFacingCatalogEntry(itemId)?.entry.eligibleShops);
 }
 
+/** Restock/alert ids may be lowercased; fall back to a case-insensitive id match per catalog. */
+function findShopFacingEntryLoose(itemId: string): Record<string, unknown> | null {
+  const exact = getShopFacingCatalogEntry(itemId);
+  if (exact) return exact.entry;
+  for (const kind of SHOP_CATALOG_KINDS) {
+    const id = findCatalogIdCaseInsensitive(kind, itemId);
+    if (!id) continue;
+    const entry = toShopFacingEntry(kind, getKindCatalog(kind)?.[id]);
+    if (entry) return entry;
+  }
+  return null;
+}
+
+/** Item/egg/seed blueprints keep the atlas key on `sprite`; decor blueprints keep it on `art`. */
+export function getItemCatalogSpriteKey(itemId: string): string | null {
+  const entry = findShopFacingEntryLoose(itemId);
+  const key = entry?.sprite ?? entry?.art;
+  return typeof key === 'string' && key ? key : null;
+}
+
+export function getItemCatalogName(itemId: string): string | null {
+  const name = findShopFacingEntryLoose(itemId)?.name;
+  return typeof name === 'string' && name.trim() ? name.trim() : null;
+}
+
+/** Shop-facing price fields as the game shops read them; `null` when the id is unknown to every catalog. */
+export function getItemCatalogPricing(itemId: string): { coinPrice: number | null; dustPrice: number | null; rarity: string | null } | null {
+  const entry = findShopFacingEntryLoose(itemId);
+  if (!entry) return null;
+  const coin = entry.coinPrice;
+  const dust = entry.magicDustPrice ?? entry.dustPrice;
+  return {
+    coinPrice: typeof coin === 'number' && Number.isFinite(coin) ? coin : null,
+    dustPrice: typeof dust === 'number' && Number.isFinite(dust) ? dust : null,
+    rarity: typeof entry.rarity === 'string' && entry.rarity ? entry.rarity : null,
+  };
+}
+
 export function getItemCatalogRarity(itemId: string): string | null {
   const rarity = getShopFacingCatalogEntry(itemId)?.entry.rarity;
   return typeof rarity === 'string' && rarity ? rarity : null;

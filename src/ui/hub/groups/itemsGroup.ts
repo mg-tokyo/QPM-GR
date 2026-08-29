@@ -21,7 +21,7 @@ export function getItemsGroup(): HubGroupDef {
     key: 'favorites',
     label: t('hub.items.favorites.label'),
     description: t('hub.items.favorites.description'),
-    icon: { kind: 'sprite', value: '⭐', spriteKey: 'sprite/ui/HeartSticker', fallback: '⭐' },
+    icon: { kind: 'sprite', value: '⭐', spriteKey: 'sprite/ui/StrengthStar', fallback: '⭐' },
     labelColor: '#f472b6',
     tier: 'expandable',
     tile: {
@@ -201,7 +201,7 @@ export function getItemsGroup(): HubGroupDef {
     key: 'value-display',
     label: t('hub.items.valueDisplay.label'),
     description: t('hub.items.valueDisplay.description'),
-    icon: { kind: 'sprite', value: '💰', spriteKey: 'sprite/ui/CoinBag', fallback: '💰' },
+    icon: { kind: 'sprite', value: '💰', spriteKey: 'sprite/ui/MoneyBag', fallback: '💰' },
     labelColor: '#a3e635',
     tier: 'launcher',
     tile: {
@@ -231,8 +231,8 @@ export function getItemsGroup(): HubGroupDef {
       kind: 'sprite', value: '🎒', fallback: '🎒',
       bunched: [
         { spriteKey: 'sprite/ui/InventoryBag', offsetX: -10, scale: 1.0 },
-        { spriteKey: 'sprite/ui/HeartSticker', offsetX: 2, offsetY: -3, scale: 0.8 },
-        { spriteKey: 'sprite/ui/CoinBag', offsetX: 12, offsetY: 2, scale: 0.85 },
+        { spriteKey: 'sprite/ui/StrengthStar', offsetX: 2, offsetY: -3, scale: 0.8 },
+        { spriteKey: 'sprite/ui/MoneyBag', offsetX: 12, offsetY: 2, scale: 0.85 },
       ],
     },
     cards: [favoritesCard, protectionCard, petTeamsCard, calculatorCard, valueDisplayCard],

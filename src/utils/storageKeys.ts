@@ -26,6 +26,9 @@ export const QPM_STORAGE_KEYS = [
 
   // Bad Luck Protection observed streaks
   'qpm.pityTracker.v1',
+  'qpm.pityTracker.enabled.seed.v1',
+  'qpm.pityTracker.enabled.egg.v1',
+  'qpm.pityTracker.enabled.capsule.v1',
 
   // Garden Battleship
   'qpm.battleship.record.v1',

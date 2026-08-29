@@ -1,7 +1,4 @@
-import { getPlayerPosition as getPlayerPosFromContext } from '../../core/playerContext';
 import { pageWindow } from '../../core/pageContext';
-import { isRecord } from '../../utils/typeGuards';
-import { sendRoomAction } from '../../websocket/api';
 import { healthBus } from '../../diagnostics/healthBus';
 import { createNamedLogger } from '../../diagnostics/logger';
 import { buildError } from '../../diagnostics/result';
@@ -30,11 +27,12 @@ function errorFeature(code: ErrorCode, ctx: Record<string, unknown>, cause?: unk
   log.error({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'error' });
 }
 
-type XY = { x: number; y: number };
-
+// No server-side keepalive is sent here. Session liveness is the socket-level
+// server 'ping' → client 'pong', which the game only withholds while
+// document.visibilityState === 'hidden' — exactly what the visibility patch
+// below prevents. The native client never re-sends its current tile.
 const STOP_EVENTS = ['visibilitychange', 'blur', 'focus', 'focusout', 'pagehide', 'freeze', 'resume'] as const;
 const HEARTBEAT_MS = 25_000;
-const POSITION_PING_MS = 60_000;
 
 type EventTargetLike = Document | Window;
 
@@ -42,10 +40,6 @@ interface EventListenerRecord {
   target: EventTargetLike;
   type: string;
   handler: (event: Event) => void;
-}
-
-interface PageWindowWithData extends Window {
-  myData?: unknown;
 }
 
 let isActive = false;
@@ -61,80 +55,6 @@ let gainNode: GainNode | null = null;
 let audioResumeHandler: (() => void) | null = null;
 
 let heartbeatTimer: number | null = null;
-let pingTimer: number | null = null;
-let lastKnownPosition: XY | null = null;
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function normalizePosition(position: XY): XY {
-  return { x: Math.round(position.x), y: Math.round(position.y) };
-}
-
-function asPosition(value: unknown): XY | null {
-  if (!isRecord(value)) return null;
-  const x = value.x;
-  const y = value.y;
-  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null;
-  return normalizePosition({ x, y });
-}
-
-function readPath(root: unknown, path: ReadonlyArray<string>): unknown {
-  let cursor: unknown = root;
-  for (const segment of path) {
-    if (!isRecord(cursor)) return undefined;
-    cursor = cursor[segment];
-  }
-  return cursor;
-}
-
-function findPosition(root: unknown, paths: ReadonlyArray<ReadonlyArray<string>>): XY | null {
-  for (const path of paths) {
-    const candidate = path.length === 0 ? root : readPath(root, path);
-    const position = asPosition(candidate);
-    if (position) return position;
-  }
-  return null;
-}
-
-async function resolvePositionFromPlayerAtom(): Promise<XY | null> {
-  const pos = await getPlayerPosFromContext();
-  return pos ? asPosition(pos) : null;
-}
-
-function resolvePositionFromMyData(): XY | null {
-  const page = pageWindow as unknown as PageWindowWithData;
-  const myData = page.myData;
-  if (!myData) return null;
-
-  return findPosition(myData, [
-    ['position'],
-    ['coords'],
-    ['player', 'position'],
-    ['player', 'coords'],
-    ['room', 'position'],
-    ['room', 'playerPosition'],
-    ['state', 'position'],
-    ['state', 'player', 'position'],
-  ]);
-}
-
-async function resolveCurrentPosition(): Promise<XY | null> {
-  const fromAtom = await resolvePositionFromPlayerAtom();
-  if (fromAtom) {
-    lastKnownPosition = fromAtom;
-    return fromAtom;
-  }
-
-  const fromMyData = resolvePositionFromMyData();
-  if (fromMyData) {
-    lastKnownPosition = fromMyData;
-    return fromMyData;
-  }
-
-  return lastKnownPosition;
-}
 
 // Deliberately suppresses lifecycle events for EVERY capture-phase listener
 // registered after ours — including other userscripts'. That is the feature's
@@ -304,36 +224,6 @@ function stopHeartbeat(): void {
   heartbeatTimer = null;
 }
 
-async function pingCurrentPosition(): Promise<void> {
-  const position = await resolveCurrentPosition();
-  if (!position) return;
-
-  const result = sendRoomAction(
-    'PlayerPosition',
-    { position: normalizePosition(position) },
-    { throttleMs: 0, skipThrottle: true },
-  );
-  // Throttled is impossible (skipThrottle:true) but check defensively. WS layer
-  // already emits the per-reason WS-* code; FEATURE-001 attributes to antiAfk.
-  if (!result.ok && result.reason !== 'throttled') {
-    warnFeature('QPM-FEATURE-001', { type: 'PlayerPosition', reason: result.reason ?? 'unknown' });
-  }
-}
-
-function startPositionPing(): void {
-  pingTimer = window.setInterval(() => {
-    void pingCurrentPosition();
-  }, POSITION_PING_MS);
-
-  void pingCurrentPosition();
-}
-
-function stopPositionPing(): void {
-  if (pingTimer === null) return;
-  clearInterval(pingTimer);
-  pingTimer = null;
-}
-
 export async function initializeAntiAfk(): Promise<void> {
   if (isActive) return;
 
@@ -348,7 +238,6 @@ export async function initializeAntiAfk(): Promise<void> {
     swallowLifecycleEvents();
     startAudioKeepAlive();
     startHeartbeat();
-    startPositionPing();
     log.info('Initialized');
     // Patch failures during startup degrade the bus via warnFeature; if the bus
     // is already 'degraded' from a patch, the published 'ok' here will be
@@ -357,7 +246,7 @@ export async function initializeAntiAfk(): Promise<void> {
       subsystem: FEATURE_SUBSYSTEM,
       category: 'feature',
       status: 'ok',
-      message: 'Lifecycle patched, heartbeat + position ping active',
+      message: 'Lifecycle patched, heartbeat active',
     });
   } catch (error) {
     errorFeature('QPM-FEATURE-003', { what: 'init' }, error);
@@ -370,7 +259,6 @@ export function stopAntiAfk(): void {
   if (!isActive) return;
   isActive = false;
 
-  stopPositionPing();
   stopHeartbeat();
   stopAudioKeepAlive();
   unswallowLifecycleEvents();

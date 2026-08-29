@@ -217,7 +217,7 @@ export function getTrackersGroup(): HubGroupDef {
       // eslint-disable-next-line qpm/no-emoji-in-ui -- CardIcon API requires an emoji fallback until the sprite loads
       value: '🍀', fallback: '🍀',
       bunched: [
-        { spriteKey: 'sprite/plant/FourLeafClover', offsetX: -7, offsetY: 1, scale: 0.85 },
+        { spriteKey: 'sprite/plant/CloverFourLeaf', offsetX: -7, offsetY: 1, scale: 0.85 },
         { spriteKey: 'sprite/pet/ThunderEgg', offsetX: 7, offsetY: -1, scale: 0.8 },
       ],
     },

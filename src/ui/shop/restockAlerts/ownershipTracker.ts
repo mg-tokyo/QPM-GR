@@ -1,23 +1,45 @@
-// src/ui/shopRestockAlerts/ownershipTracker.ts
 // Inventory snapshot handling, ownership state machine, and confirmation tracking.
 
-import { canonicalItemId } from '../../../utils/restock/dataService';
 import { isWeatherShopType } from '../../../types/shops';
-import { getShopEntryIdentity } from '../../../store/shopStockParsers';
 import { warnFeature } from './_diagnostics';
-import type { InventoryData, InventoryItem } from '../../../store/inventory';
+import type { InventoryData } from '../../../store/inventory';
 import {
   ALERT_DEBUG_ENABLED,
   ALERT_SUCCESS_HIDE_MS,
   OWNERSHIP_BASELINE_WAIT_MS,
   OWNERSHIP_STALE_NOTICE_MS,
   OWNERSHIP_MAX_CONFIRMATION_MS,
-  SEED_SILO_STORAGE_ID,
-  DECOR_SHED_STORAGE_ID,
   type RestockShopType,
   type OwnershipBaseline,
   type PendingOwnershipConfirmation,
 } from './types';
+import {
+  toNonNegativeInteger,
+  firstString,
+  addCount,
+  toCanonicalKey,
+  buildInventoryKeyCounts,
+  buildInventoryKeyItemQuantities,
+  buildSeedSiloKeyCounts,
+  buildDecorShedKeyCounts,
+  buildToolShackKeyCounts,
+} from './ownershipCounts';
+
+export {
+  toLowerTrimmed,
+  toTrimmedString,
+  toNonNegativeInteger,
+  firstString,
+  addCount,
+  normalizeShopType,
+  toCanonicalKey,
+  getInventoryItemKey,
+  buildInventoryKeyCounts,
+  buildInventoryKeyItemQuantities,
+  buildSeedSiloKeyCounts,
+  buildDecorShedKeyCounts,
+  buildToolShackKeyCounts,
+} from './ownershipCounts';
 import {
   alertState,
   activeAlerts,
@@ -68,55 +90,9 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => { window.setTimeout(resolve, ms); });
 }
 
-export function toLowerTrimmed(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const next = value.trim().toLowerCase();
-  return next.length > 0 ? next : null;
-}
-
-export function toTrimmedString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const next = value.trim();
-  return next.length > 0 ? next : null;
-}
-
-export function toNonNegativeInteger(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  return Math.max(0, Math.floor(value));
-}
-
 export function asNonNegativeQuantity(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   return Math.max(0, Math.floor(value));
-}
-
-export function firstString(values: unknown[]): string | null {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return null;
-}
-
-export function addCount(map: Map<string, number>, key: string, amount: number): void {
-  if (amount <= 0 || !Number.isFinite(amount)) return;
-  map.set(key, (map.get(key) ?? 0) + amount);
-}
-
-export function normalizeShopType(rawType: unknown): RestockShopType | null {
-  const type = toLowerTrimmed(rawType);
-  if (!type) return null;
-  if (type === 'seed' || type === 'seeds') return 'seed';
-  if (type === 'egg' || type === 'eggs') return 'egg';
-  if (type === 'decor' || type === 'decoration' || type === 'decorations') return 'decor';
-  if (type === 'tool' || type === 'tools') return 'tool';
-  return null;
-}
-
-export function toCanonicalKey(shopType: RestockShopType, itemId: string): string {
-  const canonicalId = canonicalItemId(shopType, itemId).trim().toLowerCase();
-  return `${shopType}:${canonicalId}`;
 }
 
 function cloneItemQuantities(source: Map<string, number> | undefined): Map<string, number> {
@@ -162,150 +138,6 @@ export function waitForOwnershipMatch(predicate: () => boolean, timeoutMs: numbe
 }
 
 // ---------------------------------------------------------------------------
-// Inventory key derivation
-// ---------------------------------------------------------------------------
-
-export function getInventoryItemKey(item: InventoryItem): string | null {
-  const raw = item.raw && typeof item.raw === 'object' ? item.raw as Record<string, unknown> : null;
-  const inferredType =
-    normalizeShopType(item.itemType) ??
-    normalizeShopType(raw?.itemType) ??
-    normalizeShopType(raw?.type);
-
-  const explicitByType = (): string | null => {
-    if (inferredType === 'egg') {
-      const id = firstString([raw?.eggId, item.itemId, raw?.id]);
-      return id ? toCanonicalKey('egg', id) : null;
-    }
-    if (inferredType === 'tool') {
-      // Prefer dedicated type field, then species/name — avoid UUIDs (itemId/raw.id)
-      // since the game stores tool identity in species/name, not itemId.
-      const id = firstString([raw?.toolId, raw?.species, item.species, raw?.name, item.name]);
-      return id ? toCanonicalKey('tool', id) : null;
-    }
-    if (inferredType === 'decor') {
-      const id = firstString([raw?.decorId, item.itemId, raw?.id]);
-      return id ? toCanonicalKey('decor', id) : null;
-    }
-    if (inferredType === 'seed') {
-      const id = firstString([item.species, raw?.species, raw?.seedName, item.itemId, raw?.id]);
-      return id ? toCanonicalKey('seed', id) : null;
-    }
-    return null;
-  };
-
-  const explicit = explicitByType();
-  if (explicit) return explicit;
-
-  const eggId = firstString([raw?.eggId]);
-  if (eggId) return toCanonicalKey('egg', eggId);
-  const toolId = firstString([raw?.toolId]);
-  if (toolId) return toCanonicalKey('tool', toolId);
-  const decorId = firstString([raw?.decorId]);
-  if (decorId) return toCanonicalKey('decor', decorId);
-
-  const seedId = firstString([item.species, raw?.species, raw?.seedName]);
-  if (seedId) return toCanonicalKey('seed', seedId);
-  const generic = getShopEntryIdentity(raw);
-  return generic ? toCanonicalKey(generic.itemType.toLowerCase(), generic.id) : null;
-}
-
-export function buildInventoryKeyCounts(data: InventoryData): Map<string, number> {
-  const next = new Map<string, number>();
-  const items = Array.isArray(data.items) ? data.items : [];
-  for (const item of items) {
-    const key = getInventoryItemKey(item);
-    if (!key) continue;
-    const quantity = toNonNegativeInteger(item.quantity) ?? 1;
-    addCount(next, key, Math.max(1, quantity));
-  }
-  return next;
-}
-
-export function buildInventoryKeyItemQuantities(data: InventoryData): Map<string, Map<string, number>> {
-  const next = new Map<string, Map<string, number>>();
-  const items = Array.isArray(data.items) ? data.items : [];
-  for (const item of items) {
-    const key = getInventoryItemKey(item);
-    if (!key) continue;
-    const itemId = toTrimmedString(item.id);
-    if (!itemId) continue;
-    const quantity = toNonNegativeInteger(item.quantity) ?? 1;
-    const bucket = next.get(key) ?? new Map<string, number>();
-    bucket.set(itemId, Math.max(1, quantity));
-    next.set(key, bucket);
-  }
-  return next;
-}
-
-// ---------------------------------------------------------------------------
-// Storage (Seed Silo / Decor Shed) counting
-// ---------------------------------------------------------------------------
-
-function isStorageByToken(entry: unknown, storageToken: string): boolean {
-  if (!entry || typeof entry !== 'object') return false;
-  const row = entry as Record<string, unknown>;
-  const fields = [row.storageId, row.decorId, row.id, row.type, row.name];
-  const token = storageToken.trim().toLowerCase();
-  return fields.some((value) => {
-    const normalized = toLowerTrimmed(value);
-    if (!normalized) return false;
-    const compact = normalized.replace(/\s+/g, '');
-    return normalized === token || compact === token || compact.includes(token);
-  });
-}
-
-function isSeedSiloStorage(entry: unknown): boolean {
-  return isStorageByToken(entry, SEED_SILO_STORAGE_ID);
-}
-
-function isDecorShedStorage(entry: unknown): boolean {
-  return isStorageByToken(entry, DECOR_SHED_STORAGE_ID);
-}
-
-function getMyDataStorages(myDataValue: unknown): unknown[] {
-  if (!myDataValue || typeof myDataValue !== 'object') return [];
-  const inventory = (myDataValue as Record<string, unknown>).inventory;
-  if (!inventory || typeof inventory !== 'object') return [];
-  const rawStorages = (inventory as Record<string, unknown>).storages;
-  return Array.isArray(rawStorages)
-    ? rawStorages
-    : rawStorages && typeof rawStorages === 'object'
-      ? Object.values(rawStorages)
-      : [];
-}
-
-function buildStorageKeyCounts(myDataValue: unknown, shopType: RestockShopType, predicate: (entry: unknown) => boolean): Map<string, number> {
-  const next = new Map<string, number>();
-  const store = getMyDataStorages(myDataValue).find((entry) => predicate(entry));
-  if (!store || typeof store !== 'object') return next;
-
-  const items = Array.isArray((store as Record<string, unknown>).items)
-    ? ((store as Record<string, unknown>).items as unknown[])
-    : [];
-  for (const rawItem of items) {
-    if (!rawItem || typeof rawItem !== 'object') continue;
-    const row = rawItem as Record<string, unknown>;
-    const itemId =
-      shopType === 'seed'
-        ? firstString([row.species, row.seedName, row.itemId, row.id])
-        : firstString([row.decorId, row.itemId, row.id]);
-    if (!itemId) continue;
-    const quantity = toNonNegativeInteger(row.quantity ?? row.qty ?? row.count ?? row.amount ?? row.stackSize) ?? 1;
-    addCount(next, toCanonicalKey(shopType, itemId), Math.max(1, quantity));
-  }
-  return next;
-}
-
-export function buildSeedSiloKeyCounts(myDataValue: unknown): Map<string, number> {
-  return buildStorageKeyCounts(myDataValue, 'seed', isSeedSiloStorage);
-}
-
-export function buildDecorShedKeyCounts(myDataValue: unknown): Map<string, number> {
-  return buildStorageKeyCounts(myDataValue, 'decor', isDecorShedStorage);
-}
-
-// ---------------------------------------------------------------------------
 // Ownership counting and baseline
 // ---------------------------------------------------------------------------
 
@@ -314,7 +146,7 @@ export function resolveOwnershipKey(key: string): string {
   const sep = key.indexOf(':');
   if (sep <= 0 || !isWeatherShopType(key.slice(0, sep))) return key;
   const suffix = key.slice(sep);
-  for (const source of [alertState.inventoryKeyCounts, alertState.seedSiloKeyCounts, alertState.decorShedKeyCounts]) {
+  for (const source of [alertState.inventoryKeyCounts, alertState.seedSiloKeyCounts, alertState.decorShedKeyCounts, alertState.toolShackKeyCounts]) {
     for (const candidate of source.keys()) {
       if (candidate !== key && candidate.endsWith(suffix)) return candidate;
     }
@@ -322,16 +154,28 @@ export function resolveOwnershipKey(key: string): string {
   return key;
 }
 
-export function combinedOwnedCount(
-  key: string,
-  inventoryCounts: Map<string, number>,
-  seedSiloCounts: Map<string, number>,
-  decorShedCounts: Map<string, number>,
-): number {
+export interface OwnershipCountSources {
+  inventory: Map<string, number>;
+  seedSilo: Map<string, number>;
+  decorShed: Map<string, number>;
+  toolShack: Map<string, number>;
+}
+
+function currentCountSources(): OwnershipCountSources {
+  return {
+    inventory: alertState.inventoryKeyCounts,
+    seedSilo:  alertState.seedSiloKeyCounts,
+    decorShed: alertState.decorShedKeyCounts,
+    toolShack: alertState.toolShackKeyCounts,
+  };
+}
+
+export function combinedOwnedCount(key: string, sources: OwnershipCountSources): number {
   const resolvedKey = resolveOwnershipKey(key);
-  const inventoryQty = inventoryCounts.get(resolvedKey) ?? 0;
-  if (resolvedKey.startsWith('seed:')) return inventoryQty + (seedSiloCounts.get(resolvedKey) ?? 0);
-  if (resolvedKey.startsWith('decor:')) return inventoryQty + (decorShedCounts.get(resolvedKey) ?? 0);
+  const inventoryQty = sources.inventory.get(resolvedKey) ?? 0;
+  if (resolvedKey.startsWith('seed:'))  return inventoryQty + (sources.seedSilo.get(resolvedKey) ?? 0);
+  if (resolvedKey.startsWith('decor:')) return inventoryQty + (sources.decorShed.get(resolvedKey) ?? 0);
+  if (resolvedKey.startsWith('tool:'))  return inventoryQty + (sources.toolShack.get(resolvedKey) ?? 0);
   return inventoryQty;
 }
 
@@ -341,45 +185,46 @@ function readOwnedCountFromBaseline(key: string, baseline: OwnershipBaseline): n
   if (baseline.includeInventory) total += alertState.inventoryKeyCounts.get(resolvedKey) ?? 0;
   if (baseline.includeSeedSilo)  total += alertState.seedSiloKeyCounts.get(resolvedKey) ?? 0;
   if (baseline.includeDecorShed) total += alertState.decorShedKeyCounts.get(resolvedKey) ?? 0;
+  if (baseline.includeToolShack) total += alertState.toolShackKeyCounts.get(resolvedKey) ?? 0;
   return total;
 }
 
 export function hasOwnershipSource(baseline: OwnershipBaseline): boolean {
-  return baseline.includeInventory || baseline.includeSeedSilo || baseline.includeDecorShed;
+  return baseline.includeInventory || baseline.includeSeedSilo || baseline.includeDecorShed || baseline.includeToolShack;
 }
 
 export async function waitForOwnershipBaselines(shopType: RestockShopType): Promise<void> {
   const isWeatherShop         = isWeatherShopType(shopType);
   const requiresSeedSilo      = shopType === 'seed' || isWeatherShop;
   const requiresDecorShed     = shopType === 'decor' || isWeatherShop;
+  const requiresToolShack     = shopType === 'tool' || isWeatherShop;
   const requiresToolInventory = shopType === 'tool' || isWeatherShop;
   const ready = (): boolean =>
     alertState.hasInventoryBaseline &&
     (!requiresSeedSilo      || alertState.hasSeedSiloBaseline) &&
     (!requiresDecorShed     || alertState.hasDecorShedBaseline) &&
+    (!requiresToolShack     || alertState.hasToolShackBaseline) &&
     (!requiresToolInventory || alertState.hasToolInventoryBaseline);
   if (ready()) return;
   await waitForOwnershipMatch(ready, OWNERSHIP_BASELINE_WAIT_MS);
 }
 
 export function captureOwnershipBaseline(key: string, shopType: RestockShopType): OwnershipBaseline {
+  const isWeatherShop     = isWeatherShopType(shopType);
   const includeInventory  = alertState.hasInventoryBaseline;
-  const includeSeedSilo   = (shopType === 'seed'  || isWeatherShopType(shopType)) && alertState.hasSeedSiloBaseline;
-  const includeDecorShed  = (shopType === 'decor' || isWeatherShopType(shopType)) && alertState.hasDecorShedBaseline;
+  const includeSeedSilo   = (shopType === 'seed'  || isWeatherShop) && alertState.hasSeedSiloBaseline;
+  const includeDecorShed  = (shopType === 'decor' || isWeatherShop) && alertState.hasDecorShedBaseline;
+  const includeToolShack  = (shopType === 'tool'  || isWeatherShop) && alertState.hasToolShackBaseline;
   const baseline: OwnershipBaseline = {
     count: 0,
     includeInventory,
     includeSeedSilo,
     includeDecorShed,
-    inventoryKeyItemQuantities: cloneItemQuantities(alertState.inventoryKeyItemQuantities.get(key)),
+    includeToolShack,
+    // Inventory stacks are keyed by item type (`tool:x`), never by weather shop (`amber:x`).
+    inventoryKeyItemQuantities: cloneItemQuantities(alertState.inventoryKeyItemQuantities.get(resolveOwnershipKey(key))),
   };
-  return {
-    count: readOwnedCountFromBaseline(key, baseline),
-    includeInventory,
-    includeSeedSilo,
-    includeDecorShed,
-    inventoryKeyItemQuantities: baseline.inventoryKeyItemQuantities,
-  };
+  return { ...baseline, count: readOwnedCountFromBaseline(key, baseline) };
 }
 
 export function readOwnershipDelta(key: string, baseline: OwnershipBaseline): number {
@@ -549,18 +394,11 @@ export function processPendingOwnershipConfirmations(): void {
   }
 }
 
-export function applyOwnershipDelta(
-  prevInventoryCounts: Map<string, number>,
-  prevSeedSiloCounts: Map<string, number>,
-  prevDecorShedCounts: Map<string, number>,
-  nextInventoryCounts: Map<string, number>,
-  nextSeedSiloCounts: Map<string, number>,
-  nextDecorShedCounts: Map<string, number>,
-): void {
+export function applyOwnershipDelta(prevSources: OwnershipCountSources, nextSources: OwnershipCountSources): void {
   if (activeAlerts.size === 0) return;
   for (const key of Array.from(activeAlerts.keys())) {
-    const previous = combinedOwnedCount(key, prevInventoryCounts, prevSeedSiloCounts, prevDecorShedCounts);
-    const next     = combinedOwnedCount(key, nextInventoryCounts, nextSeedSiloCounts, nextDecorShedCounts);
+    const previous = combinedOwnedCount(key, prevSources);
+    const next     = combinedOwnedCount(key, nextSources);
     if (next <= previous) continue;
     const active = activeAlerts.get(key);
     const hasPending = pendingOwnershipConfirmations.has(key);
@@ -622,14 +460,7 @@ export function handleInventorySnapshot(data: InventoryData): void {
   const prevCounts = alertState.inventoryKeyCounts;
   alertState.inventoryKeyCounts         = nextCounts;
   alertState.inventoryKeyItemQuantities = nextItemQuantities;
-  applyOwnershipDelta(
-    prevCounts,
-    alertState.seedSiloKeyCounts,
-    alertState.decorShedKeyCounts,
-    alertState.inventoryKeyCounts,
-    alertState.seedSiloKeyCounts,
-    alertState.decorShedKeyCounts,
-  );
+  applyOwnershipDelta({ ...currentCountSources(), inventory: prevCounts }, currentCountSources());
   notifyOwnershipChange();
   processPendingOwnershipConfirmations();
   processShopStock(getShopStockState());
@@ -668,14 +499,7 @@ export function handleToolInventorySnapshot(rawValue: unknown): void {
     processShopStock(getShopStockState());
     return;
   }
-  applyOwnershipDelta(
-    prevCounts,
-    alertState.seedSiloKeyCounts,
-    alertState.decorShedKeyCounts,
-    alertState.inventoryKeyCounts,
-    alertState.seedSiloKeyCounts,
-    alertState.decorShedKeyCounts,
-  );
+  applyOwnershipDelta({ ...currentCountSources(), inventory: prevCounts }, currentCountSources());
   notifyOwnershipChange();
   processPendingOwnershipConfirmations();
   processShopStock(getShopStockState());
@@ -694,25 +518,28 @@ export function handleMyDataSnapshot(value: unknown): void {
 
   const nextSeedCounts  = buildSeedSiloKeyCounts(value);
   const nextDecorCounts = buildDecorShedKeyCounts(value);
+  const nextShackCounts = buildToolShackKeyCounts(value);
   debugLog('myData storage snapshot received', {
     seedSiloKeyCount:  nextSeedCounts.size,
     decorShedKeyCount: nextDecorCounts.size,
+    toolShackKeyCount: nextShackCounts.size,
     pendingConfirmations: pendingOwnershipConfirmations.size,
   });
-  const hadSeedBaseline  = alertState.hasSeedSiloBaseline;
-  const hadDecorBaseline = alertState.hasDecorShedBaseline;
-  const prevSeedCounts   = alertState.seedSiloKeyCounts;
-  const prevDecorCounts  = alertState.decorShedKeyCounts;
+  const hadStorageBaseline = alertState.hasSeedSiloBaseline || alertState.hasDecorShedBaseline || alertState.hasToolShackBaseline;
+  const prevSources = currentCountSources();
 
   alertState.seedSiloKeyCounts  = nextSeedCounts;
   alertState.decorShedKeyCounts = nextDecorCounts;
+  alertState.toolShackKeyCounts = nextShackCounts;
   alertState.hasSeedSiloBaseline  = true;
   alertState.hasDecorShedBaseline = true;
+  alertState.hasToolShackBaseline = true;
 
-  if (!hadSeedBaseline && !hadDecorBaseline) {
+  if (!hadStorageBaseline) {
     debugLog('Storage baselines initialized', {
       seedSiloKeyCount:  alertState.seedSiloKeyCounts.size,
       decorShedKeyCount: alertState.decorShedKeyCounts.size,
+      toolShackKeyCount: alertState.toolShackKeyCounts.size,
     });
     notifyOwnershipChange();
     processPendingOwnershipConfirmations();
@@ -720,14 +547,7 @@ export function handleMyDataSnapshot(value: unknown): void {
     return;
   }
 
-  applyOwnershipDelta(
-    alertState.inventoryKeyCounts,
-    prevSeedCounts,
-    prevDecorCounts,
-    alertState.inventoryKeyCounts,
-    alertState.seedSiloKeyCounts,
-    alertState.decorShedKeyCounts,
-  );
+  applyOwnershipDelta(prevSources, currentCountSources());
   notifyOwnershipChange();
   processPendingOwnershipConfirmations();
   processShopStock(getShopStockState());

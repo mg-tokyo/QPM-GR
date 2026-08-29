@@ -1,5 +1,5 @@
 import { t } from '../../../i18n';
-import { createEmptyState, createSectionHeader, createTabBar } from '../../components';
+import { createEmptyState, createSectionHeader, createTabBar, createToggle } from '../../components';
 import {
   areCatalogsReady,
   getPlantSpeciesSafe as getAllPlantSpecies,
@@ -10,8 +10,15 @@ import {
   getPityCapsuleIds,
   getPityEggIds,
   isRareVariantSpecies,
+  type PityKind,
 } from '../../../catalogs/pityThresholds';
-import { subscribePity, type PityTrackerState } from '../../../store/pityTracker';
+import {
+  isPityKindEnabled,
+  setPityKindEnabled,
+  subscribePity,
+  subscribePityEnabled,
+  type PityTrackerState,
+} from '../../../store/pityTracker';
 import { buildReferenceTab } from './reference';
 import { buildHitLog, buildItemRow } from './rows';
 import { buildRows, type PityRowModel } from './shared';
@@ -25,6 +32,34 @@ function accountChipText(state: PityTrackerState): string {
   if (createdAt === null) return t('feature.pity.accountUnknown');
   const date = new Date(createdAt).toLocaleDateString();
   return t(createdAt < PITY_LAUNCH_TS ? 'feature.pity.accountPreLaunch' : 'feature.pity.accountPostLaunch', { date });
+}
+
+const TRACK_KINDS: ReadonlyArray<{ kind: PityKind; labelKey: `feature.pity.${string}` }> = [
+  { kind: 'seed', labelKey: 'feature.pity.trackSeeds' },
+  { kind: 'egg', labelKey: 'feature.pity.trackEggs' },
+  { kind: 'capsule', labelKey: 'feature.pity.trackCapsules' },
+];
+
+function buildTrackToggles(): HTMLElement {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:11px;';
+
+  const label = document.createElement('span');
+  label.textContent = t('feature.pity.trackLabel');
+  label.style.cssText = 'color:var(--qpm-text-muted);font-weight:var(--qpm-weight-semibold);';
+  row.appendChild(label);
+
+  for (const { kind, labelKey } of TRACK_KINDS) {
+    const toggle = createToggle({
+      size: 'compact',
+      checked: isPityKindEnabled(kind),
+      label: t(labelKey),
+      onChange: (checked) => { setPityKindEnabled(kind, checked); },
+    });
+    row.appendChild(toggle.root);
+  }
+
+  return row;
 }
 
 function buildHeader(onAccountChip: (el: HTMLElement) => void): HTMLElement {
@@ -71,7 +106,7 @@ function buildHeader(onAccountChip: (el: HTMLElement) => void): HTMLElement {
     onToggle: (collapsed) => { guide.style.display = collapsed ? 'none' : 'flex'; },
   });
 
-  strip.append(lead, chip, guideHeader.root, guide);
+  strip.append(lead, chip, buildTrackToggles(), guideHeader.root, guide);
   return strip;
 }
 
@@ -102,11 +137,11 @@ export function renderPityTrackerContent(container: HTMLElement): () => void {
 
   function trackedRows(state: PityTrackerState): PityRowModel[] {
     const seedIds = getAllPlantSpecies().filter((id) => !isRareVariantSpecies(id));
-    return [
-      ...buildRows('egg', getPityEggIds(), state),
-      ...buildRows('seed', seedIds, state),
-      ...buildRows('capsule', getPityCapsuleIds(), state),
-    ]
+    const rows: PityRowModel[] = [];
+    if (isPityKindEnabled('egg')) rows.push(...buildRows('egg', getPityEggIds(), state));
+    if (isPityKindEnabled('seed')) rows.push(...buildRows('seed', seedIds, state));
+    if (isPityKindEnabled('capsule')) rows.push(...buildRows('capsule', getPityCapsuleIds(), state));
+    return rows
       .filter((row) => row.observed)
       .sort((a, b) => b.progress - a.progress || a.name.localeCompare(b.name));
   }
@@ -147,6 +182,7 @@ export function renderPityTrackerContent(container: HTMLElement): () => void {
     currentState = state;
     render();
   }));
+  cleanups.push(subscribePityEnabled(() => { render(); }));
   if (!areCatalogsReady()) cleanups.push(onCatalogsReady(() => { referenceEl = null; render(); }));
 
   return () => {

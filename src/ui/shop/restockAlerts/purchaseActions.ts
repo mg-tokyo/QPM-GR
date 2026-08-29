@@ -16,6 +16,7 @@ import {
   TOOL_LIMITED_IDS,
   SEED_SILO_WS_STORAGE_ID,
   DECOR_SHED_WS_STORAGE_ID,
+  TOOL_SHACK_WS_STORAGE_ID,
   type RestockShopType,
   type AlertModel,
   type ActiveAlert,
@@ -183,6 +184,15 @@ export function resolveAutoStoreTarget(
     debugLog('Auto-store target resolved', { key, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
     return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
   }
+  if (shopType === 'tool') {
+    const existingCount = alertState.toolShackKeyCounts.get(key) ?? 0;
+    if (existingCount <= 0) {
+      debugLog('Auto-store target skipped for tool', { key, hasToolShackBaseline: alertState.hasToolShackBaseline, existingToolCountInShack: existingCount });
+      return null;
+    }
+    debugLog('Auto-store target resolved', { key, shopType, storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack', existingToolCountInShack: existingCount });
+    return { storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack' };
+  }
   if (isWeatherShopType(shopType)) {
     const resolvedKey = resolveOwnershipKey(key);
     if (resolvedKey.startsWith('seed:')) {
@@ -203,6 +213,15 @@ export function resolveAutoStoreTarget(
       debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
       return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
     }
+    if (resolvedKey.startsWith('tool:')) {
+      const existingCount = alertState.toolShackKeyCounts.get(resolvedKey) ?? 0;
+      if (existingCount <= 0) {
+        debugLog('Auto-store target skipped for weather-shop tool', { key, resolvedKey, existingToolCountInShack: existingCount });
+        return null;
+      }
+      debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack', existingToolCountInShack: existingCount });
+      return { storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack' };
+    }
     debugLog('Auto-store target not applicable for weather-shop item type', { key, resolvedKey });
     return null;
   }
@@ -214,7 +233,8 @@ export function pickAutoStoreStackForKey(
   key: string,
   baseline: OwnershipBaseline,
 ): { itemId: string; quantity: number; gained: number } | null {
-  const current = alertState.inventoryKeyItemQuantities.get(key);
+  // Stacks are keyed by item type (`tool:x`); weather-shop alert keys (`amber:x`) must resolve first.
+  const current = alertState.inventoryKeyItemQuantities.get(resolveOwnershipKey(key));
   if (!current || current.size === 0) return null;
 
   let best: { itemId: string; quantity: number; gained: number } | null = null;
@@ -407,6 +427,7 @@ async function buyAllForAlert(model: AlertModel, quantity: number): Promise<BuyA
     includeInventory: ownershipBaseline.includeInventory,
     includeSeedSilo: ownershipBaseline.includeSeedSilo,
     includeDecorShed: ownershipBaseline.includeDecorShed,
+    includeToolShack: ownershipBaseline.includeToolShack,
     baselineInventoryStacks: ownershipBaseline.inventoryKeyItemQuantities.size,
     roomSocketOpen: isRoomSocketOpen(),
   });

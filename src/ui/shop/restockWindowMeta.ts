@@ -8,7 +8,14 @@ import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '..
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { storage } from '../../utils/storage';
 import { getWeatherDef } from '../../catalogs/gameCatalogs';
-import { areShopCatalogsLoaded, getShopEligibleItemIds } from '../../catalogs/shopEligibility';
+import {
+  areShopCatalogsLoaded,
+  getItemCatalogName,
+  getItemCatalogPricing,
+  getItemCatalogSpriteKey,
+  getShopEligibleItemIds,
+  isItemCatalogLoaded,
+} from '../../catalogs/shopEligibility';
 import { getWeatherShopIds } from '../../store/shopRegistry';
 import { isWeatherShopType } from '../../types/shops';
 import type { RestockItem } from '../../utils/restock/dataService';
@@ -174,7 +181,7 @@ export async function initGameData(): Promise<void> {
   }
 }
 
-export function getItemMeta(itemId: string, shopType: string): ItemMeta | null {
+function getAriedamItemMeta(itemId: string, shopType: string): ItemMeta | null {
   const direct = itemMetaCache.get(`${shopType}:${itemId}`);
   if (direct) return direct;
   if (isWeatherShopType(shopType)) {
@@ -185,6 +192,35 @@ export function getItemMeta(itemId: string, shopType: string): ItemMeta | null {
       ?? null;
   }
   return null;
+}
+
+const catalogItemMetaCache = new Map<string, ItemMeta>();
+
+/** Live-catalog meta for ids the Ariedam snapshot lacks or names by raw id (e.g. `XPShard`, `ToolShack`). */
+function getCatalogItemMeta(itemId: string): ItemMeta | null {
+  const cached = catalogItemMetaCache.get(itemId);
+  if (cached) return cached;
+  const pricing = getItemCatalogPricing(itemId);
+  if (!pricing) return null;
+  const coin = pricing.coinPrice;
+  const dust = pricing.dustPrice;
+  const meta: ItemMeta = {
+    name:   getItemCatalogName(itemId) ?? itemId,
+    rarity: (pricing.rarity ?? 'common').toLowerCase(),
+    // Sentinel coin prices (mutation potions) sit above 1e9 and mean "not coin-purchasable".
+    price:  coin != null && coin > 0 && coin < 1_000_000_000 ? coin : 0,
+    ...(dust != null && dust > 0 ? { priceMagicDust: dust } : {}),
+  };
+  catalogItemMetaCache.set(itemId, meta);
+  return meta;
+}
+
+export function getItemMeta(itemId: string, shopType: string): ItemMeta | null {
+  const ariedam = getAriedamItemMeta(itemId, shopType);
+  if (ariedam && ariedam.name !== itemId) return ariedam;
+  const catalog = getCatalogItemMeta(itemId);
+  if (!catalog) return ariedam;
+  return ariedam ? { ...ariedam, name: catalog.name } : catalog;
 }
 
 export function getItemName(itemId: string, shopType: string): string {
@@ -267,11 +303,14 @@ function makeEmptyRestockRow(itemId: string, shopType: string): RestockItem {
   };
 }
 
+/** Live blueprints list the whole tool shop (tools + storage buildings such as ToolShack); Ariedam keys are the offline fallback. */
 export function mergeToolFallbackRows(items: RestockItem[]): RestockItem[] {
-  const toolCatalogIds = Array.from(itemMetaCache.keys())
-    .filter((key) => key.startsWith('tool:'))
-    .map((key) => key.slice('tool:'.length))
-    .filter((id) => id.length > 0);
+  const toolCatalogIds = isItemCatalogLoaded()
+    ? getShopEligibleItemIds('tool')
+    : Array.from(itemMetaCache.keys())
+      .filter((key) => key.startsWith('tool:'))
+      .map((key) => key.slice('tool:'.length))
+      .filter((id) => id.length > 0);
 
   if (toolCatalogIds.length === 0) return items;
 
@@ -424,6 +463,14 @@ export function getSpriteUrl(item: RestockItem): string | null {
       spriteUrlCache.set(cacheKey, variantUrl);
       return variantUrl;
     }
+  }
+
+  // Items/decor have no crop/pet canvas; their blueprint names the exact atlas key (e.g. sprite/item/HungerCrystalShard).
+  const catalogSpriteKey = getItemCatalogSpriteKey(id);
+  const catalogUrl = catalogSpriteKey ? getAnySpriteDataUrl(catalogSpriteKey) || null : null;
+  if (catalogUrl) {
+    spriteUrlCache.set(cacheKey, catalogUrl);
+    return catalogUrl;
   }
 
   const directMetaSprite = getItemMeta(id, item.shop_type)?.spriteUrl ?? null;

@@ -24,8 +24,10 @@ export const MY_DATA_ATOM_LABEL             = 'myDataAtom';
 export const MY_TOOL_INVENTORY_ATOM_LABEL   = 'myToolInventoryAtom';
 export const SEED_SILO_STORAGE_ID     = 'seedsilo';
 export const DECOR_SHED_STORAGE_ID    = 'decorshed';
+export const TOOL_SHACK_STORAGE_ID    = 'toolshack';
 export const SEED_SILO_WS_STORAGE_ID  = 'SeedSilo';
 export const DECOR_SHED_WS_STORAGE_ID = 'DecorShed';
+export const TOOL_SHACK_WS_STORAGE_ID = 'ToolShack';
 /** Fallback tool caps, used only while the item catalog (`maxInventoryQuantity`) is unavailable. */
 export const TOOL_STACK_LIMIT   = 99;
 export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan', 'replenishpotion', 'xppotion']);
@@ -85,6 +87,7 @@ export interface OwnershipBaseline {
   includeInventory: boolean;
   includeSeedSilo: boolean;
   includeDecorShed: boolean;
+  includeToolShack: boolean;
   inventoryKeyItemQuantities: Map<string, number>;
 }
 

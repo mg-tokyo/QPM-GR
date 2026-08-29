@@ -2,6 +2,16 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.32",
+    date: "2026-08-29",
+    notes: [
+      "Added master toggles to the Bad Luck Protection tracker for Plants, Eggs and Capsules separately, disabling a kind hides its rows from the Tracking tab and stops QPM counting new pulls of that kind, re-enabling resumes from the current lifetime totals without dumping the paused window into the observed streaks",
+      "Fixed the hub bar Items group icon showing only one sprite instead of the intended three-icon cluster and the Favorites and Value Display card icons falling back to plain emoji, the game removed the HeartSticker sprite and renamed CoinBag to MoneyBag in a recent atlas update so QPM was silently missing them, the cluster now fills back out with a star, an inventory bag and a money bag",
+      "Fixed the Trackers group Crop Boosts icon missing its four-leaf clover half and the Blobling Customiser tools card falling back to a sparkle emoji, both referenced atlas keys the game has since renamed",
+      "Fixed the Tower Defense regenerating balloon overlay not appearing at all, the pulsing heart it used no longer exists in the game atlas so nothing rendered, the overlay now uses a small Hunger Crystal Shard pulse above regen balloons",
+    ],
+  },
+  {
     version: "3.3.31",
     date: "2026-08-28",
     notes: [

@@ -6,6 +6,7 @@ import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../../utils/dom/canvasHelpers';
 import { canonicalItemId } from '../../../utils/restock/dataService';
+import { getItemCatalogSpriteKey } from '../../../catalogs/shopEligibility';
 import {
   ALERT_ROOT_ID,
   ALERT_STYLE_ID,
@@ -96,6 +97,10 @@ function getAlertSpriteUrl(shopType: RestockShopType, itemId: string, label: str
   for (const candidate of candidates) {
     const canvasUrl = tryResolveSpriteFromCanvas(candidate);
     if (canvasUrl) { alertSpriteUrlCache.set(cacheKey, canvasUrl); return canvasUrl; }
+
+    // Blueprint atlas key beats prefix guessing (e.g. HungerShard → sprite/item/HungerCrystalShard).
+    const catalogUrl = getAnySpriteDataUrl(getItemCatalogSpriteKey(candidate));
+    if (catalogUrl) { alertSpriteUrlCache.set(cacheKey, catalogUrl); return catalogUrl; }
 
     for (const prefix of keyPrefixes) {
       const directUrl = getAnySpriteDataUrl(`${prefix}${candidate}`);

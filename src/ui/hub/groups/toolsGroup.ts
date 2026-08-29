@@ -168,7 +168,7 @@ export function getToolsGroup(): HubGroupDef {
     key: 'blobling-customiser',
     label: t('hub.tools.bloblingCustomiser.label'),
     description: t('hub.tools.bloblingCustomiser.description'),
-    icon: { kind: 'sprite', value: '✨', spriteKey: 'sprite/ui/Cosmetic', fallback: '✨' },
+    icon: { kind: 'sprite', value: '✨', spriteKey: 'sprite/ui/CosmeticTabHat', fallback: '✨' },
     labelColor: '#c4b5fd',
     tier: 'launcher',
     tile: {

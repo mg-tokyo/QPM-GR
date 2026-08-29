@@ -28,6 +28,11 @@ import { diffGardenSlots, growthMutationOf, readGardenSlots, type SlotMap, type 
 const diag = createStoreDiagnostics('storePityTracker', 'pityTracker');
 
 const STORAGE_KEY = 'qpm.pityTracker.v1';
+const ENABLED_KEYS: Readonly<Record<PityKind, string>> = {
+  seed: 'qpm.pityTracker.enabled.seed.v1',
+  egg: 'qpm.pityTracker.enabled.egg.v1',
+  capsule: 'qpm.pityTracker.enabled.capsule.v1',
+};
 // v4: self-correcting estimates + unobserved-pull gaps from lifetime stats.
 const CURRENT_VERSION = 4;
 const MAX_SEEN_KEYS = 200;
@@ -116,6 +121,8 @@ let seeded = false;
 let unsubscribe: (() => void) | null = null;
 const seen = new Set<string>();
 const listeners = new Set<(s: PityTrackerState) => void>();
+const enabled: Record<PityKind, boolean> = { seed: true, egg: true, capsule: true };
+const enabledListeners = new Set<(kind: PityKind, value: boolean) => void>();
 let pendingCrops: PendingCrop[] = [];
 let pendingGone: PendingGone[] = [];
 let historyReplayed = false;
@@ -306,6 +313,7 @@ function applyEntry(entry: ActivityEntry, now: number): boolean {
 
   switch (entry.action) {
     case 'hatchEgg': {
+      if (!enabled.egg) return false;
       const eggId = typeof params.eggId === 'string' ? params.eggId : null;
       const pet = asRecord(params.pet);
       if (!eggId || !pet) return false;
@@ -317,6 +325,7 @@ function applyEntry(entry: ActivityEntry, now: number): boolean {
       return true;
     }
     case 'harvest': {
+      if (!enabled.seed) return false;
       if (!Array.isArray(params.crops)) return false;
       let changed = false;
       for (const crop of params.crops) {
@@ -334,11 +343,15 @@ function applyEntry(entry: ActivityEntry, now: number): boolean {
       return changed;
     }
     default: {
-      if (params.growSlot && typeof params.mutation === 'string') return recordGrant(params);
+      if (params.growSlot && typeof params.mutation === 'string') {
+        if (!enabled.seed) return false;
+        return recordGrant(params);
+      }
       const m = typeof entry.action === 'string' ? /^open([A-Z]\w*)$/.exec(entry.action) : null;
       const toolId = m?.[1];
       const thresholds = toolId ? CAPSULE_PITY_THRESHOLDS[toolId] : undefined;
       if (!toolId || !thresholds || !Array.isArray(params.speciesIds)) return false;
+      if (!enabled.capsule) return false;
       const candidates = Object.keys(thresholds);
       for (const pulled of params.speciesIds) {
         recordRoll('capsule', toolId, candidates, typeof pulled === 'string' ? pulled : null, at);
@@ -414,6 +427,7 @@ function detectGaps(lifetime: PityLifetime, checkOverflow: boolean): boolean {
   let changed = false;
   const compare = (kind: PityKind, before: number | null, after: number | null): void => {
     if (before === null || after === null) return;
+    if (!enabled[kind]) return;
     const unobserved = after - before - (seeded ? observedNow[kind] : 0);
     if (addGap(kind, unobserved)) changed = true;
   };
@@ -437,6 +451,7 @@ function detectGaps(lifetime: PityLifetime, checkOverflow: boolean): boolean {
  */
 function replayHatchHistory(): boolean {
   if (historyReplayed) return false;
+  if (!enabled.egg) return false;
   if (Object.keys(state.counters).length > 0 || state.hits.length > 0) { historyReplayed = true; return false; }
   const all = getPetActivityEvents();
   if (all.length === 0) return false;
@@ -526,6 +541,7 @@ export function startPityTracker(): void {
   pendingGone = [];
   historyReplayed = false;
   diag.register('Loading observed pity streaks and subscribing to myData');
+  loadEnabled();
   load();
   refreshAccount();
 
@@ -570,6 +586,35 @@ export function subscribePity(listener: (s: PityTrackerState) => void): () => vo
   listeners.add(listener);
   try { listener(state); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'subscribeInitial' }, error); }
   return () => { listeners.delete(listener); };
+}
+
+function loadEnabled(): void {
+  for (const kind of ['seed', 'egg', 'capsule'] as const) {
+    try { enabled[kind] = storage.get<boolean>(ENABLED_KEYS[kind], true); }
+    catch (error) { diag.warn('QPM-STORE-001', { phase: 'loadEnabled', kind }, error); enabled[kind] = true; }
+  }
+}
+
+export function isPityKindEnabled(kind: PityKind): boolean {
+  return enabled[kind];
+}
+
+/** Persist the per-kind toggle. Disabling stops future counting/gap detection for that kind
+ * and re-enabling resumes from the current lifetime totals (no backfill of the disabled window). */
+export function setPityKindEnabled(kind: PityKind, value: boolean): void {
+  if (enabled[kind] === value) return;
+  enabled[kind] = value;
+  try { storage.set(ENABLED_KEYS[kind], value); } catch (error) {
+    diag.warn('QPM-STORE-004', { what: 'pityEnabled', key: ENABLED_KEYS[kind] }, error);
+  }
+  for (const cb of enabledListeners) {
+    try { cb(kind, value); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'enabledNotify' }, error); }
+  }
+}
+
+export function subscribePityEnabled(listener: (kind: PityKind, value: boolean) => void): () => void {
+  enabledListeners.add(listener);
+  return () => { enabledListeners.delete(listener); };
 }
 
 /** Clears observed streaks, hits and gaps; keeps the seen-key ledger, slot origins, lifetime totals and account info. */
