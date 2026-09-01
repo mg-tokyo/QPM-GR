@@ -5,6 +5,7 @@ import { startInventoryStore } from '../store/inventory';
 import { startHutchStore } from '../store/hutch';
 import { startSeedSiloStore } from '../store/seedSilo';
 import { startDecorShedStore } from '../store/decorShed';
+import { startToolShackStore } from '../store/toolShack';
 import { startPetInfoStore } from '../store/pets';
 import { startAbilityTriggerStore } from '../store/abilityLogs';
 import { startActivityLogEnhancer, isActivityLogEnhancerEnabled } from '../features/activity/activityLogNativeEnhancer';
@@ -66,6 +67,9 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   });
   await startDecorShedStore().catch((error) => {
     warnCore('QPM-INIT-001', { what: 'phase:decorShedStore' }, error);
+  });
+  await startToolShackStore().catch((error) => {
+    warnCore('QPM-INIT-001', { what: 'phase:toolShackStore' }, error);
   });
   await yieldToBrowser();
   await startPetInfoStore().catch((error) => {

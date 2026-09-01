@@ -13,8 +13,9 @@ import {
 } from './enrichment';
 import { hooksLifecycle, installHooks, removeHooks, tryRemoveHooks } from './hooks';
 import { fetchCosmeticOwnership } from './ownership';
+import { ensurePetAbilitiesCatalog } from './fallback';
 import { areHookCapturableCatalogsAllCaptured } from './scan';
-import { catalogLog, errorCallbacks, readyCallbacks } from './state';
+import { catalogLog, errorCallbacks, petAbilitiesCallbacks, readyCallbacks } from './state';
 
 let hooksInstalledEarly = false;
 
@@ -41,6 +42,7 @@ export function initCatalogHooksEarly(): void {
   hooksLifecycle.hardDeadlineTimer = setTimeout(() => {
     hooksLifecycle.hardDeadlineTimer = null;
     tryRemoveHooks('hard deadline');
+    void ensurePetAbilitiesCatalog();
   }, HOOKS_HARD_DEADLINE_MS);
 }
 
@@ -78,4 +80,5 @@ export function cleanupCatalogLoader(): void {
   stopCosmeticCatalogPolling();
   readyCallbacks.length = 0;
   errorCallbacks.length = 0;
+  petAbilitiesCallbacks.length = 0;
 }

@@ -1,5 +1,6 @@
 import { getOptimizerAnalysis } from '../../../features/pets/optimizer';
 import { t } from '../../../i18n';
+import { arePetAbilitiesCaptured, onPetAbilitiesCaptured } from '../../../utils/game/catalogHelpers';
 import { createSpinner } from '../../components';
 import { toggleWindow } from '../../core/modalWindow';
 import { renderFamilyNav } from './familyNav';
@@ -7,8 +8,10 @@ import { renderFilters } from './filters';
 import { renderResults } from './results';
 import { renderSummary } from './summary';
 import {
+  clearCatalogCleanup,
   clearFiltersCleanup,
   getGlobalState,
+  setCatalogCleanup,
   setGlobalState,
 } from './windowState';
 
@@ -86,6 +89,12 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
     }
 
     globalState.currentAnalysis = analysis;
+    if (analysis.abilityCatalogMissing) {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'color: var(--qpm-warning); font-size: 12px; margin-bottom: 8px;';
+      banner.textContent = t('feature.petOptimizer.catalogPendingBanner');
+      globalState.summaryContainer.appendChild(banner);
+    }
     renderSummary(analysis);
     renderResults(
       analysis,
@@ -129,6 +138,7 @@ export function openPetOptimizerWindow(): void {
 
 export function renderPetOptimizerWindow(body: HTMLElement): void {
   clearFiltersCleanup();
+  clearCatalogCleanup();
   body.innerHTML = '';
 
   const root = document.createElement('div');
@@ -202,4 +212,7 @@ export function renderPetOptimizerWindow(body: HTMLElement): void {
   );
   void refreshAnalysis();
 
+  if (!arePetAbilitiesCaptured()) {
+    setCatalogCleanup(onPetAbilitiesCaptured(() => { void refreshAnalysis(true); }));
+  }
 }

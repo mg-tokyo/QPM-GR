@@ -133,6 +133,7 @@ export function buildPetCompareProfile(
   };
 
   const reviewCount = abilities.filter((entry) => entry.isReview).length;
+  const reviewAbilityIds = abilities.filter((entry) => entry.isReview).map((entry) => entry.rawAbilityId);
   const score = abilities
     .filter((entry) => !entry.isIgnored && !entry.isReview)
     .reduce((sum, entry) => sum + entry.scoreValue, 0) + (strength * 0.25);
@@ -142,6 +143,7 @@ export function buildPetCompareProfile(
     stage,
     score,
     reviewCount,
+    reviewAbilityIds,
     abilities,
     byAbilityId,
     totals,

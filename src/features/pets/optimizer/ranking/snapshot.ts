@@ -228,6 +228,7 @@ export function createCompareSnapshotMap(
     byPetId.set(pet.id, {
       score: profile.score,
       reviewCount: profile.reviewCount,
+      reviewAbilityIds: profile.reviewAbilityIds,
       groups: groups.length > 0 ? groups : ['isolated'],
       families,
       slotEfficiencyFamilies: new Map(),

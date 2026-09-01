@@ -76,4 +76,6 @@ export interface DietOptionDescriptor {
 export interface NormalizedDiet {
   display: string[];
   normalized: string[];
+  /** false when the pet catalog has no diet for this species (not captured yet / unknown species). */
+  known: boolean;
 }

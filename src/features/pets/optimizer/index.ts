@@ -1,4 +1,4 @@
-import { publishOk } from './_diagnostics';
+import { publishOk, warnFeature } from './_diagnostics';
 import {
   getOptimizerConfig,
   loadOptimizerConfig,
@@ -17,6 +17,8 @@ import {
 } from './analysis';
 import { collectAllPets } from './collection';
 import { calculatePetScore } from './scoring';
+import { onPetAbilitiesCaptured } from '../../../catalogs/gameCatalogs';
+import { getAbilityCatalogDrift } from '../data/petAbilities/drift';
 
 export type {
   CollectedPet,
@@ -51,6 +53,8 @@ export {
   unprotectPet,
 };
 
+let driftUnsub: (() => void) | null = null;
+
 export function startPetOptimizer(): void {
   loadOptimizerConfig();
   const cfg = getOptimizerConfig();
@@ -59,4 +63,17 @@ export function startPetOptimizer(): void {
     selectedStrategy: cfg.selectedStrategy,
     protectedPets: cfg.protectedPetIds.size,
   });
+
+  driftUnsub?.();
+  driftUnsub = onPetAbilitiesCaptured(() => {
+    const d = getAbilityCatalogDrift();
+    if (d.hardcodedOnly.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
+      warnFeature('QPM-FEATURE-004', { what: 'ability-catalog-drift', ...d });
+    }
+  });
+}
+
+export function stopPetOptimizer(): void {
+  driftUnsub?.();
+  driftUnsub = null;
 }

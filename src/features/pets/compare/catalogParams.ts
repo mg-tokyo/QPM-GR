@@ -36,6 +36,8 @@ export function resolveCatalogFamilyKey(abilityId: string): string | null {
   if (toFinitePositiveNumber(params['cropSellPriceIncreasePercentage']) != null) {
     return catalogEntry.trigger === 'sellAllCrops' ? 'sellboost' : null;
   }
+  if (toFinitePositiveNumber(params['petDustIncreasePercentage']) != null) return 'dustboost';
+  if (toFinitePositiveNumber(params['plantAbilityChanceBoostPercentage']) != null) return 'dawnbinderboost';
   return null;
 }
 
@@ -62,6 +64,7 @@ export function resolveCatalogScaledParameterValue(
     'baseMaxCoinsFindable',
     'bonusXp',
     'maxStrengthIncreasePercentage',
+    'petDustIncreasePercentage',
   ] as const;
 
   for (const key of orderedKeys) {

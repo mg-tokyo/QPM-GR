@@ -37,6 +37,7 @@ export const capturedCatalogs: GameCatalogs = {
 export const readiness = { catalogsReady: false };
 export const readyCallbacks: Array<(catalogs: GameCatalogs) => void> = [];
 export const errorCallbacks: Array<(error: Error) => void> = [];
+export const petAbilitiesCallbacks: Array<() => void> = [];
 
 // Use the page window's Object constructor so hooks intercept game-context calls,
 // not just sandbox-context calls (Tampermonkey isolates the userscript when @grant is used).

@@ -5,7 +5,8 @@ import {
   getOptimizerCompetitionFamilyKey,
   type CompareAbilityGroup,
 } from '../compare';
-import { ANALYSIS_CACHE_TTL_MS } from './constants';
+import { ANALYSIS_CACHE_TTL_MS, PET_ABILITY_CATALOG_WAIT_MS } from './constants';
+import { arePetAbilitiesCaptured, waitForPetAbilities } from '../../../catalogs/gameCatalogs';
 import { collectAllPets, dedupeCollectedPets } from './collection';
 import { analyzePet } from './decision';
 import { createCompareSnapshotMap } from './ranking/snapshot';
@@ -116,6 +117,7 @@ export async function analyzePetsAsync(
     hutchPets: uniquePets.filter((pet) => pet.location === 'hutch').length,
     sellCount: sell.length,
     reviewCount: review.length,
+    abilityCatalogMissing: !arePetAbilitiesCaptured(),
   };
 }
 
@@ -187,6 +189,7 @@ export function analyzePets(
     hutchPets: uniquePets.filter((pet) => pet.location === 'hutch').length,
     sellCount: sell.length,
     reviewCount: review.length,
+    abilityCatalogMissing: !arePetAbilitiesCaptured(),
   };
 }
 
@@ -198,13 +201,19 @@ export async function getOptimizerAnalysis(
   const cfg = getOptimizerConfig();
   const cached = getCachedOptimizerAnalysis();
 
-  if (!forceRefresh && cached && cached.activeMode === cfg.recommendationMode && now - getOptimizerAnalysisTimestamp() < ANALYSIS_CACHE_TTL_MS) {
+  if (!forceRefresh && cached && !cached.abilityCatalogMissing && cached.activeMode === cfg.recommendationMode && now - getOptimizerAnalysisTimestamp() < ANALYSIS_CACHE_TTL_MS) {
     return cached;
+  }
+
+  if (!arePetAbilitiesCaptured()) {
+    await waitForPetAbilities(PET_ABILITY_CATALOG_WAIT_MS);
   }
 
   const pets = await collectAllPets();
   const analysis = await analyzePetsAsync(pets, onProgress, cfg);
-  setCachedOptimizerAnalysis(analysis, now);
+  if (!analysis.abilityCatalogMissing) {
+    setCachedOptimizerAnalysis(analysis, now);
+  }
   notifyAnalysisUpdateListeners(analysis);
   return analysis;
 }

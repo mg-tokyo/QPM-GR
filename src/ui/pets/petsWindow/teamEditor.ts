@@ -35,6 +35,7 @@ import { enqueueFeed } from '../../../features/pets/instantFeed';
 import {
   getPetFoodRules,
   getDietOptionsForSpecies,
+  isPetDietKnown,
 } from '../../../features/pets/foodRules';
 import { normalizeSpeciesKey } from '../../../utils/helpers';
 import type { PetItemFeedOverride } from '../../../types/petTeams';
@@ -89,6 +90,13 @@ function openDietPopover(
   const divider = document.createElement('div');
   divider.style.cssText = 'border-top:1px solid rgba(255,255,255,0.08);margin:0 0 4px;';
   dropdown.appendChild(divider);
+
+  if (!isPetDietKnown(species)) {
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);padding:2px 6px 6px;line-height:1.4;';
+    note.textContent = t('feature.petsWindow.dietUnavailable');
+    dropdown.appendChild(note);
+  }
 
   function readForbiddenSet(): Set<string> {
     const rules = getPetFoodRules();

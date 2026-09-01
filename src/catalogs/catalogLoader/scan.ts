@@ -19,7 +19,7 @@ import {
   pollAttempts,
   stopWeatherCatalogPolling,
 } from './enrichment';
-import { checkAndNotifyReady } from './readyState';
+import { checkAndNotifyReady, notifyPetAbilitiesCaptured } from './readyState';
 import { capturedCatalogs, catalogLog, NativeObject, originalKeys, publishCatalogs } from './state';
 
 // Track objects we've already scanned to avoid infinite loops
@@ -88,6 +88,7 @@ function deepScan(obj: unknown, depth: number): void {
       // Reset retry budget when abilities become available.
       pollAttempts.abilityColor = 0;
       void enrichPetAbilityColors();
+      notifyPetAbilitiesCaptured();
     }
 
     if (!capturedCatalogs.plantCatalog && looksLikePlantCatalog(record, keys)) {

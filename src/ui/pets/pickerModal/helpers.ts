@@ -2,10 +2,8 @@
 // Shared utility functions for the pet picker modal.
 
 import { getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
-import { getPetMetadata } from '../../../features/pets/data/petMetadata';
 import { getAbilityDefinition } from '../../../features/pets/data/petAbilities';
-import { COMMON_SPECIES, UNCOMMON_SPECIES, RARE_SPECIES, LEGENDARY_SPECIES, MYTHICAL_SPECIES } from '../../../features/pets/optimizer/constants';
-import { RARITY_ORD } from './constants';
+import { getPetRarityRankSafe } from '../../../utils/game/catalogHelpers';
 import type { MutationTier } from './types';
 import type { PooledPet } from '../../../types/petTeams';
 
@@ -30,14 +28,7 @@ export function getTierLabel(tier: MutationTier): string {
 }
 
 export function getSpeciesRarityOrd(species: string): number {
-  const meta = getPetMetadata(species);
-  if (meta?.rarity) return RARITY_ORD[meta.rarity.toLowerCase()] ?? 0;
-  if (MYTHICAL_SPECIES.has(species)) return 5;
-  if (LEGENDARY_SPECIES.has(species)) return 4;
-  if (RARE_SPECIES.has(species)) return 3;
-  if (UNCOMMON_SPECIES.has(species)) return 2;
-  if (COMMON_SPECIES.has(species)) return 1;
-  return 0;
+  return getPetRarityRankSafe(species);
 }
 
 export function getLocationLabel(location: PooledPet['location']): string {

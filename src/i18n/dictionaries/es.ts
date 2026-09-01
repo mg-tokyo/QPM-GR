@@ -1360,6 +1360,7 @@ const es: Dictionary = {
   'feature.petsWindow.ariesAlreadyImported': 'Equipos de Aries ya importados',
   'feature.petsWindow.defaultTeamName': 'Equipo {number}',
   'feature.petsWindow.dietTitle': 'Dieta \u2014 {species}',
+  'feature.petsWindow.dietUnavailable': 'Datos de dieta a\u00fan no cargados \u2014 vuelve a abrir cuando el juego haya terminado de cargar.',
   'feature.petsWindow.selectTeam': 'Selecciona un equipo para editar',
   'feature.petsWindow.teamNamePlaceholder': 'Nombre del equipo\u2026',
   'feature.petsWindow.active': '\u2713 Activo',

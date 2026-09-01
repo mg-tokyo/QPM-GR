@@ -43,10 +43,6 @@ const DEFAULT_STATE: PetFoodRulesState = {
   updatedAt: Date.now(),
 };
 
-export const DEFAULT_SAFE_FOODS = ['Carrot', 'Strawberry', 'Blueberry', 'Apple', 'Watermelon', 'Pumpkin'];
-
-export const DEFAULT_SAFE_NORMALIZED = DEFAULT_SAFE_FOODS.map(food => normalizeSpeciesKey(food));
-
 let rulesState: PetFoodRulesState = loadState();
 
 export function getRulesState(): PetFoodRulesState {

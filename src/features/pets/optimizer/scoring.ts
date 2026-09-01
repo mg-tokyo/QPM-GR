@@ -1,9 +1,9 @@
 import {
   GOLD_DISLIKE_FACTOR,
-  HIGH_VALUE_ABILITIES,
   SPECIAL_ABILITY_SCORES,
   TIER_SCORES,
 } from './constants';
+import { getSpecialAbilityScore, isHighValueAbility } from '../data/petAbilities';
 import { getRuntimeConfig } from './runtime';
 import type {
   CollectedPet,
@@ -14,7 +14,7 @@ import type {
 const UNWANTED_MUTATION_ABILITIES = new Set(['ProduceEater', 'SeedFinderI']);
 
 export function hasHighValueAbilities(pet: CollectedPet): boolean {
-  return pet.abilityIds.some((abilityId) => HIGH_VALUE_ABILITIES.has(abilityId));
+  return pet.abilityIds.some((id) => isHighValueAbility(id));
 }
 
 export function getGoldPreferenceFactor(
@@ -43,16 +43,13 @@ function calculateAbilityTierScore(
   let total = 0;
 
   for (const abilityId of abilityIds) {
-    if (abilityId in SPECIAL_ABILITY_SCORES) {
-      const baseScore = SPECIAL_ABILITY_SCORES[abilityId];
-      const score = abilityId === 'GoldGranter' && baseScore !== undefined
-        ? getGoldAdjustedValue(baseScore, cfg)
-        : baseScore;
-
-      if (score !== undefined) {
-        total += score;
-        continue;
-      }
+    const special = getSpecialAbilityScore(abilityId, SPECIAL_ABILITY_SCORES);
+    if (special != null) {
+      const score = abilityId === 'GoldGranter'
+        ? getGoldAdjustedValue(special, cfg)
+        : special;
+      total += score;
+      continue;
     }
 
     const tierMatch = abilityId.match(/(I{1,3}|IV)$/);

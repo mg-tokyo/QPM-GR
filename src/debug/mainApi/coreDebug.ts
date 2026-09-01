@@ -14,7 +14,12 @@ import {
   getOptimizerDebugSnapshot,
   getOptimizerDebugFamily,
   getOptimizerDebugExplain,
+  setOptimizerConfig,
 } from '../../features/pets/optimizer';
+import type { OptimizerConfig } from '../../features/pets/optimizer';
+import { getAbilityCatalogDrift } from '../../features/pets/data/petAbilities/drift';
+import { isHighValueAbility, isLowValueAbility } from '../../features/pets/data/petAbilities';
+import { getAllAbilities, waitForPetAbilities } from '../../catalogs/gameCatalogs';
 import { testPetData, testComparePets, testAbilityDefinitions } from '../../utils/petDataTester';
 import { toggleWindow } from '../../ui/core/modalWindow';
 import { togglePetsWindow } from '../../ui/pets/petsWindow';
@@ -37,6 +42,17 @@ export const coreDebugApi = {
     getOptimizerDebugFamily(familyKeyOrAbility, mode),
   optimizerExplain: (petIdOrName: string, mode?: 'specialist' | 'slot_efficiency') =>
     getOptimizerDebugExplain(petIdOrName, mode),
+  abilityCatalogDrift: () => getAbilityCatalogDrift(),
+  abilityClassification: () => {
+    const ids = getAllAbilities();
+    return {
+      high: ids.filter(isHighValueAbility),
+      low: ids.filter(isLowValueAbility),
+      unclassified: ids.filter((id) => !isHighValueAbility(id) && !isLowValueAbility(id)),
+    };
+  },
+  waitForPetAbilities: (ms?: number) => waitForPetAbilities(ms),
+  setOptimizerConfig: (partial: Partial<OptimizerConfig>) => setOptimizerConfig(partial),
   activityLogEnabled: async (enabled?: boolean) => {
     if (typeof enabled === 'boolean') {
       await setActivityLogEnhancerEnabled(enabled);

@@ -31,6 +31,7 @@ export {
 // Diet
 export {
   getDietOptionsForSpecies,
+  isPetDietKnown,
   buildFoodInventorySnapshot,
   readInventorySnapshot,
   evaluateFoodAvailabilityForPet,

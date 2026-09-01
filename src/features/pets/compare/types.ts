@@ -72,6 +72,7 @@ export interface PetCompareProfile {
   stage: ProgressionStage;
   score: number;
   reviewCount: number;
+  reviewAbilityIds: string[];
   abilities: AbilityContribution[];
   byAbilityId: Map<string, AbilityContribution>;
   totals: {

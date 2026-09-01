@@ -1,60 +1,5 @@
 import type { OptimizerConfig } from './types';
-
-export const HIGH_VALUE_ABILITIES = new Set([
-  'RainbowGranter',
-  'GoldGranter',
-  'SellBoostIII',
-  'SellBoostIV',
-  'PetXpBoost',
-  'PetXpBoostII',
-  'ProduceScaleBoost',
-  'ProduceScaleBoostII',
-  'PlantGrowthBoostII',
-  'EggGrowthBoostII_NEW',
-  'EggGrowthBoostII',
-  'ProduceMutationBoostII',
-  'PetMutationBoostII',
-  'PetHatchSizeBoost',
-  'PetHatchSizeBoostII',
-  'PetAgeBoostII',
-  'CoinFinderIII',
-  'SeedFinderIII',
-  'SeedFinderIV',
-  'DoubleHarvest',
-  'RainDance',
-  // Dawn content (PR-2644)
-  'DawnCapture',
-  'DawnCoinFinder',
-  'DawnXpBoost',
-  'DawnBoost',
-  'DawnlitGranter',
-  'DawnbinderBoost',
-  'DawnPlantGrowthBoost',
-  'AmberMoonBoost',
-  'AmberlitGranter',
-  'AmberPlantGrowthBoost',
-  // Thunder content (PR-3014)
-  'Thundercharger',
-  'ThunderstruckGranter',
-  'ThunderCoinFinder',
-  'ThunderBoost',
-  'ThunderPlantGrowthBoost',
-]);
-
-export const LOW_VALUE_ABILITIES = new Set([
-  'PlantGrowthBoost',
-  'EggGrowthBoost',
-  'CoinFinder',
-  'SeedFinder',
-  'SeedFinderI',
-  'SellBoostI',
-  'ProduceMutationBoost',
-  'PetMutationBoost',
-  'PetXpBoost',
-  'ProduceScaleBoost',
-  'PetHatchSizeBoost',
-  'ProduceEater',
-]);
+import { isRarePlusSpecies } from '../data/petRarity';
 
 export const COMMON_SPECIES = new Set(['Worm', 'Snail', 'Bee']);
 export const UNCOMMON_SPECIES = new Set(['Chicken', 'Bunny', 'Dragonfly']);
@@ -66,6 +11,7 @@ export const MAX_BETTER_ALTERNATIVES = 12;
 export const GOLD_DISLIKE_FACTOR = 0.5;
 export const GRANTER_ANCHOR_PENALTY_CAP = 0.04;
 export const ANALYSIS_CACHE_TTL_MS = 30000;
+export const PET_ABILITY_CATALOG_WAIT_MS = 8000;
 
 export const TIER_SCORES: Record<string, number> = {
   I: 25,
@@ -78,11 +24,13 @@ export const SPECIAL_ABILITY_SCORES: Record<string, number> = {
   Copycat: 100,
   RainDance: 80,
   DoubleHatch: 90,
+  DoubleHatchII: 95,
   DoubleHarvest: 85,
   RainbowGranter: 95,
   GoldGranter: 85,
   SeedFinderIV: 100,
   CoinFinderIII: 100,
+  CoinFinderIV: 100,
   Thundercharger: 85,
 };
 
@@ -155,6 +103,5 @@ export const DEFAULT_CONFIG: OptimizerConfig = {
 };
 
 export function isRarePlus(species: string | null): boolean {
-  if (!species) return false;
-  return RARE_SPECIES.has(species) || LEGENDARY_SPECIES.has(species) || MYTHICAL_SPECIES.has(species);
+  return isRarePlusSpecies(species);
 }

@@ -115,6 +115,7 @@ export interface OptimizerAnalysis {
   hutchPets: number;
   sellCount: number;
   reviewCount: number;
+  abilityCatalogMissing: boolean;
 }
 
 export interface OptimizerConfig {
@@ -209,6 +210,7 @@ export interface TimeFamilySynergyContext {
 export interface OptimizerCompareSnapshot {
   score: number;
   reviewCount: number;
+  reviewAbilityIds: string[];
   groups: CompareAbilityGroup[];
   families: Map<string, OptimizerFamilySnapshot>;
   slotEfficiencyFamilies: Map<string, OptimizerSlotEfficiencyFamilySnapshot>;

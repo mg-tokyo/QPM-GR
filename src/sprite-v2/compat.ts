@@ -305,10 +305,12 @@ function normalizeMutations(mutations: string[] = []): string[] {
 // Plant sprite atlas key aliases — some plant catalog names differ from their atlas keys.
 // E.g. "Rose" in the catalog resolves to "RoseRed" in the plant sprite atlas.
 // Atlas keys confirmed from plantCatalog sprite fields (sprite/plant/<key>).
+// Keyed lowercase: callers pass both catalog ids ("FourLeafClover") and
+// normalizeSpeciesKey() output ("fourleafclover"), e.g. the diet popover.
 const PLANT_SPRITE_ALIASES: Record<string, string> = {
-  Rose: 'RoseRed',
-  FourLeafClover: 'CloverFourLeaf',  // catalog: FourLeafClover → atlas: sprite/plant/CloverFourLeaf
-  Clover: 'CloverThreeLeaf',         // catalog: Clover → atlas: sprite/plant/CloverThreeLeaf
+  rose: 'RoseRed',
+  fourleafclover: 'CloverFourLeaf',  // catalog: FourLeafClover → atlas: sprite/plant/CloverFourLeaf
+  clover: 'CloverThreeLeaf',         // catalog: Clover → atlas: sprite/plant/CloverThreeLeaf
 };
 
 function getIdVariations(category: string, id: string): string[] {
@@ -335,7 +337,7 @@ function getIdVariations(category: string, id: string): string[] {
 
   // Plant-specific atlas key aliases (plant / tallplant / crop categories only)
   if (category === 'plant' || category === 'tallplant' || category === 'crop') {
-    const alias = PLANT_SPRITE_ALIASES[id];
+    const alias = PLANT_SPRITE_ALIASES[id.toLowerCase()];
     if (alias) variations.push(alias);
   }
 

@@ -17,6 +17,7 @@ import { stopStorageValueOverlay } from '../ui/economy/storageValueOverlay';
 import { stopStorageValue } from '../features/economy/storageValue';
 import { stopSeedSiloStore } from '../store/seedSilo';
 import { stopDecorShedStore } from '../store/decorShed';
+import { stopToolShackStore } from '../store/toolShack';
 import { stopDawnShopTracker } from '../features/dawn/shop';
 import { stopCapsuleTracker } from '../features/dawn/capsule';
 import { stopPityTracker } from '../store/pityTracker';
@@ -44,6 +45,7 @@ import { stopGardenPainterPresets } from '../features/standalone/textureSwapper/
 import { teardownDiagnostics } from '../diagnostics/init';
 import { stopAudio } from '../audio';
 import { stopTDCustomDesigns } from '../features/towerDefense/customDesigns/store';
+import { stopPetOptimizer } from '../features/pets/optimizer';
 
 // Live holder for one-shot disposers set during init() and consumed at
 // beforeunload. These subsystems return closures instead of exposing named
@@ -105,6 +107,7 @@ export function installGlobalHandlers(): void {
     stopStorageValue();
     stopSeedSiloStore();
     stopDecorShedStore();
+    stopToolShackStore();
     stopDawnShopTracker();
     stopCapsuleTracker();
     stopPityTracker();
@@ -145,6 +148,7 @@ export function installGlobalHandlers(): void {
     disposers.canvasRuntimeTrap = null;
     try { stopAudio(); } catch { /* best effort */ }
     try { stopTDCustomDesigns(); } catch { /* best effort */ }
+    try { stopPetOptimizer(); } catch { /* best effort */ }
     teardownDiagnostics();
   }, { once: true });
 }

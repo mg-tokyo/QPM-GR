@@ -5,6 +5,7 @@ import { log } from '../logger';
 import { isDebugGlobalsEnabled } from '../debugGlobals';
 import { STANDARD_RESTOCK_SHOP_TYPES } from '../../types/shops';
 import { getWeatherGatedShopIds } from '../../store/shopRegistry';
+import { areShopCatalogsLoaded, getItemEligibleShops } from '../../catalogs/shopEligibility';
 import {
   errorRestockFetch,
   publishRestockOk,
@@ -289,9 +290,20 @@ function emitRestockDataUpdated(detail: RestockDataUpdatedDetail): void {
 
 // Cache management
 
+/** Server view accumulates stale `(shop_type, item_id)` rows across shop reshuffles (e.g. Tool Shack, weather-shop moves). Drop any whose shop_type is no longer in the item's current `eligibleShops`. */
+function pruneStaleShopTypeRows(items: RestockItem[]): RestockItem[] {
+  if (!areShopCatalogsLoaded()) return items;
+  return items.filter((item) => {
+    if (item.shop_type === 'weather') return true;
+    const eligible = getItemEligibleShops(item.item_id);
+    if (eligible.length === 0) return true;
+    return eligible.includes(item.shop_type);
+  });
+}
+
 function sanitizeItems(items: RestockItem[]): RestockItem[] {
   const filtered = items.filter((item) => !!item.item_id && isAllowedShopType(item.shop_type));
-  return deduplicateItems(filtered);
+  return pruneStaleShopTypeRows(deduplicateItems(filtered));
 }
 
 // Memoize the sanitize+dedup result. Every sync read (dashboard, tickers,

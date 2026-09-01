@@ -2,6 +2,21 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.33",
+    date: "2026-09-01",
+    notes: [
+      "Fixed the Pet Optimizer flagging pets for review with a generic 'unknown or unmapped abilities' message and never picking up new abilities the game added between QPM updates, the high-value and low-value ability classification is now read from the game's own pet ability catalog rule-based (rainbow and gold granters, tier III/IV boosts, big-percentage boosts, and known specials count as high value; small percentage boosts count as low value) so a new ability the game ships is classified without a QPM update, and the review reason now names the specific ability and distinguishes catalog-still-loading from an ability that really is not in the game catalog",
+      "Fixed the Pet Optimizer sometimes analysing pets before the game's pet ability catalog had been captured, analysis now waits up to 8 seconds for the catalog and does not cache an incomplete analysis, and the optimizer window shows a small notice at the top and refreshes automatically once the catalog arrives",
+      "Fixed pet ability catalog capture breaking whenever the game renamed one of a small handful of anchor abilities, the detection now accepts any three of a wider set of anchor names, and a bundle-text fallback extracts the ability blueprint from the game's JavaScript when the runtime capture path fails to fire before the first analysis",
+      "Added support for Divine rarity pets and for two ability parameter families the game recently introduced (pet dust boost and Dawnbinder plant-ability chance boost), Divine now ranks above Mythical for rarity comparisons and dust-boost and dawnbinder-boost pets are grouped into their own ability families in comparisons",
+      "Fixed the pet team diet popover showing a made-up 'safe foods' list (Carrot, Strawberry, Blueberry, Apple, Watermelon, Pumpkin) when the pet catalog had not loaded yet, potentially misleading you into feeding a pet something that is not on its real diet, the popover now shows a 'Diet data not loaded yet, reopen once the game has finished loading' note and offers no fallback foods until the real diet is known",
+      "Fixed the pet team diet popover and other plant-sprite lookups rendering blank for Rose, Clover and Four Leaf Clover when the caller passed the normalized (lowercase) species key, the alias table that maps catalog names to atlas keys is now case-insensitive",
+      "Fixed the Shop Restock window occasionally listing an item in a shop it no longer sells (typically Tool Shack items reshuffled between shops, or weather-shop items moved during a weather change), the server data view carried stale shop rows across those reshuffles so QPM now drops rows whose shop is no longer in the item's current eligible-shop list",
+      "Added a Tool Shack store slice mirroring the game's shack storage (unique tool types stored, capacity read from the storage entry) so upcoming shack features have a live source of truth without polling the inventory",
+      "Added a debug helper QPM_DEBUG_API.abilityCatalogDrift() that lists any hardcoded ability names still not in the captured catalog and any ability parameter keys or triggers QPM does not yet recognise, plus a diagnostics warning that fires automatically after the catalog is captured if drift is detected, so future game changes surface in Diagnostics instead of silently downgrading pets to review",
+    ],
+  },
+  {
     version: "3.3.32",
     date: "2026-08-29",
     notes: [

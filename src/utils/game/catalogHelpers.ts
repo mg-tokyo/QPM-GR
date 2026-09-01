@@ -14,6 +14,9 @@ import {
   areCatalogsReady,
   onCatalogsReady,
   waitForCatalogs,
+  arePetAbilitiesCaptured,
+  onPetAbilitiesCaptured,
+  waitForPetAbilities,
   getFloraBlueprint,
   getSlotOffsets,
   isMultiHarvest,
@@ -27,8 +30,18 @@ import {
 } from '../../catalogs/gameCatalogs';
 import type { FloraBlueprint, SlotOffset } from '../../catalogs/gameCatalogs';
 import type { CosmeticCatalogEntry } from '../../catalogs/types';
+import { getPetRarity, getPetRarityRank } from '../../features/pets/data/petRarity';
+import type { PetRarity } from '../../features/pets/data/petRarity';
 
-export { areCatalogsReady, onCatalogsReady, waitForCatalogs };
+export { areCatalogsReady, onCatalogsReady, waitForCatalogs, arePetAbilitiesCaptured, onPetAbilitiesCaptured, waitForPetAbilities };
+
+export function getPetRaritySafe(species: string | null | undefined): PetRarity | null {
+  try { return getPetRarity(species); } catch { return null; }
+}
+
+export function getPetRarityRankSafe(species: string | null | undefined): number {
+  try { return getPetRarityRank(species); } catch { return 0; }
+}
 
 export function getEggSafe(eggId: string) {
   return areCatalogsReady() ? getEggType(eggId) : null;

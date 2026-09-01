@@ -280,3 +280,42 @@ export function extractWeatherCatalogFromText(text: string): RuntimeWeatherCatal
   }
   return null;
 }
+
+// ── Pet-ability blueprint pipeline ─────────────────────────────────────────
+// Definition site only: consumers write `ws.CoinFinderI` / `case\`CoinFinderI\``,
+// never `CoinFinderI:{name:`. Verified against v1040 and live 2026-09-01.
+export const PET_ABILITIES_BLUEPRINT_MARKER = /CoinFinderI:\s*\{\s*name:/;
+
+const WEATHER_ENUM_RE = /\b[A-Za-z_$][\w$]*\.(Rain|Frost|Dawn|AmberMoon|Thunderstorm)\b/g;
+
+function normalizePetAbilitiesLiteral(literal: string): string {
+  return literal
+    .replace(WEATHER_ENUM_RE, '"$1"')
+    // `.01` → `0.01` (JSON requires a leading digit)
+    .replace(/([:,\[]\s*-?)\.(\d)/g, '$10.$2');
+}
+
+function isPetAbilityEntry(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object'
+    && typeof (value as Record<string, unknown>).trigger === 'string'
+    && typeof (value as Record<string, unknown>).baseParameters === 'object';
+}
+
+export function extractPetAbilitiesCatalogFromText(text: string): Record<string, Record<string, unknown>> | null {
+  const anchorRe = new RegExp(PET_ABILITIES_BLUEPRINT_MARKER.source, 'g');
+  for (const match of text.matchAll(anchorRe)) {
+    if (match.index === undefined) continue;
+    const literal = extractBalancedObjectLiteral(text, match.index);
+    if (!literal) continue;
+    const jsonCandidate = toStrictJsonCandidate(normalizePetAbilitiesLiteral(literal));
+    if (!jsonCandidate) continue;
+    let parsed: unknown;
+    try { parsed = JSON.parse(jsonCandidate); } catch { continue; }
+    if (!parsed || typeof parsed !== 'object') continue;
+    const entries = Object.entries(parsed as Record<string, unknown>).filter(([, v]) => isPetAbilityEntry(v));
+    // Sanity floor: the smallest scraped catalog (v1040) has 78 entries.
+    if (entries.length < 40) continue;
+    return Object.fromEntries(entries) as Record<string, Record<string, unknown>>;
+  }
+  return null;
+}

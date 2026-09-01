@@ -1,8 +1,7 @@
-import { getAbilityDefinition } from '../data/petAbilities';
+import { getAbilityDefinition, isHighValueAbility, isLowValueAbility } from '../data/petAbilities';
 import { t } from '../../../i18n';
+import { arePetAbilitiesCaptured } from '../../../catalogs/gameCatalogs';
 import {
-  HIGH_VALUE_ABILITIES,
-  LOW_VALUE_ABILITIES,
   MAX_BETTER_ALTERNATIVES,
   RAINBOW_AUTO_KEEP_MAX_RANK,
   RAINBOW_AUTO_KEEP_MIN_MAX_STRENGTH,
@@ -30,7 +29,7 @@ import {
 } from './ranking/slotEfficiency';
 
 function getOnlySourceAbility(pet: CollectedPet, allPets: CollectedPet[]): string | null {
-  const highValueAbilitiesOnPet = pet.abilityIds.filter((abilityId) => HIGH_VALUE_ABILITIES.has(abilityId));
+  const highValueAbilitiesOnPet = pet.abilityIds.filter((id) => isHighValueAbility(id));
   if (highValueAbilitiesOnPet.length === 0) return null;
 
   for (const abilityId of highValueAbilitiesOnPet) {
@@ -101,9 +100,12 @@ export function analyzePet(
   const hasProtection = hasHighValueAbilities(pet) || pet.hasRainbow || onlySourceAbility !== null;
 
   if (compareSnapshot?.reviewCount && compareSnapshot.reviewCount > 0) {
+    const unknown = compareSnapshot.reviewAbilityIds.join(', ');
     return buildComparison({
       status: 'review',
-      reason: 'Review required: unknown or unmapped abilities detected',
+      reason: arePetAbilitiesCaptured()
+        ? t('feature.petOptimizer.reason.unknownAbilities', { abilities: unknown })
+        : t('feature.petOptimizer.reason.abilityCatalogPending', { abilities: unknown }),
       betterAlternatives: [],
       decisionMode: 'rule',
     });
@@ -151,7 +153,7 @@ export function analyzePet(
   }
 
   if (cfg.markLowValueAbilities && !hasProtection && (!pet.hasGold || cfg.dislikeGold)) {
-    const hasOnlyLowValue = pet.abilityIds.every((abilityId) => LOW_VALUE_ABILITIES.has(abilityId));
+    const hasOnlyLowValue = pet.abilityIds.every((id) => isLowValueAbility(id));
     if (hasOnlyLowValue && pet.abilityIds.length > 0) {
       return buildComparison({
         status: 'sell',

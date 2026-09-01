@@ -2,6 +2,7 @@ import type { WindowState } from './types';
 
 let globalState: WindowState | null = null;
 let filtersCleanup: (() => void) | null = null;
+let catalogCleanup: (() => void) | null = null;
 
 export function getGlobalState(): WindowState | null {
   return globalState;
@@ -18,4 +19,14 @@ export function clearFiltersCleanup(): void {
 
 export function setFiltersCleanup(cleanup: (() => void) | null): void {
   filtersCleanup = cleanup;
+}
+
+export function setCatalogCleanup(cleanup: (() => void) | null): void {
+  catalogCleanup?.();
+  catalogCleanup = cleanup;
+}
+
+export function clearCatalogCleanup(): void {
+  catalogCleanup?.();
+  catalogCleanup = null;
 }

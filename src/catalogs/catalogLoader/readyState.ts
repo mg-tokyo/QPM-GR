@@ -6,6 +6,7 @@ import {
   capturedCatalogs,
   catalogLog,
   errorCallbacks,
+  petAbilitiesCallbacks,
   publishCatalogs,
   readiness,
   readyCallbacks,
@@ -123,4 +124,41 @@ export function onCatalogsReady(callback: (catalogs: GameCatalogs) => void): () 
     const idx = readyCallbacks.indexOf(callback);
     if (idx !== -1) readyCallbacks.splice(idx, 1);
   };
+}
+
+export function arePetAbilitiesCaptured(): boolean {
+  return capturedCatalogs.petAbilities !== null;
+}
+
+// Fires once per capture; safe to call repeatedly. Listeners are one-shot.
+export function notifyPetAbilitiesCaptured(): void {
+  const listeners = petAbilitiesCallbacks.splice(0, petAbilitiesCallbacks.length);
+  for (const cb of listeners) {
+    try { cb(); } catch (e) { diagLog.warn('QPM-CATALOG-004', { what: 'petAbilities-callback' }, e); }
+  }
+}
+
+export function onPetAbilitiesCaptured(callback: () => void): () => void {
+  if (capturedCatalogs.petAbilities !== null) {
+    try { callback(); } catch (e) { diagLog.warn('QPM-CATALOG-004', { what: 'petAbilities-immediate-callback' }, e); }
+    return () => {};
+  }
+  petAbilitiesCallbacks.push(callback);
+  return () => {
+    const idx = petAbilitiesCallbacks.indexOf(callback);
+    if (idx !== -1) petAbilitiesCallbacks.splice(idx, 1);
+  };
+}
+
+// Resolves true on capture, false on timeout; on timeout the bundle-text
+// fallback is triggered (lazy import breaks the fallback↔readyState cycle).
+export function waitForPetAbilities(timeoutMs = 8000): Promise<boolean> {
+  if (capturedCatalogs.petAbilities !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      unsub();
+      void import('./fallback').then(m => m.ensurePetAbilitiesCatalog()).then((ok) => resolve(ok));
+    }, timeoutMs);
+    const unsub = onPetAbilitiesCaptured(() => { clearTimeout(timer); resolve(true); });
+  });
 }

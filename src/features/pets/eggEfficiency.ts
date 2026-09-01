@@ -9,14 +9,9 @@ import {
 } from '../../catalogs/gameCatalogs';
 import { getHungerCapForSpecies } from './data/petHungerCaps';
 import { getHungerDepletionTime } from './data/petHungerDepletion';
-import { getPetMetadata } from './data/petMetadata';
+import { getPetRarity } from './data/petRarity';
 import {
   SPECIAL_ABILITY_SCORES,
-  COMMON_SPECIES,
-  UNCOMMON_SPECIES,
-  RARE_SPECIES,
-  LEGENDARY_SPECIES,
-  MYTHICAL_SPECIES,
 } from './optimizer/constants';
 
 export interface SpeciesBreakdown {
@@ -53,16 +48,7 @@ const RARITY_SCORES: Record<string, number> = {
 };
 
 function getSpeciesRarity(species: string): string | null {
-  const meta = getPetMetadata(species);
-  if (meta?.rarity) return meta.rarity.toLowerCase();
-
-  if (COMMON_SPECIES.has(species)) return 'common';
-  if (UNCOMMON_SPECIES.has(species)) return 'uncommon';
-  if (RARE_SPECIES.has(species)) return 'rare';
-  if (LEGENDARY_SPECIES.has(species)) return 'legendary';
-  if (MYTHICAL_SPECIES.has(species)) return 'mythical';
-
-  return null;
+  return getPetRarity(species);
 }
 
 function scoreSpecies(species: string): number {

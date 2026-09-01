@@ -20,45 +20,28 @@ import type {
 } from './types';
 import {
   getRulesState,
-  DEFAULT_SAFE_FOODS,
-  DEFAULT_SAFE_NORMALIZED,
   formatFriendlyName,
   warnPetFoodRulesFeature,
 } from './rules';
 
-function resolveDiet(species: string | null): NormalizedDiet {
-  const toNormalizedDiet = (foods: string[]): NormalizedDiet => {
-    const normalized = foods
-      .map(food => normalizeSpeciesKey(food))
-      .filter((food): food is string => !!food);
-    if (normalized.length === 0) {
-      return {
-        display: [...DEFAULT_SAFE_FOODS],
-        normalized: [...DEFAULT_SAFE_NORMALIZED],
-      };
-    }
-    return {
-      display: [...foods],
-      normalized,
-    };
-  };
+const UNKNOWN_DIET: NormalizedDiet = { display: [], normalized: [], known: false };
 
-  if (!species) {
-    return {
-      display: [...DEFAULT_SAFE_FOODS],
-      normalized: [...DEFAULT_SAFE_NORMALIZED],
-    };
-  }
+// No invented fallback: an unknown diet must surface as unknown, never as a
+// made-up food list (the pet catalog is captured lazily and can be absent).
+function resolveDiet(species: string | null): NormalizedDiet {
+  if (!species) return UNKNOWN_DIET;
 
   const runtimeDiet = getPetDiet(species);
-  if (runtimeDiet.length > 0) {
-    return toNormalizedDiet(runtimeDiet);
-  }
+  const normalized = runtimeDiet
+    .map(food => normalizeSpeciesKey(food))
+    .filter((food): food is string => !!food);
+  if (normalized.length === 0) return UNKNOWN_DIET;
 
-  return {
-    display: [...DEFAULT_SAFE_FOODS],
-    normalized: [...DEFAULT_SAFE_NORMALIZED],
-  };
+  return { display: [...runtimeDiet], normalized, known: true };
+}
+
+export function isPetDietKnown(species: string | null): boolean {
+  return resolveDiet(species).known;
 }
 
 function resolveOverride(species: string | null): SpeciesOverride | null {
@@ -410,15 +393,6 @@ export function getDietOptionsForSpecies(species: string): DietOptionDescriptor[
     });
   }
 
-  if (options.length === 0) {
-    for (const fallback of DEFAULT_SAFE_FOODS) {
-      const normalized = normalizeSpeciesKey(fallback);
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      options.push({ key: normalized, label: formatFriendlyName(fallback) });
-    }
-  }
-
   // Always offer hunger potion as a diet option (availability checked at feed time)
   if (!seen.has(HUNGER_POTION_KEY)) {
     options.push({ key: HUNGER_POTION_KEY, label: HUNGER_POTION_LABEL });
@@ -516,10 +490,6 @@ function getFoodRulesContext(
       const normalized = normalizeSpeciesKey(entry);
       if (normalized) forbiddenNormalized.add(normalized);
     }
-  }
-
-  if (allowedNormalized.size === 0) {
-    DEFAULT_SAFE_NORMALIZED.forEach((value) => allowedNormalized.add(value));
   }
 
   return {

@@ -90,13 +90,14 @@ export function looksLikePetCatalog(obj: Record<string, unknown>, keys: string[]
 }
 
 /**
- * Detect petAbilities: has ability names with trigger and baseParameters
+ * Detect petAbilities: has ability names with trigger and baseParameters.
+ * RELAXED (3-of-N) so one rename doesn't break capture.
  */
 export function looksLikePetAbilities(obj: Record<string, unknown>, keys: string[]): boolean {
-  const required = ['ProduceScaleBoost', 'DoubleHarvest', 'SeedFinderI', 'CoinFinderI'];
-  if (!required.every(k => keys.includes(k))) return false;
-
-  const sample = obj.ProduceScaleBoost;
+  const anchors = ['ProduceScaleBoost', 'DoubleHarvest', 'SeedFinderI', 'CoinFinderI', 'RainbowGranter', 'GoldGranter', 'PlantGrowthBoost'];
+  const present = anchors.filter(k => keys.includes(k));
+  if (present.length < 3) return false;
+  const sample = obj[present[0]!];
   return (
     sample !== null &&
     typeof sample === 'object' &&
