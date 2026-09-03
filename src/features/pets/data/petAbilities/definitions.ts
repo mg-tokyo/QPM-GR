@@ -514,3 +514,11 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     notes: 'Grants Thunderstruck mutation to a random crop.',
   },
 ];
+
+/** Entries QPM ships ahead of stale captured catalogs (old cached client bundles).
+ * Their absence from a catalog is the fallback working, not a rename regression —
+ * drift reports them but must not degrade the feature over them. */
+export const FORWARD_COMPAT_ABILITY_IDS: ReadonlySet<string> = new Set([
+  'DoubleHatchII',
+  'ThunderstruckGranter',
+]);

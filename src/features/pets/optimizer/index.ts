@@ -18,7 +18,9 @@ import {
 import { collectAllPets } from './collection';
 import { calculatePetScore } from './scoring';
 import { onPetAbilitiesCaptured } from '../../../catalogs/gameCatalogs';
+import { getCapturedGameVersion } from '../../../diagnostics/gameVersionCapture';
 import { getAbilityCatalogDrift } from '../data/petAbilities/drift';
+import { FORWARD_COMPAT_ABILITY_IDS } from '../data/petAbilities/definitions';
 
 export type {
   CollectedPet,
@@ -69,14 +71,23 @@ export function startPetOptimizer(): void {
     const d = getAbilityCatalogDrift();
     // Only degrade on regressions the auto-resolver can't handle: hardcoded ability
     // that vanished, param key no rule matches, or a trigger family we don't score.
-    // New catalog-only abilities and unclassified auto-derived ones are the expected
-    // steady state and stay silent (debug-log only).
-    if (d.hardcodedOnly.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
-      warnFeature('QPM-FEATURE-004', { what: 'ability-catalog-drift', ...d });
-    } else if (d.catalogOnly.length || d.unclassified.length) {
+    // New catalog-only abilities, unclassified auto-derived ones, and forward-compat
+    // entries missing from a stale catalog are the expected steady state.
+    const hardcodedRegressions = d.hardcodedOnly.filter((id) => !FORWARD_COMPAT_ABILITY_IDS.has(id));
+    if (hardcodedRegressions.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
+      // gameVersion distinguishes a stale client bundle (old catalog on an old
+      // build) from a real rename on the current build.
+      warnFeature('QPM-FEATURE-004', {
+        what: 'ability-catalog-drift',
+        gameVersion: getCapturedGameVersion(),
+        ...d,
+      });
+    } else if (d.catalogOnly.length || d.unclassified.length || d.hardcodedOnly.length) {
       diag.debug('ability-catalog-drift (auto-resolved)', {
         catalogOnly: d.catalogOnly.length,
         unclassified: d.unclassified.length,
+        forwardCompatMissing: d.hardcodedOnly.length,
+        gameVersion: getCapturedGameVersion(),
       });
     }
   });

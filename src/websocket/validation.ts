@@ -24,7 +24,11 @@ export type PetTeamEmblemPayload =
   | { type: 'number'; number: number }
   | { type: 'pet'; petSpecies: string }
   | { type: 'icon'; icon: string };
-export type SavePetTeamPayload = { teamId: string | null; name: string; petIds: string[] };
+// Game ≥ v1091 (PR 3668 order-prediction migration): creates mint the team id
+// client-side and flag `isCreate` — `teamId: null` is rejected as invalid_message.
+// The server is one shared deployment, so this shape is correct for every client
+// build. Verified live main-BCG8Xvxb.js.
+export type SavePetTeamPayload = { teamId: string; isCreate: boolean; name: string; petIds: string[] };
 export type MovePetTeamPayload = { movePetTeamId: string; toPetTeamIndex: number };
 export type SetPetTeamEmblemPayload = { teamId: string; emblem: PetTeamEmblemPayload };
 

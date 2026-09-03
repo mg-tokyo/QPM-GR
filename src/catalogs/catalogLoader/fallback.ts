@@ -1,7 +1,7 @@
 import { getPetAbilitiesCatalogMap } from '../logic/petAbilitiesCatalog';
 import { enrichPetAbilityColors } from './enrichment';
 import { notifyPetAbilitiesCaptured } from './readyState';
-import { capturedCatalogs, catalogLog, publishCatalogs } from './state';
+import { captureSources, capturedCatalogs, catalogLog, publishCatalogs } from './state';
 
 let fallbackInFlight: Promise<boolean> | null = null;
 
@@ -13,6 +13,7 @@ export function ensurePetAbilitiesCatalog(): Promise<boolean> {
     const map = await getPetAbilitiesCatalogMap();
     if (!map || capturedCatalogs.petAbilities) return capturedCatalogs.petAbilities !== null;
     capturedCatalogs.petAbilities = map;
+    captureSources.petAbilities = 'bundle-text';
     catalogLog(`petAbilities seeded from bundle text (${Object.keys(map).length} abilities).`);
     publishCatalogs();
     void enrichPetAbilityColors();

@@ -49,6 +49,11 @@ export const originalEntries = NativeObject.entries;
 // Cosmetic ownership (live holder — populated by ownership.ts, read by publishCatalogs)
 export const cosmeticOwnership: { set: Set<string> | null } = { set: null };
 
+/** Which path produced the petAbilities capture — the live in-memory dex via the
+ * Object.* hook, or the regex bundle-text fallback. A stale/short catalog on a
+ * current game build points at the fallback parser; recorded for supportReport. */
+export const captureSources: { petAbilities: 'hook' | 'bundle-text' | null } = { petAbilities: null };
+
 export function publishCatalogs(): void {
   try {
     shareGlobal('__QPM_CATALOGS', capturedCatalogs);

@@ -21,7 +21,7 @@ import {
 } from './enrichment';
 import { checkAndNotifyReady, notifyPetAbilitiesCaptured } from './readyState';
 import { publishCatalogsHealth } from './diagnostics';
-import { capturedCatalogs, catalogLog, NativeObject, originalKeys, publishCatalogs } from './state';
+import { captureSources, capturedCatalogs, catalogLog, NativeObject, originalKeys, publishCatalogs } from './state';
 
 // Track objects we've already scanned to avoid infinite loops
 const seenObjects = new WeakSet<object>();
@@ -84,6 +84,7 @@ function deepScan(obj: unknown, depth: number): void {
 
     if (!capturedCatalogs.petAbilities && looksLikePetAbilities(record, keys)) {
       capturedCatalogs.petAbilities = record as GameCatalogs['petAbilities'];
+      captureSources.petAbilities = 'hook';
       catalogLog('Captured petAbilities');
       didCapture = true;
       // Reset retry budget when abilities become available.

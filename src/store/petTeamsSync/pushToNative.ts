@@ -1,4 +1,5 @@
 import { sendRoomAction } from '../../websocket/api';
+import type { SavePetTeamPayload } from '../../websocket/validation';
 import { getAllPooledPets } from '../petTeams/pool';
 import { store, saveIdMap, prunePendingCreates } from './state';
 import { diag } from './state';
@@ -16,6 +17,13 @@ export interface TeamSyncSpec {
 
 function sortedCopy(ids: string[]): string[] {
   return [...ids].sort();
+}
+
+// The game server is one shared current deployment (a stale-bundle client was
+// rejected with invalid_message for the OLD shape, and un-versioned /api routes
+// work), so the v1091+ shape is correct regardless of the client's build.
+function buildSavePetTeamPayload(teamId: string | null, name: string, petIds: string[]): SavePetTeamPayload {
+  return { teamId: teamId ?? crypto.randomUUID(), isCreate: teamId === null, name, petIds };
 }
 
 function inCooldown(qpmTeamId: string): boolean {
@@ -80,11 +88,11 @@ export async function pushCreate(spec: TeamSyncSpec): Promise<boolean> {
   };
   store.pendingCreates.push(entry);
   setCooldown(spec.qpmTeamId);
-  const result = sendRoomAction('SavePetTeam', {
-    teamId: null,
-    name: spec.name,
-    petIds: ownedIds,
-  }, { skipThrottle: true });
+  const result = sendRoomAction(
+    'SavePetTeam',
+    buildSavePetTeamPayload(null, spec.name, ownedIds) as unknown as Record<string, unknown>,
+    { skipThrottle: true },
+  );
   if (!result.ok) {
     store.pendingCreates = store.pendingCreates.filter((p) => p !== entry);
     diag.log.debug(`pushCreate send failed reason=${result.reason ?? 'unknown'} qpmId=${spec.qpmTeamId}`);
@@ -98,11 +106,11 @@ export async function pushCreate(spec: TeamSyncSpec): Promise<boolean> {
 export function pushUpdate(nativeId: string, spec: TeamSyncSpec): boolean {
   if (inCooldown(spec.qpmTeamId)) return false;
   setCooldown(spec.qpmTeamId);
-  const result = sendRoomAction('SavePetTeam', {
-    teamId: nativeId,
-    name: spec.name,
-    petIds: spec.petIds,
-  }, { skipThrottle: true });
+  const result = sendRoomAction(
+    'SavePetTeam',
+    buildSavePetTeamPayload(nativeId, spec.name, spec.petIds) as unknown as Record<string, unknown>,
+    { skipThrottle: true },
+  );
   if (!result.ok) {
     diag.log.debug(`pushUpdate send failed reason=${result.reason ?? 'unknown'} nativeId=${nativeId}`);
     return false;

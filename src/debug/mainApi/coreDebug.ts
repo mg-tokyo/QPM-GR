@@ -25,6 +25,7 @@ import { toggleWindow } from '../../ui/core/modalWindow';
 import { togglePetsWindow } from '../../ui/pets/petsWindow';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
+declare const GM_info: unknown;
 
 export const coreDebugApi = {
   setVerboseLogs: (enabled: boolean) => {
@@ -186,6 +187,57 @@ export const coreDebugApi = {
     if (target) {
       checkTour(windowId ?? 'welcome', target);
     }
+  },
+
+  /** The diagnostics window's Copy-for-Discord payload plus the details it
+   * truncates or lacks: script-handler environment, capture source, full drift
+   * lists, and Bad Luck Protection account/counters. No player ids — account
+   * age is a date, counters are QPM's own observations. */
+  supportReport: async () => {
+    const { renderCopyPayload } = await import('../../diagnostics/copyPayload');
+    const { getPitySnapshot, getPityAccountError, isPityKindEnabled } = await import('../../store/pityTracker');
+    const { captureSources } = await import('../../catalogs/catalogLoader/state');
+
+    const pity = getPitySnapshot();
+    const counters: Record<string, string> = {};
+    for (const [key, c] of Object.entries(pity.counters)) {
+      counters[key] = `${c.misses} miss / ${c.hits} hit / ${c.totalPulls} pulls`;
+    }
+    const gmInfo = (() => {
+      try {
+        const gi = (typeof GM_info !== 'undefined' ? GM_info : null) as
+          | { scriptHandler?: string; version?: string }
+          | null;
+        return gi ? `${gi.scriptHandler ?? '?'} ${gi.version ?? ''}`.trim() : null;
+      } catch {
+        return null;
+      }
+    })();
+    const extras = {
+      environment: {
+        scriptHandler: gmInfo,
+        // Violentmonkey on Firefox can silently fall back to the isolated
+        // content world; that breaks the Object.* catalog hooks.
+        isolatedWorld: (() => {
+          try { return typeof unsafeWindow !== 'undefined' && unsafeWindow !== window; }
+          catch { return null; }
+        })(),
+        petAbilitiesSource: captureSources.petAbilities,
+        petAbilitiesCount: getAllAbilities().length,
+      },
+      abilityDrift: getAbilityCatalogDrift(),
+      pity: {
+        enabled: { seed: isPityKindEnabled('seed'), egg: isPityKindEnabled('egg'), capsule: isPityKindEnabled('capsule') },
+        accountCreatedAt: pity.account?.createdAt ? new Date(pity.account.createdAt).toISOString() : null,
+        accountError: getPityAccountError(),
+        gaps: pity.gaps,
+        lifetimeCapsules: pity.lifetime.capsules,
+        counters,
+      },
+    };
+    const text = `${renderCopyPayload()}\n\`\`\`\n${JSON.stringify(extras, null, 1)}\n\`\`\``;
+    console.log('=== QPM SUPPORT REPORT (copy everything below) ===\n' + text);
+    return text;
   },
 
   // Pet Teams debug helpers

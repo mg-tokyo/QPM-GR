@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.36",
+    date: "2026-09-03",
+    notes: [
+      "Fixed pet team sync failing with a server 'invalid_message' rejection, the game changed how team saves are sent (the client now assigns the team id and marks creations explicitly) and QPM now matches the new format",
+      "Fixed the Diagnostics panel showing the Pet Optimizer as degraded on clients whose game files are older than QPM's built-in ability data, that situation is the fallback working as intended and no longer raises a warning, and drift reports now include the game build version to spot outdated cached game files",
+      "Added QPM_DEBUG_API.supportReport(), one console command that prints a complete copy-pasteable support report: the Diagnostics summary plus game build, script manager environment, ability catalog source and counts, and Bad Luck Protection account status and counters",
+    ],
+  },
+  {
     version: "3.3.35",
     date: "2026-09-03",
     notes: [

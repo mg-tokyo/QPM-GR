@@ -298,14 +298,15 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       );
     case 'SavePetTeam': {
       const p = payload as unknown as SavePetTeamPayload;
-      const teamIdOk = p.teamId === null || isNonEmptyString(p.teamId);
+      const teamIdOk = isNonEmptyString(p.teamId);
+      const isCreateOk = typeof p.isCreate === 'boolean';
       const nameOk = isNonEmptyString(p.name);
       const petIdsOk =
         Array.isArray(p.petIds)
         && p.petIds.length >= 1
         && p.petIds.length <= 3
         && p.petIds.every(isNonEmptyString);
-      return teamIdOk && nameOk && petIdsOk;
+      return teamIdOk && isCreateOk && nameOk && petIdsOk;
     }
     case 'DeletePetTeam':
     case 'ApplyPetTeam':
@@ -385,12 +386,8 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'CropCleanser':
     case 'MutationPotion':
       return `${type}:${String(payload.tileObjectIdx ?? '')}:${String(payload.growSlotIdx ?? '')}`;
-    case 'SavePetTeam': {
-      const p = payload as { teamId?: unknown; name?: unknown; petIds?: unknown };
-      if (typeof p.teamId === 'string') return `${type}:${p.teamId}`;
-      const ids = Array.isArray(p.petIds) ? p.petIds.join(',') : '';
-      return `${type}:new:${String(p.name ?? '')}:${ids}`;
-    }
+    case 'SavePetTeam':
+      return `${type}:${String((payload as { teamId?: unknown }).teamId ?? '')}`;
     case 'DeletePetTeam':
     case 'ApplyPetTeam':
       return `${type}:${String(payload.teamId ?? '')}`;
