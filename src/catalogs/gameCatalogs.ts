@@ -50,6 +50,7 @@ export {
   onPetAbilitiesCaptured,
   waitForPetAbilities,
   ensurePetAbilitiesCatalog,
+  mergePetAbilitiesIfIncomplete,
   initCatalogLoader,
   cleanupCatalogLoader,
   forceWeatherCatalogRefresh,

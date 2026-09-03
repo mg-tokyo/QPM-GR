@@ -218,7 +218,9 @@ export function warmupAllSpecies(
   for (let i = 0; i < count; i += 1) {
     const artboard = file.artboardByIndex(i);
     if (!artboard) continue;
-    const name = artboard.name;
+    // Artboard names can diverge from species keys by whitespace ("Red Fox"
+    // vs RedFox); species keys never contain spaces, so cache space-free.
+    const name = artboard.name.replace(/\s+/g, '');
 
     if (name === CONTAINER_ARTBOARD) {
       try { artboard.delete?.(); } catch { /* ignore */ }

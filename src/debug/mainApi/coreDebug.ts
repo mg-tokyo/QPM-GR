@@ -197,6 +197,7 @@ export const coreDebugApi = {
     const { renderCopyPayload } = await import('../../diagnostics/copyPayload');
     const { getPitySnapshot, getPityAccountError, isPityKindEnabled } = await import('../../store/pityTracker');
     const { captureSources } = await import('../../catalogs/catalogLoader/state');
+    const { getHookEnvironment } = await import('../../catalogs/catalogLoader');
 
     const pity = getPitySnapshot();
     const counters: Record<string, string> = {};
@@ -224,6 +225,9 @@ export const coreDebugApi = {
         })(),
         petAbilitiesSource: captureSources.petAbilities,
         petAbilitiesCount: getAllAbilities().length,
+        // Other mods wrapping Object.* shift enumeration order — the trigger
+        // for partial dex captures. Says who owns Object.keys right now.
+        objectHooks: getHookEnvironment(),
       },
       abilityDrift: getAbilityCatalogDrift(),
       pity: {

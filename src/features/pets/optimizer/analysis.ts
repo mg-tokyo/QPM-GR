@@ -6,7 +6,7 @@ import {
   type CompareAbilityGroup,
 } from '../compare';
 import { ANALYSIS_CACHE_TTL_MS, PET_ABILITY_CATALOG_WAIT_MS } from './constants';
-import { arePetAbilitiesCaptured, waitForPetAbilities } from '../../../catalogs/gameCatalogs';
+import { arePetAbilitiesCaptured, mergePetAbilitiesIfIncomplete, waitForPetAbilities } from '../../../catalogs/gameCatalogs';
 import { collectAllPets, dedupeCollectedPets } from './collection';
 import { analyzePet } from './decision';
 import { createCompareSnapshotMap } from './ranking/snapshot';
@@ -209,7 +209,11 @@ export async function getOptimizerAnalysis(
     await waitForPetAbilities(PET_ABILITY_CATALOG_WAIT_MS);
   }
 
-  const pets = await collectAllPets();
+  let pets = await collectAllPets();
+  // A partial hook capture leaves real pet abilities unresolvable; verify
+  // against bundle text and re-collect so the first analysis shown is correct.
+  const merged = await mergePetAbilitiesIfIncomplete(pets.flatMap((p) => p.abilities)).catch(() => false);
+  if (merged) pets = await collectAllPets();
   const analysis = await analyzePetsAsync(pets, onProgress, cfg);
   if (!analysis.abilityCatalogMissing) {
     setCachedOptimizerAnalysis(analysis, now);

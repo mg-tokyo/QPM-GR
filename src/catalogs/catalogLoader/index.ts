@@ -4,6 +4,7 @@
 export { getCosmeticOwnership, isCosmeticOwned, isCosmeticAvailable } from './ownership';
 export { startCatalogsDiagnostics, stopCatalogsDiagnostics } from './diagnostics';
 export { getCatalogs, areCatalogsReady, waitForCatalogs, onCatalogsReady, arePetAbilitiesCaptured, onPetAbilitiesCaptured, waitForPetAbilities } from './readyState';
-export { ensurePetAbilitiesCatalog } from './fallback';
+export { ensurePetAbilitiesCatalog, mergePetAbilitiesIfIncomplete } from './fallback';
+export { getHookEnvironment } from './hooks';
 export { initCatalogLoader, initCatalogHooksEarly, cleanupCatalogLoader } from './lifecycle';
 export { forceWeatherCatalogRefresh, diagnoseCatalogs } from './debug';

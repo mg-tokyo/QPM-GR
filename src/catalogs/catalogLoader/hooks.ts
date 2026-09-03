@@ -103,6 +103,20 @@ export function removeHooks(): void {
   }
 }
 
+/** Who owns Object.keys — surfaces other mods' Object.* wrappers (and whether
+ * ours pre- or post-dates them) in supportReport for remote diagnosis. */
+export function getHookEnvironment(): {
+  originalWasNonNative: boolean;
+  objectKeysCurrentlyOurs: boolean;
+  objectKeysCurrentlyNative: boolean;
+} {
+  return {
+    originalWasNonNative: isNonNative(originalKeys) || isNonNative(originalValues) || isNonNative(originalEntries),
+    objectKeysCurrentlyOurs: hookedKeysRef !== null && NativeObject.keys === hookedKeysRef,
+    objectKeysCurrentlyNative: !isNonNative(NativeObject.keys),
+  };
+}
+
 export function tryRemoveHooks(reason: string): void {
   if (hooksLifecycle.removed) return;
   hooksLifecycle.removed = true;

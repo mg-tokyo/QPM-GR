@@ -50,9 +50,9 @@ export const originalEntries = NativeObject.entries;
 export const cosmeticOwnership: { set: Set<string> | null } = { set: null };
 
 /** Which path produced the petAbilities capture — the live in-memory dex via the
- * Object.* hook, or the regex bundle-text fallback. A stale/short catalog on a
- * current game build points at the fallback parser; recorded for supportReport. */
-export const captureSources: { petAbilities: 'hook' | 'bundle-text' | null } = { petAbilities: null };
+ * Object.* hook, the regex bundle-text fallback, or a hook capture that was
+ * verified incomplete and topped up from bundle text. Recorded for supportReport. */
+export const captureSources: { petAbilities: 'hook' | 'bundle-text' | 'hook+bundle-text' | null } = { petAbilities: null };
 
 export function publishCatalogs(): void {
   try {

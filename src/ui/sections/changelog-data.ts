@@ -2,6 +2,16 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.37",
+    date: "2026-09-03",
+    notes: [
+      "Fixed pets from the Dawn, Thunder and Amber updates showing 'Unknown ability' and being excluded from Pet Optimizer rankings when another mod (such as Arie's Mod) is running: QPM could capture a partial ability catalog depending on load order, it now upgrades to the fuller catalog when one appears and verifies the captured catalog against the game's own files, filling in any missing abilities automatically",
+      "Fixed the false 'ability catalog drift' diagnostics warning caused by the same partial catalog capture, the catalog is now completed before the warning is considered",
+      "Fixed the Red Fox pet sprite not rendering anywhere in QPM, the game names its animation artboard with a space ('Red Fox') unlike every other pet",
+      "Added an Object hooks section to QPM_DEBUG_API.supportReport() showing whether another mod is wrapping the page's Object methods, which helps diagnose mod interference remotely",
+    ],
+  },
+  {
     version: "3.3.36",
     date: "2026-09-03",
     notes: [

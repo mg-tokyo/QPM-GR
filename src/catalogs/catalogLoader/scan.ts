@@ -82,15 +82,25 @@ function deepScan(obj: unknown, depth: number): void {
       didCapture = true;
     }
 
-    if (!capturedCatalogs.petAbilities && looksLikePetAbilities(record, keys)) {
-      capturedCatalogs.petAbilities = record as GameCatalogs['petAbilities'];
-      captureSources.petAbilities = 'hook';
-      catalogLog('Captured petAbilities');
-      didCapture = true;
-      // Reset retry budget when abilities become available.
-      pollAttempts.abilityColor = 0;
-      void enrichPetAbilityColors();
-      notifyPetAbilitiesCaptured();
+    if (looksLikePetAbilities(record, keys)) {
+      // Capture-or-upgrade, not capture-once: the game exposes partial
+      // dex-shaped objects during load (spread sources for the merged dex),
+      // and another mod's enumeration order can surface a partial one first.
+      // A strictly bigger match replaces it while hooks are still installed.
+      const current = capturedCatalogs.petAbilities;
+      const currentCount = current ? originalKeys.call(NativeObject, current).length : 0;
+      if (!current || keys.length > currentCount) {
+        capturedCatalogs.petAbilities = record as GameCatalogs['petAbilities'];
+        captureSources.petAbilities = 'hook';
+        catalogLog(current
+          ? `Upgraded petAbilities capture (${currentCount} -> ${keys.length} abilities)`
+          : 'Captured petAbilities');
+        didCapture = true;
+        // Reset retry budget when abilities become available.
+        pollAttempts.abilityColor = 0;
+        void enrichPetAbilityColors();
+        notifyPetAbilitiesCaptured();
+      }
     }
 
     if (!capturedCatalogs.plantCatalog && looksLikePlantCatalog(record, keys)) {

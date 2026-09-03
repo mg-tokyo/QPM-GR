@@ -17,7 +17,7 @@ import {
 } from './analysis';
 import { collectAllPets } from './collection';
 import { calculatePetScore } from './scoring';
-import { onPetAbilitiesCaptured } from '../../../catalogs/gameCatalogs';
+import { mergePetAbilitiesIfIncomplete, onPetAbilitiesCaptured } from '../../../catalogs/gameCatalogs';
 import { getCapturedGameVersion } from '../../../diagnostics/gameVersionCapture';
 import { getAbilityCatalogDrift } from '../data/petAbilities/drift';
 import { FORWARD_COMPAT_ABILITY_IDS } from '../data/petAbilities/definitions';
@@ -67,30 +67,39 @@ export function startPetOptimizer(): void {
   });
 
   driftUnsub?.();
-  driftUnsub = onPetAbilitiesCaptured(() => {
-    const d = getAbilityCatalogDrift();
-    // Only degrade on regressions the auto-resolver can't handle: hardcoded ability
-    // that vanished, param key no rule matches, or a trigger family we don't score.
-    // New catalog-only abilities, unclassified auto-derived ones, and forward-compat
-    // entries missing from a stale catalog are the expected steady state.
-    const hardcodedRegressions = d.hardcodedOnly.filter((id) => !FORWARD_COMPAT_ABILITY_IDS.has(id));
-    if (hardcodedRegressions.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
-      // gameVersion distinguishes a stale client bundle (old catalog on an old
-      // build) from a real rename on the current build.
-      warnFeature('QPM-FEATURE-004', {
-        what: 'ability-catalog-drift',
-        gameVersion: getCapturedGameVersion(),
-        ...d,
-      });
-    } else if (d.catalogOnly.length || d.unclassified.length || d.hardcodedOnly.length) {
-      diag.debug('ability-catalog-drift (auto-resolved)', {
-        catalogOnly: d.catalogOnly.length,
-        unclassified: d.unclassified.length,
-        forwardCompatMissing: d.hardcodedOnly.length,
-        gameVersion: getCapturedGameVersion(),
-      });
-    }
-  });
+  driftUnsub = onPetAbilitiesCaptured(() => { void runDriftCheck(); });
+}
+
+async function runDriftCheck(): Promise<void> {
+  let d = getAbilityCatalogDrift();
+  // hardcodedOnly means the catalog is missing ids we KNOW exist — the usual
+  // cause is a partial hook capture (enumeration-order race with other mods).
+  // Verify against bundle text and re-diff before deciding to warn.
+  if (d.hardcodedOnly.length > 0) {
+    const merged = await mergePetAbilitiesIfIncomplete().catch(() => false);
+    if (merged) d = getAbilityCatalogDrift();
+  }
+  // Only degrade on regressions the auto-resolver can't handle: hardcoded ability
+  // that vanished, param key no rule matches, or a trigger family we don't score.
+  // New catalog-only abilities, unclassified auto-derived ones, and forward-compat
+  // entries missing from a stale catalog are the expected steady state.
+  const hardcodedRegressions = d.hardcodedOnly.filter((id) => !FORWARD_COMPAT_ABILITY_IDS.has(id));
+  if (hardcodedRegressions.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
+    // gameVersion distinguishes a stale client bundle (old catalog on an old
+    // build) from a real rename on the current build.
+    warnFeature('QPM-FEATURE-004', {
+      what: 'ability-catalog-drift',
+      gameVersion: getCapturedGameVersion(),
+      ...d,
+    });
+  } else if (d.catalogOnly.length || d.unclassified.length || d.hardcodedOnly.length) {
+    diag.debug('ability-catalog-drift (auto-resolved)', {
+      catalogOnly: d.catalogOnly.length,
+      unclassified: d.unclassified.length,
+      forwardCompatMissing: d.hardcodedOnly.length,
+      gameVersion: getCapturedGameVersion(),
+    });
+  }
 }
 
 export function stopPetOptimizer(): void {
