@@ -58,8 +58,10 @@ function findAbilityColorSwitchBlock(bundleText: string): string | null {
 
       const hasLegacyColorObjects = block.includes('bg:"') || block.includes("bg:'") || block.includes('bg:\x60');
       const hasDirectColorReturns = /return\s*(['"\x60])(#|rgb\(|rgba\(|hsl\(|linear-gradient\()/i.test(block);
+      // v1063+: cases return `{ solid: '#hex', gradient?: {...} }` — colors chunk in localization-*.js.
+      const hasSolidColorReturns = /return\s*\{\s*solid\s*:/.test(block);
 
-      if (block.includes(ABILITY_COLOR_ANCHOR) && (hasLegacyColorObjects || hasDirectColorReturns)) {
+      if (block.includes(ABILITY_COLOR_ANCHOR) && (hasLegacyColorObjects || hasDirectColorReturns || hasSolidColorReturns)) {
         return block;
       }
     }
@@ -176,10 +178,56 @@ function parseAbilityColorsFromSimpleSwitch(switchBlock: string): Record<string,
   return Object.keys(colors).length ? colors : null;
 }
 
+/**
+ * Parse the v1063+ solid-shape switch:
+ *   case 'X': case 'Y': return { solid: '#hex' [, gradient: {...}] };
+ *   case 'GoldGranter': return Ap;   // Ap = { solid: '#DCC846', gradient: {...} } declared earlier
+ *
+ * Const references (like `Ap`) are resolved from a pre-scan of the surrounding
+ * bundle text — the game hoists color consts above the switch.
+ */
+function parseAbilityColorsFromSolidSwitch(
+  switchBlock: string,
+  bundleText: string,
+): Record<string, RuntimeAbilityColor> | null {
+  // Pre-scan bundleText for hoisted color consts: `<ident>={solid:'#hex'...}` or `<ident>='#hex'`.
+  const constMap: Record<string, string> = {};
+  const objConstRe = /\b([A-Za-z_$][A-Za-z0-9_$]{0,6})\s*=\s*\{\s*solid\s*:\s*(['"\x60])([^'"\x60]+)\2/g;
+  const scalarConstRe = /\b([A-Za-z_$][A-Za-z0-9_$]{0,6})\s*=\s*(['"\x60])(#[0-9A-Fa-f]{3,8})\2/g;
+  let m: RegExpExecArray | null;
+  while ((m = objConstRe.exec(bundleText))) if (!constMap[m[1]!]) constMap[m[1]!] = m[3]!;
+  while ((m = scalarConstRe.exec(bundleText))) if (!constMap[m[1]!]) constMap[m[1]!] = m[3]!;
+
+  const colors: Record<string, RuntimeAbilityColor> = {};
+  const pending: string[] = [];
+  // Three alternations: case ident, return {solid:'hex' ..., return IDENT[;}]
+  const tokenRe = /case\s*(['"\x60])([A-Za-z0-9_]+)\1\s*:|default\s*:|return\s*\{\s*solid\s*:\s*(['"\x60])([^'"\x60]+)\3|return\s+([A-Za-z_$][A-Za-z0-9_$]{0,6})\s*[;}]/g;
+
+  while ((m = tokenRe.exec(switchBlock)) !== null) {
+    const token = m[0];
+    if (m[2]) { pending.push(m[2]); continue; }
+    if (token.startsWith('default')) { pending.length = 0; continue; }
+
+    let color: string | null = null;
+    if (m[4] && isSupportedColorValue(m[4])) color = m[4];
+    else if (m[5]) color = constMap[m[5]] ?? null;
+
+    if (!color) { pending.length = 0; continue; }
+
+    for (const id of pending) {
+      if (!colors[id]) colors[id] = { bg: color, hover: color };
+    }
+    pending.length = 0;
+  }
+
+  return Object.keys(colors).length ? colors : null;
+}
+
 // '#228B22' is the ProduceScaleBoost hex from getAbilityColor's switch. It is
 // unique to the color-switch chunk — main-*.js references ProduceScaleBoost in
 // the ability dex and description switches but has zero hex-color returns.
-// In v643+ the color switch moved to index-*.js; this marker routes there.
+// In v643+ the color switch moved to index-*.js; in v1063+ it moved to
+// localization-*.js with a `{ solid: '#hex' }` return shape.
 const ABILITY_COLOR_BUNDLE_MARKER = '#228B22';
 
 /**
@@ -201,7 +249,10 @@ async function loadAbilityColorsFromBundle(): Promise<AbilityColorLoadResult> {
     return { map: null, triedNewChunks };
   }
 
-  const map = parseAbilityColorsFromSwitch(switchBlock) || parseAbilityColorsFromSimpleSwitch(switchBlock);
+  const map =
+    parseAbilityColorsFromSwitch(switchBlock) ||
+    parseAbilityColorsFromSimpleSwitch(switchBlock) ||
+    parseAbilityColorsFromSolidSwitch(switchBlock, bundleText);
   if (!map) log.debug('abilityColors: switch block found but parse failed');
   if (map) log.debug('abilityColors: parsed ability color map', { count: Object.keys(map).length });
   return { map, triedNewChunks };

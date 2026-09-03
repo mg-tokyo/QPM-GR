@@ -1,7 +1,7 @@
 // Post-capture enrichment: ability colors, weather catalog, cosmetic catalog.
 // Each has an immediate attempt + bounded retry polling.
 
-import { DEFAULT_ABILITY_COLOR, getAbilityColorMap } from '../logic/abilityColors';
+import { DEFAULT_ABILITY_COLOR, getAbilityColorMap, type RuntimeAbilityColor } from '../logic/abilityColors';
 import { getMutationColorMap } from '../logic/mutationColors';
 import { getWeatherCatalogMap } from '../logic/weatherCatalog';
 import { getCosmeticCatalogFromBundle } from '../logic/cosmeticCatalog';
@@ -74,6 +74,48 @@ function arePetAbilityColorsEnriched(abilities: Record<string, unknown>): boolea
   return ABILITY_COLOR_ANCHORS.some(id => readAbilityColorBg(abilities[id]) !== null);
 }
 
+// Tier / family fallback for abilities the game's color switch omits
+// (e.g. HungerBoostIII grouped with HungerBoost/II but no explicit III case).
+// Reasons: the game groups tiered / weather-variant abilities under a single color
+// and may drop future tiers from the switch. We derive the color from the base
+// ability rather than hardcoding per-ability entries in a UI file.
+const TIER_SUFFIX_RE = /(IV|III|II|I)(?:_NEW)?$/i;
+const FAMILY_PREFIXES: readonly string[] = [
+  'Snowy', 'Frosty', 'Frost', 'Rainy', 'Wet', 'Snow', 'Rain', 'Thunder', 'Dawn', 'Amber',
+];
+
+function stripTierSuffix(id: string): string | null {
+  const m = id.match(TIER_SUFFIX_RE);
+  return m && m.index !== undefined && m.index > 0 ? id.slice(0, m.index) : null;
+}
+
+function stripFamilyPrefix(id: string): string | null {
+  for (const prefix of FAMILY_PREFIXES) {
+    if (id.startsWith(prefix) && id.length > prefix.length + 2) return id.slice(prefix.length);
+  }
+  return null;
+}
+
+function resolveAbilityColorWithFallback(
+  abilityId: string,
+  colorMap: Record<string, RuntimeAbilityColor>,
+): RuntimeAbilityColor {
+  const seen = new Set<string>();
+  const queue: string[] = [abilityId];
+  while (queue.length > 0) {
+    const cand = queue.shift()!;
+    if (seen.has(cand)) continue;
+    seen.add(cand);
+    const hit = colorMap[cand];
+    if (hit) return hit;
+    const t = stripTierSuffix(cand);
+    if (t) queue.push(t);
+    const f = stripFamilyPrefix(cand);
+    if (f) queue.push(f);
+  }
+  return DEFAULT_ABILITY_COLOR;
+}
+
 function isWeatherCatalogEnriched(catalog: GameCatalogs['weatherCatalog']): boolean {
   return !!catalog && typeof catalog === 'object' && Object.keys(catalog).length > 0;
 }
@@ -97,7 +139,7 @@ export async function enrichPetAbilityColors(): Promise<EnrichmentAttempt> {
         : {};
 
       if (readAbilityColorBg(entry) === null) {
-        const mapped = colorMap[abilityId] || DEFAULT_ABILITY_COLOR;
+        const mapped = resolveAbilityColorWithFallback(abilityId, colorMap);
         entry.color = {
           bg: mapped.bg,
           hover: mapped.hover || mapped.bg,

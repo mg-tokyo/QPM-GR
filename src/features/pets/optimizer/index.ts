@@ -1,4 +1,4 @@
-import { publishOk, warnFeature } from './_diagnostics';
+import { diag, publishOk, warnFeature } from './_diagnostics';
 import {
   getOptimizerConfig,
   loadOptimizerConfig,
@@ -67,8 +67,17 @@ export function startPetOptimizer(): void {
   driftUnsub?.();
   driftUnsub = onPetAbilitiesCaptured(() => {
     const d = getAbilityCatalogDrift();
+    // Only degrade on regressions the auto-resolver can't handle: hardcoded ability
+    // that vanished, param key no rule matches, or a trigger family we don't score.
+    // New catalog-only abilities and unclassified auto-derived ones are the expected
+    // steady state and stay silent (debug-log only).
     if (d.hardcodedOnly.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
       warnFeature('QPM-FEATURE-004', { what: 'ability-catalog-drift', ...d });
+    } else if (d.catalogOnly.length || d.unclassified.length) {
+      diag.debug('ability-catalog-drift (auto-resolved)', {
+        catalogOnly: d.catalogOnly.length,
+        unclassified: d.unclassified.length,
+      });
     }
   });
 }

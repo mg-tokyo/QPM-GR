@@ -1,5 +1,7 @@
 import { pageWindow } from '../../core/pageContext';
 import { getCosmeticOwnership } from '../../catalogs/gameCatalogs';
+import { getRoomApiBase } from '../../catalogs/catalogLoader/ownership';
+import { buildAuthHeaders, buildTimeoutSignal } from '../../services/authFetch';
 import { getCosmeticItemsSafe } from '../../utils/game/catalogHelpers';
 import { createNamedLogger } from '../../diagnostics/logger';
 import { buildError } from '../../diagnostics/result';
@@ -20,25 +22,13 @@ export interface ClaimResult {
   error?: string;
 }
 
-function getRoomApiBase(): string | null {
-  try {
-    const pathname = pageWindow.location?.pathname ?? '';
-    const segments = pathname.split('/').filter(Boolean);
-    const roomCode = segments[segments.length - 1];
-    if (!roomCode) return null;
-    return `/api/rooms/${roomCode}`;
-  } catch {
-    return null;
-  }
-}
-
 export function fetchOwnedCosmetics(): Set<string> {
   const existing = getCosmeticOwnership();
   return existing ? new Set(existing) : new Set();
 }
 
 export async function claimCosmetic(filename: string): Promise<ClaimResult> {
-  const base = getRoomApiBase();
+  const base = await getRoomApiBase();
   if (!base) {
     warnBlobling('QPM-BLOBLING-005', { what: 'claim:no_room', filename });
     return { ok: false, error: 'Room not available' };
@@ -47,11 +37,14 @@ export async function claimCosmetic(filename: string): Promise<ClaimResult> {
   const fetchFn = typeof pageWindow.fetch === 'function'
     ? pageWindow.fetch.bind(pageWindow)
     : fetch;
+  const signal = buildTimeoutSignal(15_000);
 
   try {
     const res = await fetchFn(`${base}/me/cosmetics/claim/${encodeURIComponent(filename)}`, {
       method: 'POST',
       credentials: 'include',
+      headers: buildAuthHeaders(),
+      ...(signal ? { signal } : {}),
     });
 
     if (res.ok) {

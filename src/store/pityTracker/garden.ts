@@ -2,7 +2,7 @@
 // slot from the moment it spawns; anything that appears on an existing slot later was
 // granted (pet ability, potion) and sits outside Bad Luck Protection.
 
-import { GROWTH_PITY_THRESHOLDS } from '../catalogs/pityThresholds';
+import { GROWTH_PITY_THRESHOLDS } from '../../catalogs/pityThresholds';
 
 export type SlotOrigin = 'natural' | 'granted' | 'none' | 'unknown';
 

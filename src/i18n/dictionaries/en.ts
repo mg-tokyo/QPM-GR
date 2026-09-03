@@ -895,6 +895,7 @@ const en: Dictionary = {
   'feature.pity.accountPreLaunch': 'Account created {date} · counters started at 50%',
   'feature.pity.accountPostLaunch': 'Account created {date} · counters started at 0',
   'feature.pity.accountUnknown': 'Account age unknown · estimates assume a fresh start',
+  'feature.pity.accountError': 'Account lookup failed: {error}. QPM retries while the game runs.',
   'feature.pity.howItWorks': 'How it works',
   'feature.pity.guide1': 'Each plant, egg and capsule keeps one counter per rare outcome: a miss adds 1, getting it resets to 0, at the threshold the game forces it. Every crop grown is a pull.',
   'feature.pity.guide2': 'Gold and Rainbow share one roll (Rainbow wins); species rolls are separate. Pet-granted mutations count neither way — QPM matches them to the granter\'s log entry.',

@@ -37,7 +37,13 @@ export default defineConfig({
       keep_fnames: PROFILE_BUILD,
       keep_classnames: PROFILE_BUILD,
       format: {
-        comments: false
+        comments: false,
+        // Without a cap terser emits the whole 3.2 MB bundle as ONE line.
+        // Tampermonkey/Violentmonkey render the source in CodeMirror on the
+        // install page, which cannot virtualize within a line — a multi-MB
+        // single line freezes the install tab until it crashes. 8000 chars
+        // keeps CodeMirror comfortable at negligible size/build-time cost.
+        max_line_len: 8000
       }
     },
     rollupOptions: {

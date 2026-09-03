@@ -2,6 +2,19 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.34",
+    date: "2026-09-03",
+    notes: [
+      "Fixed the userscript install page freezing or crashing in Tampermonkey and Violentmonkey, the bundle was emitted as one multi-megabyte line which the install page's code viewer cannot handle, it is now wrapped into normal-length lines",
+      "Fixed account lookup and cosmetic ownership failing on Discord, the game's room API is now reached via the Discord SDK instance id with proper JWT authentication (web keeps cookie auth), affecting the Bad Luck Protection account-age floor, the Blobling Customiser owned-cosmetics list and cosmetic claiming",
+      "Improved Bad Luck Protection reliability: every counted pull is now also written to a rolling log so counters can be rebuilt from it, the tracker checks its own counters for inconsistencies on load and heals them automatically from the log, and a diagnostics warning (QPM-STORE-005) fires if an inconsistency is found",
+      "Added a hover tooltip on the Bad Luck Protection account chip that shows why the account lookup failed when the account age is unknown, and the lookup now retries while the game runs, accepts both date formats the server sends and times out instead of hanging",
+      "Fixed ability colors going gray after the game moved its ability color data in a recent update, the new color format is now parsed, tiered abilities like Hunger Boost III inherit their base ability's color, and pet card ability squares now always use the game's own colors instead of a stale hardcoded list",
+      "Improved new-ability handling: ability effect labels and units are now derived automatically from the game catalog so new ability parameters display correctly without a QPM update, drift warnings in Diagnostics only fire for real regressions instead of every new ability, and Double Hatch, Produce Refund and Dawnbinder Boost now rank as high value in the Pet Optimizer",
+      "Added debug helpers under QPM_DEBUG_API.pity: log, rebuild, check and accountError for inspecting and repairing Bad Luck Protection state",
+    ],
+  },
+  {
     version: "3.3.33",
     date: "2026-09-01",
     notes: [

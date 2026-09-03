@@ -5,6 +5,7 @@ import {
 } from '../../../../catalogs/gameCatalogs';
 import {
   ABILITY_DEFINITIONS,
+  type AbilityCategory,
   type AbilityDefinition,
   type CatalogParameterMetadata,
 } from './definitions';
@@ -153,124 +154,129 @@ function normalizeCatalogRequiredWeather(value: unknown): AbilityDefinition['req
   }
 }
 
+// Structural params feed logic (weather gates, mutation targets, activation sprite, radius,
+// cooldown) — never rendered as a leading effect value. Rules skip these.
+const STRUCTURAL_PARAMETER_KEYS: ReadonlySet<string> = new Set([
+  'requiredWeather',
+  'grantedMutations',
+  'targetMutations',
+  'tileRadius',
+  'cooldownSeconds',
+  'activationSprite',
+]);
+
+// Specific overrides keep exact legacy labels/units for the params we've seen historically.
+// Anything not matched here falls through to suffix rules + label derivation.
+interface SpecificRule {
+  match: RegExp;
+  category?: AbilityCategory;
+  effectUnit?: CatalogParameterMetadata['effectUnit'];
+  effectLabel?: string;
+  effectSuffix?: string;
+  // Applied only when the ability trigger is 'continuous' — legacy quirk where
+  // percentage buffs get treated as coin-per-hour projections.
+  coinUnitWhenContinuous?: boolean;
+  coinsCategoryWhenContinuous?: boolean;
+}
+
+const SPECIFIC_RULES: readonly SpecificRule[] = [
+  { match: /^plant.*Growth.*Minutes$/i,     category: 'plantGrowth', effectUnit: 'minutes', effectLabel: 'Growth time reduction', effectSuffix: 'm' },
+  { match: /^egg.*Growth.*Minutes$/i,       category: 'eggGrowth',   effectUnit: 'minutes', effectLabel: 'Hatch time reduction',  effectSuffix: 'm' },
+  { match: /^bonusXp$/,                     category: 'xp',          effectUnit: 'xp',      effectLabel: 'Bonus XP',              effectSuffix: '' },
+  { match: /^baseMaxCoinsFindable$/,        category: 'coins',       effectUnit: 'coins',   effectLabel: 'Coin range',            effectSuffix: '' },
+  { match: /^scaleIncreasePercentage$/,     category: 'misc',        effectUnit: 'coins',   effectLabel: 'Scale increase',        effectSuffix: '%' },
+  { match: /^mutationChanceIncreasePercentage$/, category: 'misc',   effectLabel: 'Chance increase',       effectSuffix: '%', coinUnitWhenContinuous: true },
+  { match: /^cropSellPriceIncreasePercentage$/,  effectLabel: 'Sell price bonus', effectSuffix: '%', coinUnitWhenContinuous: true, coinsCategoryWhenContinuous: true },
+  { match: /^hungerRestorePercentage$/,     category: 'misc',        effectLabel: 'Hunger restore',        effectSuffix: '%' },
+  { match: /^hungerRefundPercentage$/,      category: 'misc',        effectLabel: 'Hunger refund',         effectSuffix: '%' },
+  { match: /^maxStrengthIncreasePercentage$/, category: 'misc',      effectLabel: 'Max Strength increase', effectSuffix: '%' },
+  { match: /^petDustIncreasePercentage$/,   category: 'misc',        effectLabel: 'Pet dust bonus',        effectSuffix: '%' },
+  { match: /^plantAbilityChanceBoostPercentage$/, category: 'misc',  effectLabel: 'Plant ability chance',  effectSuffix: '%' },
+];
+
+// Generic suffix rules — apply to any key that didn't hit a specific rule.
+// Order: most specific suffix first. Each rule fills only the field(s) it names.
+interface SuffixRule {
+  match: RegExp;
+  effectUnit?: CatalogParameterMetadata['effectUnit'];
+  effectSuffix?: string;
+}
+
+const SUFFIX_RULES: readonly SuffixRule[] = [
+  { match: /Minutes$/,    effectUnit: 'minutes', effectSuffix: 'm' },
+  { match: /Seconds$/,                           effectSuffix: 's' },
+  { match: /Percentage$/,                        effectSuffix: '%' },
+  // *Amount / *Count / *Boost / *Value: raw numeric quantities, no display unit.
+  { match: /(Amount|Count|Boost|Value)$/ },
+];
+
+function deriveLabelFromKey(key: string): string {
+  const stripped = key.replace(/(Percentage|PerSecond|PerMinute|Minutes|Seconds|Amount)$/i, '');
+  const spaced = stripped.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+// True if we can produce useful metadata for this key — either it's structural (skipped
+// intentionally) or a rule matches. Drift uses this to decide whether a key is "known".
+export function canResolveParameterKey(key: string): boolean {
+  if (STRUCTURAL_PARAMETER_KEYS.has(key)) return true;
+  if (SPECIFIC_RULES.some((r) => r.match.test(key))) return true;
+  if (SUFFIX_RULES.some((r) => r.match.test(key))) return true;
+  return false;
+}
+
 export function resolveCatalogParameterMetadata(
   abilityId: string,
   trigger: AbilityDefinition['trigger'],
   baseParameters: Record<string, unknown>,
 ): CatalogParameterMetadata {
-  const knownParameters: Array<[string, CatalogParameterMetadata]> = [
-    ['plantGrowthReductionMinutes', {
-      category: 'plantGrowth',
-      effectUnit: 'minutes',
-      effectLabel: 'Growth time reduction',
-      effectSuffix: 'm',
-    }],
-    ['eggGrowthTimeReductionMinutes', {
-      category: 'eggGrowth',
-      effectUnit: 'minutes',
-      effectLabel: 'Hatch time reduction',
-      effectSuffix: 'm',
-    }],
-    ['bonusXp', {
-      category: 'xp',
-      effectUnit: 'xp',
-      effectLabel: 'Bonus XP',
-      effectSuffix: '',
-    }],
-    ['baseMaxCoinsFindable', {
-      category: 'coins',
-      effectUnit: 'coins',
-      effectLabel: 'Coin range',
-      effectSuffix: '',
-    }],
-    ['scaleIncreasePercentage', {
-      category: 'misc',
-      effectUnit: 'coins',
-      effectLabel: 'Scale increase',
-      effectSuffix: '%',
-    }],
-    ['mutationChanceIncreasePercentage', {
-      ...(trigger === 'continuous' ? { effectUnit: 'coins' as const } : {}),
-      category: 'misc',
-      effectLabel: 'Chance increase',
-      effectSuffix: '%',
-    }],
-    ['hungerRestorePercentage', {
-      category: 'misc',
-      effectLabel: 'Hunger restore',
-      effectSuffix: '%',
-    }],
-    ['hungerRefundPercentage', {
-      category: 'misc',
-      effectLabel: 'Hunger refund',
-      effectSuffix: '%',
-    }],
-    ['cropSellPriceIncreasePercentage', {
-      ...(trigger === 'continuous' ? { effectUnit: 'coins' as const } : {}),
-      category: trigger === 'continuous' ? 'coins' : 'misc',
-      effectLabel: 'Sell price bonus',
-      effectSuffix: '%',
-    }],
-    ['maxStrengthIncreasePercentage', {
-      category: 'misc',
-      effectLabel: 'Max Strength increase',
-      effectSuffix: '%',
-    }],
-    ['petDustIncreasePercentage', {
-      category: 'misc',
-      effectLabel: 'Pet dust bonus',
-      effectSuffix: '%',
-    }],
-    ['plantAbilityChanceBoostPercentage', {
-      category: 'misc',
-      effectLabel: 'Plant ability chance',
-      effectSuffix: '%',
-    }],
-  ];
-
-  for (const [key, metadata] of knownParameters) {
-    const value = toFiniteNumber(baseParameters[key]);
+  for (const [key, rawValue] of Object.entries(baseParameters)) {
+    if (STRUCTURAL_PARAMETER_KEYS.has(key)) continue;
+    const value = toFiniteNumber(rawValue);
     if (value == null) continue;
+
+    let category: AbilityCategory | undefined;
+    let effectUnit: CatalogParameterMetadata['effectUnit'];
+    let effectSuffix: string | undefined;
+    let effectLabel: string | undefined;
+
+    for (const rule of SPECIFIC_RULES) {
+      if (!rule.match.test(key)) continue;
+      category = rule.category ?? category;
+      effectUnit = rule.effectUnit ?? effectUnit;
+      effectSuffix = rule.effectSuffix ?? effectSuffix;
+      effectLabel = rule.effectLabel ?? effectLabel;
+      if (rule.coinUnitWhenContinuous && trigger === 'continuous' && !effectUnit) effectUnit = 'coins';
+      if (rule.coinsCategoryWhenContinuous && trigger === 'continuous' && !category) category = 'coins';
+      break;
+    }
+
+    if (!effectSuffix || !effectUnit) {
+      for (const rule of SUFFIX_RULES) {
+        if (!rule.match.test(key)) continue;
+        if (!effectUnit && rule.effectUnit) effectUnit = rule.effectUnit;
+        if (effectSuffix == null && rule.effectSuffix != null) effectSuffix = rule.effectSuffix;
+      }
+    }
+
+    if (!category) category = trigger === 'hatchEgg' ? 'eggGrowth' : 'misc';
+    if (!effectLabel) effectLabel = deriveLabelFromKey(key);
+
     return {
-      ...metadata,
+      category,
       effectBaseValue: value,
+      ...(effectUnit ? { effectUnit } : {}),
+      ...(effectSuffix != null ? { effectSuffix } : {}),
+      ...(effectLabel ? { effectLabel } : {}),
     };
   }
 
   if (abilityId.endsWith('Granter')) {
-    return {
-      category: 'misc',
-      effectUnit: 'coins',
-    };
+    return { category: 'misc', effectUnit: 'coins' };
   }
 
-  return {
-    category: trigger === 'hatchEgg' ? 'eggGrowth' : 'misc',
-  };
+  return { category: trigger === 'hatchEgg' ? 'eggGrowth' : 'misc' };
 }
-
-// Drift diagnostics compare live catalog keys against this;
-// known-but-unlabeled keys are listed so drift only flags genuinely new keys.
-export const KNOWN_PARAMETER_KEYS: ReadonlySet<string> = new Set([
-  'plantGrowthReductionMinutes',
-  'eggGrowthTimeReductionMinutes',
-  'bonusXp',
-  'baseMaxCoinsFindable',
-  'scaleIncreasePercentage',
-  'mutationChanceIncreasePercentage',
-  'hungerRestorePercentage',
-  'hungerRefundPercentage',
-  'cropSellPriceIncreasePercentage',
-  'maxStrengthIncreasePercentage',
-  'petDustIncreasePercentage',
-  'plantAbilityChanceBoostPercentage',
-  'grantedMutations',
-  'requiredWeather',
-  'cooldownSeconds',
-  'activationSprite',
-  'targetMutations',
-  'tileRadius',
-]);
 
 function buildCatalogLookupCache(): CatalogLookupCache | null {
   if (!areCatalogsReady()) return null;

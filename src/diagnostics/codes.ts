@@ -279,6 +279,17 @@ register({
 });
 
 register({
+  code: 'QPM-STORE-005',
+  subsystem: 'store',
+  category: 'store',
+  severity: 'warn',
+  title: 'Store internal invariant violated',
+  description: 'A derived store found its own state inconsistent (e.g. Bad Luck Protection outcome counters on one egg disagree on how many pulls they saw). The store rebuilt the affected item from its pull log.',
+  devNotes: 'src/store/pityTracker/invariants.ts — context.kind/itemId name the item, context.pulls maps outcome → totalPulls. afterRebuild:true means the rebuild did not resolve it (log window too short or a counting bug that also affects replay).',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
   code: 'QPM-UI-001',
   subsystem: 'ui.window',
   category: 'ui',

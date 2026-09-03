@@ -1,17 +1,36 @@
-// Cosmetic ownership (single fetch from /me/cosmetics API)
+// Cosmetic ownership (single fetch from /me/cosmetics API) + shared room-URL
+// helper. Auth mirrors the game's own transport (JWT on Discord, cookies on
+// web) via services/authFetch. Verified beta: src/utils/index.ts:29-55.
 
 import { pageWindow } from '../../core/pageContext';
+import { getDiscordSdk } from '../../core/discordSdk';
+import { buildAuthHeaders, buildTimeoutSignal } from '../../services/authFetch';
 import { catalogLog, cosmeticOwnership, publishCatalogs } from './state';
 
 let cosmeticOwnershipFetchInFlight: Promise<void> | null = null;
+let cachedDiscordInstanceId: string | null | undefined = undefined;
 
-export function getRoomApiBase(): string | null {
+async function resolveDiscordInstanceId(): Promise<string | null> {
+  if (cachedDiscordInstanceId !== undefined) return cachedDiscordInstanceId;
   try {
+    const sdk = await getDiscordSdk();
+    cachedDiscordInstanceId = sdk?.instanceId ?? null;
+  } catch {
+    cachedDiscordInstanceId = null;
+  }
+  return cachedDiscordInstanceId;
+}
+
+// SDK-first on Discord (matches game's getCurrentRoomId in src/utils/index.ts:29),
+// URL fallback on web (/r/{roomCode}). Async because the SDK atom lookup is async.
+export async function getRoomApiBase(): Promise<string | null> {
+  try {
+    const instanceId = await resolveDiscordInstanceId();
+    if (instanceId) return `/api/rooms/${instanceId}`;
     const pathname = pageWindow.location?.pathname ?? '';
     const segments = pathname.split('/').filter(Boolean);
     const roomCode = segments[segments.length - 1];
-    if (!roomCode) return null;
-    return `/api/rooms/${roomCode}`;
+    return roomCode ? `/api/rooms/${roomCode}` : null;
   } catch {
     return null;
   }
@@ -22,16 +41,23 @@ export async function fetchCosmeticOwnership(): Promise<void> {
   if (cosmeticOwnershipFetchInFlight) return cosmeticOwnershipFetchInFlight;
 
   cosmeticOwnershipFetchInFlight = (async () => {
-    const base = getRoomApiBase();
+    const base = await getRoomApiBase();
     if (!base) return;
 
-    const fetchFn = typeof pageWindow.fetch === 'function'
-      ? pageWindow.fetch.bind(pageWindow)
-      : fetch;
+    if (typeof pageWindow.fetch !== 'function') return;
+    const fetchFn = pageWindow.fetch.bind(pageWindow);
+    const signal = buildTimeoutSignal(15_000);
 
     try {
-      const res = await fetchFn(`${base}/me/cosmetics`, { credentials: 'include' });
-      if (!res.ok) return;
+      const res = await fetchFn(`${base}/me/cosmetics`, {
+        credentials: 'include',
+        headers: buildAuthHeaders(),
+        ...(signal ? { signal } : {}),
+      });
+      if (!res.ok) {
+        console.warn(`[QPM] cosmeticOwnership /me/cosmetics → HTTP ${res.status}`);
+        return;
+      }
 
       const data: unknown = await res.json();
       if (!Array.isArray(data)) return;
@@ -46,7 +72,8 @@ export async function fetchCosmeticOwnership(): Promise<void> {
       cosmeticOwnership.set = filenames;
       catalogLog(`Fetched cosmetic ownership: ${filenames.size} items acquired.`);
       publishCatalogs();
-    } catch {
+    } catch (err) {
+      console.warn('[QPM] cosmeticOwnership /me/cosmetics failed:', err);
       catalogLog('Failed to fetch cosmetic ownership.');
     }
   })().finally(() => {

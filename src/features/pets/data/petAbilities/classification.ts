@@ -2,7 +2,7 @@ import { getAbilityDef, getAllAbilities } from '../../../../catalogs/gameCatalog
 import { getAbilityDefinition } from './catalogAdapter';
 import { getAbilityFamilyKey } from '../../compare/families';
 
-const HIGH_VALUE_OVERRIDES = new Set(['RainDance', 'PetXpBoost', 'ProduceScaleBoost', 'PetHatchSizeBoost']);
+const HIGH_VALUE_OVERRIDES = new Set(['RainDance', 'PetXpBoost', 'ProduceScaleBoost', 'PetHatchSizeBoost', 'DoubleHatch', 'ProduceRefund', 'DawnbinderBoost']);
 const LOW_VALUE_OVERRIDES = new Set(['ProduceEater']);
 
 export function getAbilityTier(abilityId: string): 1 | 2 | 3 | 4 | null {

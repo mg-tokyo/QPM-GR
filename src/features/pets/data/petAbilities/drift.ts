@@ -1,6 +1,6 @@
 import { getAbilityDef, getAllAbilities } from '../../../../catalogs/gameCatalogs';
 import { ABILITY_DEFINITIONS } from './definitions';
-import { KNOWN_PARAMETER_KEYS } from './catalogAdapter';
+import { canResolveParameterKey } from './catalogAdapter';
 import { isHighValueAbility, isLowValueAbility } from './classification';
 
 const KNOWN_TRIGGERS = new Set(['continuous', 'hatchEgg', 'sellAllCrops', 'sellPet', 'harvest', 'playerActivated']);
@@ -24,7 +24,7 @@ export function getAbilityCatalogDrift(): AbilityCatalogDrift {
     if (!entry) continue;
     if (typeof entry.trigger === 'string' && !KNOWN_TRIGGERS.has(entry.trigger)) unknownTriggers.add(entry.trigger);
     for (const key of Object.keys(entry.baseParameters ?? {})) {
-      if (!KNOWN_PARAMETER_KEYS.has(key)) unknownParamKeys.add(key);
+      if (!canResolveParameterKey(key)) unknownParamKeys.add(key);
     }
   }
   return {

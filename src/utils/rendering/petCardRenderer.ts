@@ -87,145 +87,50 @@ function resolveAbilityId(input: string): string | null {
   return abilityLookupIndex.get(normalized) ?? null;
 }
 
+// Game's own default when its ability-color switch hits `default` (see beta
+// src/games/Quinoa/constants/colors.ts). Used only until enrichment populates
+// entry.color, or for abilities the game itself has no color for.
+const DEFAULT_ABILITY_UI_COLOR = { base: '#969696', glow: 'rgba(150,150,150,0.6)', text: '#FFF' } as const;
+
+function readColorValue(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `#${Math.max(0, Math.min(0xFFFFFF, value)).toString(16).padStart(6, '0')}`;
+  }
+  return null;
+}
+
+function hexToRgba(hex: string, alpha: number): string | null {
+  if (!hex.startsWith('#')) return null;
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length !== 6 && h.length !== 8) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return null;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function getAbilityColor(abilityName: string): { base: string; glow: string; text: string } {
   const resolvedAbilityId = resolveAbilityId(abilityName) ?? abilityName;
-  const name = normalizeAbilityLookup(resolvedAbilityId || abilityName);
-  const catalogEntry = getAbilityDef(resolvedAbilityId);
+  const entry = getAbilityDef(resolvedAbilityId) as Record<string, unknown> | null;
+  if (!entry) return DEFAULT_ABILITY_UI_COLOR;
 
-  // Prefer runtime-catalog color if present.
-  // Handles unknown/new abilities with authoritative in-game colors when exposed.
-  const readColorValue = (value: unknown): string | null => {
-    if (typeof value === 'string' && value.trim()) return value.trim();
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return `#${Math.max(0, Math.min(0xFFFFFF, value)).toString(16).padStart(6, '0')}`;
-    }
-    return null;
-  };
-  const readCatalogColor = (): { base: string; glow: string } | null => {
-    const entry = catalogEntry as Record<string, unknown> | null;
-    if (!entry) return null;
-
-    // Gemini-style enriched shape: entry.color = { bg, hover }
-    const colorObj = entry.color;
-    if (colorObj && typeof colorObj === 'object') {
-      const record = colorObj as Record<string, unknown>;
-      const bg = readColorValue(record.bg) ?? readColorValue(record.base);
+  const colorObj = entry.color;
+  if (colorObj && typeof colorObj === 'object') {
+    const record = colorObj as Record<string, unknown>;
+    const bg = readColorValue(record.bg) ?? readColorValue(record.base);
+    if (bg) {
       const hover = readColorValue(record.hover);
-      if (bg) return { base: bg, glow: hover ?? bg };
+      return { base: bg, glow: hover ?? hexToRgba(bg, 0.6) ?? bg, text: '#FFF' };
     }
-
-    const directKeys = ['uiColor', 'hexColor', 'tint', 'displayColor', 'color'];
-    for (const key of directKeys) {
-      const parsed = readColorValue(entry[key]);
-      if (parsed) return { base: parsed, glow: parsed };
-    }
-    const baseParams = entry.baseParameters as Record<string, unknown> | undefined;
-    if (baseParams && typeof baseParams === 'object') {
-      for (const key of directKeys) {
-        const parsed = readColorValue(baseParams[key]);
-        if (parsed) return { base: parsed, glow: parsed };
-      }
-    }
-    return null;
-  };
-  const runtimeColor = readCatalogColor();
-  if (runtimeColor) {
-    return { base: runtimeColor.base, glow: runtimeColor.glow, text: '#FFF' };
   }
-  
-  // Kissers
-  if (name.includes('moonkisser')) return { base: '#FAA623', glow: 'rgba(250,166,35,0.6)', text: '#FFF' };
-  if (name.includes('dawnkisser')) return { base: '#A25CF2', glow: 'rgba(162,92,242,0.6)', text: '#FFF' };
-
-  // Rainbow and Gold granters
-  if (name.includes('rainbowgranter') || name.includes('rainbow')) return { base: 'linear-gradient(45deg, #C80000, #C87800, #A0AA1E, #3CAA3C, #32AAAA, #2896B4, #145AB4, #461E96)', glow: 'rgba(124,77,255,0.7)', text: '#FFF' };
-  if (name.includes('goldgranter') || name.includes('golden') || name === 'gold') return { base: 'linear-gradient(135deg, #DCC846 0%, #D2AF05 40%, #D2B937 70%, #C8AF1E 100%)', glow: 'rgba(220,200,70,0.75)', text: '#000' };
-
-  // Produce/Crop Scale: #228B22
-  if (name.includes('producescaleboost') || name.includes('cropsize') || name.includes('snowycropsize')) return { base: '#228B22', glow: 'rgba(34,139,34,0.6)', text: '#FFF' };
-
-  // Plant Growth: #008080
-  if (name.includes('plantgrowth') || name.includes('producegrowth')) return { base: '#008080', glow: 'rgba(0,128,128,0.6)', text: '#FFF' };
-
-  // Egg Growth: #B45AF0
-  if (name.includes('egggrowth')) return { base: '#B45AF0', glow: 'rgba(180,90,240,0.6)', text: '#FFF' };
-
-  // Pet Age Boost: #9370DB
-  if (name.includes('petageboost') || name.includes('maxstrength') || name.includes('strengthboost')) return { base: '#9370DB', glow: 'rgba(147,112,219,0.6)', text: '#FFF' };
-
-  // Pet Hatch Size Boost: #800080
-  if (name.includes('pethatchsizeboost') || name.includes('hatchxp')) return { base: '#800080', glow: 'rgba(128,0,128,0.6)', text: '#FFF' };
-
-  // Pet XP Boost: #1E90FF
-  if (name.includes('xpboost')) return { base: '#1E90FF', glow: 'rgba(30,144,255,0.6)', text: '#FFF' };
-
-  // Hunger Restore: #FF69B4 (check before generic hunger)
-  if (name.includes('hungerrestore')) return { base: '#FF69B4', glow: 'rgba(255,105,180,0.6)', text: '#FFF' };
-
-  // Hunger Boost: #FF1493
-  if (name.includes('hunger')) return { base: '#FF1493', glow: 'rgba(255,20,147,0.6)', text: '#FFF' };
-
-  // Sell Boost: #DC143C
-  if (name.includes('sellboost')) return { base: '#DC143C', glow: 'rgba(220,20,60,0.6)', text: '#FFF' };
-
-  // Coin Finder: #B49600
-  if (name.includes('coinfinder')) return { base: '#B49600', glow: 'rgba(180,150,0,0.65)', text: '#FFF' };
-
-  // Produce Mutation Boost + Dawn/Amber weather boosts: #8C0F46
-  if (name.includes('producemutation') || name.includes('cropmutation') || name.includes('dawnboost') || name.includes('ambermoonboost')) return { base: '#8C0F46', glow: 'rgba(140,15,70,0.6)', text: '#FFF' };
-
-  // Double Harvest: #0078B4
-  if (name.includes('doubleharvest')) return { base: '#0078B4', glow: 'rgba(0,120,180,0.6)', text: '#FFF' };
-
-  // Double Hatch: #3C5AB4
-  if (name.includes('doublehatch')) return { base: '#3C5AB4', glow: 'rgba(60,90,180,0.6)', text: '#FFF' };
-
-  // Produce Eater: #FF4500
-  if (name.includes('produceeater') || name.includes('cropeater')) return { base: '#FF4500', glow: 'rgba(255,69,0,0.6)', text: '#FFF' };
-
-  // Produce Refund: #FF6347
-  if (name.includes('producerefund') || name.includes('croprefund')) return { base: '#FF6347', glow: 'rgba(255,99,71,0.6)', text: '#FFF' };
-
-  // Pet Mutation Boost: #A03264
-  if (name.includes('petmutation')) return { base: '#A03264', glow: 'rgba(160,50,100,0.6)', text: '#FFF' };
-
-  // Pet Refund: #005078
-  if (name.includes('petrefund')) return { base: '#005078', glow: 'rgba(0,80,120,0.6)', text: '#FFF' };
-
-  // Copycat: #FF8C00
-  if (name.includes('copycat')) return { base: '#FF8C00', glow: 'rgba(255,140,0,0.6)', text: '#FFF' };
-
-  // Seed Finder: #A86626
-  if (name.includes('seedfinder')) return { base: '#A86626', glow: 'rgba(168,102,38,0.6)', text: '#FFF' };
-
-  // Rain Dance: #4CCCCC
-  if (name.includes('raindance')) return { base: '#4CCCCC', glow: 'rgba(76,204,204,0.6)', text: '#FFF' };
-
-  // Snow Granter: #90B8CC
-  if (name.includes('snowgranter')) return { base: '#90B8CC', glow: 'rgba(144,184,204,0.6)', text: '#FFF' };
-
-  // Frost Granter: #94A0CC
-  if (name.includes('frostgranter')) return { base: '#94A0CC', glow: 'rgba(148,160,204,0.6)', text: '#FFF' };
-
-  // Dawnlit Granter: #C47CB4
-  if (name.includes('dawnlitgranter')) return { base: '#C47CB4', glow: 'rgba(196,124,180,0.6)', text: '#FFF' };
-
-  // Amberlit Granter: #CC9060
-  if (name.includes('amberlitgranter')) return { base: '#CC9060', glow: 'rgba(204,144,96,0.6)', text: '#FFF' };
-  
-  // Default: deterministic dynamic color so new/unknown abilities are not all gray.
-  const source = name || 'ability';
-  let hash = 0;
-  for (let i = 0; i < source.length; i += 1) {
-    hash = ((hash << 5) - hash) + source.charCodeAt(i);
-    hash |= 0;
+  for (const key of ['uiColor', 'hexColor', 'tint', 'displayColor', 'color'] as const) {
+    const parsed = readColorValue(entry[key]);
+    if (parsed) return { base: parsed, glow: hexToRgba(parsed, 0.6) ?? parsed, text: '#FFF' };
   }
-  const hue = Math.abs(hash) % 360;
-  const sat = 68 + (Math.abs(hash) % 18); // 68-85
-  const light = 56 + (Math.abs(hash) % 10); // 56-65
-  const base = `hsl(${hue} ${sat}% ${light}%)`;
-  const glow = `hsla(${hue} ${sat}% ${light}% / 0.62)`;
-  return { base, glow, text: '#FFF' };
+  return DEFAULT_ABILITY_UI_COLOR;
 }
 
 export function renderAbilitySquares(abilities: string[], size: number = 14): string {

@@ -13,6 +13,7 @@ import {
   type PityKind,
 } from '../../../catalogs/pityThresholds';
 import {
+  getPityAccountError,
   isPityKindEnabled,
   setPityKindEnabled,
   subscribePity,
@@ -165,7 +166,11 @@ export function renderPityTrackerContent(container: HTMLElement): () => void {
     body.replaceChildren();
     const state = currentState;
     if (!state) return;
-    if (accountChip) accountChip.textContent = accountChipText(state);
+    if (accountChip) {
+      accountChip.textContent = accountChipText(state);
+      const error = state.account?.createdAt == null ? getPityAccountError() : null;
+      accountChip.title = error ? t('feature.pity.accountError', { error }) : '';
+    }
     if (!areCatalogsReady()) {
       body.appendChild(createEmptyState(t('feature.pity.catalogsLoading')));
       return;
