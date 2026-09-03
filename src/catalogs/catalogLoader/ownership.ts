@@ -3,30 +3,52 @@
 // web) via services/authFetch. Verified beta: src/utils/index.ts:29-55.
 
 import { pageWindow } from '../../core/pageContext';
-import { getDiscordSdk } from '../../core/discordSdk';
-import { buildAuthHeaders, buildTimeoutSignal } from '../../services/authFetch';
+import { getRoomConnection } from '../../websocket/api';
+import { fetchAuthed } from '../../services/authFetch';
 import { catalogLog, cosmeticOwnership, publishCatalogs } from './state';
 
 let cosmeticOwnershipFetchInFlight: Promise<void> | null = null;
-let cachedDiscordInstanceId: string | null | undefined = undefined;
 
-async function resolveDiscordInstanceId(): Promise<string | null> {
-  if (cachedDiscordInstanceId !== undefined) return cachedDiscordInstanceId;
+function isDiscordSurface(): boolean {
   try {
-    const sdk = await getDiscordSdk();
-    cachedDiscordInstanceId = sdk?.instanceId ?? null;
+    return (pageWindow.location?.hostname ?? '').endsWith('discordsays.com');
   } catch {
-    cachedDiscordInstanceId = null;
+    return false;
   }
-  return cachedDiscordInstanceId;
 }
 
-// SDK-first on Discord (matches game's getCurrentRoomId in src/utils/index.ts:29),
-// URL fallback on web (/r/{roomCode}). Async because the SDK atom lookup is async.
+/**
+ * The WS connect URL is the game's own `origin + BASE_URL + /api/rooms/<roomId>`
+ * (beta src/utils/index.ts:54), already routed through the Discord activity
+ * proxy on that surface — the only base proven correct everywhere. The
+ * `/version/<v>` prefix it carries is required there; the SDK/pathname
+ * fallbacks below build a bare `/api/...` path (verified on web only).
+ */
+function roomApiBaseFromSocket(): string | null {
+  try {
+    const rc = getRoomConnection();
+    const ws = rc?.ws ?? rc?.socket ?? rc?.currentWebSocket ?? null;
+    const rawUrl = ws?.url;
+    if (typeof rawUrl !== 'string' || rawUrl.length === 0) return null;
+    const parsed = new URL(rawUrl);
+    const m = /^(.*\/api\/rooms\/[^/]+)\/connect$/.exec(parsed.pathname);
+    if (!m) return null;
+    const proto = parsed.protocol === 'ws:' ? 'http:' : 'https:';
+    return `${proto}//${parsed.host}${m[1]}`;
+  } catch {
+    return null;
+  }
+}
+
+// Socket URL first; on Discord it is the ONLY trusted base (a bare `/api/...`
+// path is unproven through the activity proxy, and a failed fetch costs the
+// caller a 5-min retry throttle — waiting seconds for the socket is cheaper).
+// Web falls back to the page URL (/r/{roomCode}); bare paths are verified there.
 export async function getRoomApiBase(): Promise<string | null> {
   try {
-    const instanceId = await resolveDiscordInstanceId();
-    if (instanceId) return `/api/rooms/${instanceId}`;
+    const fromSocket = roomApiBaseFromSocket();
+    if (fromSocket) return fromSocket;
+    if (isDiscordSurface()) return null;
     const pathname = pageWindow.location?.pathname ?? '';
     const segments = pathname.split('/').filter(Boolean);
     const roomCode = segments[segments.length - 1];
@@ -44,16 +66,9 @@ export async function fetchCosmeticOwnership(): Promise<void> {
     const base = await getRoomApiBase();
     if (!base) return;
 
-    if (typeof pageWindow.fetch !== 'function') return;
-    const fetchFn = pageWindow.fetch.bind(pageWindow);
-    const signal = buildTimeoutSignal(15_000);
-
     try {
-      const res = await fetchFn(`${base}/me/cosmetics`, {
-        credentials: 'include',
-        headers: buildAuthHeaders(),
-        ...(signal ? { signal } : {}),
-      });
+      const res = await fetchAuthed(`${base}/me/cosmetics`);
+      if (!res) return;
       if (!res.ok) {
         console.warn(`[QPM] cosmeticOwnership /me/cosmetics → HTTP ${res.status}`);
         return;

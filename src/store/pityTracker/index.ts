@@ -92,9 +92,12 @@ function applyEntry(entry: ActivityEntry, now: number): boolean {
       const m = typeof entry.action === 'string' ? /^open([A-Z]\w*)$/.exec(entry.action) : null;
       const toolId = m?.[1];
       const thresholds = toolId ? CAPSULE_PITY_THRESHOLDS[toolId] : undefined;
-      if (!toolId || !thresholds || !Array.isArray(params.speciesIds)) return false;
+      // Dawn logs `speciesIds` (flora), Amber logs `toolIds` (crystals) — same pull semantics.
+      const pulls = Array.isArray(params.speciesIds) ? params.speciesIds
+        : Array.isArray(params.toolIds) ? params.toolIds : null;
+      if (!toolId || !thresholds || !pulls) return false;
       if (!ctx.enabled.capsule) return false;
-      for (const pulled of params.speciesIds) {
+      for (const pulled of pulls) {
         recordRoll('capsule', toolId, 'species', typeof pulled === 'string' ? pulled : null, at);
         ctx.observedNow.capsule++;
       }

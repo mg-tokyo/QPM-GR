@@ -2,6 +2,20 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.35",
+    date: "2026-09-03",
+    notes: [
+      "Added Amber Capsule support to Bad Luck Protection: opens are now counted (the game logs Amber pulls differently from Dawn pulls), XP Shard and Strength Shard guarantee counters track with real drop chances, and the capsule pull stats tracker records Amber opens too",
+      "Fixed Bad Luck Protection permanently losing egg counters and observed hits (including rare species pulls) when its self-heal rebuild ran before the game catalogs finished loading, the rebuild now waits until the catalog can supply that item's outcomes",
+      "Fixed capsule hits observed before the item catalog loaded being dropped from the hit log",
+      "Fixed account age lookup failing on Discord: the room API address is now taken from the game's own live connection so it works identically on web and in the Discord app, a stale login token no longer blocks the lookup (it retries once with cookie auth), and an unknown account age is retried instead of being cached forever",
+      "Fixed the weather catalog and cosmetic catalog failing to load after a recent game update moved their data into late-loading files, retries now wait for new game files instead of burning out in the first ten seconds, and the Diagnostics catalog count updates when a catalog arrives late instead of showing a stale degraded status",
+      "Fixed clicking Keep in the Pet Optimizer appearing to do nothing, the pet was protected but the window kept showing the old list, it now re-analyses immediately so the pet visibly moves to Keep",
+      "Fixed new pets showing 'Unknown ability' warnings and being excluded from Pet Optimizer rankings when the game ships an ability tier the captured catalog does not know yet (such as Double Hatch II or Thunderstruck Granter), unknown tiers now fall back to their base ability and both new abilities rank as high value",
+      "Fixed the recurring diagnostics warning about inconsistent Bad Luck Protection counters re-firing every session for old historical imbalances a rebuild cannot change, it now warns once and stays quiet unless a genuinely new inconsistency appears",
+    ],
+  },
+  {
     version: "3.3.34",
     date: "2026-09-03",
     notes: [

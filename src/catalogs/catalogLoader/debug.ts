@@ -19,7 +19,7 @@ function dump(...args: unknown[]): void {
  */
 export async function forceWeatherCatalogRefresh(): Promise<{ success: boolean; count: number }> {
   pollAttempts.weatherCatalog = 0;
-  let success = await enrichWeatherCatalog();
+  let success = (await enrichWeatherCatalog()).enriched;
 
   if (!success && !capturedCatalogs.weatherCatalog) {
     // Force one direct scan pass over page globals to capture weather objects
@@ -32,7 +32,7 @@ export async function forceWeatherCatalogRefresh(): Promise<{ success: boolean; 
     } catch {
       // Ignore scan errors.
     }
-    success = !!capturedCatalogs.weatherCatalog || await enrichWeatherCatalog();
+    success = !!capturedCatalogs.weatherCatalog || (await enrichWeatherCatalog()).enriched;
   }
 
   if (!success) {

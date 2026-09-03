@@ -20,6 +20,7 @@ import {
   stopWeatherCatalogPolling,
 } from './enrichment';
 import { checkAndNotifyReady, notifyPetAbilitiesCaptured } from './readyState';
+import { publishCatalogsHealth } from './diagnostics';
 import { capturedCatalogs, catalogLog, NativeObject, originalKeys, publishCatalogs } from './state';
 
 // Track objects we've already scanned to avoid infinite loops
@@ -117,6 +118,8 @@ function deepScan(obj: unknown, depth: number): void {
 
     if (didCapture) {
       publishCatalogs();
+      // A capture after the ready flip must refresh the health line too.
+      publishCatalogsHealth();
     }
 
     // Check if essential catalogs are ready and notify waiters

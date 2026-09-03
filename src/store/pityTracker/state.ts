@@ -104,6 +104,10 @@ export interface PityTrackerState {
   /** Last seen lifetime totals from `myData.stats`, the source for gap detection. */
   lifetime: PityLifetime;
   checkpoint: PityCheckpoint;
+  /** `${kind}:${itemId}` → relative-imbalance signature a rebuild could not clear
+   * (historical, baked into the checkpoint). Suppresses repeat QPM-STORE-005 warns
+   * until the deltas change (a genuinely new divergence). */
+  acceptedImbalances: Record<string, string>;
   seenKeys: string[];
   observedSince: number;
   meta: { version: number; updatedAt: number };
@@ -126,6 +130,7 @@ export function defaultState(): PityTrackerState {
     gaps: { egg: 0, seed: 0, capsule: 0 },
     lifetime: { eggs: null, crops: null, capsules: {} },
     checkpoint: { counters: {}, since: now },
+    acceptedImbalances: {},
     seenKeys: [],
     observedSince: now,
     meta: { version: CURRENT_VERSION, updatedAt: now },
@@ -202,6 +207,7 @@ export function load(): void {
         slotOrigins: saved.slotOrigins ?? {},
         gaps: { ...defaultState().gaps, ...(saved.gaps ?? {}) },
         lifetime: { ...defaultState().lifetime, ...(saved.lifetime ?? {}) },
+        acceptedImbalances: saved.acceptedImbalances ?? {},
         seenKeys: Array.isArray(saved.seenKeys) ? saved.seenKeys : [],
         checkpoint: saved.checkpoint && saved.checkpoint.counters
           ? { counters: migrateCounters(saved.checkpoint.counters), since: saved.checkpoint.since ?? Date.now() }

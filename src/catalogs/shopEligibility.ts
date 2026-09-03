@@ -130,9 +130,11 @@ export function findCatalogIdCaseInsensitive(kind: ShopCatalogKind, id: string):
   return index.get(id.toLowerCase()) ?? null;
 }
 
-/** Capsule drop weights (`floraSpawnWeights`), same shape handling as `getEggSpawnWeights`. */
+/** Capsule drop weights (`floraSpawnWeights`; AmberCapsule uses `crystalSpawnWeights`),
+ * same shape handling as `getEggSpawnWeights`. */
 export function getToolSpawnWeights(toolId: string): Record<string, number> {
-  const raw = getItem(toolId)?.floraSpawnWeights;
+  const item = getItem(toolId);
+  const raw = item?.floraSpawnWeights ?? item?.crystalSpawnWeights;
   if (!raw) return {};
   if (Array.isArray(raw)) {
     const weights: Record<string, number> = {};

@@ -5,6 +5,7 @@ import { DEFAULT_ABILITY_COLOR, getAbilityColorMap, type RuntimeAbilityColor } f
 import { getMutationColorMap } from '../logic/mutationColors';
 import { getWeatherCatalogMap } from '../logic/weatherCatalog';
 import { getCosmeticCatalogFromBundle } from '../logic/cosmeticCatalog';
+import { markBundleConsumerDone } from '../logic/bundleParser';
 import { readSharedGlobal } from '../../core/pageContext';
 import type { GameCatalogs } from '../types';
 import {
@@ -18,7 +19,7 @@ import {
   MUTATION_COLOR_POLL_INTERVAL_MS,
   WEATHER_CATALOG_POLL_INTERVAL_MS,
 } from './constants';
-import { diagLog, diagState } from './diagnostics';
+import { diagLog, diagState, publishCatalogsHealth } from './diagnostics';
 import { capturedCatalogs, catalogLog, publishCatalogs } from './state';
 
 // Live holder — retry budgets reset from scan.ts (ability) and debug.ts (weather).
@@ -39,9 +40,9 @@ let abilityColorEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 let mutationColorPollTimer: ReturnType<typeof setInterval> | null = null;
 let mutationColorEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 let weatherCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
-let weatherCatalogEnrichInFlight: Promise<boolean> | null = null;
+let weatherCatalogEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 let cosmeticCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
-let cosmeticCatalogEnrichInFlight: Promise<boolean> | null = null;
+let cosmeticCatalogEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 
 const shouldLogAbilityColorDebug = (): boolean => {
   try {
@@ -207,18 +208,20 @@ export async function enrichMutationColors(): Promise<EnrichmentAttempt> {
   return mutationColorEnrichInFlight;
 }
 
-export async function enrichWeatherCatalog(): Promise<boolean> {
-  if (isWeatherCatalogEnriched(capturedCatalogs.weatherCatalog)) return true;
+export async function enrichWeatherCatalog(): Promise<EnrichmentAttempt> {
+  if (isWeatherCatalogEnriched(capturedCatalogs.weatherCatalog)) return { enriched: true, triedNewChunks: false };
   if (weatherCatalogEnrichInFlight) return weatherCatalogEnrichInFlight;
 
   weatherCatalogEnrichInFlight = (async () => {
-    const weatherCatalog = await getWeatherCatalogMap();
-    if (!weatherCatalog) return false;
+    const { map: weatherCatalog, triedNewChunks } = await getWeatherCatalogMap();
+    if (!weatherCatalog) return { enriched: false, triedNewChunks };
 
     capturedCatalogs.weatherCatalog = weatherCatalog as GameCatalogs['weatherCatalog'];
     catalogLog(`Enriched weather catalog from runtime bundle (${Object.keys(weatherCatalog).length} entries).`);
     publishCatalogs();
-    return true;
+    // Late capture: refresh the health line, or the panel keeps a stale "N/9 loaded".
+    publishCatalogsHealth();
+    return { enriched: true, triedNewChunks };
   })().finally(() => {
     weatherCatalogEnrichInFlight = null;
   });
@@ -226,18 +229,19 @@ export async function enrichWeatherCatalog(): Promise<boolean> {
   return weatherCatalogEnrichInFlight;
 }
 
-async function enrichCosmeticCatalog(): Promise<boolean> {
-  if (capturedCatalogs.cosmeticCatalog) return true;
+async function enrichCosmeticCatalog(): Promise<EnrichmentAttempt> {
+  if (capturedCatalogs.cosmeticCatalog) return { enriched: true, triedNewChunks: false };
   if (cosmeticCatalogEnrichInFlight) return cosmeticCatalogEnrichInFlight;
 
   cosmeticCatalogEnrichInFlight = (async () => {
-    const catalog = await getCosmeticCatalogFromBundle();
-    if (!catalog) return false;
+    const { catalog, triedNewChunks } = await getCosmeticCatalogFromBundle();
+    if (!catalog) return { enriched: false, triedNewChunks };
 
     capturedCatalogs.cosmeticCatalog = catalog as GameCatalogs['cosmeticCatalog'];
     catalogLog(`Enriched cosmetic catalog from bundle (${catalog.length} items).`);
     publishCatalogs();
-    return true;
+    publishCatalogsHealth();
+    return { enriched: true, triedNewChunks };
   })().finally(() => {
     cosmeticCatalogEnrichInFlight = null;
   });
@@ -350,12 +354,19 @@ export function startWeatherCatalogPolling(): void {
 
   weatherCatalogPollTimer = setInterval(() => {
     void (async () => {
-      const enriched = await enrichWeatherCatalog();
-      pollAttempts.weatherCatalog += 1;
+      // A full pass fetches every chunk and outlives the tick interval — piled-up
+      // ticks awaiting the same pass must not each consume budget.
+      if (weatherCatalogEnrichInFlight) return;
+
+      const { enriched, triedNewChunks } = await enrichWeatherCatalog();
       if (enriched) {
         stopWeatherCatalogPolling();
         return;
       }
+      // See ability color polling — the weather blueprint moved to a lazy chunk
+      // (iconTextureResolution-*.js as of Sep 2026), so only real new-chunk work counts.
+      if (!triedNewChunks) return;
+      pollAttempts.weatherCatalog += 1;
       if (pollAttempts.weatherCatalog >= MAX_WEATHER_CATALOG_POLL_ATTEMPTS) {
         if (diagState.started) {
           diagLog.warn('QPM-CATALOG-003', {
@@ -363,6 +374,9 @@ export function startWeatherCatalogPolling(): void {
             attempts: pollAttempts.weatherCatalog,
           });
         }
+        // Give up for the session: release the shared bundle-text cache hold too,
+        // or the multi-MB chunk texts would be retained until page unload.
+        markBundleConsumerDone('weather');
         stopWeatherCatalogPolling();
       }
     })();
@@ -377,12 +391,17 @@ export function startCosmeticCatalogPolling(): void {
 
   cosmeticCatalogPollTimer = setInterval(() => {
     void (async () => {
-      const enriched = await enrichCosmeticCatalog();
-      pollAttempts.cosmeticCatalog += 1;
+      if (cosmeticCatalogEnrichInFlight) return;
+
+      const { enriched, triedNewChunks } = await enrichCosmeticCatalog();
       if (enriched) {
         stopCosmeticCatalogPolling();
         return;
       }
+      // The cosmetic array ships in a lazy chunk (truncatePlayerName-*.js as of
+      // Sep 2026) — only count attempts that actually fetched a new chunk.
+      if (!triedNewChunks) return;
+      pollAttempts.cosmeticCatalog += 1;
       if (pollAttempts.cosmeticCatalog >= MAX_COSMETIC_CATALOG_POLL_ATTEMPTS) {
         if (diagState.started) {
           diagLog.warn('QPM-CATALOG-003', {

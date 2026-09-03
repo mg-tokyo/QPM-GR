@@ -19,9 +19,18 @@ export interface RuntimeCosmeticEntry {
 
 export type RuntimeCosmeticCatalog = RuntimeCosmeticEntry[];
 
+export interface CosmeticCatalogLoadResult {
+  catalog: RuntimeCosmeticCatalog | null;
+  /** Whether this call fetched at least one previously untried chunk — used to
+   * gate retry budgets so lazy chunks that haven't loaded yet don't burn attempts. */
+  triedNewChunks: boolean;
+}
+
 let cosmeticCatalogCache: RuntimeCosmeticCatalog | null = null;
-let cosmeticCatalogInFlight: Promise<RuntimeCosmeticCatalog | null> | null = null;
+let cosmeticCatalogInFlight: Promise<CosmeticCatalogLoadResult> | null = null;
 let cosmeticBundleCache: string | null = null;
+// Chunk URLs are content-hashed, so a fetched-and-rejected URL never needs a retry.
+const triedCosmeticUrls = new Set<string>();
 
 const COSMETIC_ANCHORS = [
   'Bottom_HazmatSuit.png',
@@ -70,17 +79,21 @@ function findCosmeticBundleUrls(): string[] {
   return urls;
 }
 
-async function fetchCosmeticBundle(): Promise<string | null> {
-  if (cosmeticBundleCache) return cosmeticBundleCache;
+async function fetchCosmeticBundle(): Promise<{ text: string | null; triedNewChunks: boolean }> {
+  if (cosmeticBundleCache) return { text: cosmeticBundleCache, triedNewChunks: false };
 
   const urls = findCosmeticBundleUrls();
-  if (!urls.length) return null;
+  let triedNewChunks = false;
+  if (!urls.length) return { text: null, triedNewChunks };
 
   const fetchFn = typeof pageWindow.fetch === 'function'
     ? pageWindow.fetch.bind(pageWindow)
     : fetch;
 
   for (const url of urls) {
+    if (triedCosmeticUrls.has(url)) continue;
+    triedCosmeticUrls.add(url);
+    triedNewChunks = true;
     try {
       const res = await fetchFn(url, { credentials: 'include' });
       if (!res.ok) continue;
@@ -88,12 +101,12 @@ async function fetchCosmeticBundle(): Promise<string | null> {
       if (text.includes('HazmatSuit')) {
         cosmeticBundleCache = text;
         log.debug('cosmeticCatalog: found cosmetic bundle', { url });
-        return text;
+        return { text, triedNewChunks };
       }
     } catch { /* skip */ }
   }
 
-  return null;
+  return { text: null, triedNewChunks };
 }
 
 // ---------------------------------------------------------------------------
@@ -189,9 +202,9 @@ function toStrictJson(
   return s;
 }
 
-async function loadFromBundle(): Promise<RuntimeCosmeticCatalog | null> {
-  const text = await fetchCosmeticBundle();
-  if (!text) return null;
+async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
+  const { text, triedNewChunks } = await fetchCosmeticBundle();
+  if (!text) return { catalog: null, triedNewChunks };
 
   for (const anchor of COSMETIC_ANCHORS) {
     const indices = findAllIndices(text, anchor);
@@ -211,7 +224,7 @@ async function loadFromBundle(): Promise<RuntimeCosmeticCatalog | null> {
         const entries = parsed.filter(isValidEntry);
         if (entries.length >= 10) {
           log.debug('cosmeticCatalog: extracted cosmetics from bundle', { count: entries.length });
-          return entries;
+          return { catalog: entries, triedNewChunks };
         }
       } catch (e) {
         log.debug('cosmeticCatalog: JSON parse failed', { cause: String(e) });
@@ -221,19 +234,19 @@ async function loadFromBundle(): Promise<RuntimeCosmeticCatalog | null> {
   }
 
   log.debug('cosmeticCatalog: failed to extract from bundle');
-  return null;
+  return { catalog: null, triedNewChunks };
 }
 
-export async function getCosmeticCatalogFromBundle(): Promise<RuntimeCosmeticCatalog | null> {
-  if (cosmeticCatalogCache) return cosmeticCatalogCache;
+export async function getCosmeticCatalogFromBundle(): Promise<CosmeticCatalogLoadResult> {
+  if (cosmeticCatalogCache) return { catalog: cosmeticCatalogCache, triedNewChunks: false };
   if (cosmeticCatalogInFlight) return cosmeticCatalogInFlight;
 
   cosmeticCatalogInFlight = (async () => {
-    const catalog = await loadFromBundle();
-    if (!catalog) return null;
-    cosmeticCatalogCache = catalog;
+    const result = await loadFromBundle();
+    if (!result.catalog) return result;
+    cosmeticCatalogCache = result.catalog;
     cosmeticBundleCache = null;
-    return catalog;
+    return result;
   })().finally(() => {
     cosmeticCatalogInFlight = null;
   });

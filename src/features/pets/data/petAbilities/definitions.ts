@@ -493,4 +493,24 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     baseProbability: 3.0,
     notes: 'Chance: 3.0% × STR to hatch an extra pet from the same egg.',
   },
+  {
+    // Verified 3651-amber+rainshop/.../faunaAbilitiesDex.ts:559
+    id: 'DoubleHatchII',
+    name: 'Double Hatch II',
+    category: 'misc',
+    trigger: 'hatchEgg',
+    baseProbability: 5.0,
+    notes: 'Chance: 5.0% × STR to hatch an extra pet from the same egg.',
+  },
+  {
+    // Verified 3651-amber+rainshop/.../faunaAbilitiesDex.ts:666
+    id: 'ThunderstruckGranter',
+    name: 'Thunderstruck Granter',
+    category: 'misc',
+    trigger: 'continuous',
+    baseProbability: 5,
+    rollPeriodMinutes: 1,
+    effectUnit: 'coins',
+    notes: 'Grants Thunderstruck mutation to a random crop.',
+  },
 ];

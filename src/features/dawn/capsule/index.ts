@@ -186,10 +186,13 @@ function processActivityLogs(rawValue: unknown): void {
     const params = logEntry.parameters as Record<string, unknown> | undefined;
     if (!params) continue;
 
-    const speciesIds = params.speciesIds;
-    if (!Array.isArray(speciesIds)) continue;
+    // Dawn logs `speciesIds` (flora); Amber logs `toolIds` (crystals). Same pull
+    // semantics — Amber tool ids are stored in the record's speciesIds field (v1 shape).
+    const rawPulls = Array.isArray(params.speciesIds) ? params.speciesIds
+      : Array.isArray(params.toolIds) ? params.toolIds : null;
+    if (!rawPulls) continue;
 
-    const validSpecies = speciesIds.filter(
+    const validSpecies = rawPulls.filter(
       (id): id is string => typeof id === 'string' && id.length > 0,
     );
     if (validSpecies.length === 0) continue;

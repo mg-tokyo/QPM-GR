@@ -14,7 +14,9 @@ export const ABILITY_COLOR_ANCHORS = ['ProduceScaleBoost', 'RainbowGranter', 'Go
 export const MUTATION_COLOR_POLL_INTERVAL_MS = 1000;
 export const MAX_MUTATION_COLOR_POLL_ATTEMPTS = 10;
 
-export const WEATHER_CATALOG_POLL_INTERVAL_MS = 500;
+// Attempts only count when a previously-untried chunk was fetched (the blueprint
+// ships in a lazy chunk), so the poll idles cheaply until new chunks appear.
+export const WEATHER_CATALOG_POLL_INTERVAL_MS = 1000;
 export const MAX_WEATHER_CATALOG_POLL_ATTEMPTS = 20;
 
 export const COSMETIC_CATALOG_POLL_INTERVAL_MS = 1000;

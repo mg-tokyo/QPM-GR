@@ -33,7 +33,9 @@ function renderCurrentAnalysis(): void {
   renderResults(
     globalState.currentAnalysis,
     () => void refreshAnalysis(true),
-    () => renderCurrentAnalysis(),
+    // Keep/Return must re-analyze: re-rendering the cached analysis would show the
+    // pet's pre-click status and make the button look dead.
+    () => void refreshAnalysis(true),
   );
   updateFamilyNav();
   globalState.root.scrollTop = savedScroll;
@@ -99,7 +101,7 @@ async function refreshAnalysis(forceRefresh = false): Promise<void> {
     renderResults(
       analysis,
       () => void refreshAnalysis(true),
-      () => renderCurrentAnalysis(),
+      () => void refreshAnalysis(true),
     );
     updateFamilyNav();
     // Restore scroll after content is rebuilt. Re-read state in case window

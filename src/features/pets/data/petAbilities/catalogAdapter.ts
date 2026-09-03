@@ -68,27 +68,36 @@ function resolveWeatherFromPrefix(prefix: string): AbilityDefinition['requiredWe
   return hit ? hit.weather : null;
 }
 
+// Tier suffix must be stripped from the RAW id (case-sensitive: 'II' in
+// 'DoubleHatchII'), before keys are lowercased for lookup.
+const TIER_SUFFIX_RE = /(IV|III|II|I)(_NEW)?$/;
+
 function buildLookupCandidates(raw: string): string[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
 
   const candidates = new Set<string>();
-  const normalized = normalizeKey(trimmed);
-  const compact = normalizeCompactKey(trimmed);
-
-  if (normalized.length > 0) {
-    candidates.add(normalized);
-  }
-  if (compact.length > 0) {
-    candidates.add(compact);
-  }
-
-  for (const { prefix } of WEATHER_PREFIX_ENTRIES) {
-    if (!compact.startsWith(prefix) || compact.length <= prefix.length + 2) {
-      continue;
+  const addForms = (value: string): void => {
+    const normalized = normalizeKey(value);
+    const compact = normalizeCompactKey(value);
+    if (normalized.length > 0) candidates.add(normalized);
+    if (compact.length > 0) candidates.add(compact);
+    for (const { prefix } of WEATHER_PREFIX_ENTRIES) {
+      if (!compact.startsWith(prefix) || compact.length <= prefix.length + 2) {
+        continue;
+      }
+      candidates.add(compact.slice(prefix.length));
+      break;
     }
-    candidates.add(compact.slice(prefix.length));
-    break;
+  };
+
+  addForms(trimmed);
+  // Tier walk (DoubleHatchII → DoubleHatch): a game update can ship pets carrying a
+  // new tier before the captured catalog knows it — degrade to the base definition
+  // instead of marking the whole pet unknown. Exact-id candidates stay first.
+  const tierMatch = trimmed.match(TIER_SUFFIX_RE);
+  if (tierMatch && tierMatch.index !== undefined && tierMatch.index > 0) {
+    addForms(trimmed.slice(0, tierMatch.index));
   }
 
   return [...candidates];

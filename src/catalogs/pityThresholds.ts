@@ -9,7 +9,6 @@ import {
   getEggSpawnWeights,
   getEggSpeciesPityThresholds,
   getEggType,
-  getItem,
   getMutation,
   getPlantSpecies,
 } from './gameCatalogs';
@@ -77,8 +76,11 @@ const RARE_VARIANT_TO_PATCH: Readonly<Record<string, string>> = Object.fromEntri
   Object.entries(RARE_PATCH_VARIANTS).map(([patch, variant]) => [variant, patch]),
 );
 
+// AmberCapsule pulls tools, not flora: log action `openAmberCapsule` carries `toolIds`.
+// Verified 3651-amber+rainshop/.../pityConfig.ts:12-15, V28_QuinoaUserJson.ts:979-986.
 export const CAPSULE_PITY_THRESHOLDS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   DawnCapsule: { Dawnbreaker: 400, Ube: 80 },
+  AmberCapsule: { XPShard: 80, StrengthShard: 400 },
 };
 
 export type PityKind = 'seed' | 'egg' | 'capsule';
@@ -180,7 +182,8 @@ export function getPityOutcomes(target: PityTarget): PityOutcome[] {
   switch (target.kind) {
     case 'seed': return getPlantSpecies(target.id) ? seedOutcomes(target.id) : [];
     case 'egg': return getEggType(target.id) ? eggOutcomes(target.id) : [];
-    case 'capsule': return getItem(target.id) ? capsuleOutcomes(target.id) : [];
+    // Thresholds are client literals — no catalog gate, or pre-catalog hits would be dropped.
+    case 'capsule': return capsuleOutcomes(target.id);
     default: return [];
   }
 }
