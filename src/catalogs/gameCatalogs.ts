@@ -51,6 +51,8 @@ export {
   waitForPetAbilities,
   ensurePetAbilitiesCatalog,
   mergePetAbilitiesIfIncomplete,
+  mergeCatalogIfIncomplete,
+  runDexCompletenessAudit,
   initCatalogLoader,
   cleanupCatalogLoader,
   forceWeatherCatalogRefresh,

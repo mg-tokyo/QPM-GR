@@ -192,11 +192,58 @@ function removeComments(source: string): string {
     .replace(/(^|[^\\])\/\/.*$/gm, '$1');
 }
 
+// String-aware scan, not a regex: an apostrophe INSIDE an already-converted
+// double-quoted string (`"Burro's Tail Cutting"`) must not open a single-quoted
+// string, or everything up to the next apostrophe gets mangled.
 function convertSingleQuotedStrings(source: string): string {
-  return source.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, (_m, inner: string) => {
-    const unescaped = inner.replace(/\\'/g, "'").replace(/\\"/g, '"');
-    return JSON.stringify(unescaped);
-  });
+  let out = '';
+  let i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '"') {
+      out += ch;
+      i += 1;
+      let escaped = false;
+      while (i < source.length) {
+        const c = source[i];
+        out += c;
+        i += 1;
+        if (escaped) { escaped = false; continue; }
+        if (c === '\\') { escaped = true; continue; }
+        if (c === '"') break;
+      }
+      continue;
+    }
+    if (ch === '\'') {
+      let j = i + 1;
+      let escaped = false;
+      let inner = '';
+      let closed = false;
+      while (j < source.length) {
+        const c = source[j]!;
+        j += 1;
+        if (escaped) {
+          inner += (c === '\'' || c === '"') ? c : `\\${c}`;
+          escaped = false;
+          continue;
+        }
+        if (c === '\\') { escaped = true; continue; }
+        if (c === '\'') { closed = true; break; }
+        inner += c;
+      }
+      if (closed) {
+        out += JSON.stringify(inner);
+        i = j;
+        continue;
+      }
+      out += ch;
+      i += 1;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 function quoteUnquotedKeys(source: string): string {
@@ -219,6 +266,115 @@ function quoteMemberExpressionValues(source: string): string {
   );
 }
 
+/**
+ * Dex-literal variant: enum refs quote to their LAST segment (`P.Common` ->
+ * "Common", `V.Single` -> "Single"), and array elements are covered too
+ * (`eligibleShops:[F.Seed]` -> ["Seed"]) — the abilities/weather pipeline
+ * never needed array positions, dex literals do.
+ */
+function quoteMemberExpressionsLastSegment(source: string): string {
+  const lastSegment = (path: string): string => {
+    const idx = path.lastIndexOf('.');
+    return idx === -1 ? path : path.slice(idx + 1);
+  };
+  return source
+    .replace(
+      /(:\s*)([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)(?=\s*[,}\]])/g,
+      (_m, prefix: string, path: string) => `${prefix}"${lastSegment(path)}"`,
+    )
+    .replace(
+      /([,[]\s*)([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)(?=\s*[,\]])/g,
+      (_m, prefix: string, path: string) => `${prefix}"${lastSegment(path)}"`,
+    );
+}
+
+/**
+ * Substitute bare identifier VALUES (hoisted consts like `var L=40` used as
+ * `speciesPityThresholdPulls:{Bee:L}`) via the caller's resolver; unresolved
+ * identifiers become null so one const can't sink the whole literal.
+ */
+function resolveBareIdentifierValues(source: string, resolve: (name: string) => string | null): string {
+  return source.replace(
+    /(:\s*)([A-Za-z_$][\w$]*)(?=\s*[,}\]])/g,
+    (match, prefix: string, name: string) => {
+      if (name === 'true' || name === 'false' || name === 'null') return match;
+      const resolved = resolve(name);
+      return `${prefix}${resolved ?? 'null'}`;
+    },
+  );
+}
+
+/** `.01` → `0.01` / `-.5` → `-0.5` — JSON requires a leading digit. */
+export function fixLeadingDotNumbers(literal: string): string {
+  return literal.replace(/([:,[]\s*-?)\.(\d)/g, '$10.$2');
+}
+
+/** JSON keys must be strings — dex literals carry numeric keys
+ * (`rotationVariants:{90:{...}}`). */
+function quoteNumericKeys(source: string): string {
+  return source.replace(/([,{]\s*)(\d+)(\s*:)/g, '$1"$2"$3');
+}
+
+/** End index (exclusive) of an expression starting at `from`: the first `,` or
+ * closing `}`/`]` at bracket depth 0, string-aware. -1 when unterminated. */
+function scanExpressionEnd(source: string, from: number): number {
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  for (let i = from; i < source.length; i += 1) {
+    const ch = source[i];
+    if (quote) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === '\'' || ch === '`') { quote = ch; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+    else if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) return i;
+      depth -= 1;
+    } else if (ch === ',' && depth === 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * Remove arrow-function properties (`getCanSpawnInGuild:e=>{...}` and the
+ * expression-body form `e=>e.endsWith("1")`) so one behavioral prop doesn't
+ * fail the whole data literal at the unsafe-token gate. Data is never
+ * executed; the prop is simply dropped.
+ */
+function stripArrowFunctionProps(source: string): string {
+  const re = /([,{]\s*)[A-Za-z_$][\w$]*\s*:\s*(?:\([^()]*\)|[A-Za-z_$][\w$]*)\s*=>\s*/;
+  let out = source;
+  for (let guard = 0; guard < 200; guard += 1) {
+    const m = re.exec(out);
+    if (!m || m.index === undefined) return out;
+    const bodyStart = m.index + m[0].length;
+    let bodyEnd: number;
+    if (out[bodyStart] === '{') {
+      const block = extractBalancedBlock(out, bodyStart);
+      if (!block) return out;
+      bodyEnd = bodyStart + block.length;
+    } else {
+      bodyEnd = scanExpressionEnd(out, bodyStart);
+      if (bodyEnd === -1) return out;
+    }
+    const lead = m[1] ?? '';
+    let removeStart = m.index;
+    let removeEnd = bodyEnd;
+    if (!lead.startsWith(',')) {
+      // `{key:fn=>...,` — keep the '{', drop a trailing comma instead.
+      removeStart += lead.length;
+      while (out[removeEnd] === ' ') removeEnd += 1;
+      if (out[removeEnd] === ',') removeEnd += 1;
+    }
+    out = out.slice(0, removeStart) + out.slice(removeEnd);
+  }
+  return out;
+}
+
 function normalizeJsLiterals(source: string): string {
   return source
     .replace(/\bundefined\b/g, 'null')
@@ -231,6 +387,25 @@ function normalizeJsLiterals(source: string): string {
     .replace(/,\s*([}\]])/g, '$1');
 }
 
+// Numeric arithmetic in value position (`DawnCapture:1/0` Infinity idiom,
+// `flipChance:1/3`, `secondsToMature:1440*60`) — computed; 1e999 overflows to
+// Infinity in JSON.parse. Looped so chains like `2*60*60` reduce fully.
+function foldNumericArithmetic(source: string): string {
+  const binaryRe = /([:,[]\s*)(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s*([*/])\s*(\d+(?:\.\d+)?(?:e[+-]?\d+)?)(?=\s*[,}\]*/])/g;
+  let out = source;
+  for (let guard = 0; guard < 5; guard += 1) {
+    const next = out.replace(binaryRe, (_m, prefix: string, a: string, op: string, b: string) => {
+      const q = op === '/' ? Number(a) / Number(b) : Number(a) * Number(b);
+      if (q === Infinity) return `${prefix}1e999`;
+      if (q === -Infinity) return `${prefix}-1e999`;
+      return Number.isFinite(q) ? `${prefix}${q}` : `${prefix}null`;
+    });
+    if (next === out) return out;
+    out = next;
+  }
+  return out;
+}
+
 function hasUnsafeToken(source: string): boolean {
   // Reject executable constructs to keep parser non-executing. Runs AFTER
   // convertBacktickStrings, so a surviving backtick means an unconverted
@@ -238,20 +413,37 @@ function hasUnsafeToken(source: string): boolean {
   return /(?:=>|\bfunction\b|\bnew\b|\bthis\b|\bwindow\b|\bdocument\b|\bglobalThis\b|;|`|\(|\))/i.test(source);
 }
 
-function toStrictJsonCandidate(literal: string): string | null {
+export interface JsonCandidateOptions {
+  /** 'path' (default, abilities/weather behavior) keeps the dotted path with the
+   * sprite/ui mapping; 'lastSegment' quotes enum refs to their final segment and
+   * also covers array element positions. */
+  memberExprMode?: 'path' | 'lastSegment';
+  /** Resolver for bare identifier values (hoisted consts). Return a JSON token
+   * or null; unresolved values become null. Absent = current strict behavior. */
+  resolveIdentifier?: (name: string) => string | null;
+  /** Quote numeric object keys (`{90:` → `{"90":`). */
+  quoteNumericKeys?: boolean;
+  /** Drop brace-bodied arrow-function properties before the unsafe-token gate. */
+  stripFunctionProps?: boolean;
+}
+
+export function toStrictJsonCandidate(literal: string, options?: JsonCandidateOptions): string | null {
   const withoutComments = removeComments(literal).trim();
   if (!withoutComments.startsWith('{') || !withoutComments.endsWith('}')) return null;
 
-  const noBackticks = convertBacktickStrings(withoutComments);
+  let noBackticks = convertBacktickStrings(withoutComments);
+  if (options?.stripFunctionProps) noBackticks = stripArrowFunctionProps(noBackticks);
   if (hasUnsafeToken(noBackticks)) return null;
 
-  return normalizeJsLiterals(
-    quoteMemberExpressionValues(
-      quoteUnquotedKeys(
-        convertSingleQuotedStrings(noBackticks),
-      ),
-    ),
-  );
+  let quoted = options?.memberExprMode === 'lastSegment'
+    ? quoteMemberExpressionsLastSegment(quoteUnquotedKeys(convertSingleQuotedStrings(noBackticks)))
+    : quoteMemberExpressionValues(quoteUnquotedKeys(convertSingleQuotedStrings(noBackticks)));
+  if (options?.quoteNumericKeys) quoted = quoteNumericKeys(quoted);
+  let normalized = normalizeJsLiterals(quoted);
+  if (options?.memberExprMode === 'lastSegment') normalized = foldNumericArithmetic(normalized);
+  return options?.resolveIdentifier
+    ? resolveBareIdentifierValues(normalized, options.resolveIdentifier)
+    : normalized;
 }
 
 function parseWeatherLiteral(literal: string): RuntimeWeatherCatalog | null {

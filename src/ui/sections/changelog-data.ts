@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.38",
+    date: "2026-09-04",
+    notes: [
+      "Fixed the Amber Egg never appearing in Bad Luck Protection totals for players running another mod (such as Arie's Mod): the game data capture could be handed an older egg list depending on load order, QPM now verifies every captured catalog against the game's own files and fills in whatever is missing, after which pending Amber Egg pulls count automatically",
+      "Fixed the Pet Optimizer showing STR 0 with no maximum for pets from newer updates (such as Rooster) when another mod is running, the pet species data is now completed the same way so strength and max strength calculate correctly",
+      "Fixed ability tags losing their colors in the Pet Optimizer after QPM repaired an incomplete ability catalog, repaired entries now get their proper colors instead of gray",
+      "Fixed the Journal Checker showing Amberlit as crossed out (and the species stuck at 12/13 with no completion background) when another mod is running: the capture could latch onto a lookalike mutation list under a different internal name, QPM now restores the real one so logged Amberlit harvests match again",
+      "Added a one-time self-check shortly after loading that compares all captured game catalogs (eggs, pets, mutations, plants, items, decor) against the game files and heals any that are incomplete, so this class of mod-conflict bug fixes itself silently in future",
+      "Added per-catalog capture source info to QPM_DEBUG_API.supportReport() and new QPM_DEBUG_API.catalogMerge() and catalogAudit() helpers for support sessions",
+    ],
+  },
+  {
     version: "3.3.37",
     date: "2026-09-03",
     notes: [

@@ -75,6 +75,13 @@ function arePetAbilityColorsEnriched(abilities: Record<string, unknown>): boolea
   return ABILITY_COLOR_ANCHORS.some(id => readAbilityColorBg(abilities[id]) !== null);
 }
 
+// Complete only when EVERY entry has a color: a successful pass assigns one to
+// every entry (fallback default included), so an entry without one means a
+// bundle-text merge added it after the last pass — anchors alone can't see that.
+function allPetAbilityColorsEnriched(abilities: Record<string, unknown>): boolean {
+  return Object.values(abilities).every(entry => readAbilityColorBg(entry) !== null);
+}
+
 // Tier / family fallback for abilities the game's color switch omits
 // (e.g. HungerBoostIII grouped with HungerBoost/II but no explicit III case).
 // Reasons: the game groups tiered / weather-variant abilities under a single color
@@ -124,7 +131,7 @@ function isWeatherCatalogEnriched(catalog: GameCatalogs['weatherCatalog']): bool
 export async function enrichPetAbilityColors(): Promise<EnrichmentAttempt> {
   if (!capturedCatalogs.petAbilities) return { enriched: false, triedNewChunks: false };
   const abilities = capturedCatalogs.petAbilities as Record<string, unknown>;
-  if (arePetAbilityColorsEnriched(abilities)) return { enriched: true, triedNewChunks: false };
+  if (allPetAbilityColorsEnriched(abilities)) return { enriched: true, triedNewChunks: false };
   if (abilityColorEnrichInFlight) return abilityColorEnrichInFlight;
 
   abilityColorEnrichInFlight = (async () => {
@@ -170,10 +177,15 @@ function areMutationColorsEnriched(catalog: Record<string, unknown>): boolean {
   );
 }
 
+// Identity of the last catalog object a color pass processed. Unknown mutations
+// deliberately stay colorless, so "every entry colored" can't be the done-check;
+// a completeness merge replaces the object, which re-arms the pass here.
+let mutationColorsEnrichedRef: unknown = null;
+
 export async function enrichMutationColors(): Promise<EnrichmentAttempt> {
   if (!capturedCatalogs.mutationCatalog) return { enriched: false, triedNewChunks: false };
   const catalog = capturedCatalogs.mutationCatalog as Record<string, Record<string, unknown>>;
-  if (areMutationColorsEnriched(catalog)) return { enriched: true, triedNewChunks: false };
+  if (mutationColorsEnrichedRef === catalog) return { enriched: true, triedNewChunks: false };
   if (mutationColorEnrichInFlight) return mutationColorEnrichInFlight;
 
   mutationColorEnrichInFlight = (async () => {
@@ -200,6 +212,7 @@ export async function enrichMutationColors(): Promise<EnrichmentAttempt> {
       publishCatalogs();
     }
 
+    mutationColorsEnrichedRef = capturedCatalogs.mutationCatalog;
     return { enriched: areMutationColorsEnriched(enriched), triedNewChunks };
   })().finally(() => {
     mutationColorEnrichInFlight = null;

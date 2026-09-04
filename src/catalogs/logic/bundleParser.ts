@@ -59,6 +59,12 @@ function markerHits(text: string, marker: BundleMarker): boolean {
 // signals its final cache is populated, the multi-MB bundle text is released.
 const pendingBundleConsumers = new Set<string>(['weather', 'ability-colors', 'mutation-colors']);
 
+/** Late consumers (dex completeness merges) must register BEFORE fetching, or a
+ * chunk they cache after the initial consumers finish is never released. */
+export function registerBundleConsumer(name: string): void {
+  pendingBundleConsumers.add(name);
+}
+
 export function markBundleConsumerDone(name: string): void {
   if (!pendingBundleConsumers.delete(name)) return;
   if (pendingBundleConsumers.size === 0) {

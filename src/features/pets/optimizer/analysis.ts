@@ -6,7 +6,7 @@ import {
   type CompareAbilityGroup,
 } from '../compare';
 import { ANALYSIS_CACHE_TTL_MS, PET_ABILITY_CATALOG_WAIT_MS } from './constants';
-import { arePetAbilitiesCaptured, mergePetAbilitiesIfIncomplete, waitForPetAbilities } from '../../../catalogs/gameCatalogs';
+import { arePetAbilitiesCaptured, mergeCatalogIfIncomplete, mergePetAbilitiesIfIncomplete, waitForPetAbilities } from '../../../catalogs/gameCatalogs';
 import { collectAllPets, dedupeCollectedPets } from './collection';
 import { analyzePet } from './decision';
 import { createCompareSnapshotMap } from './ranking/snapshot';
@@ -210,10 +210,15 @@ export async function getOptimizerAnalysis(
   }
 
   let pets = await collectAllPets();
-  // A partial hook capture leaves real pet abilities unresolvable; verify
+  // A partial hook capture leaves real pet abilities unresolvable (and a
+  // partial pet dex zeroes STR/maxStrength for new species); verify both
   // against bundle text and re-collect so the first analysis shown is correct.
-  const merged = await mergePetAbilitiesIfIncomplete(pets.flatMap((p) => p.abilities)).catch(() => false);
-  if (merged) pets = await collectAllPets();
+  const observedSpecies = [...new Set(pets.map((p) => p.species).filter((s): s is string => !!s))];
+  const [abilitiesMerged, speciesMerged] = await Promise.all([
+    mergePetAbilitiesIfIncomplete(pets.flatMap((p) => p.abilities)).catch(() => false),
+    mergeCatalogIfIncomplete('petCatalog', observedSpecies).catch(() => false),
+  ]);
+  if (abilitiesMerged || speciesMerged) pets = await collectAllPets();
   const analysis = await analyzePetsAsync(pets, onProgress, cfg);
   if (!analysis.abilityCatalogMissing) {
     setCachedOptimizerAnalysis(analysis, now);

@@ -1,7 +1,7 @@
 import { readAtomValue } from '../../core/atomRegistry';
 import { getPlayerId, getSlotOwnerId } from '../../core/playerContext';
 import { log } from '../../utils/logger';
-import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
+import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog, mergeCatalogIfIncomplete } from '../../catalogs/gameCatalogs';
 
 const JOURNAL_DEBUG_LOGS = false;
 const jdbg = (...args: unknown[]): void => {
@@ -30,11 +30,15 @@ const resolveProduceKey = (raw: string): string => {
 };
 
 let cachedVariantAliases: Record<string, string> | null = null;
+// Keyed on catalog object identity: a completeness merge replaces the catalog
+// object (e.g. restoring the real `Ambershine` key), and a forever-cache would
+// keep resolving journal-logged ids against the stale map.
+let aliasCatalogRef: unknown = null;
 
 function getVariantKeyAliases(): Record<string, string> {
-  if (cachedVariantAliases) return cachedVariantAliases;
-  const aliases: Record<string, string> = {};
   const mutCatalog = getMutationCatalog();
+  if (cachedVariantAliases && mutCatalog === aliasCatalogRef) return cachedVariantAliases;
+  const aliases: Record<string, string> = {};
   if (!mutCatalog) return aliases;
   for (const [key, entry] of Object.entries(mutCatalog)) {
     const name = entry.name || key;
@@ -43,6 +47,7 @@ function getVariantKeyAliases(): Record<string, string> {
     aliases[nKey] = nName;
     aliases[nName] = nName;
   }
+  aliasCatalogRef = mutCatalog;
   cachedVariantAliases = aliases;
   return aliases;
 }
@@ -279,6 +284,7 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
   });
 
   const produceCatalog = getProduceCatalog();
+  let unresolvedLoggedVariant = false;
   for (const [species, possibleVariants] of Object.entries(produceCatalog)) {
     const speciesLog = produceLogByKey.get(resolveProduceKey(species));
     const loggedVariants = new Map<string, number>();
@@ -293,6 +299,16 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
       continue;
     }
 
+    if (!unresolvedLoggedVariant && loggedVariants.size > 0) {
+      const displayedKeys = new Set(possibleVariants.map((variant) => resolveVariantKey(String(variant))));
+      for (const loggedKey of loggedVariants.keys()) {
+        if (!displayedKeys.has(loggedKey)) {
+          unresolvedLoggedVariant = true;
+          break;
+        }
+      }
+    }
+
     summary.produce.push({
       species,
       variants: possibleVariants.map((variant) => ({
@@ -301,6 +317,14 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
         collectedAt: loggedVariants.get(resolveVariantKey(String(variant))),
       })),
     });
+  }
+
+  // A journal-logged variant that resolves to nothing displayed means the
+  // captured mutation catalog is a partial/lookalike (game logs mutation IDs,
+  // e.g. `Ambershine`; the display list bridges id→name via the catalog).
+  // Heal from bundle text (capped); the next summary rebuild matches.
+  if (unresolvedLoggedVariant) {
+    void mergeCatalogIfIncomplete('mutationCatalog').catch(() => {});
   }
 
   // Process pets (variants only, no abilities)

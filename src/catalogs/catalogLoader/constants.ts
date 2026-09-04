@@ -21,3 +21,8 @@ export const MAX_WEATHER_CATALOG_POLL_ATTEMPTS = 20;
 
 export const COSMETIC_CATALOG_POLL_INTERVAL_MS = 1000;
 export const MAX_COSMETIC_CATALOG_POLL_ATTEMPTS = 10;
+
+/** One-shot dex completeness audit fires this long after catalogs-ready —
+ * late enough to miss the load-critical window, early enough to heal an
+ * enumeration-race capture before the user opens the affected UI. */
+export const DEX_AUDIT_DELAY_MS = 15_000;

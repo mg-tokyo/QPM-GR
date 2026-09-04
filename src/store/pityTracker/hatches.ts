@@ -1,5 +1,5 @@
 import { PITY_LAUNCH_TS } from '../../catalogs/pityThresholds';
-import { getEggCatalog, getEggType } from '../../catalogs/gameCatalogs';
+import { getEggCatalog, getEggType, mergeCatalogIfIncomplete } from '../../catalogs/gameCatalogs';
 import { getPetActivityEvents } from '../petActivity';
 import { recordRoll } from './rolls';
 import { growthMutationOf } from './garden';
@@ -14,6 +14,10 @@ export function applyHatch(hatch: PendingHatch): void {
   if (!getEggType(hatch.eggId)) {
     if (ctx.state.pendingHatches.length >= MAX_PENDING_HATCHES) ctx.state.pendingHatches.shift();
     ctx.state.pendingHatches.push(hatch);
+    // Catalog captured but this egg is missing from it: an enumeration race
+    // handed the hook a partial egg dex — heal from bundle text (capped),
+    // then the drain below picks the hatch up on the next update.
+    if (getEggCatalog()) void mergeCatalogIfIncomplete('eggCatalog', [hatch.eggId]).catch(() => {});
     return;
   }
   recordRoll('egg', hatch.eggId, 'species', hatch.species, hatch.at);
@@ -23,7 +27,13 @@ export function applyHatch(hatch: PendingHatch): void {
 export function drainPendingHatches(): boolean {
   if (ctx.state.pendingHatches.length === 0) return false;
   const ready = ctx.state.pendingHatches.filter((h) => getEggType(h.eggId));
-  if (ready.length === 0) return false;
+  if (ready.length === 0) {
+    if (getEggCatalog()) {
+      const parkedEggIds = [...new Set(ctx.state.pendingHatches.map((h) => h.eggId))];
+      void mergeCatalogIfIncomplete('eggCatalog', parkedEggIds).catch(() => {});
+    }
+    return false;
+  }
   ctx.state.pendingHatches = ctx.state.pendingHatches.filter((h) => !getEggType(h.eggId));
   for (const hatch of ready.sort((a, b) => a.at - b.at)) applyHatch(hatch);
   return true;

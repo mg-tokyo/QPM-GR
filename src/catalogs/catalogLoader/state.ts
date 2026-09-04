@@ -49,10 +49,22 @@ export const originalEntries = NativeObject.entries;
 // Cosmetic ownership (live holder — populated by ownership.ts, read by publishCatalogs)
 export const cosmeticOwnership: { set: Set<string> | null } = { set: null };
 
-/** Which path produced the petAbilities capture — the live in-memory dex via the
- * Object.* hook, the regex bundle-text fallback, or a hook capture that was
- * verified incomplete and topped up from bundle text. Recorded for supportReport. */
-export const captureSources: { petAbilities: 'hook' | 'bundle-text' | 'hook+bundle-text' | null } = { petAbilities: null };
+/** Which path produced each capture — the live in-memory dex via the Object.*
+ * hook, the regex bundle-text fallback, or a hook capture that was verified
+ * incomplete and topped up / replaced from bundle text. Recorded for supportReport. */
+export type CatalogCaptureSource = 'hook' | 'bundle-text' | 'hook+bundle-text';
+export const captureSources: Record<
+  'petAbilities' | 'eggCatalog' | 'petCatalog' | 'mutationCatalog' | 'plantCatalog' | 'itemCatalog' | 'decorCatalog',
+  CatalogCaptureSource | null
+> = {
+  petAbilities: null,
+  eggCatalog: null,
+  petCatalog: null,
+  mutationCatalog: null,
+  plantCatalog: null,
+  itemCatalog: null,
+  decorCatalog: null,
+};
 
 export function publishCatalogs(): void {
   try {

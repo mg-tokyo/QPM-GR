@@ -225,6 +225,9 @@ export const coreDebugApi = {
         })(),
         petAbilitiesSource: captureSources.petAbilities,
         petAbilitiesCount: getAllAbilities().length,
+        // Per-catalog capture path: 'hook' alone means the enumeration-race
+        // capture was never verified/topped-up from bundle text.
+        catalogSources: { ...captureSources },
         // Other mods wrapping Object.* shift enumeration order — the trigger
         // for partial dex captures. Says who owns Object.keys right now.
         objectHooks: getHookEnvironment(),
@@ -242,6 +245,19 @@ export const coreDebugApi = {
     const text = `${renderCopyPayload()}\n\`\`\`\n${JSON.stringify(extras, null, 1)}\n\`\`\``;
     console.log('=== QPM SUPPORT REPORT (copy everything below) ===\n' + text);
     return text;
+  },
+
+  /** Manually verify one dex catalog against bundle text and heal it —
+   * support-session counterpart of the automatic symptom triggers/audit. */
+  catalogMerge: async (name: 'eggCatalog' | 'petCatalog' | 'mutationCatalog' | 'plantCatalog' | 'itemCatalog' | 'decorCatalog') => {
+    const { mergeCatalogIfIncomplete } = await import('../../catalogs/gameCatalogs');
+    return mergeCatalogIfIncomplete(name);
+  },
+  /** Run the completeness audit across every dex catalog now (bypasses the
+   * once-per-session guard; per-catalog attempt caps still apply). */
+  catalogAudit: async () => {
+    const { runDexCompletenessAudit } = await import('../../catalogs/gameCatalogs');
+    return runDexCompletenessAudit(true);
   },
 
   // Pet Teams debug helpers

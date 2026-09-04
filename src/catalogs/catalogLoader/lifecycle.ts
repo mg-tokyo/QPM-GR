@@ -1,6 +1,7 @@
 // Loader lifecycle — init/cleanup orchestration.
 
-import { HOOKS_HARD_DEADLINE_MS, HOOKS_RECHECK_INTERVAL_MS } from './constants';
+import { DEX_AUDIT_DELAY_MS, HOOKS_HARD_DEADLINE_MS, HOOKS_RECHECK_INTERVAL_MS } from './constants';
+import { onCatalogsReady } from './readyState';
 import {
   startAbilityColorPolling,
   startCosmeticCatalogPolling,
@@ -18,6 +19,8 @@ import { areHookCapturableCatalogsAllCaptured } from './scan';
 import { catalogLog, errorCallbacks, petAbilitiesCallbacks, readyCallbacks } from './state';
 
 let hooksInstalledEarly = false;
+let dexAuditTimer: ReturnType<typeof setTimeout> | null = null;
+let dexAuditUnsub: (() => void) | null = null;
 
 /**
  * Storage-free slice of catalog-loader init: Object.* hook install + the
@@ -58,12 +61,34 @@ export function initCatalogLoader(): void {
   startWeatherCatalogPolling();
   startCosmeticCatalogPolling();
   void fetchCosmeticOwnership();
+
+  // One-shot completeness audit: another mod's enumeration order can hand the
+  // hook a partial/lookalike dex; verify every dex catalog against bundle text
+  // once, off the load-critical path. Lazy import keeps the parse pipeline out
+  // of the startup graph.
+  if (!dexAuditUnsub && dexAuditTimer === null) {
+    dexAuditUnsub = onCatalogsReady(() => {
+      dexAuditUnsub = null;
+      dexAuditTimer = setTimeout(() => {
+        dexAuditTimer = null;
+        void import('./fallback').then((m) => m.runDexCompletenessAudit()).catch(() => {});
+      }, DEX_AUDIT_DELAY_MS);
+    });
+  }
 }
 
 /**
  * Force cleanup - call when script unloads
  */
 export function cleanupCatalogLoader(): void {
+  if (dexAuditTimer !== null) {
+    clearTimeout(dexAuditTimer);
+    dexAuditTimer = null;
+  }
+  if (dexAuditUnsub) {
+    dexAuditUnsub();
+    dexAuditUnsub = null;
+  }
   if (hooksLifecycle.recheckTimer !== null) {
     clearInterval(hooksLifecycle.recheckTimer);
     hooksLifecycle.recheckTimer = null;

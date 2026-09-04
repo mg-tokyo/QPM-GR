@@ -47,22 +47,39 @@ function deepScan(obj: unknown, depth: number): void {
   const record = obj as Record<string, unknown>;
   let didCapture = false;
 
+  // Capture-or-upgrade for dex-shaped catalogs: the game exposes partial
+  // dex-shaped objects during load (spread sources for the merged dex) and
+  // another mod's enumeration order can surface a partial one first. While
+  // hooks are installed, a strictly bigger match replaces the capture.
+  // mutationCatalog stays capture-once here — its known lookalike has an
+  // EQUAL key count (display-name keys), so only the bundle-text merge in
+  // fallback.ts can tell them apart.
+  const captureOrUpgrade = (
+    name: 'itemCatalog' | 'decorCatalog' | 'eggCatalog' | 'petCatalog' | 'plantCatalog',
+  ): boolean => {
+    const current = capturedCatalogs[name];
+    const currentCount = current ? originalKeys.call(NativeObject, current).length : 0;
+    if (current && keys.length <= currentCount) return false;
+    (capturedCatalogs as unknown as Record<string, unknown>)[name] = record;
+    captureSources[name] = 'hook';
+    catalogLog(current
+      ? `Upgraded ${name} capture (${currentCount} -> ${keys.length} entries)`
+      : `Captured ${name} with ${keys.length} entries`);
+    return true;
+  };
+
   try {
-    // Check each catalog type (only if not already captured)
-    if (!capturedCatalogs.itemCatalog && looksLikeItemCatalog(record, keys)) {
-      capturedCatalogs.itemCatalog = record as GameCatalogs['itemCatalog'];
-      catalogLog('Captured itemCatalog');
+    if (looksLikeItemCatalog(record, keys) && captureOrUpgrade('itemCatalog')) {
       didCapture = true;
     }
 
-    if (!capturedCatalogs.decorCatalog && looksLikeDecorCatalog(record, keys)) {
-      capturedCatalogs.decorCatalog = record as GameCatalogs['decorCatalog'];
-      catalogLog('Captured decorCatalog');
+    if (looksLikeDecorCatalog(record, keys) && captureOrUpgrade('decorCatalog')) {
       didCapture = true;
     }
 
     if (!capturedCatalogs.mutationCatalog && looksLikeMutationCatalog(record, keys)) {
       capturedCatalogs.mutationCatalog = record as GameCatalogs['mutationCatalog'];
+      captureSources.mutationCatalog = 'hook';
       catalogLog('Captured mutationCatalog');
       didCapture = true;
       // Reset retry budget when the catalog becomes available.
@@ -70,15 +87,11 @@ function deepScan(obj: unknown, depth: number): void {
       void enrichMutationColors();
     }
 
-    if (!capturedCatalogs.eggCatalog && looksLikeEggCatalog(record, keys)) {
-      capturedCatalogs.eggCatalog = record as GameCatalogs['eggCatalog'];
-      catalogLog('Captured eggCatalog');
+    if (looksLikeEggCatalog(record, keys) && captureOrUpgrade('eggCatalog')) {
       didCapture = true;
     }
 
-    if (!capturedCatalogs.petCatalog && looksLikePetCatalog(record, keys)) {
-      capturedCatalogs.petCatalog = record as GameCatalogs['petCatalog'];
-      catalogLog(`Captured petCatalog with ${keys.length} species:`, keys.slice(0, 10).join(', '), '...');
+    if (looksLikePetCatalog(record, keys) && captureOrUpgrade('petCatalog')) {
       didCapture = true;
     }
 
@@ -103,9 +116,7 @@ function deepScan(obj: unknown, depth: number): void {
       }
     }
 
-    if (!capturedCatalogs.plantCatalog && looksLikePlantCatalog(record, keys)) {
-      capturedCatalogs.plantCatalog = record as GameCatalogs['plantCatalog'];
-      catalogLog(`Captured plantCatalog with ${keys.length} species:`, keys.slice(0, 10).join(', '), '...');
+    if (looksLikePlantCatalog(record, keys) && captureOrUpgrade('plantCatalog')) {
       didCapture = true;
     }
 
