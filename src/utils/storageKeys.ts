@@ -169,6 +169,8 @@ export const QPM_STORAGE_KEYS = [
 
   // Garden QOL (insta-harvest, aries hold)
   'qpm.gardenQol.config.v1',
+  'qpm.gardenQol.instaHarvestActions.v1',
+  'qpm.gardenQol.observedHarvestActions.v1',
 
   // Crop Boost / Size Indicator / Tile Value / Tile ETA
   'cropBoostTracker:config',

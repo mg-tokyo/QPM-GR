@@ -6,6 +6,7 @@ import { pageWindow } from '../../core/pageContext';
 import { readAtomValueSync } from '../../core/atomRegistry';
 import { getGardenQolConfig } from './state';
 import type { HoldContexts } from './types';
+import { isHarvestAction } from './actionShape';
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
@@ -69,8 +70,9 @@ function getActionContext(): keyof HoldContexts {
   const action = readAtomValueSync('action');
   if (typeof action !== 'string' || action.length === 0) return 'other';
 
+  if (isHarvestAction(action)) return 'harvest';
+
   const lower = action.toLowerCase();
-  if (lower === 'harvest' || lower === 'rainbowharvest' || lower === 'goldharvest') return 'harvest';
   if (lower === 'plant' || lower === 'plantseed') return 'plant';
   if (lower === 'removegardenobject' || lower === 'shovel' || lower === 'dig' || lower === 'remove') return 'shovel';
   if (lower === 'sell' || lower === 'sellpet' || lower === 'sellallcrops') return 'sell';

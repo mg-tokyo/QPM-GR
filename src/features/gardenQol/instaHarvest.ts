@@ -1,5 +1,8 @@
 // Capture-phase keydown interception bypasses the client-side hold-to-harvest
-// delay for Rainbow and Gold mutation plants (Locker guard rules still apply).
+// delay for any hold-harvest kind the user has opted into. Kind list is
+// discovered dynamically (bundle extractor + live observer), classification is
+// deferred to the game's own `action` atom — QPM never hardcodes mutation or
+// action names.
 
 import { readAtomValueSync } from '../../core/atomRegistry';
 import { healthBus } from '../../diagnostics/healthBus';
@@ -7,119 +10,35 @@ import { createNamedLogger } from '../../diagnostics/logger';
 import { buildError } from '../../diagnostics/result';
 import type { Subsystem } from '../../diagnostics/types';
 import { pageWindow } from '../../core/pageContext';
-import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
+import { sendRoomAction } from '../../websocket/api';
 import { getGardenSnapshot } from '../garden/bridge';
-import { getGardenQolConfig } from './state';
 import { isRecord } from '../../utils/typeGuards';
+import { isHarvestAction } from './actionShape';
+import { getEnabledActions } from './holdHarvestKinds';
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface GrowSlotLike {
-  slotId: number;
-  endTime: number;
-  mutations: string[];
-  species: string;
-}
-
-// ── Diagnostics ───────────────────────────────────────────────────────────
+interface GrowSlotLike { slotId: number }
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenInstaHarvest';
 const FEATURE_NAME = 'gardenInstaHarvest';
 const log = createNamedLogger(FEATURE_SUBSYSTEM);
 
-/** Re-attributes a FEATURE-* code emission to this feature's bus row instead of the generic `feature` placeholder. */
+let degradedPublished = false;
+
 function warnFeature(code: Parameters<typeof buildError>[0], ctx: Record<string, unknown>, cause?: unknown): void {
   const built = buildError(code, { feature: FEATURE_NAME, ...ctx }, cause);
   log.warn({ ...built, subsystem: FEATURE_SUBSYSTEM, severity: 'warn' });
 }
 
-// ── Harvest action guard ─────────────────────────────────────────────────
-
-const HARVEST_ACTIONS: ReadonlySet<string> = new Set(['harvest', 'rainbowHarvest', 'goldHarvest']);
-
-// ── Synchronous reads ──────────────────────────────────────────────────────
-
-function getDirtTileIndexSync(): number | null {
-  return readAtomValueSync('dirtTileIndex');
+function publishDegradedOnce(reason: string): void {
+  if (degradedPublished) return;
+  degradedPublished = true;
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: 'degraded',
+    message: `action atom unreadable while a kind is enabled (${reason})`,
+  });
 }
-
-function getSelectedSlotIdSync(): number | null {
-  return readAtomValueSync('selectedSlotId');
-}
-
-function getGrowSlotsForTile(dirtTileIndex: number): GrowSlotLike[] | null {
-  const garden = getGardenSnapshot();
-  if (!garden) return null;
-
-  const key = String(dirtTileIndex);
-  const tile =
-    (garden.tileObjects as Record<string, unknown> | undefined)?.[key]
-    ?? (garden.boardwalkTileObjects as Record<string, unknown> | undefined)?.[key];
-
-  if (!isRecord(tile)) return null;
-  if (!Array.isArray(tile.slots) || tile.slots.length === 0) return null;
-
-  const parsed: GrowSlotLike[] = [];
-  for (const raw of tile.slots) {
-    if (!isRecord(raw)) continue;
-    if (typeof raw.slotId !== 'number' || typeof raw.endTime !== 'number') continue;
-    const mutations = Array.isArray(raw.mutations)
-      ? raw.mutations.filter((m): m is string => typeof m === 'string')
-      : [];
-    const species = typeof raw.species === 'string' ? raw.species : '';
-    parsed.push({ slotId: raw.slotId, endTime: raw.endTime, mutations, species });
-  }
-  return parsed.length > 0 ? parsed : null;
-}
-
-// ── Mutation check ─────────────────────────────────────────────────────────
-
-function checkSlot(
-  slot: GrowSlotLike,
-  instaRainbow: boolean,
-  instaGold: boolean,
-): { slot: GrowSlotLike; kind: 'rainbow' | 'gold' } | null {
-  if (slot.endTime > Date.now()) return null;
-  if (instaRainbow && slot.mutations.includes('Rainbow')) return { slot, kind: 'rainbow' };
-  if (instaGold && slot.mutations.includes('Gold')) return { slot, kind: 'gold' };
-  return null;
-}
-
-/** Checks the user-selected slot (multi-harvest plants) first, falling back to the first qualifying slot. */
-function findInstaHarvestSlot(
-  slots: GrowSlotLike[],
-  instaRainbow: boolean,
-  instaGold: boolean,
-): { slot: GrowSlotLike; kind: 'rainbow' | 'gold' } | null {
-  const selectedSlotId = getSelectedSlotIdSync();
-
-  if (selectedSlotId != null) {
-    const selected = slots.find(s => s.slotId === selectedSlotId);
-    if (selected) return checkSlot(selected, instaRainbow, instaGold);
-  }
-
-  for (const slot of slots) {
-    const result = checkSlot(slot, instaRainbow, instaGold);
-    if (result) return result;
-  }
-  return null;
-}
-
-// ── WS send ────────────────────────────────────────────────────────────────
-
-function sendHarvestCrop(dirtTileIndex: number, slotId: number): WebSocketSendResult {
-  // Skip the per-key throttle: key-repeat is already filtered upstream in
-  // onKeyDownCapture, and the game itself rejects duplicate sends against a
-  // harvested slot. A throttle here would silently drop the legitimate
-  // first-press in some edge cases (e.g. retry after Locker rejection).
-  return sendRoomAction(
-    'HarvestCrop',
-    { slot: dirtTileIndex, slotsIndex: slotId },
-    { skipThrottle: true },
-  );
-}
-
-// ── Keydown handler ────────────────────────────────────────────────────────
 
 function isTextInputFocused(): boolean {
   const el = document.activeElement;
@@ -130,54 +49,97 @@ function isTextInputFocused(): boolean {
   return false;
 }
 
+function getDirtTileIndexSync(): number | null {
+  return readAtomValueSync('dirtTileIndex');
+}
+
+function getGrowSlotsForTile(dirtTileIndex: number): GrowSlotLike[] | null {
+  const garden = getGardenSnapshot();
+  if (!garden) return null;
+  const key = String(dirtTileIndex);
+  const tile =
+    (garden.tileObjects as Record<string, unknown> | undefined)?.[key]
+    ?? (garden.boardwalkTileObjects as Record<string, unknown> | undefined)?.[key];
+  if (!isRecord(tile)) return null;
+  if (!Array.isArray(tile.slots) || tile.slots.length === 0) return null;
+  const parsed: GrowSlotLike[] = [];
+  for (const raw of tile.slots) {
+    if (!isRecord(raw)) continue;
+    if (typeof raw.slotId !== 'number') continue;
+    parsed.push({ slotId: raw.slotId });
+  }
+  return parsed.length > 0 ? parsed : null;
+}
+
+// Priority 1: the game's own myCurrentGrowSlotIdAtom — authoritative because
+// getPlantAction reads its parent atom too, so it's what the action atom is
+// derived from. Registered as `currentGrowSlotId` in atomRegistry.
+function tryReadCurrentGrowSlotId(): number | null {
+  try {
+    const v = readAtomValueSync('currentGrowSlotId');
+    return typeof v === 'number' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveTargetSlotId(dirtTileIndex: number): number | null {
+  const gameSlot = tryReadCurrentGrowSlotId();
+  if (gameSlot != null) return gameSlot;
+
+  const selected = readAtomValueSync('selectedSlotId');
+  if (typeof selected === 'number') return selected;
+
+  const slots = getGrowSlotsForTile(dirtTileIndex);
+  return slots && slots.length === 1 ? slots[0]!.slotId : null;
+}
+
 function onKeyDownCapture(event: KeyboardEvent): void {
   if (event.code !== 'Space') return;
   if (event.repeat || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
   if (isTextInputFocused()) return;
 
-  const config = getGardenQolConfig();
-  if (!config.instaHarvestRainbow && !config.instaHarvestGold) return;
+  const enabled = getEnabledActions();
+  if (enabled.size === 0) return;
 
-  // Skip insta-harvest when a non-harvest action is active (tool equipped, shop open, etc.)
-  const actionRaw = readAtomValueSync('action');
-  const currentAction = typeof actionRaw === 'string' ? actionRaw : null;
-  if (currentAction && !HARVEST_ACTIONS.has(currentAction)) return;
+  const action = readAtomValueSync('action');
+  if (typeof action !== 'string') {
+    publishDegradedOnce(action === null ? 'null' : typeof action);
+    return;
+  }
+  if (!isHarvestAction(action) || action === 'harvest') return;
+  if (!enabled.has(action)) return;
 
   const dirtTileIndex = getDirtTileIndexSync();
   if (dirtTileIndex == null) return;
 
-  const slots = getGrowSlotsForTile(dirtTileIndex);
-  if (!slots) return;
-
-  const match = findInstaHarvestSlot(slots, config.instaHarvestRainbow, config.instaHarvestGold);
-  if (!match) return;
+  const slotId = resolveTargetSlotId(dirtTileIndex);
+  if (slotId == null) return;
 
   event.stopImmediatePropagation();
   event.preventDefault();
-  const result = sendHarvestCrop(dirtTileIndex, match.slot.slotId);
+
+  const result = sendRoomAction(
+    'HarvestCrop',
+    { slot: dirtTileIndex, slotsIndex: slotId },
+    { skipThrottle: true },
+  );
   if (!result.ok) {
-    // Result-aware path — the WS layer already logs a WS-* code with the
-    // underlying reason (no_connection / invalid_payload / send_failed /
-    // locker_blocked). FEATURE-001 re-attributes that failure to this
-    // feature's bus row so the user can see which feature degraded.
     warnFeature('QPM-FEATURE-001', {
       type: 'HarvestCrop',
       reason: result.reason ?? 'unknown',
+      action,
       slot: dirtTileIndex,
-      slotsIndex: match.slot.slotId,
+      slotsIndex: slotId,
     });
   }
 }
-
-// ── Lifecycle ──────────────────────────────────────────────────────────────
 
 let listening = false;
 
 export function startInstaHarvest(): void {
   if (listening) return;
   listening = true;
-  // Register the feature's bus row on first start; idempotent (healthBus
-  // .register preserves an existing entry's status if it's already there).
   healthBus.register(FEATURE_SUBSYSTEM, {
     category: 'feature',
     status: 'starting',
@@ -195,4 +157,15 @@ export function stopInstaHarvest(): void {
   if (!listening) return;
   listening = false;
   (pageWindow as unknown as Window).removeEventListener('keydown', onKeyDownCapture as EventListener, true);
+}
+
+export function _snapshotForDebug(): unknown {
+  return {
+    action: readAtomValueSync('action'),
+    dirtTileIndex: readAtomValueSync('dirtTileIndex'),
+    selectedSlotId: readAtomValueSync('selectedSlotId'),
+    currentGrowSlotId: tryReadCurrentGrowSlotId(),
+    enabledActions: Array.from(getEnabledActions()),
+    listening,
+  };
 }

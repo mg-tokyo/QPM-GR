@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.39",
+    date: "2026-09-05",
+    notes: [
+      "Fixed the garden card overlay (journal letters and other card additions) shifting upward while an unrelated game tooltip was open, such as hovering a nav or sidebar button: only the card's own expanded ability tooltip now affects the overlay position",
+      "Added Insta-Harvest support for the Preservation Station: preserved crops (which the game routes through a separate hold-to-harvest action) can now be insta-harvested from a new Preserved toggle, and the previous silent no-op on Rainbow-plus-preserved crops is fixed",
+      "Added a Rare Patch toggle to Insta-Harvest for the new rare-patch hold-harvest action that shipped alongside Preservation Station",
+      "Rebuilt Insta-Harvest to auto-discover new hold-harvest action kinds the game may add in future, so a new variant appears as its own toggle without a QPM update",
+      "Fixed the Insta-Harvest tile status showing 'Off' while Rainbow or Gold was enabled during the transition, the summary now iterates the same dynamic kinds list as the toggle window",
+    ],
+  },
+  {
     version: "3.3.38",
     date: "2026-09-04",
     notes: [

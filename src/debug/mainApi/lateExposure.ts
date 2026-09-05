@@ -169,6 +169,18 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     return { enabled: isDevModeEnabled() };
   };
   const isDevMode = (): boolean => isDevModeEnabled();
+
+  const { _snapshotForDebug } = await import('../../features/gardenQol/instaHarvest');
+  const { getKinds: getHarvestKinds, getUserToggles: getHarvestToggles } = await import('../../features/gardenQol/holdHarvestKinds');
+  const instaHarvestSnapshot = (): unknown => {
+    const base = _snapshotForDebug();
+    return {
+      ...(base as Record<string, unknown>),
+      kinds: getHarvestKinds(),
+      userToggles: getHarvestToggles(),
+    };
+  };
+
   const globalTarget = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
   (globalTarget as any).__QPM_INTERNAL__ = {
     ...(globalTarget as any).__QPM_INTERNAL__,
@@ -187,6 +199,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     riveControl,
     setDevMode,
     isDevMode,
+    instaHarvestSnapshot,
   };
 
 

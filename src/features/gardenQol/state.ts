@@ -3,9 +3,11 @@
 import { storage } from '../../utils/storage';
 import type { GardenQolConfig, HoldContexts } from './types';
 import { isRecord } from '../../utils/typeGuards';
+import { seedToggles } from './holdHarvestKinds';
 
 const STORAGE_KEY = 'qpm.gardenQol.config.v1';
 const LOCKER_KEY = 'qpm.locker.config.v1';
+const TOGGLES_KEY = 'qpm.gardenQol.instaHarvestActions.v1';
 
 const DEFAULT_HOLD_CONTEXTS: HoldContexts = {
   harvest: true,
@@ -17,8 +19,6 @@ const DEFAULT_HOLD_CONTEXTS: HoldContexts = {
 };
 
 const DEFAULT_CONFIG: GardenQolConfig = {
-  instaHarvestRainbow: false,
-  instaHarvestGold: false,
   ariesHold: false,
   holdRateHz: 10,
   holdContexts: { ...DEFAULT_HOLD_CONTEXTS },
@@ -50,12 +50,21 @@ function sanitizeHoldContexts(raw: unknown): HoldContexts {
 function sanitizeConfig(raw: unknown): GardenQolConfig {
   if (!isRecord(raw)) return { ...DEFAULT_CONFIG, holdContexts: { ...DEFAULT_HOLD_CONTEXTS } };
   return {
-    instaHarvestRainbow: toBoolean(raw.instaHarvestRainbow, DEFAULT_CONFIG.instaHarvestRainbow),
-    instaHarvestGold: toBoolean(raw.instaHarvestGold, DEFAULT_CONFIG.instaHarvestGold),
     ariesHold: toBoolean(raw.ariesHold, DEFAULT_CONFIG.ariesHold),
     holdRateHz: toNumber(raw.holdRateHz, DEFAULT_CONFIG.holdRateHz, 5, 20),
     holdContexts: sanitizeHoldContexts(raw.holdContexts),
   };
+}
+
+// Legacy `instaHarvestRainbow` / `instaHarvestGold` booleans → keyed toggle map.
+// Left in stored config as breadcrumbs for one release (deleted in a follow-up).
+function migrateLegacyInstaHarvest(raw: Record<string, unknown>): void {
+  const existing = storage.get<unknown>(TOGGLES_KEY, null);
+  if (existing != null) return;
+  const seed: Record<string, boolean> = {};
+  if (raw.instaHarvestRainbow === true) seed.rainbowHarvest = true;
+  if (raw.instaHarvestGold === true) seed.goldHarvest = true;
+  if (Object.keys(seed).length > 0) seedToggles(seed);
 }
 
 function migrateFromLocker(): GardenQolConfig | null {
@@ -70,9 +79,9 @@ function migrateFromLocker(): GardenQolConfig | null {
 
   if (!hasQol) return null;
 
+  migrateLegacyInstaHarvest(lockerRaw);
+
   return sanitizeConfig({
-    instaHarvestRainbow: lockerRaw.instaHarvestRainbow,
-    instaHarvestGold: lockerRaw.instaHarvestGold,
     ariesHold: lockerRaw.ariesHold,
     holdRateHz: lockerRaw.holdRateHz,
     holdContexts: lockerRaw.holdContexts,
@@ -81,9 +90,11 @@ function migrateFromLocker(): GardenQolConfig | null {
 
 function loadConfig(): GardenQolConfig {
   const stored = storage.get<unknown>(STORAGE_KEY, null);
-  if (stored != null) return sanitizeConfig(stored);
+  if (stored != null) {
+    if (isRecord(stored)) migrateLegacyInstaHarvest(stored);
+    return sanitizeConfig(stored);
+  }
 
-  // First read — try to migrate from old locker config
   const migrated = migrateFromLocker();
   if (migrated) {
     storage.set(STORAGE_KEY, migrated);

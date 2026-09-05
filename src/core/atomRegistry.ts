@@ -178,6 +178,7 @@ interface AtomValueMap {
   riddenPetId: string | null;
   // Actions
   action: unknown | null;
+  currentGrowSlotId: number | null;
 }
 
 export type AtomRegistryKey = keyof AtomValueMap;
@@ -380,6 +381,7 @@ const ATOM_FINDERS: { [K in AtomRegistryKey]: AtomFinder<AtomValueMap[K]> } = {
 
   // ── Actions ───────────────────────────────────────────────────────────
   action: { label: /^(?:current|room)?[Aa]ction(?:Data)?Atom$/i, tier: 'composite' },
+  currentGrowSlotId: { label: /^myCurrentGrowSlotIdAtom$/, defaultValue: null, tier: 'composite' },
 
   // ── Extra registry entries for callers migrated in phase B ────────────
   // These exist so subscribeAtomValue('quinoaData' | 'myUserSlot') works.

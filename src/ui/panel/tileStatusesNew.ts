@@ -156,14 +156,15 @@ export const startTextureManipulatorStatus: PerTileStatusProvider = (el, addLive
 // ── New providers for tiles that previously had none ────────────────────────
 
 export const startInstaHarvestStatus: PerTileStatusProvider = (el, addLiveCleanup, version) => {
-  import('../../features/gardenQol/index').then(({ getGardenQolConfig }) => {
+  import('../../features/gardenQol/index').then(({ getGardenQolConfig, getKinds, getUserToggles, labelFor }) => {
     if (version !== getCurrentVersion()) return;
     const render = (): void => {
-      const cfg = getGardenQolConfig();
+      const toggles = getUserToggles();
       const parts: string[] = [];
-      if (cfg.instaHarvestRainbow) parts.push('Rainbow');
-      if (cfg.instaHarvestGold) parts.push('Gold');
-      if (cfg.ariesHold) parts.push('Hold');
+      for (const kind of getKinds()) {
+        if (toggles[kind.actionType] === true) parts.push(labelFor(kind.actionType));
+      }
+      if (getGardenQolConfig().ariesHold) parts.push('Hold');
       setStatusText(el, parts.length > 0 ? parts.join(' / ') : t('common.off'), parts.length > 0 ? 'positive' : 'muted');
     };
     render();

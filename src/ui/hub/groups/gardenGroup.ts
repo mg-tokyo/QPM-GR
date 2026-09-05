@@ -3,7 +3,15 @@
 import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../cards/types';
 import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
-import { getGardenQolConfig, updateGardenQolConfig, type HoldContexts } from '../../../features/gardenQol/index';
+import {
+  getGardenQolConfig,
+  updateGardenQolConfig,
+  getKinds,
+  getUserToggles,
+  setEnabled,
+  labelFor,
+  type HoldContexts,
+} from '../../../features/gardenQol/index';
 import { t } from '../../../i18n';
 import {
   startGardenFiltersStatus,
@@ -24,8 +32,14 @@ async function awaitCatalogs(): Promise<void> {
 function renderInstaHarvestExpanded(container: HTMLElement): void {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-  wrap.appendChild(buildQolToggle('Rainbow', () => getGardenQolConfig().instaHarvestRainbow, (v) => updateGardenQolConfig({ instaHarvestRainbow: v })));
-  wrap.appendChild(buildQolToggle('Gold', () => getGardenQolConfig().instaHarvestGold, (v) => updateGardenQolConfig({ instaHarvestGold: v })));
+  for (const kind of getKinds()) {
+    const key = kind.actionType;
+    wrap.appendChild(buildQolToggle(
+      labelFor(key),
+      () => getUserToggles()[key] === true,
+      (v) => setEnabled(key, v),
+    ));
+  }
   wrap.appendChild(buildQolToggle(t('feature.locker.ariesHold'), () => getGardenQolConfig().ariesHold, (v) => updateGardenQolConfig({ ariesHold: v })));
   container.appendChild(wrap);
 }
@@ -208,12 +222,13 @@ export function getGardenGroup(): HubGroupDef {
     },
     renderSummary: (el) => {
       el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
-      const cfg = getGardenQolConfig();
+      const toggles = getUserToggles();
       const parts: string[] = [];
-      if (cfg.instaHarvestRainbow) parts.push('Rainbow');
-      if (cfg.instaHarvestGold) parts.push('Gold');
-      if (cfg.ariesHold) parts.push('Hold');
-      el.textContent = parts.length > 0 ? parts.join(', ') : t('common.disabled');
+      for (const kind of getKinds()) {
+        if (toggles[kind.actionType] === true) parts.push(labelFor(kind.actionType));
+      }
+      if (getGardenQolConfig().ariesHold) parts.push('Hold');
+      el.textContent = parts.length > 0 ? parts.join(' / ') : t('common.disabled');
     },
     renderExpanded: renderInstaHarvestExpanded,
   };

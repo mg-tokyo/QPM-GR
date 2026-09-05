@@ -19,7 +19,7 @@ export {
   subscribeLocale,
 } from './gameLocale';
 
-export { t, l, registerDictionary } from './dictionary';
+export { t, l, registerDictionary, hasKey } from './dictionary';
 export { text, bindText, bindAttr } from './dom';
 export { formatNumber, formatDate, formatRelativeTime } from './format';
 export { SUPPORTED_LOCALES, isSupportedQpmLocale, normalizeLocale, RTL_LOCALES } from './locales';

@@ -40,6 +40,16 @@ function resolve(key: I18nKey, locale: string): string | undefined {
   return undefined;
 }
 
+/** True when the key exists in the active locale OR the English fallback. */
+export function hasKey(key: I18nKey): boolean {
+  const locale = getCurrentLocale();
+  const localeDict = dictionaries.get(locale);
+  if (localeDict && key in localeDict) return true;
+  if (locale === 'en') return false;
+  const enDict = dictionaries.get('en');
+  return !!(enDict && key in enDict);
+}
+
 /** Simple `{name}` interpolation. No HTML evaluation. */
 function interpolate(template: string, vars: I18nVars): string {
   return template.replace(/\{(\w+)\}/g, (match, name: string) => {

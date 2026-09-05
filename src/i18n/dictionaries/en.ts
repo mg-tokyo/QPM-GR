@@ -326,6 +326,11 @@ const en: Dictionary = {
   'feature.locker.ctx.sell': 'Sell',
   'feature.locker.ctx.hatch': 'Hatch',
   'feature.locker.ctx.other': 'Other',
+
+  'feature.instaHarvest.action.rainbowHarvest': 'Rainbow',
+  'feature.instaHarvest.action.goldHarvest': 'Gold',
+  'feature.instaHarvest.action.preservedHarvest': 'Preserved',
+  'feature.instaHarvest.action.rarePatchHarvest': 'Rare Patch',
   'feature.locker.eggLocker': 'Egg Locker',
   'feature.locker.eggCatalogNotLoaded': 'Egg catalog not loaded. Reload page.',
   'feature.locker.noEggsInCatalog': 'No eggs found in catalog.',

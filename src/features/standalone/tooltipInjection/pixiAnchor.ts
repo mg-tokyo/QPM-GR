@@ -54,6 +54,12 @@ export interface CardBounds {
   height: number;
 }
 
+// Canvas-px tolerance for the tooltip-adjacency check in getCardBounds().
+// The expanded ability tooltip's tail reaches INTO the card's Y range, so
+// its bottom always lands at/below the system top; 24px absorbs layout
+// drift without letting far-away tooltips qualify.
+const TOOLTIP_ADJACENCY_PX = 24;
+
 // ---------------------------------------------------------------------------
 // PIXI helpers
 // ---------------------------------------------------------------------------
@@ -255,6 +261,12 @@ export function getCardBounds(): CardBounds | null {
   for (const tt of tooltips) {
     const tb = nodeBounds(tt);
     if (!tb || tb.width <= 0 || tb.height <= 0) continue;
+    // Adjacency (canvas space): every open popup shares the 'TooltipPopup'
+    // label AND is reparented into the stageUiRoot portal (PixiTooltip.show),
+    // so nav-button / side-rail hover tooltips are indistinguishable by
+    // subtree. Only a tooltip whose bottom reaches the card system's top
+    // can be the expanded ability tooltip — skip everything else.
+    if (tb.y + tb.height < b.y - TOOLTIP_ADJACENCY_PX) continue;
     const ttLeft = cr.left + tb.x * scaleX;
     const ttTop = cr.top + tb.y * scaleY;
     const ttWidth = tb.width * scaleX;
