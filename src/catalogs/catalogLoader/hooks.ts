@@ -3,6 +3,7 @@
 
 import { maybeCapture } from './scan';
 import { diagLog } from './diagnostics';
+import { registerForeignSignal } from '../../diagnostics/modDetection';
 import { catalogLog, NativeObject, originalEntries, originalKeys, originalValues } from './state';
 
 // Hook lifecycle state (live holder) — timers armed by lifecycle.ts initCatalogLoader.
@@ -35,6 +36,10 @@ function isNonNative(fn: unknown): boolean {
  * These intercept all iterations over objects in the game code
  */
 export function installHooks(): void {
+  registerForeignSignal('Object.keys', () => {
+    const env = getHookEnvironment();
+    return env.originalWasNonNative || (!env.objectKeysCurrentlyOurs && !env.objectKeysCurrentlyNative);
+  });
   try {
     // If another mod wrapped Object.* before QPM loaded, our module-scope
     // "original" snapshot is their wrapper, not the native fn. Capture still

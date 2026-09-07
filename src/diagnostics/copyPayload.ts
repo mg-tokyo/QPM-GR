@@ -1,41 +1,20 @@
-// src/diagnostics/copyPayload.ts — Discord-friendly Copy renderer (§8.3)
-//
-// Layout (chosen 2026-07-01): compact single-line header, Issues section
-// listing only non-OK subsystems, and one-line error entries. Errors get
-// prioritised into whatever budget remains — Discord's 2000-char message
-// limit is the hard cap.
+// Discord-friendly Copy renderer (§8.3): gathers live diagnostics state and
+// hands a snapshot to the pure renderer in copyRender.ts.
 
 import type { KeyExplain } from '../core/gameState/types';
 import { getCurrentVersion } from '../utils/versionChecker';
+import { lookupCode } from './codes';
+import { DEFAULT_COPY_OPTIONS, renderReport } from './copyRender';
+import type { CopyPayloadOptions } from './copyRender';
+import { formatEnvironmentLine, formatFlagsLine, readEnvironmentInfo, readNonDefaultFlags } from './environmentInfo';
 import { errorBuffer } from './errorBuffer';
 import { getCapturedGameVersion } from './gameVersionCapture';
 import { healthBus } from './healthBus';
-import type { ErrorBufferEntry, Severity, SubsystemHealth } from './types';
+import { detectOtherMods, formatModsLine } from './modDetection';
+import type { ErrorCode } from './types';
 
-export interface CopyPayloadOptions {
-  qpmVersion: boolean;
-  gameVersion: boolean;
-  browser: boolean;
-  os: boolean;
-  aggregate: boolean;
-  subsystems: boolean;
-  recentErrors: boolean;
-  timestamp: boolean;
-}
-
-export const DEFAULT_COPY_OPTIONS: CopyPayloadOptions = {
-  qpmVersion: true,
-  gameVersion: true,
-  browser: true,
-  os: true,
-  aggregate: true,
-  subsystems: true,
-  recentErrors: true,
-  timestamp: true,
-};
-
-const MAX_TOTAL_CHARS = 1900; // leave headroom under the 2000-char Discord limit
-const MAX_RECENT_ERRORS = 50;
+export { DEFAULT_COPY_OPTIONS } from './copyRender';
+export type { CopyPayloadOptions } from './copyRender';
 
 // Populated by initGameState() with `() => reg.explainAll()`; C2's payload/window
 // helpers read through this so diagnostics stays a leaf module.
@@ -82,157 +61,29 @@ function detectBrowserAndOs(): UAInfo {
   return { browser, os };
 }
 
-function shortenOs(os: string): string {
-  return os.replace(/^Windows /, 'Win ');
-}
-
-function formatTimestamp(ts: number): string {
-  return new Date(ts).toISOString();
-}
-
-// Padded to 5 chars so codes/messages align in a column.
-function severityTag(sev: Severity): string {
-  switch (sev) {
-    case 'warn':  return 'WARN ';
-    case 'error': return 'ERR  ';
-    case 'fatal': return 'FATAL';
-    case 'info':  return 'INFO ';
-  }
-}
-
-function compactContext(context: Record<string, unknown> | undefined): string {
-  if (!context) return '';
-  let s: string;
-  try { s = JSON.stringify(context); } catch { return ''; }
-  if (s.length <= 60) return ` ${s}`;
-  return ` ${s.substring(0, 57)}...`;
-}
-
-function truncateCauseText(cause: string): string {
-  const collapsed = cause.replace(/\s+/g, ' ').trim();
-  return collapsed.length <= 90 ? collapsed : `${collapsed.substring(0, 87)}…`;
-}
-
-function renderErrorEntryCompact(entry: ErrorBufferEntry): string {
-  // The buffer persists across sessions and can span days — HH:MM:SS alone
-  // made multi-day reports unattributable to a release.
-  const iso = new Date(entry.lastSeen).toISOString();
-  const time = `${iso.substring(5, 10)} ${iso.substring(11, 19)}`;
-  const sev = severityTag(entry.severity);
-  const ctx = compactContext(entry.context);
-  const cause = entry.causeText ? `  ← ${truncateCauseText(entry.causeText)}` : '';
-  const count = entry.count > 1 ? `  ×${entry.count}` : '';
-  return `${time}  ${sev}  ${entry.code}  ${entry.message}${ctx}${cause}${count}`;
-}
-
-function renderIssuesLines(issues: readonly SubsystemHealth[]): string {
-  if (issues.length === 0) return '(none)';
-  const nameWidth = Math.min(
-    24,
-    Math.max(8, issues.reduce((m, h) => Math.max(m, h.subsystem.length), 0)),
-  );
-  const statusWidth = 10;
-  const lines: string[] = [];
-  for (const row of issues) {
-    const name = row.subsystem.padEnd(nameWidth, ' ');
-    const status = row.status.padEnd(statusWidth, ' ');
-    const message = row.message ?? '';
-    lines.push(`${name} ${status} ${message}`.trimEnd());
-  }
-  return lines.join('\n');
-}
-
-function truncateToBudget(body: string, budget: number): string {
-  if (body.length <= budget) return body;
-  const truncMarker = '\n…(truncated to fit Discord message limit)…';
-  return body.substring(0, Math.max(0, budget - truncMarker.length)) + truncMarker;
+function safe<T>(read: () => T, fallback: T): T {
+  try { return read(); } catch { return fallback; }
 }
 
 export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTIONS): string {
+  const now = Date.now();
   const ua = detectBrowserAndOs();
-  const subsystems = healthBus.readAll();
-  const aggregate = healthBus.aggregate();
-
-  // Fold `starting` into ok, `recovering` into degraded for reporting counts.
-  let okCount = 0;
-  let degradedCount = 0;
-  let failedCount = 0;
-  const issues: SubsystemHealth[] = [];
-  for (const s of subsystems) {
-    if (s.status === 'failed') { failedCount++; issues.push(s); }
-    else if (s.status === 'degraded' || s.status === 'recovering') { degradedCount++; issues.push(s); }
-    else { okCount++; }
-  }
-
-  // ── Header ──
-  const headerLines: string[] = [];
-  headerLines.push(`QPM Diagnostics${opts.timestamp ? `  (${formatTimestamp(Date.now())})` : ''}`);
-
-  const idParts: string[] = [];
-  if (opts.qpmVersion)  idParts.push(`QPM ${getCurrentVersion()}`);
-  if (opts.gameVersion) idParts.push(`Game ${getCapturedGameVersion() ?? '?'}`);
-  if (opts.browser)     idParts.push(ua.browser);
-  if (opts.os)          idParts.push(shortenOs(ua.os));
-  if (idParts.length > 0) headerLines.push(idParts.join('  '));
-
-  if (opts.aggregate) {
-    headerLines.push(`Overall: ${aggregate}  (${okCount} ok / ${degradedCount} degraded / ${failedCount} failed)`);
-  }
-
-  let fixed = headerLines.join('\n');
-
-  // ── Issues section (only when there ARE issues) ──
-  if (opts.subsystems && issues.length > 0) {
-    fixed += `\n\n== Issues ==\n${renderIssuesLines(issues)}`;
-  }
-
-  // Reserve the ~1900-char Discord budget for healthy sessions — only spend it on
-  // gameState detail when the row is actually degraded/failed.
-  const gs = subsystems.find((s) => s.subsystem === 'gameState');
-  if (opts.subsystems && gs && gs.status !== 'ok' && gs.status !== 'starting') {
-    const lines = renderGameStateProblemLines();
-    if (lines.length > 0) fixed += `\n\n== Game state ==\n${lines.join('\n')}`;
-  }
-
-  if (!opts.recentErrors) {
-    return '```\n' + truncateToBudget(fixed, MAX_TOTAL_CHARS) + '\n```';
-  }
-
-  // ── Errors section — fit as many as remaining budget allows ──
-  const all = errorBuffer.readAll();
-  if (all.length === 0) {
-    const emptyBlock = `\n\n== Errors ==\n(no errors recorded)`;
-    return '```\n' + truncateToBudget(fixed + emptyBlock, MAX_TOTAL_CHARS) + '\n```';
-  }
-
-  const cap = Math.min(all.length, MAX_RECENT_ERRORS);
-  const window = all.slice(all.length - cap).slice().reverse();
-  const compactLines = window.map(renderErrorEntryCompact);
-
-  const truncMarker = (n: number): string => `\n… ${n} more truncated`;
-  const sectionHeader = (shown: number): string =>
-    `\n\n== Errors (last ${shown}${all.length > shown ? ` of ${all.length}` : ''}) ==\n`;
-
-  // Reserve worst-case header + marker lengths so trimming can't overshoot.
-  const reserved = sectionHeader(compactLines.length).length + truncMarker(compactLines.length).length;
-  const available = MAX_TOTAL_CHARS - fixed.length - reserved;
-
-  const kept: string[] = [];
-  let used = 0;
-  for (const line of compactLines) {
-    const cost = kept.length === 0 ? line.length : line.length + 1;
-    if (used + cost > available) break;
-    kept.push(line);
-    used += cost;
-  }
-
-  const dropped = compactLines.length - kept.length;
-  const errorsBlock =
-    sectionHeader(kept.length) + kept.join('\n') + (dropped > 0 ? truncMarker(dropped) : '');
-
-  const body = fixed + errorsBlock;
-  const trimmed = truncateToBudget(body, MAX_TOTAL_CHARS);
-  return '```\n' + trimmed + '\n```';
+  return renderReport({
+    now,
+    qpmVersion: getCurrentVersion(),
+    gameVersion: getCapturedGameVersion(),
+    browser: ua.browser,
+    os: ua.os,
+    environmentLine: safe(() => formatEnvironmentLine(readEnvironmentInfo(now)), 'Env: ?'),
+    modsLine: safe(() => formatModsLine(detectOtherMods()), null),
+    flagsLine: safe(() => formatFlagsLine(readNonDefaultFlags()), null),
+    subsystems: healthBus.readAll(),
+    aggregate: healthBus.aggregate(),
+    gameStateProblemLines: renderGameStateProblemLines(),
+    errors: errorBuffer.readAll(),
+    sessionStartedAt: errorBuffer.getSessionStartedAt(),
+    lookupCode: (code) => lookupCode(code as ErrorCode),
+  }, opts);
 }
 
 export async function writeToClipboard(text: string): Promise<boolean> {

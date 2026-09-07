@@ -11,6 +11,7 @@ import { evaluateAction, type InventorySnapshot, type TileContext } from './rule
 import { isRecord } from '../../utils/typeGuards';
 import { unwrapQuinoaCommand } from '../../websocket/envelope';
 import { ensureCommandSequencerAttached } from '../../websocket/commandSequencer';
+import { brandWrapper } from '../../websocket/sendChain';
 import type { GuardResult } from './types';
 import { criticalInterval } from '../../utils/scheduling/timerManager';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
@@ -480,6 +481,9 @@ function ensureNativeHookPatched(): void {
         return originalTry(payload);
       }
     : null;
+
+  brandWrapper(wrappedSend, 'lockerGuard');
+  if (wrappedTry) brandWrapper(wrappedTry, 'lockerGuard');
 
   try {
     // eslint-disable-next-line no-restricted-properties -- installing the locker wrapper (the sanctioned patch), not sending

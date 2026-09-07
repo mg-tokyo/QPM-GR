@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.42",
+    date: "2026-09-07",
+    notes: [
+      "Fixed actions silently not registering (reported as the game freezing every few seconds): a mid-session command sequencer detach could leave a stale wrapper stamping outdated sequence numbers on every send, the sequencer now defuses detached wrappers and re-arms itself on the live connection",
+      "Fixed the command sequencer permanently locking itself out after a detach by mistaking QPM's own send wrappers for a third-party mod, all QPM wrappers are now branded and recognized, which also stops the repeated attach-failure warning spam",
+      "Added a new QPM-WS-013 warning when another mod's wrapper genuinely blocks the command sequencer, fired once per episode with guidance instead of every check",
+      "Improved the diagnostics Copy for Discord report: new environment line (script manager, surface, uptime), detected other mods line, and non-default QPM flags line, each with its own checkbox",
+      "Improved recent errors in the copy report: entries now show the error title, repeats are grouped by code and context, errors recorded by an older QPM version are tagged with that version, and a divider marks the current session",
+      "Added the direction and distance indicator to expanded pet cards in the Charged Abilities garden overlay, matching the window view",
+    ],
+  },
+  {
     version: "3.3.41",
     date: "2026-09-07",
     notes: [

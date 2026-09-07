@@ -92,4 +92,6 @@ export interface ErrorBufferEntry {
   count: number;
   firstSeen: number;
   lastSeen: number;
+  /** QPM version that recorded the entry — absent on entries older than the field. */
+  qpmVersion?: string;
 }

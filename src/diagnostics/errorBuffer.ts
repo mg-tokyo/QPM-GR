@@ -32,6 +32,10 @@ const entries: ErrorBufferEntry[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let hydrated = false;
 let unloadHooksInstalled = false;
+// Set by initDiagnostics(); the buffer can't import versionChecker (cycle via
+// notifications → logger → errorBuffer).
+let currentVersion: string | null = null;
+let sessionStartedAt = 0;
 
 function safeStringifyContext(context: Record<string, unknown> | undefined): string {
   if (!context) return '';
@@ -96,6 +100,7 @@ export const errorBuffer = {
   hydrate(): void {
     if (hydrated) return;
     hydrated = true;
+    sessionStartedAt = Date.now();
     try {
       const restored = storage.get<ErrorBufferEntry[]>(STORAGE_KEY, []);
       if (Array.isArray(restored)) {
@@ -147,6 +152,7 @@ export const errorBuffer = {
       count: 1,
       firstSeen: error.timestamp,
       lastSeen: error.timestamp,
+      ...(currentVersion === null ? {} : { qpmVersion: currentVersion }),
     };
     entries.push(entry);
 
@@ -168,6 +174,16 @@ export const errorBuffer = {
     if (!hydrated) errorBuffer.hydrate();
     const safe = Math.max(0, Math.floor(n));
     return entries.slice(Math.max(0, entries.length - safe));
+  },
+
+  /** Version stamped onto new entries so reports can flag pre-upgrade residue. */
+  setCurrentVersion(version: string): void {
+    currentVersion = version;
+  },
+
+  /** Epoch ms when this page session hydrated the buffer (0 before hydrate). */
+  getSessionStartedAt(): number {
+    return sessionStartedAt;
   },
 
   /** Force a synchronous flush — call from the Diagnostics window. */

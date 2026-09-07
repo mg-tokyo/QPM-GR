@@ -1,6 +1,7 @@
 import { getRoomConnection, type RoomConnection } from './api';
 import { createNamedLogger } from '../diagnostics/logger';
 import { effectiveMessageType } from './envelope';
+import { brandWrapper } from './sendChain';
 
 const log = createNamedLogger('websocket');
 
@@ -43,25 +44,25 @@ export function installSendGuard(
     }
   };
 
-  connection.sendMessage = (payload: unknown) => {
+  connection.sendMessage = brandWrapper((payload: unknown) => {
     const type = effectiveMessageType(payload);
     if (type !== null && blockedTypes.has(type)) {
       block(type, payload);
       return;
     }
     return original(payload);
-  };
+  }, 'battleshipSendGuard');
   if (originalTry) {
     // false mirrors "connection closed" — the game's RPC caller rejects its
     // pending command and swallows the rejection.
-    connection.trySendMessageNow = (payload: unknown): boolean => {
+    connection.trySendMessageNow = brandWrapper((payload: unknown): boolean => {
       const type = effectiveMessageType(payload);
       if (type !== null && blockedTypes.has(type)) {
         block(type, payload);
         return false;
       }
       return originalTry(payload);
-    };
+    }, 'battleshipSendGuard');
   }
   return true;
 }

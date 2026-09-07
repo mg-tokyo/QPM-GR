@@ -1,6 +1,7 @@
 // src/diagnostics/init.ts — Diagnostics layer bootstrap.
 
 import { registerWindowOpener, toggleWindow } from '../ui/core/modalWindow';
+import { getCurrentVersion } from '../utils/versionChecker';
 import {
   DIAGNOSTICS_WINDOW_ID,
   DIAGNOSTICS_WINDOW_TITLE,
@@ -25,6 +26,7 @@ export function initDiagnostics(): void {
   initialised = true;
 
   startGameVersionCapture();
+  errorBuffer.setCurrentVersion(getCurrentVersion());
   errorBuffer.hydrate();
 
   registerWindowOpener(DIAGNOSTICS_WINDOW_ID, () => {

@@ -85,8 +85,8 @@ export const WEBSOCKET_CODES: readonly ErrorCodeDefinition[] = [
     category: 'core',
     severity: 'warn',
     title: 'Command sequencer attach failed',
-    description: 'Could not wrap the room connection send functions; QPM falls back to legacy flat sends.',
-    devNotes: 'src/websocket/commandSequencer.ts ensureAttached().',
+    description: 'The command sequencer could not (re)wrap the room connection send functions; QPM falls back to legacy flat sends. phase:attach/rearm = the install threw; phase:layering with qpmBranded = QPM outer wrappers sit directly over the prototype with no re-armable sequencer wrapper below (refresh resolves). Third-party layering refusals are QPM-WS-013.',
+    devNotes: 'src/websocket/commandSequencer.ts ensureAttached()/rearm().',
     sinceVersion: '3.3.31',
   },
   {
@@ -128,5 +128,19 @@ export const WEBSOCKET_CODES: readonly ErrorCodeDefinition[] = [
     description: 'A room frame advanced past this envelope\'s commandSequence without a matching QuinoaCommandResult. The server dropped the send silently (rule: stale/duplicate numbers → no result). Definite rejection; the caller may choose to resend.',
     devNotes: 'src/websocket/commandSequencer.ts — grace: qpm.ws.sequencer.staleGraceMs (default 750 ms). Toggle: qpm.ws.sequencer.staleDetect.enabled. Check stats().dropped and stats().idleResyncs (a drop triggers CS-1 heal when nothing else is outstanding).',
     sinceVersion: V,
+  },
+  {
+    code: 'QPM-WS-013',
+    subsystem: 'websocket',
+    category: 'core',
+    severity: 'warn',
+    title: 'Unexpected wrapper on the game connection',
+    description: 'An own-property wrapper sits on the room connection send functions, so the command sequencer cannot layer innermost (CS-5). Either a third-party script wrapped the connection, or QPM\'s own outer wrappers / bound-copy restores were left behind by a mid-session detach (CS-5 cannot yet tell these apart). QPM falls back to legacy flat sends until it clears. Fires once per episode, not per check.',
+    userAction: 'If other Magic Garden mods are running, disable them and refresh. If this appears with no other mods, refresh the tab — actions may silently stop registering until you do — and please report it.',
+    devNotes: 'src/websocket/commandSequencer.ts ensureAttached() — warns after 3 consecutive refused checks; clear logged at info with episode duration. stats().layeringRefusals counts every refused check. Self-inflicted case: detach() cannot restore under outer wrappers and may leave a rewriting wrappedSend in the chain with frozen counters — see the wrapper-lifecycle fix plan.',
+    sinceVersion: '3.3.42',
+    // §9 — degraded sequencing affects the user's actions; userAction is real
+    // (disable the other mod); the 3-check episode gate proves non-transience.
+    notifyUser: true,
   },
 ];

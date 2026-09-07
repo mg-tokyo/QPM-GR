@@ -9,6 +9,7 @@ import { criticalInterval } from '../utils/scheduling/timerManager';
 import { createNamedLogger } from '../diagnostics/logger';
 import { unwrapQuinoaCommand } from './envelope';
 import { ensureCommandSequencerAttached } from './commandSequencer';
+import { brandWrapper } from './sendChain';
 
 const diagLog = createNamedLogger('websocket');
 
@@ -101,6 +102,8 @@ function ensurePatched(): void {
         return originalTry(payload);
       }
     : null;
+  brandWrapper(wrapped, 'nativeSendObserver');
+  if (wrappedTry) brandWrapper(wrappedTry, 'nativeSendObserver');
 
   try {
     room.sendMessage = wrapped;

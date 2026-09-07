@@ -3,6 +3,7 @@
 import { t } from '../../i18n';
 import { renderOptimalityIndicator } from './optimalityIndicator';
 import {
+  buildDirectionWidget,
   buildMountButton,
   buildPetIcon,
   buildProjectedGainEl,
@@ -144,6 +145,9 @@ function renderExpanded(group: SnapshotGroup, opts: RenderPetCardOptions): HTMLE
   topRow.appendChild(projection);
 
   card.appendChild(topRow);
+
+  const dir = buildDirectionWidget(snap, opts.playerPos);
+  if (dir) card.appendChild(dir);
 
   if (snap.ready) {
     card.appendChild(buildMountButton(snap, group.unmountedSlotIds[0]));
