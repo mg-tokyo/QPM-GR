@@ -10,6 +10,7 @@ import { getLockerConfig } from './state';
 import { evaluateAction, type InventorySnapshot, type TileContext } from './rules';
 import { isRecord } from '../../utils/typeGuards';
 import { unwrapQuinoaCommand } from '../../websocket/envelope';
+import { ensureCommandSequencerAttached } from '../../websocket/commandSequencer';
 import type { GuardResult } from './types';
 import { criticalInterval } from '../../utils/scheduling/timerManager';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
@@ -421,6 +422,10 @@ function restoreNativePatch(): void {
 }
 
 function ensureNativeHookPatched(): void {
+  // CS-2: make the sequencer attach first so its wrapper is INNERMOST
+  // regardless of which of {sequencer, locker, observer} timer fires first.
+  ensureCommandSequencerAttached();
+
   const room = (pageWindow as PageWindowWithRoomConnection).MagicCircle_RoomConnection;
   // eslint-disable-next-line no-restricted-properties -- locker guard IS the sanctioned patch layer; presence check, not a send
   if (!room || typeof room.sendMessage !== 'function') return;

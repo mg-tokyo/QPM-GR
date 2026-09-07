@@ -1,6 +1,10 @@
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
-import { getAtomByLabel, readAtomValue, writeAtomValue } from '../../../core/jotaiBridge';
-import { subscribeAtomValue } from '../../../core/atomRegistry';
+// myDataAtom is derived; the state rung is read-only, so the replay write path
+// uses the raw jotai write against atomObjectFor('myData').
+// eslint-disable-next-line no-restricted-imports -- see comment above
+import { writeAtomValue } from '../../../core/jotaiBridge';
+import { readAtomValue, subscribeAtomValue } from '../../../core/atomRegistry';
+import { atomObjectFor } from '../../../core/gameState';
 import { warnFeature } from './_diagnostics';
 import type {
   ActivityLogEntry,
@@ -429,7 +433,7 @@ async function replayHistoryToModal(opts?: {
     return;
   }
 
-  const myDataAtom = getAtomByLabel('myDataAtom');
+  const myDataAtom = atomObjectFor('myData');
   if (!myDataAtom) {
     S.writeSupported = false;
     return;
@@ -451,7 +455,7 @@ async function replayHistoryToModal(opts?: {
   S.suppressIngestUntil = Date.now() + 1200;
 
   try {
-    const current = await readAtomValue<unknown>(myDataAtom);
+    const current = await readAtomValue('myData');
     if (!isRecord(current)) {
       S.writeSupported = false;
       return;
@@ -804,15 +808,9 @@ export function ingestActivityLogs(value: unknown): void {
 
 export async function startMyDataActivitySubscription(): Promise<void> {
   if (S.myDataUnsubscribe) return;
-  const atom = getAtomByLabel('myDataAtom');
-  if (!atom) {
-    S.replayMode = 'none';
-    warnFeature('QPM-FEATURE-003', { what: 'subscribe:atom_missing', atom: 'myDataAtom' });
-    return;
-  }
 
   try {
-    const initial = await readAtomValue<unknown>(atom);
+    const initial = await readAtomValue('myData');
     const snapshot = normalizeList(extractActivityArray(initial));
     mergeSnapshots([], snapshot);
     S.lastSnapshot = snapshot;

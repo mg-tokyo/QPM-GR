@@ -1,5 +1,4 @@
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
-import { subscribeAtomValue } from '../core/atomRegistry';
+import { readAtomValue, subscribeAtomValue } from '../core/atomRegistry';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeInventory', 'inventory');
@@ -26,14 +25,10 @@ export interface InventoryData {
   favoritedItemIds?: string[];
 }
 
-const INVENTORY_ATOM_LABEL = 'myInventoryAtom';
-const CROP_INVENTORY_ATOM_LABEL = 'myCropInventoryAtom';
-
 let cachedInventory: InventoryItem[] = [];
 let cachedFavorites: Set<string> = new Set();
 let unsubscribe: (() => void) | null = null;
 let initializing = false;
-let inventoryAtomRef: unknown = null;
 let lastRawInventoryValue: unknown = null;
 let lastNotifySignature: string | null = null;
 const listeners = new Set<(data: InventoryData) => void>();
@@ -196,7 +191,6 @@ export function stopInventoryStore(): void {
     unsubscribe();
     unsubscribe = null;
   }
-  inventoryAtomRef = null;
   lastRawInventoryValue = null;
   cachedInventory = [];
   cachedFavorites = new Set();
@@ -233,24 +227,10 @@ export function isInventoryStoreActive(): boolean {
   return unsubscribe !== null;
 }
 
-/** Reads inventory directly from the atom, bypassing the cache. */
+/** Reads inventory directly from the registry, bypassing the cache. */
 export async function readInventoryDirect(): Promise<InventoryData | null> {
   try {
-    let atom = getAtomByLabel(INVENTORY_ATOM_LABEL);
-
-    if (!atom) {
-      atom = getAtomByLabel(CROP_INVENTORY_ATOM_LABEL);
-    }
-
-    if (!atom) {
-      diag.warn('QPM-STORE-002', {
-        atom: `${INVENTORY_ATOM_LABEL} | ${CROP_INVENTORY_ATOM_LABEL}`,
-        phase: 'readInventoryDirect',
-      });
-      return null;
-    }
-
-    const raw = await readAtomValue(atom);
+    const raw = (await readAtomValue('inventory')) ?? (await readAtomValue('cropInventory'));
     return normalizeInventoryData(raw);
   } catch (error) {
     diag.warn('QPM-STORE-002', { phase: 'readInventoryDirect' }, error);

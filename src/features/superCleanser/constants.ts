@@ -1,5 +1,5 @@
 // WEATHER_MUTATIONS mirrored verbatim from beta source:
-//   scraped-data/BetaGameSourceFiles/DawnPets/preview.magicgarden.gg/common/games/Quinoa/systems/mutation/mutationsDex.ts:93-102
+//   scraped-data/BetaGameSourceFiles/3668-migratequinoaactionstoorderprediction/preview.magicgarden.gg/common/games/Quinoa/systems/mutation/mutationsDex.ts:142-152
 // The mutation catalog atom does not expose the weather subset separately,
 // and beta source is not imported at runtime. Update this list if the game
 // adds a new weather mutation (flagged by /analyze-beta).
@@ -12,6 +12,7 @@ export const WEATHER_MUTATIONS = [
   'Ambershine',
   'Dawncharged',
   'Ambercharged',
+  'Thundercharged',
 ] as const satisfies readonly string[];
 
 export const PANEL_POSITION_STORAGE_KEY = 'qpm.superCleanser.panel.position.v1';

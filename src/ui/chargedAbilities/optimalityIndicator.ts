@@ -37,6 +37,9 @@ export function renderOptimalityIndicator(
         ? 'qpm-charged-abilities__optimal-full--coin'
         : 'qpm-charged-abilities__optimal-full--capsule',
     );
+    if (ability.yieldKind === 'capsule') {
+      full.style.color = ability.accentColor;
+    }
     full.textContent = t('feature.chargedAbilities.optimal.full');
     wrap.appendChild(full);
     return wrap;

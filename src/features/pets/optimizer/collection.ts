@@ -1,4 +1,4 @@
-import { getAtomByLabel, readAtomValue } from '../../../core/jotaiBridge';
+import { readAtomValue } from '../../../core/atomRegistry';
 import { getAbilityDefinition } from '../data/petAbilities';
 import { getActivePetInfos, type ActivePetInfo } from '../../../store/pets';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from '../../../store/xpTracker';
@@ -130,13 +130,7 @@ function inventoryItemToCollected(item: Record<string, unknown>, location: PetLo
 
 async function getInventoryPets(): Promise<CollectedPet[]> {
   try {
-    const atom = getAtomByLabel('myInventoryAtom');
-    if (!atom) {
-      warnFeature('QPM-FEATURE-004', { what: 'inventory:atom_missing', atom: 'myInventoryAtom' });
-      return [];
-    }
-
-    const inventory = await readAtomValue(atom) as { items?: unknown[] } | null;
+    const inventory = await readAtomValue('inventory');
     if (!inventory || !Array.isArray(inventory.items)) {
       return [];
     }
@@ -144,7 +138,7 @@ async function getInventoryPets(): Promise<CollectedPet[]> {
     const pets: CollectedPet[] = [];
     for (const item of inventory.items) {
       if (typeof item !== 'object' || item == null) continue;
-      const itemObj = item as Record<string, unknown>;
+      const itemObj = item as unknown as Record<string, unknown>;
       if (itemObj.itemType === 'Pet' || 'petSpecies' in itemObj) {
         const collected = inventoryItemToCollected(itemObj, 'inventory');
         if (collected) pets.push(collected);
@@ -160,21 +154,12 @@ async function getInventoryPets(): Promise<CollectedPet[]> {
 
 async function getHutchPets(): Promise<CollectedPet[]> {
   try {
-    const atom = getAtomByLabel('myPetHutchPetItemsAtom');
-    if (!atom) {
-      warnFeature('QPM-FEATURE-004', { what: 'hutch:atom_missing', atom: 'myPetHutchPetItemsAtom' });
-      return [];
-    }
-
-    const hutchItems = await readAtomValue(atom);
-    if (!hutchItems || !Array.isArray(hutchItems)) {
-      return [];
-    }
+    const hutchItems = (await readAtomValue('hutchPets')) ?? [];
 
     const pets: CollectedPet[] = [];
     for (const item of hutchItems) {
       if (typeof item !== 'object' || item == null) continue;
-      const collected = inventoryItemToCollected(item as Record<string, unknown>, 'hutch');
+      const collected = inventoryItemToCollected(item as unknown as Record<string, unknown>, 'hutch');
       if (collected) pets.push(collected);
     }
 

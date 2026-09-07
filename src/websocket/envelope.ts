@@ -43,7 +43,10 @@ export type QuinoaCommandResultCode =
   | 'no_slot'
   | 'rate_limited'
   | 'not_ackable'
-  | 'handler_error';
+  | 'handler_error'
+  // QPM-minted (CS-4): a frame executed past this envelope's commandSequence
+  // without a real result — the server dropped the send. Definite rejection.
+  | 'dropped_stale';
 
 export interface QuinoaCommandEnvelope {
   scopePath: string[];
@@ -70,6 +73,7 @@ const DEFINITE_REJECTIONS: ReadonlySet<string> = new Set([
   'no_slot',
   'rate_limited',
   'not_ackable',
+  'dropped_stale',
 ]);
 
 export function isDefiniteRejection(result: QuinoaCommandResultMessage): boolean {

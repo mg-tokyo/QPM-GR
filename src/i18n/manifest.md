@@ -46,7 +46,7 @@ Ordered by string count (smallest → largest). Each invocation of `/language` p
 |---|---------|-------|----------|----|----|-----|-----|
 | 1 | Protection Section | `sections/protectionSection.ts` | ~4 | done | done | done | done |
 | 2 | Changelog | `sections/changelog.ts` | ~5 | done | done | done | pending |
-| 3 | Auto Reconnect Section | `sections/autoReconnectSection.ts` | ~8 | done | done | done | pending |
+| 3 | ~~Auto Reconnect Section~~ | ~~`sections/autoReconnectSection.ts`~~ | — | deleted (feature removed) | — | — | — |
 | 4 | ~~Shop History Window~~ | ~~`shopHistoryWindow.ts`~~ | — | deleted (dead code) | — | — | — |
 | 5 | Inventory Capacity Section | `sections/inventoryCapacitySection.ts` | ~10 | done | done | done | pending |
 | 6 | Activity Log Section | `sections/activityLogSection.ts` | ~12 | done | done | done | pending |

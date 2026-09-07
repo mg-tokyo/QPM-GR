@@ -1,10 +1,9 @@
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { InventoryItem, readInventoryDirect } from './inventory';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeSellSnapshot', 'sellSnapshot');
 
-const ACTION_ATOM_LABEL = 'actionAtom';
 const SELL_ALL_ACTION = 'sellAllCrops';
 
 let unsubscribe: (() => void) | null = null;
@@ -50,19 +49,12 @@ export async function startSellSnapshotWatcher(): Promise<void> {
   initializing = true;
   diag.register('Starting sell snapshot watcher');
   try {
-    const actionAtom = getAtomByLabel(ACTION_ATOM_LABEL);
-    if (!actionAtom) {
-      diag.warn('QPM-STORE-002', { atom: ACTION_ATOM_LABEL });
-      initializing = false;
-      return;
-    }
-
-    // 'composite' tier: actionAtom composes state + client-local input; reactive manager dedups redundant fires.
-    unsubscribe = await subscribeAtom<string>(actionAtom, (value) => {
+    // The `action` key carries tier: 'composite' — actionAtom composes state + client-local input.
+    unsubscribe = await subscribeAtomValue('action', (value) => {
       if (value === SELL_ALL_ACTION) {
         void captureProduceSnapshot();
       }
-    }, 'composite');
+    });
 
     diag.log.debug('Sell snapshot watcher initialized');
     diag.publishOk('Sell snapshot watcher ready');

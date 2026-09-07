@@ -1,16 +1,15 @@
 // src/ui/shopRestockAlerts/purchaseActions.ts
-// WS purchase workflow, inventory cap logic, auto-store, and coins confirm modal.
+// Inventory cap logic, auto-store, coins confirm modal, and the alert-card Buy handler.
 
 import { formatCoins } from '../../../utils/formatters';
 import { warnFeature } from './_diagnostics';
 import { getItemIdVariants } from '../../../utils/restock/dataService';
-import { isRoomSocketOpen, sendRoomAction, type WebSocketSendResult } from '../../../websocket/api';
+import { isRoomSocketOpen } from '../../../websocket/api';
 import { getShopStockState } from '../../../store/shopStock';
 import { isWeatherShopType } from '../../../types/shops';
 import { findCatalogIdCaseInsensitive, getToolMaxInventoryQuantity, isItemCatalogLoaded } from '../../../catalogs/shopEligibility';
 import {
-  BUY_SEND_DELAY_MS,
-  BUY_ACTION_THROTTLE_MS,
+  ALERT_SUCCESS_HIDE_MS,
   COINS_CONFIRM_MODAL_ID,
   TOOL_STACK_LIMIT,
   TOOL_LIMITED_IDS,
@@ -20,19 +19,18 @@ import {
   type RestockShopType,
   type AlertModel,
   type ActiveAlert,
-  type BuyAllResult,
   type OwnershipBaseline,
+  type PendingCompletionInfo,
   type PendingOwnershipConfirmation,
+  type PendingPresenter,
 } from './types';
 import {
+  activeAlerts,
   alertState,
+  dismissedInStockKeys,
   pendingOwnershipConfirmations,
 } from './alertState';
 import {
-  sleep,
-  hasOwnershipSource,
-  waitForOwnershipBaselines,
-  captureOwnershipBaseline,
   clearPendingOwnershipConfirmation,
   failPendingConfirmation,
   schedulePendingStaleNotice,
@@ -43,8 +41,10 @@ import {
   toCanonicalKey,
   resolveOwnershipKey,
 } from './ownershipTracker';
-import { setAlertBusy, setAlertPendingConfirmation } from './alertDom';
-import { processShopStock } from './stockProcessor';
+import { removeAlert, setAlertBusy, setAlertPendingConfirmation } from './alertDom';
+import { clearDismissedCycle, markDismissedCycle, processShopStock } from './stockProcessor';
+import { sendItemToStorage, sendPurchaseBatch } from './purchasePipeline';
+export { sendPurchase, explainSendFailure, sendItemToStorage } from './purchasePipeline';
 
 // ---------------------------------------------------------------------------
 // Tool inventory cap helpers
@@ -102,60 +102,6 @@ export function applyInventoryCapToQuantity(
 
 export function shouldLockDismissForPurchaseCompletion(key: string): boolean {
   return getToolInventoryLimitFromKey(key) == null;
-}
-
-// ---------------------------------------------------------------------------
-// WS send helpers
-// ---------------------------------------------------------------------------
-
-type PurchaseSendFailureReason = WebSocketSendResult['reason'] | 'socket_not_open';
-
-/** Standard shops carry one item type; weather shops mix types, so they rely on the hints from the shop entry. */
-const SHOP_TO_ITEM_TYPE: Record<string, string> = {
-  seed: 'Seed',
-  egg:  'Egg',
-  tool: 'Tool',
-  decor: 'Decor',
-};
-
-/** `idField` (from the shop entry) makes the payload shape follow the game for item types QPM has never seen. */
-function buildShopItemTarget(
-  shopType: RestockShopType,
-  itemId: string,
-  itemTypeHint?: string,
-  idField?: string,
-): { itemType: string } & Record<string, unknown> {
-  const itemType = itemTypeHint ?? SHOP_TO_ITEM_TYPE[shopType] ?? 'Seed';
-  if (idField) return { itemType, [idField]: itemId };
-  switch (itemType) {
-    case 'Seed':  return { itemType: 'Seed',  species: itemId };
-    case 'Egg':   return { itemType: 'Egg',   eggId: itemId };
-    case 'Tool':  return { itemType: 'Tool',  toolId: itemId };
-    case 'Decor': return { itemType: 'Decor', decorId: itemId };
-    default:      return { itemType: 'Seed',  species: itemId };
-  }
-}
-
-export function sendPurchase(shopType: RestockShopType, itemId: string, itemTypeHint?: string, idField?: string): WebSocketSendResult {
-  const item = buildShopItemTarget(shopType, itemId, itemTypeHint, idField);
-  return sendRoomAction('PurchaseShopItem', { shop: shopType, item } as unknown as Record<string, unknown>, { throttleMs: BUY_ACTION_THROTTLE_MS });
-}
-
-export function explainSendFailure(reason: PurchaseSendFailureReason | null): string {
-  switch (reason) {
-    case 'socket_not_open': return 'Room socket not open yet';
-    case 'no_connection':   return 'No room connection';
-    case 'invalid_payload': return 'Invalid purchase payload';
-    case 'throttled':       return 'Purchase request throttled';
-    case 'send_failed':     return 'Failed to send purchase';
-    default:                return 'Purchase request failed';
-  }
-}
-
-export function sendItemToStorage(itemId: string, storageId: string, quantity: number | null): boolean {
-  const payload: Record<string, unknown> = { itemId, storageId };
-  if (quantity != null && quantity > 0) payload.quantity = quantity;
-  return sendRoomAction('PutItemInStorage', payload, { throttleMs: BUY_ACTION_THROTTLE_MS }).ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -409,64 +355,60 @@ function showCoinsConfirmModal(
 }
 
 // ---------------------------------------------------------------------------
-// Buy-all workflow
+// Alert-card presenter — status text, pending flag, dismiss-cycle, removal.
+// Bound to the alert's key at creation so calls are safe after the card is gone.
 // ---------------------------------------------------------------------------
 
-async function buyAllForAlert(model: AlertModel, quantity: number): Promise<BuyAllResult> {
-  const requested = Math.max(1, Math.floor(quantity));
-  await waitForOwnershipBaselines(model.shopType);
-  const ownershipBaseline = captureOwnershipBaseline(model.key, model.shopType);
-  debugLog('Buy-all starting', {
-    key: model.key,
-    label: model.label,
-    requested,
-    shopType: model.shopType,
-    itemId: model.itemId,
-    stockCycleId: model.stockCycleId,
-    baselineCount: ownershipBaseline.count,
-    includeInventory: ownershipBaseline.includeInventory,
-    includeSeedSilo: ownershipBaseline.includeSeedSilo,
-    includeDecorShed: ownershipBaseline.includeDecorShed,
-    includeToolShack: ownershipBaseline.includeToolShack,
-    baselineInventoryStacks: ownershipBaseline.inventoryKeyItemQuantities.size,
-    roomSocketOpen: isRoomSocketOpen(),
-  });
-
-  let sent = 0;
-  let firstFailureReason: PurchaseSendFailureReason | null = null;
-  for (let i = 0; i < requested; i++) {
-    if (!isRoomSocketOpen()) {
-      firstFailureReason = 'socket_not_open';
-      debugLog('Buy-all send loop halted: room socket not open', { key: model.key, requested, sent, index: i });
-      break;
-    }
-    const result = sendPurchase(model.shopType, model.itemId, model.itemType, model.idField);
-    if (!result.ok) {
-      firstFailureReason = result.reason ?? null;
-      debugLog('Buy-all send failed', { key: model.key, requested, sent, index: i, reason: firstFailureReason });
-      break;
-    }
-    sent += 1;
-    if (i === 0 || i === requested - 1 || i % 5 === 0) {
-      debugLog('Buy-all send succeeded', { key: model.key, index: i, sent, requested });
-    }
-    if (i < requested - 1) await sleep(BUY_SEND_DELAY_MS);
-  }
-
-  if (sent <= 0) {
-    debugLog('Buy-all failed before any sends completed', { key: model.key, requested, sent, failureReason: firstFailureReason, confirmationAvailable: hasOwnershipSource(ownershipBaseline) });
-    return { sent: 0, baseline: null, confirmationAvailable: hasOwnershipSource(ownershipBaseline), error: explainSendFailure(firstFailureReason) };
-  }
-
-  const response: BuyAllResult = {
-    sent,
-    baseline: ownershipBaseline,
-    confirmationAvailable: hasOwnershipSource(ownershipBaseline),
-    error: null,
+function createAlertPresenter(key: string): PendingPresenter {
+  return {
+    showStaleNotice(sent: number): void {
+      const current = activeAlerts.get(key);
+      if (!current || current.busy || !current.pendingConfirmation) return;
+      current.statusEl.style.color = '#fde68a';
+      current.statusEl.textContent = `Sent ${sent} — confirming (slow)…`;
+    },
+    showProgress(confirmed: number, sent: number): void {
+      const current = activeAlerts.get(key);
+      if (!current) return;
+      current.statusEl.style.color = '#fde68a';
+      current.statusEl.textContent = `Purchased ${confirmed}/${sent} confirmed`;
+    },
+    showCompletion(info: PendingCompletionInfo): void {
+      const current = activeAlerts.get(key);
+      if (current) {
+        current.statusEl.style.color = '#86efac';
+        current.statusEl.textContent = `Purchased ${info.confirmed}${info.storedNote}${info.completionSuffix}`;
+        setAlertPendingConfirmation(current, false);
+      }
+      if (info.lockDismissForCycle) {
+        dismissedInStockKeys.add(key);
+        markDismissedCycle(key, info.stockCycleId);
+      } else {
+        dismissedInStockKeys.delete(key);
+        clearDismissedCycle(key);
+      }
+      window.setTimeout(() => { removeAlert(key); }, ALERT_SUCCESS_HIDE_MS);
+    },
+    showFailure(reason: string): void {
+      const current = activeAlerts.get(key);
+      if (!current) return;
+      setAlertPendingConfirmation(current, false);
+      current.statusEl.style.color = '#fca5a5';
+      current.statusEl.textContent = reason;
+      window.setTimeout(() => {
+        const later = activeAlerts.get(key);
+        if (!later) return;
+        if (later.busy || later.pendingConfirmation) return;
+        later.statusEl.style.color = 'rgba(200,192,255,0.72)';
+        later.statusEl.textContent = 'Ready to buy';
+      }, 4_000);
+    },
   };
-  debugLog('Buy-all send loop completed', { key: model.key, requested, sent, confirmationAvailable: response.confirmationAvailable });
-  return response;
 }
+
+// ---------------------------------------------------------------------------
+// Buy-all workflow
+// ---------------------------------------------------------------------------
 
 export async function handleBuyAll(active: ActiveAlert): Promise<void> {
   const buyModel: AlertModel = { ...active.model };
@@ -542,7 +484,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     }
 
     const socketGenBefore = alertState.socketCloseGeneration;
-    const result = await buyAllForAlert(buyModel, requested);
+    const result = await sendPurchaseBatch(buyModel, requested);
     if (result.error || result.sent <= 0) {
       debugLog('Buy-all request failed', { key: buyModel.key, requested, sent: result.sent, error: result.error });
       active.statusEl.style.color = '#fca5a5';
@@ -578,6 +520,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
       autoStoreStorageId: autoStoreTarget?.storageId ?? null,
       autoStoreLabel: autoStoreTarget?.label ?? null,
       storedInTargetStorage: false,
+      presenter: createAlertPresenter(active.model.key),
     };
     debugLog('Pending ownership confirmation created', {
       key: pending.key,

@@ -5,13 +5,13 @@ import { warnFeature } from './_diagnostics';
 import type { InventoryData } from '../../../store/inventory';
 import {
   ALERT_DEBUG_ENABLED,
-  ALERT_SUCCESS_HIDE_MS,
   OWNERSHIP_BASELINE_WAIT_MS,
   OWNERSHIP_STALE_NOTICE_MS,
   OWNERSHIP_MAX_CONFIRMATION_MS,
   type RestockShopType,
   type OwnershipBaseline,
   type PendingOwnershipConfirmation,
+  type PurchaseOutcome,
 } from './types';
 import {
   toNonNegativeInteger,
@@ -46,13 +46,12 @@ import {
   ownershipListeners,
   pendingOwnershipConfirmations,
   debugLastStockStateByKey,
-  dismissedInStockKeys,
 } from './alertState';
 
 // Forward imports (circular — safe in esbuild IIFE)
-import { removeAlert, setAlertPendingConfirmation, updateAlertQuantity } from './alertDom';
+import { updateAlertQuantity } from './alertDom';
 import { hasReachedToolInventoryCap, shouldLockDismissForPurchaseCompletion, maybeAutoStoreConfirmedDelta } from './purchaseActions';
-import { markDismissedCycle, clearDismissedCycle, processShopStock } from './stockProcessor';
+import { processShopStock } from './stockProcessor';
 import { getShopStockState } from '../../../store/shopStock';
 
 // ---------------------------------------------------------------------------
@@ -262,10 +261,7 @@ export function schedulePendingStaleNotice(key: string): void {
     latest.staleNoticeTimerId = null;
     if (latest.confirmed > 0) return;
     latest.staleNoticeShown = true;
-    const active = activeAlerts.get(key);
-    if (!active || active.busy || !active.pendingConfirmation) return;
-    active.statusEl.style.color = '#fde68a';
-    active.statusEl.textContent = `Sent ${latest.sent} \u2014 confirming (slow)\u2026`;
+    latest.presenter?.showStaleNotice(latest.sent);
     debugLog('Pending confirmation reached stale notice window', {
       key,
       sent: latest.sent,
@@ -273,6 +269,7 @@ export function schedulePendingStaleNotice(key: string): void {
       expectedIncrease: latest.expectedIncrease,
       baselineCount: latest.baseline.count,
       currentDelta: readOwnershipDelta(key, latest.baseline),
+      headless: latest.presenter === null,
     });
   }, OWNERSHIP_STALE_NOTICE_MS);
 }
@@ -280,20 +277,19 @@ export function schedulePendingStaleNotice(key: string): void {
 export function failPendingConfirmation(key: string, reason: string): void {
   const pending = pendingOwnershipConfirmations.get(key);
   if (!pending) return;
-  debugLog('Failing pending confirmation', { key, reason, sent: pending.sent, confirmed: pending.confirmed });
+  debugLog('Failing pending confirmation', { key, reason, sent: pending.sent, confirmed: pending.confirmed, headless: pending.presenter === null });
+  const outcome: PurchaseOutcome = {
+    sent: pending.sent,
+    confirmed: pending.confirmed,
+    storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
+    error: reason,
+    timedOut: reason.startsWith('Purchase timed out'),
+  };
+  const presenter = pending.presenter;
+  const settle = pending.settle;
   clearPendingOwnershipConfirmation(key);
-  const active = activeAlerts.get(key);
-  if (!active) return;
-  setAlertPendingConfirmation(active, false);
-  active.statusEl.style.color = '#fca5a5';
-  active.statusEl.textContent = reason;
-  window.setTimeout(() => {
-    const current = activeAlerts.get(key);
-    if (!current) return;
-    if (current.busy || current.pendingConfirmation) return;
-    current.statusEl.style.color = 'rgba(200,192,255,0.72)';
-    current.statusEl.textContent = 'Ready to buy';
-  }, 4_000);
+  settle?.(outcome);
+  presenter?.showFailure(reason);
 }
 
 export function scheduleMaxConfirmationTimeout(key: string): void {
@@ -319,8 +315,7 @@ export function processPendingOwnershipConfirmations(): void {
   if (pendingOwnershipConfirmations.size === 0) return;
 
   for (const [key, pending] of Array.from(pendingOwnershipConfirmations.entries())) {
-    const active = activeAlerts.get(key);
-    if (!active) {
+    if (pending.presenter !== null && !activeAlerts.has(key)) {
       debugLog('Clearing pending confirmation because alert no longer exists', {
         key,
         expectedIncrease: pending.expectedIncrease,
@@ -358,20 +353,10 @@ export function processPendingOwnershipConfirmations(): void {
       const storedNote = pending.storedInTargetStorage && pending.autoStoreLabel
         ? ` + moved to ${pending.autoStoreLabel}`
         : '';
-      active.statusEl.style.color = '#86efac';
       const completionSuffix = completedByToolCap
         ? ` (inventory full ${capState.owned}/${capState.limit})`
         : '';
-      active.statusEl.textContent = `Purchased ${pending.confirmed}${storedNote}${completionSuffix}`;
-      setAlertPendingConfirmation(active, false);
-      clearPendingOwnershipConfirmation(key);
-      if (shouldLockDismissForPurchaseCompletion(key)) {
-        dismissedInStockKeys.add(key);
-        markDismissedCycle(key, pending.stockCycleId);
-      } else {
-        dismissedInStockKeys.delete(key);
-        clearDismissedCycle(key);
-      }
+      const lockDismissForCycle = shouldLockDismissForPurchaseCompletion(key);
       debugLog('Ownership confirmation completed; scheduling alert removal', {
         key,
         confirmed: pending.confirmed,
@@ -379,17 +364,32 @@ export function processPendingOwnershipConfirmations(): void {
         storedInTargetStorage: pending.storedInTargetStorage,
         autoStoreLabel: pending.autoStoreLabel,
         stockCycleId: pending.stockCycleId,
-        lockDismissForCycle: shouldLockDismissForPurchaseCompletion(key),
+        lockDismissForCycle,
         completedByToolCap,
         capOwned: capState.owned,
         capLimit: capState.limit,
+        headless: pending.presenter === null,
       });
-      window.setTimeout(() => { removeAlert(key); }, ALERT_SUCCESS_HIDE_MS);
+      pending.presenter?.showCompletion({
+        confirmed: pending.confirmed,
+        storedNote,
+        completionSuffix,
+        lockDismissForCycle,
+        stockCycleId: pending.stockCycleId,
+      });
+      const outcome: PurchaseOutcome = {
+        sent: pending.sent,
+        confirmed: pending.confirmed,
+        storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
+        error: null,
+        timedOut: false,
+      };
+      pending.settle?.(outcome);
+      clearPendingOwnershipConfirmation(key);
       continue;
     }
 
-    active.statusEl.style.color = '#fde68a';
-    active.statusEl.textContent = `Purchased ${confirmed}/${pending.sent} confirmed`;
+    pending.presenter?.showProgress(confirmed, pending.sent);
     schedulePendingStaleNotice(key);
   }
 }

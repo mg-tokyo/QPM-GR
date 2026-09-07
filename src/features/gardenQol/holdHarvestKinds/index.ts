@@ -11,9 +11,8 @@ export {
 export { labelFor } from './labels';
 export { startHarvestKindObserver, stopHarvestKindObserver } from './observer';
 export {
-  extractInitialKinds,
-  getExtractorSubsystem,
+  startHarvestKindExtractor,
+  stopHarvestKindExtractor,
   getSeedKinds,
-  type ExtractorResult,
   type ExtractedKind,
 } from './extractor';

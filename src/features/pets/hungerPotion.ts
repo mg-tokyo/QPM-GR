@@ -1,7 +1,17 @@
-import { sendRoomAction, type WebSocketSendResult } from '../../websocket/api';
+import { sendRoomAction, type RoomActionType, type WebSocketSendResult } from '../../websocket/api';
 import { ghostStepToPet } from '../../utils/ghostStep';
 import { getToolCount, onToolCountChange } from '../../utils/toolInventory';
 import type { FoodSelection } from './foodRules';
+
+export type FeedSender = (
+  type: RoomActionType,
+  payload: Record<string, unknown>,
+  options?: { throttleMs?: number; skipThrottle?: boolean },
+) => WebSocketSendResult | Promise<WebSocketSendResult>;
+
+export interface HungerPotionSendOptions {
+  send?: FeedSender;
+}
 
 /** The game's internal tool ID for the hunger potion. */
 export const HUNGER_POTION_TOOL_ID = 'ReplenishPotion';
@@ -28,10 +38,14 @@ export function isHungerPotionSelection(selection: FoodSelection | null | undefi
 }
 
 /** Server requires same-tile presence, like XP potions — ghost-steps to the pet, sends, then steps back. */
-export async function sendUseHungerPotion(petSlotId: string): Promise<WebSocketSendResult> {
+export async function sendUseHungerPotion(
+  petSlotId: string,
+  opts?: HungerPotionSendOptions,
+): Promise<WebSocketSendResult> {
+  const send: FeedSender = opts?.send ?? sendRoomAction;
   const step = await ghostStepToPet(petSlotId);
 
-  const result = sendRoomAction('ReplenishPotion', { petItemId: petSlotId }, { throttleMs: 200 });
+  const result = await send('ReplenishPotion', { petItemId: petSlotId }, { throttleMs: 200 });
 
   if (step) {
     step.stepBack();

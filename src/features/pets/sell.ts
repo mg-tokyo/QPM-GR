@@ -1,8 +1,7 @@
 import { readInventoryDirect } from '../../store/inventory';
 import { getActivePetInfos } from '../../store/pets';
-import { sendStorePet, sendToggleLockItem } from './teamActions';
 import { waitForInventoryContains } from './swap';
-import { sendRoomAction } from '../../websocket/api';
+import { sendRoomAction, type RoomActionType, type WebSocketSendResult } from '../../websocket/api';
 import { delay } from '../../utils/scheduling/scheduling';
 import { warnFeature } from './_diagnostics';
 import type { CollectedPet } from './optimizer';
@@ -11,6 +10,29 @@ import { ensureJournalLogged } from '../journal/guard';
 export interface SellPipelineResult {
   ok: boolean;
   reason?: string;
+}
+
+export type SellSender = (
+  type: RoomActionType,
+  payload: Record<string, unknown>,
+  options?: { throttleMs?: number; skipThrottle?: boolean },
+) => WebSocketSendResult | Promise<WebSocketSendResult>;
+
+export interface SellPipelineOptions {
+  send?: SellSender;
+}
+
+async function invokeSend(
+  send: SellSender,
+  type: RoomActionType,
+  payload: Record<string, unknown>,
+  options?: { throttleMs?: number; skipThrottle?: boolean },
+): Promise<WebSocketSendResult> {
+  const result = await send(type, payload, options);
+  if (!result.ok && result.reason !== 'throttled') {
+    warnFeature('QPM-FEATURE-001', { type, reason: result.reason ?? 'unknown' });
+  }
+  return result;
 }
 
 const STORE_TIMEOUT_MS = 4000;
@@ -50,9 +72,13 @@ async function waitForPetLeavesActive(itemId: string, timeoutMs: number): Promis
  * 4. If inventory → ready
  * 5. SellPet (same as sellAllPets.ts: sendRoomAction directly)
  */
-export async function executeSellPipeline(pet: CollectedPet): Promise<SellPipelineResult> {
+export async function executeSellPipeline(
+  pet: CollectedPet,
+  opts?: SellPipelineOptions,
+): Promise<SellPipelineResult> {
   const itemId = pet.itemId;
   const { location } = pet;
+  const send: SellSender = opts?.send ?? sendRoomAction;
 
   if (!itemId || itemId.startsWith('active-') || itemId.startsWith('hutch-') || itemId.startsWith('inventory-')) {
     return { ok: false, reason: 'Invalid item ID (missing or synthetic)' };
@@ -66,13 +92,13 @@ export async function executeSellPipeline(pet: CollectedPet): Promise<SellPipeli
     const freshInventory = await readInventoryDirect();
     const freshFavorites = new Set(freshInventory?.favoritedItemIds ?? []);
     if (freshFavorites.has(itemId)) {
-      sendToggleLockItem(itemId);
+      await invokeSend(send, 'ToggleLockItem', { itemId }, { throttleMs: 90 });
       await delay(POST_UNFAVORITE_DELAY_MS);
     }
 
     // Step 2: Move to inventory based on location
     if (location === 'active') {
-      const storeResult = sendStorePet(itemId);
+      const storeResult = await invokeSend(send, 'StorePet', { itemId }, { throttleMs: 90 });
       if (!storeResult.ok) {
         return { ok: false, reason: `StorePet failed: ${storeResult.reason ?? 'unknown'}` };
       }
@@ -85,7 +111,7 @@ export async function executeSellPipeline(pet: CollectedPet): Promise<SellPipeli
       await delay(POST_STORE_DELAY_MS);
 
       // Now in hutch — retrieve to inventory
-      const retrieveResult = sendRoomAction('RetrieveItemFromStorage', {
+      const retrieveResult = await invokeSend(send, 'RetrieveItemFromStorage', {
         itemId,
         storageId: 'PetHutch',
       }, { throttleMs: 0, skipThrottle: true });
@@ -98,7 +124,7 @@ export async function executeSellPipeline(pet: CollectedPet): Promise<SellPipeli
         return { ok: false, reason: 'Timed out waiting for pet in inventory after hutch retrieval' };
       }
     } else if (location === 'hutch') {
-      const retrieveResult = sendRoomAction('RetrieveItemFromStorage', {
+      const retrieveResult = await invokeSend(send, 'RetrieveItemFromStorage', {
         itemId,
         storageId: 'PetHutch',
       }, { throttleMs: 0, skipThrottle: true });
@@ -114,7 +140,7 @@ export async function executeSellPipeline(pet: CollectedPet): Promise<SellPipeli
     // location === 'inventory' → already ready
 
     // Step 3: Sell — matches sellAllPets.ts pattern exactly
-    const sellResult = sendRoomAction('SellPet', { itemId }, { throttleMs: 0, skipThrottle: true });
+    const sellResult = await invokeSend(send, 'SellPet', { itemId }, { throttleMs: 0, skipThrottle: true });
     if (!sellResult.ok) {
       return { ok: false, reason: `SellPet failed: ${sellResult.reason ?? 'unknown'}` };
     }

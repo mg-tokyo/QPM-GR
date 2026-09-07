@@ -5,6 +5,7 @@
 // prioritised into whatever budget remains — Discord's 2000-char message
 // limit is the hard cap.
 
+import type { KeyExplain } from '../core/gameState/types';
 import { getCurrentVersion } from '../utils/versionChecker';
 import { errorBuffer } from './errorBuffer';
 import { getCapturedGameVersion } from './gameVersionCapture';
@@ -35,6 +36,25 @@ export const DEFAULT_COPY_OPTIONS: CopyPayloadOptions = {
 
 const MAX_TOTAL_CHARS = 1900; // leave headroom under the 2000-char Discord limit
 const MAX_RECENT_ERRORS = 50;
+
+// Populated by initGameState() with `() => reg.explainAll()`; C2's payload/window
+// helpers read through this so diagnostics stays a leaf module.
+let gameStatePayloadSource: (() => readonly KeyExplain[]) | null = null;
+export function setGameStatePayloadSource(source: (() => readonly KeyExplain[]) | null): void {
+  gameStatePayloadSource = source;
+}
+export function getGameStateSnapshotForPayload(): readonly KeyExplain[] | null {
+  if (!gameStatePayloadSource) return null;
+  try { return gameStatePayloadSource(); }
+  catch { return null; }
+}
+
+function renderGameStateProblemLines(): string[] {
+  const gs = getGameStateSnapshotForPayload();
+  if (!gs) return [];
+  return gs.filter((e) => e.boundVia === null || !e.preferred).slice(0, 12)
+    .map((e) => `${e.key}: ${e.boundDescription ?? 'unbound'}${e.preferred ? '' : ' (fallback)'}`);
+}
 
 interface UAInfo { browser: string; os: string }
 
@@ -164,6 +184,14 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
   // ── Issues section (only when there ARE issues) ──
   if (opts.subsystems && issues.length > 0) {
     fixed += `\n\n== Issues ==\n${renderIssuesLines(issues)}`;
+  }
+
+  // Reserve the ~1900-char Discord budget for healthy sessions — only spend it on
+  // gameState detail when the row is actually degraded/failed.
+  const gs = subsystems.find((s) => s.subsystem === 'gameState');
+  if (opts.subsystems && gs && gs.status !== 'ok' && gs.status !== 'starting') {
+    const lines = renderGameStateProblemLines();
+    if (lines.length > 0) fixed += `\n\n== Game state ==\n${lines.join('\n')}`;
   }
 
   if (!opts.recentErrors) {

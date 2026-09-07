@@ -159,13 +159,6 @@ const pt: Dictionary = {
 
   // ── Hub: Config group ─────────────────────────────────────────────────────
   'hub.config.label': 'Config',
-  'hub.config.autoReconnect.label': 'Reconexão Automática',
-  'hub.config.autoReconnect.description': 'Reconectar automaticamente após desconexões ou sessões expiradas',
-  'hub.config.autoReconnect.summaryEnabled': 'Ativado \u00b7 {delay}',
-  'hub.config.autoReconnect.summaryDisabled': 'Desativado',
-  'hub.config.autoReconnect.delayInstant': 'Instantâneo',
-  'hub.config.autoReconnect.delaySeconds': '{seconds}s de atraso',
-  'hub.config.autoReconnect.delayLabel': 'Atraso: {delay}',
   'hub.config.controller.label': 'Controle',
   'hub.config.controller.description': 'Configurar movimento do cursor com controle, navegação D-pad e atalhos de botões',
   'hub.config.controller.summary': 'Atalhos / Zona morta / Cursor',
@@ -222,7 +215,6 @@ const pt: Dictionary = {
   'tile.reminders.label': 'Lembretes',
   'tile.gardenStats.label': 'Stats do Jardim',
   'tile.favorites.label': 'Favoritos',
-  'tile.autoReconnect.label': 'Reconexão Automática',
   'tile.shopKeybinds.label': 'Atalhos da Loja',
   'tile.panelShortcut.label': 'Atalho do Painel',
   'tile.guide.label': 'Guia',

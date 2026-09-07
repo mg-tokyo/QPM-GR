@@ -1,7 +1,10 @@
 // Normalized view of shop atom data and restock timers.
 
 import { readAtomValue as readRegistryAtomValue, readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
-import { getAtomByLabel, readAtomValue as readJotaiAtomValue, getCachedStore } from '../core/jotaiBridge';
+// Polyfill early-return needs the raw store handle to detect the __polyfill
+// flag — no registry equivalent for that check (D1 Step 3 handoff).
+// eslint-disable-next-line no-restricted-imports -- polyfill flag detection
+import { getCachedStore } from '../core/jotaiBridge';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeShops', 'shops');
@@ -31,10 +34,6 @@ import { getPlantSpecies, getEggType, getItem, getDecor } from '../catalogs/game
 // Re-export types so existing importers of shopStock.ts continue to work.
 export type { ShopStockItem, ShopStockCategoryState, ShopStockState } from './shopStockParsers';
 
-const MY_USER_SLOT_ATOM_LABEL = 'myUserSlotAtom';
-const MY_DATA_ATOM_LABEL = 'myDataAtom';
-const QUINOA_DATA_ATOM_LABEL = 'quinoaDataAtom';
-
 function itemTypeLabel(category: string): string {
   switch (category) {
     case 'seeds': return 'Seed';
@@ -57,9 +56,6 @@ let shopsUnsubscribe: (() => void) | null = null;
 let myDataPurchasesUnsubscribe: (() => void) | null = null;
 let customInventoriesUnsubscribe: (() => void) | null = null;
 let quinoaDataShopsUnsubscribe: (() => void) | null = null;
-let myDataAtomRef: unknown = null;
-let myUserSlotAtomRef: unknown = null;
-let quinoaDataAtomRef: unknown = null;
 let discoveryUnsubscribe: (() => void) | null = null;
 
 function createEmptyState(): ShopStockState {
@@ -182,15 +178,11 @@ export async function startShopStockStore(): Promise<void> {
       shopsSnapshot = null;
     }
 
-    myDataAtomRef = getAtomByLabel(MY_DATA_ATOM_LABEL);
-    if (myDataAtomRef) {
-      try {
-        const myDataValue = await readJotaiAtomValue<unknown>(myDataAtomRef);
-        myDataPurchasesSnapshot = extractMyDataShopPurchases(myDataValue);
-      } catch (error) {
-        diag.warn('QPM-STORE-002', { atom: MY_DATA_ATOM_LABEL, phase: 'initial-shop-purchases' }, error);
-        myDataPurchasesSnapshot = null;
-      }
+    try {
+      myDataPurchasesSnapshot = extractMyDataShopPurchases(await readRegistryAtomValue('myData'));
+    } catch (error) {
+      diag.warn('QPM-STORE-002', { atom: 'myData', phase: 'initial-shop-purchases' }, error);
+      myDataPurchasesSnapshot = null;
     }
 
     rebuildState();
@@ -214,9 +206,6 @@ export async function startShopStockStore(): Promise<void> {
       diag.warn('QPM-STORE-002', { atom: 'myData', phase: 'subscribe-shop-purchases' }, error);
     }
 
-    // Keep myUserSlotAtomRef resolved for forceRefreshShopStock's synchronous
-    // store.get fallback path.
-    myUserSlotAtomRef = getAtomByLabel(MY_USER_SLOT_ATOM_LABEL);
     try {
       const unsub = await subscribeAtomValue('myUserSlot', (value) => {
         customInventories = extractCustomInventories(value);
@@ -233,7 +222,6 @@ export async function startShopStockStore(): Promise<void> {
     });
 
     // Fallback: subscribe to quinoaData.shops for categories with no customRestockInventories (e.g. dawn shop).
-    quinoaDataAtomRef = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
     try {
       const unsub = await subscribeAtomValue('quinoaData', (value) => {
         quinoaDataShopsSnapshot = value?.shops ?? null;
@@ -276,22 +264,19 @@ export function stopShopStockStore(): void {
   myDataPurchasesSnapshot = null;
   customInventories = null;
   quinoaDataShopsSnapshot = null;
-  myDataAtomRef = null;
-  myUserSlotAtomRef = null;
-  quinoaDataAtomRef = null;
   cachedState = createEmptyState();
   shopFirstPublished = false;
   lastNotifySignature = null;
 }
 
-/** Re-read shop atoms via store.get() and rebuild if changed — used by the background atom poller when Jotai subscriptions don't fire (background tabs). */
+/** Re-read shop atoms via the registry and rebuild if changed — used by the background atom poller when subscriptions don't fire (background tabs). */
 export function forceRefreshShopStock(): void {
   const store = getCachedStore();
+  // Polyfill store IS the state-tree read; nothing separate to force-refresh.
   if (!store || store.__polyfill) return;
 
   let changed = false;
 
-  // Re-read shops via registry (handles both label and fallback resolution)
   try {
     const fresh = readAtomValueSync('shops');
     if (fresh !== shopsSnapshot) {
@@ -300,41 +285,30 @@ export function forceRefreshShopStock(): void {
     }
   } catch {}
 
-  if (myDataAtomRef) {
-    try {
-      const freshMyData = store.get(myDataAtomRef);
-      const freshPurchases = extractMyDataShopPurchases(freshMyData);
-      if (freshPurchases !== myDataPurchasesSnapshot) {
-        myDataPurchasesSnapshot = freshPurchases;
-        changed = true;
-      }
-    } catch {}
-  }
+  try {
+    const freshPurchases = extractMyDataShopPurchases(readAtomValueSync('myData'));
+    if (freshPurchases !== myDataPurchasesSnapshot) {
+      myDataPurchasesSnapshot = freshPurchases;
+      changed = true;
+    }
+  } catch {}
 
-  if (myUserSlotAtomRef) {
-    try {
-      const freshSlot = store.get(myUserSlotAtomRef);
-      const freshCustom = extractCustomInventories(freshSlot);
-      if (freshCustom !== customInventories) {
-        customInventories = freshCustom;
-        changed = true;
-      }
-    } catch {}
-  }
+  try {
+    const freshCustom = extractCustomInventories(readAtomValueSync('myUserSlot'));
+    if (freshCustom !== customInventories) {
+      customInventories = freshCustom;
+      changed = true;
+    }
+  } catch {}
 
-  // Re-read quinoaDataAtom shops (fallback for dawn and other non-custom-restock shops)
-  if (quinoaDataAtomRef) {
-    try {
-      const freshQD = store.get(quinoaDataAtomRef) as Record<string, unknown> | null;
-      const freshShops = (freshQD && typeof freshQD === 'object' && 'shops' in freshQD)
-        ? freshQD.shops as ShopsAtomSnapshot | null
-        : null;
-      if (freshShops !== quinoaDataShopsSnapshot) {
-        quinoaDataShopsSnapshot = freshShops;
-        changed = true;
-      }
-    } catch {}
-  }
+  try {
+    const freshQD = readAtomValueSync('quinoaData');
+    const freshShops = freshQD?.shops ?? null;
+    if (freshShops !== quinoaDataShopsSnapshot) {
+      quinoaDataShopsSnapshot = freshShops;
+      changed = true;
+    }
+  } catch {}
 
   if (changed) rebuildState();
 }

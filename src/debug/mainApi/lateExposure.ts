@@ -76,7 +76,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
 
   // Expose atoms debug namespace (lazy — loads full debug API on first method call)
   const atomsNs: Record<string, unknown> = {};
-  for (const method of ['discover', 'health', 'read', 'list', 'status'] as const) {
+  for (const method of ['discover', 'health', 'read', 'list', 'status', 'explain', 'explainAll', 'divergence', 'simulateSourceLoss', 'restoreSource', 'stats'] as const) {
     Object.defineProperty(atomsNs, method, {
       get() {
         return async (...args: unknown[]) => {
@@ -200,6 +200,8 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     setDevMode,
     isDevMode,
     instaHarvestSnapshot,
+    gameStateStop: async () => { const m = await import('../../core/gameState'); m.stopGameState(); },
+    gameStateStart: async () => { const m = await import('../../core/gameState'); m.initGameState(); },
   };
 
 

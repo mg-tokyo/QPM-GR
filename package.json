@@ -1,6 +1,6 @@
 {
   "name": "quinoa-pet-manager",
-  "version": "3.3.39",
+  "version": "3.3.41",
   "description": "Quality of life tools for Magic Garden including crop tracking, mutation reminders, and inventory management",
   "main": "dist/userscript.js",
   "scripts": {
@@ -14,6 +14,8 @@
     "scrape-game-data": "node scripts/scrape-game-data.js",
     "parse-discord-html": "node --max-old-space-size=4096 scripts/parse-discord-html.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ src",
     "check": "npm run typecheck && npm run lint",
     "preview": "vite preview",
@@ -32,7 +34,8 @@
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.64.0",
     "vite": "^7.1.12",
-    "vite-plugin-dts": "^4.5.4"
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^3.2.7"
   },
   "license": "MIT",
   "keywords": [

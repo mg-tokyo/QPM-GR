@@ -161,13 +161,6 @@ const fr: Dictionary = {
 
   // ── Hub: Config group ─────────────────────────────────────────────────────
   'hub.config.label': 'Config',
-  'hub.config.autoReconnect.label': 'Reconnexion auto',
-  'hub.config.autoReconnect.description': 'Se reconnecter automatiquement après une déconnexion ou une session expirée',
-  'hub.config.autoReconnect.summaryEnabled': 'Activé \u00b7 {delay}',
-  'hub.config.autoReconnect.summaryDisabled': 'Désactivé',
-  'hub.config.autoReconnect.delayInstant': 'Instantané',
-  'hub.config.autoReconnect.delaySeconds': '{seconds}s de délai',
-  'hub.config.autoReconnect.delayLabel': 'Délai : {delay}',
   'hub.config.controller.label': 'Manette',
   'hub.config.controller.description': 'Configurer le mouvement du curseur manette, la navigation D-pad et les raccourcis boutons',
   'hub.config.controller.summary': 'Raccourcis / Zone morte / Curseur',
@@ -249,9 +242,6 @@ const fr: Dictionary = {
   'feature.activityLog.infoBullet4': 'Limite : 5000 entrées',
 
   // ── Feature: Auto Reconnect ────────────────────────────────────────────
-  'feature.autoReconnect.enableToggle': 'Activer la reconnexion auto',
-  'feature.autoReconnect.delayLabel': 'Délai de reconnexion',
-  'feature.autoReconnect.delayHint': 's (0-300, pas de 30)',
 
   // ── Feature: Protection ──────────────────────────────────────────────────
   'feature.protection.locksHeader': 'Verrous',
@@ -1313,7 +1303,6 @@ const fr: Dictionary = {
   'tile.reminders.label': 'Rappels',
   'tile.gardenStats.label': 'Stats jardin',
   'tile.favorites.label': 'Favoris',
-  'tile.autoReconnect.label': 'Reconnexion auto',
   'tile.shopKeybinds.label': 'Raccourcis boutique',
   'tile.panelShortcut.label': 'Raccourci panneau',
   'tile.guide.label': 'Guide',

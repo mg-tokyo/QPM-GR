@@ -35,23 +35,45 @@ export function listCodes(): readonly ErrorCodeDefinition[] {
 
 register({
   code: 'QPM-ATOM-001',
-  subsystem: 'atomRegistry',
+  subsystem: 'gameState',
   category: 'core',
   severity: 'warn',
   title: 'Missing atom',
   description: 'A registered atom key could not be resolved from the Jotai store.',
-  devNotes: 'src/core/atomRegistry.ts — fallback applied; feature still works on stale data.',
+  devNotes: 'src/core/gameState/ — fallback applied; feature still works on stale data.',
   sinceVersion: CURRENT_VERSION,
 });
 
 register({
   code: 'QPM-ATOM-002',
-  subsystem: 'atomRegistry',
+  subsystem: 'gameState',
   category: 'core',
   severity: 'warn',
   title: 'Atom transform error',
   description: 'A registered atom resolved but its path/transform threw — fallback applied.',
-  devNotes: 'src/core/atomRegistry.ts applyTransform — likely a shape change on the game side.',
+  devNotes: 'src/core/gameState/ applyTransform — likely a shape change on the game side.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-ATOM-003',
+  subsystem: 'gameState',
+  category: 'core',
+  severity: 'warn',
+  title: 'Atom / state-tree divergence',
+  description: 'A key whose atom rung and state-tree rung both resolved returned different values with an idle prediction queue.',
+  devNotes: 'src/core/gameState/divergence.ts — usually a label regex matched the wrong sibling atom, or the game changed a projection. Run QPM_DEBUG_API.atoms.divergence() and compare shapes.',
+  sinceVersion: CURRENT_VERSION,
+});
+
+register({
+  code: 'QPM-ATOM-004',
+  subsystem: 'gameState',
+  category: 'core',
+  severity: 'info',
+  title: 'Key rebound to a lower rung',
+  description: 'A registry key fell back from its preferred source to a lower ladder rung.',
+  devNotes: 'src/core/gameState/resolver.ts — expected briefly at boot; persistent fallback means the preferred source (usually the state tree) is unavailable. Check QPM_DEBUG_API.atoms.explain(key).',
   sinceVersion: CURRENT_VERSION,
 });
 

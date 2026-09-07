@@ -100,6 +100,25 @@ interface PendingSubscription {
 }
 const pending: PendingSubscription[] = [];
 
+const readyListeners = new Set<() => void>();
+const welcomeListeners = new Set<(meta: WelcomeMeta) => void>();
+
+/** Runs `cb` once the state tree is ready (immediately if it already is). */
+export function onStateTreeReady(cb: () => void): () => void {
+  if (ready) {
+    try { cb(); } catch { /* listener threw — swallow */ }
+    return () => {};
+  }
+  readyListeners.add(cb);
+  return () => { readyListeners.delete(cb); };
+}
+
+/** Runs `cb` on every Welcome (connect + reconnect) received after subscription. */
+export function onStateTreeWelcome(cb: (meta: WelcomeMeta) => void): () => void {
+  welcomeListeners.add(cb);
+  return () => { welcomeListeners.delete(cb); };
+}
+
 let lastFireTs = 0;
 let selectorSuppressLog = new WeakSet<Selector<unknown>>();
 
@@ -240,6 +259,7 @@ function tryAttachRoomPatchSubscription(): boolean {
             publishedAtServerMs: typeof publishedAtServerMs === 'number' ? publishedAtServerMs : null,
             executedCommandSequence: typeof executedCommandSequence === 'number' ? executedCommandSequence : null,
           };
+          for (const l of welcomeListeners) { try { l(lastWelcome); } catch { /* swallow */ } }
           if (welcomeState && typeof welcomeState === 'object') onStateEvent(welcomeState);
         });
         if (welcomeResult && typeof welcomeResult === 'object' && 'unsubscribe' in welcomeResult) {
@@ -327,6 +347,9 @@ export async function initStateTree(): Promise<void> {
     }
     pending.length = 0;
 
+    for (const l of readyListeners) { try { l(); } catch { /* swallow */ } }
+    readyListeners.clear();
+
     exposeDebugBridge();
     publishHealth('ok', `state tree ready (${subscribers.size} subscribers)`);
   } catch (err) {
@@ -343,6 +366,8 @@ export function stopStateTree(): void {
   welcomeUnsubscribe = null;
   subscribers.clear();
   pending.length = 0;
+  readyListeners.clear();
+  welcomeListeners.clear();
   currentSnapshot = null;
   ready = false;
   lastFireTs = 0;

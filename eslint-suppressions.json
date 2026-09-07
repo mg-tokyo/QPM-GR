@@ -9,16 +9,6 @@
       "count": 1
     }
   },
-  "src/core/atomRegistry.ts": {
-    "max-lines": {
-      "count": 1
-    }
-  },
-  "src/core/jotaiBridge.ts": {
-    "max-lines": {
-      "count": 1
-    }
-  },
   "src/core/pageContext.ts": {
     "@typescript-eslint/ban-ts-comment": {
       "count": 2
@@ -35,6 +25,9 @@
     }
   },
   "src/debug/debugApi.ts": {
+    "max-lines": {
+      "count": 1
+    },
     "no-restricted-properties": {
       "count": 1
     }
@@ -58,16 +51,8 @@
     "max-lines": {
       "count": 1
     },
-    "no-restricted-imports": {
-      "count": 1
-    },
     "qpm/no-inline-ui-strings": {
       "count": 8
-    }
-  },
-  "src/features/activity/activityLogNativeEnhancer/patchHooks.ts": {
-    "no-restricted-imports": {
-      "count": 1
     }
   },
   "src/features/activity/activityLogNativeEnhancer/rendering.ts": {
@@ -80,23 +65,8 @@
       "count": 1
     }
   },
-  "src/features/economy/roomPlayerEconomy.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/features/garden/bridge.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
   "src/features/gardenQol/ariesHold.ts": {
     "no-restricted-globals": {
-      "count": 1
-    }
-  },
-  "src/features/input/controller/controllerContext.ts": {
-    "no-restricted-imports": {
       "count": 1
     }
   },
@@ -105,39 +75,14 @@
       "count": 1
     }
   },
-  "src/features/mutations/reminder/inventorySource.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
   "src/features/mutations/reminder/notifications.ts": {
     "qpm/no-inline-ui-strings": {
-      "count": 1
-    }
-  },
-  "src/features/pets/data/petAbilities.ts": {
-    "max-lines": {
-      "count": 1
-    }
-  },
-  "src/features/pets/optimizer/collection.ts": {
-    "no-restricted-imports": {
       "count": 1
     }
   },
   "src/features/pets/sellAll.ts": {
     "qpm/no-inline-ui-strings": {
       "count": 4
-    }
-  },
-  "src/features/pets/swap.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/features/shop/keybinds.ts": {
-    "no-restricted-imports": {
-      "count": 1
     }
   },
   "src/features/standalone/antiAfk.ts": {
@@ -255,11 +200,6 @@
       "count": 1
     }
   },
-  "src/integrations/nativeCardView.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
   "src/rive-engine/instanceTracker.ts": {
     "no-restricted-globals": {
       "count": 1
@@ -267,9 +207,6 @@
   },
   "src/rive-engine/runtimeCapture.ts": {
     "no-restricted-globals": {
-      "count": 1
-    },
-    "no-restricted-imports": {
       "count": 1
     }
   },
@@ -283,43 +220,8 @@
       "count": 1
     }
   },
-  "src/store/abilityLogs.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/store/inventory.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/store/petTeams/applyHelpers.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
   "src/store/pets.ts": {
     "max-lines": {
-      "count": 1
-    }
-  },
-  "src/store/sellSnapshot.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/store/shopRegistry.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/store/shopStock.ts": {
-    "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/store/userSlots.ts": {
-    "no-restricted-imports": {
       "count": 1
     }
   },
@@ -1387,20 +1289,12 @@
       "count": 15
     }
   },
-  "src/ui/shop/restockAlerts/ownershipTracker.ts": {
-    "qpm/no-hardcoded-colors": {
-      "count": 5
-    },
-    "qpm/no-inline-ui-strings": {
-      "count": 4
-    }
-  },
   "src/ui/shop/restockAlerts/purchaseActions.ts": {
     "qpm/no-hardcoded-colors": {
-      "count": 17
+      "count": 22
     },
     "qpm/no-inline-ui-strings": {
-      "count": 11
+      "count": 15
     }
   },
   "src/ui/shop/restockAlerts/soundPopover.ts": {
@@ -1652,9 +1546,6 @@
     }
   },
   "src/ui/stats/statsHubWindow/eggsTab.ts": {
-    "no-restricted-imports": {
-      "count": 2
-    },
     "qpm/no-emoji-in-ui": {
       "count": 2
     },

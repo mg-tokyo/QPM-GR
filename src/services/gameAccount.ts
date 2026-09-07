@@ -9,6 +9,8 @@ export interface GameAccountInfo {
   /** ms epoch; null when the API omits or cannot parse it */
   createdAt: number | null;
   creationSurface: string | null;
+  /** Server-assigned player.id; null when the /me payload lacks an id field. */
+  playerId: string | null;
 }
 
 let cached: GameAccountInfo | null = null;
@@ -30,6 +32,14 @@ function parseCreatedAt(raw: unknown): number | null {
   if (typeof raw === 'string') {
     const parsed = Date.parse(raw);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function extractPlayerId(rec: Record<string, unknown>): string | null {
+  for (const field of ['id', 'playerId', 'userId'] as const) {
+    const v = rec[field];
+    if (typeof v === 'string' && v.trim().length > 0) return v.trim();
   }
   return null;
 }
@@ -65,6 +75,7 @@ export async function fetchGameAccountInfo(): Promise<GameAccountInfo | null> {
       cached = {
         createdAt: parseCreatedAt(rec.createdAt),
         creationSurface: typeof rec.creationSurface === 'string' ? rec.creationSurface : null,
+        playerId: extractPlayerId(rec),
       };
       lastError = null;
       return cached;

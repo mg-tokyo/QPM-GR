@@ -11,7 +11,15 @@ import {
   type EligibleFoodEntry,
 } from './foodRules';
 import { hasRoomConnection, sendRoomAction } from '../../websocket/api';
-import { isHungerPotionSelection, sendUseHungerPotion } from './hungerPotion';
+import { isHungerPotionSelection, sendUseHungerPotion, type FeedSender } from './hungerPotion';
+
+export type { FeedSender } from './hungerPotion';
+
+export interface FeedSendOptions {
+  send?: FeedSender;
+  excludeItemIds?: ReadonlySet<string>;
+  avoidFavorited?: boolean;
+}
 
 export interface InstantFeedResult {
   success: boolean;
@@ -85,8 +93,13 @@ function resolvePetForFeedBySlotId(
   return pets.find((pet) => pet.slotId === normalizedSlotId) ?? null;
 }
 
-function sendFeedPetMessage(petItemId: string, cropItemId: string, cropSpecies: string | null = null): boolean {
-  const sent = sendRoomAction('FeedPet', { petItemId, cropItemId }, { throttleMs: 120 });
+async function sendFeedPetMessage(
+  petItemId: string,
+  cropItemId: string,
+  cropSpecies: string | null = null,
+  send: FeedSender = sendRoomAction,
+): Promise<boolean> {
+  const sent = await send('FeedPet', { petItemId, cropItemId }, { throttleMs: 120 });
   if (!sent.ok && sent.reason !== 'throttled') {
     warnFeature('QPM-FEATURE-001', { type: 'FeedPet', reason: sent.reason ?? 'unknown' });
     return false;
@@ -139,12 +152,17 @@ function makeMissingPetPlan(petIndex: number, error: string): InstantFeedPlan {
 async function buildPlanForPet(
   pet: ActivePetInfo,
   petSlotOrIndex: number,
+  opts?: FeedSendOptions,
 ): Promise<InstantFeedPlan> {
   const rules = getPetFoodRules();
+  const avoidFavorited = opts?.avoidFavorited ?? rules.avoidFavorited;
   const override = toItemOverride(pet);
 
   const inventoryData = await readInventoryDirect();
-  const snapshot = buildFoodInventorySnapshot(inventoryData);
+  const snapshot = buildFoodInventorySnapshot(
+    inventoryData,
+    opts?.excludeItemIds as Set<string> | undefined,
+  );
   if (!snapshot || snapshot.items.length === 0) {
     return {
       ok: false,
@@ -153,7 +171,7 @@ async function buildPlanForPet(
       petSpecies: pet.species,
       petId: pet.petId,
       slotId: pet.slotId,
-      avoidFavorited: rules.avoidFavorited,
+      avoidFavorited,
       availableCount: 0,
       foodSelection: null,
       eligibleFoods: [],
@@ -165,7 +183,7 @@ async function buildPlanForPet(
     pet.species,
     snapshot,
     {
-      avoidFavorited: rules.avoidFavorited,
+      avoidFavorited,
       ...(override ? { itemOverride: override } : {}),
     },
   );
@@ -177,7 +195,7 @@ async function buildPlanForPet(
     petSpecies: pet.species,
     petId: pet.petId,
     slotId: pet.slotId,
-    avoidFavorited: rules.avoidFavorited,
+    avoidFavorited,
     availableCount: availability.availableCount,
     foodSelection: availability.selected,
     eligibleFoods: availability.eligibleFoods,
@@ -195,7 +213,10 @@ function resultFromPlanFailure(plan: InstantFeedPlan): InstantFeedResult {
   };
 }
 
-async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult> {
+async function executeFeedPlan(
+  plan: InstantFeedPlan,
+  opts?: { send?: FeedSender },
+): Promise<InstantFeedResult> {
   if (!plan.ok || !plan.foodSelection) {
     return resultFromPlanFailure(plan);
   }
@@ -214,7 +235,10 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
   if (isHungerPotionSelection(plan.foodSelection) && plan.slotId) {
     diag.debug('attempting hunger potion', { pet: plan.petName ?? plan.petSpecies ?? 'pet' });
 
-    const result = await sendUseHungerPotion(plan.slotId);
+    const result = await sendUseHungerPotion(
+      plan.slotId,
+      opts?.send ? { send: opts.send } : undefined,
+    );
     if (!result.ok) {
       return {
         success: false,
@@ -251,7 +275,12 @@ async function executeFeedPlan(plan: InstantFeedPlan): Promise<InstantFeedResult
     available: plan.availableCount,
   });
 
-  const sent = sendFeedPetMessage(plan.petId, crop.id, crop.species ?? crop.name ?? null);
+  const sent = await sendFeedPetMessage(
+    plan.petId,
+    crop.id,
+    crop.species ?? crop.name ?? null,
+    opts?.send,
+  );
   if (!sent) {
     return {
       success: false,
@@ -291,6 +320,20 @@ export async function getInstantFeedPlan(
   }
 
   return buildPlanForPet(pet, petSlotOrIndex);
+}
+
+export async function planInstantFeedForPet(
+  pet: ActivePetInfo,
+  opts?: FeedSendOptions,
+): Promise<InstantFeedPlan> {
+  return buildPlanForPet(pet, pet.slotIndex, opts);
+}
+
+export async function executeInstantFeedPlan(
+  plan: InstantFeedPlan,
+  opts?: { send?: FeedSender },
+): Promise<InstantFeedResult> {
+  return executeFeedPlan(plan, opts);
 }
 
 export async function getInstantFeedPlanByPetId(
@@ -391,7 +434,7 @@ export async function feedPetByIds(
     const pets = getActivePetInfos();
     const pet = pets.find((p) => p.petId === petId);
 
-    const sent = sendFeedPetMessage(petId, cropId);
+    const sent = await sendFeedPetMessage(petId, cropId);
     if (!sent) {
       return {
         success: false,
@@ -489,55 +532,6 @@ function resolveQueuedPet(entry: QueuedFeed): ActivePetInfo | null {
   }
 }
 
-async function buildPlanExcluding(
-  pet: ActivePetInfo,
-  excludeIds: Set<string>,
-): Promise<InstantFeedPlan> {
-  const rules = getPetFoodRules();
-  const override = toItemOverride(pet);
-
-  const inventoryData = await readInventoryDirect();
-  const snapshot = buildFoodInventorySnapshot(inventoryData, excludeIds);
-  if (!snapshot || snapshot.items.length === 0) {
-    return {
-      ok: false,
-      petIndex: pet.slotIndex,
-      petName: pet.name,
-      petSpecies: pet.species,
-      petId: pet.petId,
-      slotId: pet.slotId,
-      avoidFavorited: rules.avoidFavorited,
-      availableCount: 0,
-      foodSelection: null,
-      eligibleFoods: [],
-      error: 'No feedable produce found in inventory',
-    };
-  }
-
-  const availability = evaluateFoodAvailabilityForPet(
-    pet.species,
-    snapshot,
-    {
-      avoidFavorited: rules.avoidFavorited,
-      ...(override ? { itemOverride: override } : {}),
-    },
-  );
-
-  return {
-    ok: !!availability.selected,
-    petIndex: pet.slotIndex,
-    petName: pet.name,
-    petSpecies: pet.species,
-    petId: pet.petId,
-    slotId: pet.slotId,
-    avoidFavorited: rules.avoidFavorited,
-    availableCount: availability.availableCount,
-    foodSelection: availability.selected,
-    eligibleFoods: availability.eligibleFoods,
-    ...(availability.selected ? {} : { error: 'No suitable food found in inventory' }),
-  };
-}
-
 async function drainQueue(): Promise<void> {
   if (draining) return;
   draining = true;
@@ -564,7 +558,7 @@ async function drainQueue(): Promise<void> {
         continue;
       }
 
-      const plan = await buildPlanExcluding(pet, claimedCropIds);
+      const plan = await buildPlanForPet(pet, pet.slotIndex, { excludeItemIds: claimedCropIds });
       const result = await executeFeedPlan(plan);
 
       if (result.success && plan.foodSelection?.item.id) {

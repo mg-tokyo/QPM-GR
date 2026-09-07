@@ -1,4 +1,4 @@
-import { getAtomByLabel } from '../../../core/jotaiBridge';
+import { atomObjectFor } from '../../../core/gameState';
 import { warnFeature } from './_diagnostics';
 import type { ActivityLogEntry, OrderFilter } from './types';
 import { S } from './state';
@@ -75,7 +75,7 @@ export function installMyDataReadPatch(): boolean {
     return true;
   }
 
-  const atom = getAtomByLabel('myDataAtom');
+  const atom = atomObjectFor('myData');
   if (!atom) return false;
   const readKey = findAtomReadKey(atom);
   if (!readKey) return false;

@@ -1,8 +1,11 @@
 // Tracks the set of shop ids the game state exposes. Persists discovered
 // ids so consumers don't need to re-discover on every page load.
 
-import { getAtomByLabel, getCachedStore } from '../core/jotaiBridge';
-import { subscribeAtomValue } from '../core/atomRegistry';
+// getCachedStore is the only escape hatch for writing a derived atom (see injectShopInventory).
+// eslint-disable-next-line no-restricted-imports -- legacy injector, see shopRegistry.ts header
+import { getCachedStore } from '../core/jotaiBridge';
+import { atomObjectFor } from '../core/gameState';
+import { readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
 import {
   STANDARD_SHOP_IDS,
   STANDARD_RESTOCK_SHOP_TYPES,
@@ -19,7 +22,6 @@ const diag = createStoreDiagnostics('storeShopRegistry', 'shopRegistry');
 
 const STORAGE_KEY = 'qpm.shopRegistry.discovered.v1';
 const WEATHER_STORAGE_KEY = 'qpm.shopRegistry.weather.v1';
-const QUINOA_DATA_ATOM_LABEL = 'quinoaDataAtom';
 
 const STANDARD_SET: ReadonlySet<string> = new Set(STANDARD_SHOP_IDS);
 const INITIAL_WEATHER_GATED_SET: ReadonlySet<string> = new Set(INITIALLY_KNOWN_WEATHER_GATED_SHOP_IDS);
@@ -219,15 +221,9 @@ export function injectShopInventory(
     diag.log.debug('injectShopInventory needs a writable jotai store', { shopId });
     return;
   }
-  const quinoaDataAtom = getAtomByLabel(QUINOA_DATA_ATOM_LABEL);
+  const quinoaDataAtom = atomObjectFor('quinoaData');
   if (!quinoaDataAtom) return;
-  let current: Record<string, unknown> | null;
-  try {
-    current = store.get(quinoaDataAtom) as Record<string, unknown> | null;
-  } catch (err) {
-    diag.warn('QPM-STORE-002', { atom: QUINOA_DATA_ATOM_LABEL, phase: 'inject:read' }, err);
-    return;
-  }
+  const current = readAtomValueSync('quinoaData');
   if (!current || typeof current !== 'object') return;
   const existingShops = (current.shops as Record<string, unknown> | undefined) ?? {};
   const nextShops = {
@@ -237,7 +233,7 @@ export function injectShopInventory(
   try {
     store.set(quinoaDataAtom, { ...current, shops: nextShops });
   } catch (err) {
-    diag.warn('QPM-STORE-002', { atom: QUINOA_DATA_ATOM_LABEL, phase: 'inject:write' }, err);
+    diag.warn('QPM-STORE-002', { atom: 'quinoaData', phase: 'inject:write' }, err);
     return;
   }
   registerDiscovered(shopId);

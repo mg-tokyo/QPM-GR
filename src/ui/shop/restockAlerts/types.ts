@@ -91,6 +91,30 @@ export interface OwnershipBaseline {
   inventoryKeyItemQuantities: Map<string, number>;
 }
 
+export interface PurchaseOutcome {
+  sent: number;
+  confirmed: number;
+  storedIn: string | null;
+  error: string | null;
+  timedOut: boolean;
+}
+
+export interface PendingCompletionInfo {
+  confirmed: number;
+  storedNote: string;
+  completionSuffix: string;
+  lockDismissForCycle: boolean;
+  stockCycleId: string | null;
+}
+
+/** Alert-card UI hooks for a pending purchase. Null when the pending is headless (purchaseAndConfirm). */
+export interface PendingPresenter {
+  showStaleNotice(sent: number): void;
+  showProgress(confirmed: number, sent: number): void;
+  showCompletion(info: PendingCompletionInfo): void;
+  showFailure(reason: string): void;
+}
+
 export interface PendingOwnershipConfirmation {
   key: string;
   shopType: RestockShopType;
@@ -108,4 +132,8 @@ export interface PendingOwnershipConfirmation {
   autoStoreStorageId: string | null;
   autoStoreLabel: string | null;
   storedInTargetStorage: boolean;
+  /** Null for headless purchases; alert card writer for Buy-button flow. */
+  presenter: PendingPresenter | null;
+  /** Called exactly once on completion, failure, or timeout. */
+  settle?: (outcome: PurchaseOutcome) => void;
 }

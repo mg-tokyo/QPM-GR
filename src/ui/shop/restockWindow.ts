@@ -415,6 +415,9 @@ function renderShopRestockWindow(root: HTMLElement): void {
   });
 
   tableWrap.addEventListener('scroll', () => {
+    // Chunked renders clamp scrollTop while the table is still short; don't
+    // let those programmatic events overwrite the restore target.
+    if (historyChunkRaf !== null) return;
     historyScrollTop = tableWrap.scrollTop;
     scheduleSaveUiState();
   }, { passive: true });
@@ -524,6 +527,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     if (tableWrap.childElementCount > 0 || previousScrollTop > 0) {
       historyScrollTop = previousScrollTop;
     }
+    const targetScrollTop = historyScrollTop;
     tableWrap.innerHTML = '';
     updateResetSortButton();
     histEtaRefs = [];
@@ -661,7 +665,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
         histCleanups.push(...rowCleanups);
       }
       tbody.appendChild(frag);
-      tableWrap.scrollTop = historyScrollTop;
+      tableWrap.scrollTop = targetScrollTop;
       if (idx < filtered.length) {
         historyChunkRaf = requestAnimationFrame(appendChunk);
         return;

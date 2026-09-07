@@ -10,11 +10,11 @@ import tseslint from 'typescript-eslint';
 import qpm from './scripts/eslint-rules/index.mjs';
 
 const jotaiBridgeRestriction = {
-  group: ['**/core/jotaiBridge'],
-  importNames: ['getAtomByLabel'],
+  group: ['**/core/jotaiBridge', '**/core/jotaiBridge/*'],
+  importNames: ['getAtomByLabel', 'findAtomsByLabel', 'subscribeAtom', 'readAtomValue', 'writeAtomValue', 'getCachedStore', 'ensureJotaiStore'],
   message:
-    'New game-state access goes through stateTree.select/subscribe (src/core/stateTree.ts) ' +
-    'or atomRegistry — not direct atom labels. See .claude/docs/atom-migration.md.',
+    'Game state is read through src/core/gameState (or the atomRegistry barrel) — never raw atoms. ' +
+    'See .claude/rules/state/atoms.md. Debug-only dynamic-label code is exempt by file override.',
 };
 
 export default [
@@ -95,6 +95,10 @@ export default [
   },
   {
     files: ['src/core/**/*.ts', 'src/debug/**/*.ts', 'src/main.ts'],
+    rules: { 'no-restricted-imports': 'off' },
+  },
+  {
+    files: ['src/rive-engine/runtimeCapture.ts', 'src/ui/stats/statsHubWindow/eggsTab.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
   {

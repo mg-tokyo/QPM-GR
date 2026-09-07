@@ -1,4 +1,4 @@
-import { ensureJotaiStore, findAtomsByLabel, getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue } from '../core/atomRegistry';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeUserSlots', 'userSlots');
@@ -10,10 +10,8 @@ export interface UserSlotsInventorySnapshot {
   hasSlotData: boolean;
 }
 
-const USER_SLOTS_ATOM_LABEL = 'userSlotsAtom';
+const USER_SLOTS_LOOKUP_LABEL = 'userSlots';
 
-let jotaiStoreFailureLogged = false;
-let userSlotsAtomNotFoundLogged = false;
 let userSlotsAccessFailureLogged = false;
 
 function normalizeInventoryArray(input: unknown): any[] | null {
@@ -114,56 +112,23 @@ function scanForInventoryPayload(root: unknown, label: string): UserSlotsInvento
   return null;
 }
 
-async function getUserSlotsAtom(): Promise<any | null> {
-  let atom = getAtomByLabel(USER_SLOTS_ATOM_LABEL);
-  if (!atom) {
-    const matches = findAtomsByLabel(/userSlotsAtom/i);
-    atom = matches[0] ?? null;
-  }
-
-  if (!atom && !userSlotsAtomNotFoundLogged) {
-    diag.warn('QPM-STORE-002', { atom: USER_SLOTS_ATOM_LABEL, phase: 'lookup' });
-    userSlotsAtomNotFoundLogged = true;
-  }
-
-  if (atom) {
-    userSlotsAtomNotFoundLogged = false;
-  }
-
-  return atom;
-}
-
 export async function readUserSlotsInventorySnapshot(): Promise<UserSlotsInventorySnapshot | null> {
-  try {
-    await ensureJotaiStore();
-    jotaiStoreFailureLogged = false;
-  } catch (error) {
-    if (!jotaiStoreFailureLogged) {
-      diag.warn('QPM-STORE-001', { phase: 'ensureJotaiStore' }, error);
-      jotaiStoreFailureLogged = true;
-    }
-    return null;
-  }
-
-  const atom = await getUserSlotsAtom();
-  if (!atom) {
-    return null;
-  }
-
   let value: unknown;
   try {
-    value = await readAtomValue<any>(atom);
+    value = await readAtomValue('userSlots');
     userSlotsAccessFailureLogged = false;
   } catch (error) {
     if (!userSlotsAccessFailureLogged) {
-      diag.warn('QPM-STORE-002', { atom: USER_SLOTS_ATOM_LABEL, phase: 'read' }, error);
+      diag.warn('QPM-STORE-002', { atom: USER_SLOTS_LOOKUP_LABEL, phase: 'read' }, error);
       userSlotsAccessFailureLogged = true;
     }
     return null;
   }
 
+  if (value === null) return null;
+
   const visited = new WeakSet<object>();
-  const queue: Array<{ node: unknown; label: string }> = [{ node: value, label: USER_SLOTS_ATOM_LABEL }];
+  const queue: Array<{ node: unknown; label: string }> = [{ node: value, label: USER_SLOTS_LOOKUP_LABEL }];
 
   while (queue.length > 0) {
     const { node, label } = queue.shift()!;

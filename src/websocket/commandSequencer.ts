@@ -29,16 +29,25 @@ import {
   type QuinoaCommandResultMessage,
 } from './envelope';
 import { isQpmOriginSend, recordGameTransport, recordServerLegacyVerdict, withQpmOrigin } from './transport';
+import { countOutstanding, shouldIdleResync } from './sequencerHeal';
 import { isRecord } from '../utils/typeGuards';
 
 const log = createNamedLogger('websocket');
 
 export const ENVELOPE_ENABLED_KEY = 'qpm.ws.envelope.enabled';
 export const SEQUENCER_ENABLED_KEY = 'qpm.ws.sequencer.enabled';
+const STALE_DETECT_ENABLED_KEY = 'qpm.ws.sequencer.staleDetect.enabled';
+const STALE_GRACE_MS_KEY = 'qpm.ws.sequencer.staleGraceMs';
 const RESULT_TIMEOUT_MS = 5000;
 const MAX_RETRIES = 1;
 const REATTACH_POLL_MS = 2000;
 const ASSIGNED_CAP = 256;
+// CS-4: server rule is that stale/duplicate commandSequence numbers get no
+// result, so once a room frame executes past our envelope's number the send is
+// definitely lost. The grace covers the ~100 ms result window observed in
+// v1040 with headroom; a live frame→result measurement (Runtime Verification
+// Suite, CS-4 entry) sets the final default.
+const DEFAULT_STALE_GRACE_MS = 750;
 
 export class QuinoaCommandTimeoutError extends Error {
   constructor(public readonly requestId: string, public readonly commandType: string) {
@@ -58,6 +67,10 @@ interface SequencerConnection {
   ws?: WebSocket | null;
   socket?: WebSocket | null;
   currentWebSocket?: WebSocket | null;
+  // False before Welcome. Envelopes sent via `sendMessage` in that window get
+  // queued and later flushed with a stale commandSequence — CS-3 guard skips
+  // rewrite so they land as legacy and don't burn a fresh number.
+  isCommandSessionReady?: boolean;
 }
 
 interface PageWithRoom extends Window { MagicCircle_RoomConnection?: SequencerConnection }
@@ -71,6 +84,12 @@ interface PendingEntry {
   timeoutId: ReturnType<typeof setTimeout> | null;
   retries: number;
   wire: number | null;
+  // CS-4: set when rewrite assigns entry.wire; 0 while unsent. Included in the
+  // stale-drop log so operators can see how long the round-trip actually took.
+  sentAt: number;
+  // CS-4: armed by armStaleTimers() when a frame executes past entry.wire.
+  // Cleared by settle() / retry() so a late real result doesn't fire onStale.
+  staleTimer: ReturnType<typeof setTimeout> | null;
 }
 
 interface Attached {
@@ -97,7 +116,8 @@ let seeded = false;
 let epoch = 0;
 
 const pending = new Map<string, PendingEntry>();
-const assigned = new Map<string, { epoch: number; seq: number }>();
+const assigned = new Map<string, { epoch: number; seq: number; at: number }>();
+let skippedPreSessionWarned = false;
 
 const stats = {
   welcomes: 0,
@@ -112,6 +132,10 @@ const stats = {
   heals: 0,
   retries: 0,
   legacyFallbacks: 0,
+  idleResyncs: 0,
+  skippedPreSession: 0,
+  layeringRefusals: 0,
+  dropped: 0,
 };
 
 // ── Switches ──────────────────────────────────────────────────────────────
@@ -176,6 +200,55 @@ function onFrame(frame: RoomFrameLike): void {
   if (seq > frontier) frontier = seq;
   if (seq > wire) wire = seq;
   seeded = true;
+  armStaleTimers();
+}
+
+// CS-4: arm a stale-drop timer for every pending entry whose commandSequence
+// has already been executed by the room. If no real result arrives within the
+// grace, onStale settles it as `dropped_stale` and reuses CS-1's heal. Cheap
+// when pending is empty (the common case) and driven by frames, not by a poll.
+function armStaleTimers(): void {
+  if (pending.size === 0) return;
+  const enabled = storage.get<boolean>(STALE_DETECT_ENABLED_KEY, true) !== false;
+  if (!enabled) return;
+  const grace = getStaleGraceMs();
+  for (const entry of pending.values()) {
+    if (entry.wire !== null && entry.wire <= frontier && entry.staleTimer === null) {
+      entry.staleTimer = setTimeout(() => onStale(entry), grace);
+    }
+  }
+}
+
+function getStaleGraceMs(): number {
+  const raw = storage.get<number>(STALE_GRACE_MS_KEY, DEFAULT_STALE_GRACE_MS);
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_STALE_GRACE_MS;
+}
+
+function onStale(entry: PendingEntry): void {
+  if (pending.get(entry.requestId) !== entry) return;
+  entry.staleTimer = null;
+  stats.dropped++;
+  log.warn('QPM-WS-012', {
+    type: entry.commandType,
+    requestId: entry.requestId,
+    seq: entry.wire,
+    frontier,
+    ageMs: entry.sentAt > 0 ? Date.now() - entry.sentAt : null,
+  });
+  // The sequence number is already spent server-side; drop the bookkeeping so
+  // checkIdleResync doesn't count it as outstanding.
+  assigned.delete(entry.requestId);
+  settle(entry, {
+    type: QUINOA_COMMAND_RESULT_TYPE,
+    requestId: entry.requestId,
+    commandType: entry.commandType,
+    ok: false,
+    code: 'dropped_stale',
+  });
+  // A stale drop leaves wire > frontier with nothing else outstanding — the
+  // exact burn CS-1's heal predicate detects on the 2s poll. Fire immediately
+  // so the next envelope isn't rejected with invalid_sequence.
+  checkIdleResync();
 }
 
 function allocate(): number {
@@ -199,7 +272,19 @@ function rememberAssigned(requestId: string, seq: number): void {
     const oldest = assigned.keys().next().value;
     if (oldest !== undefined) assigned.delete(oldest);
   }
-  assigned.set(requestId, { epoch, seq });
+  assigned.set(requestId, { epoch, seq, at: Date.now() });
+}
+
+// CS-1: after every poll tick, if the wire drifted past the frontier while
+// nothing is in flight (a burned number from a refused send), reseed to the
+// frontier so the next envelope isn't rejected with invalid_sequence.
+function checkIdleResync(): void {
+  const outstanding = countOutstanding(assigned.values(), Date.now(), RESULT_TIMEOUT_MS);
+  if (shouldIdleResync({ wire, frontier, outstanding, pending: pending.size })) {
+    stats.idleResyncs++;
+    log.debug('idle resync', { wire, frontier });
+    wire = frontier;
+  }
 }
 
 /** Feed the transport registry with what the GAME sends (Quinoa scope only). */
@@ -221,6 +306,7 @@ function rewrite(payload: unknown): number | null {
   const entry = pending.get(payload.requestId);
   if (entry) {
     entry.wire = seq;
+    entry.sentAt = Date.now();
     stats.rewrittenQpm++;
   } else {
     stats.rewrittenGame++;
@@ -233,6 +319,8 @@ function rewrite(payload: unknown): number | null {
 function settle(entry: PendingEntry, result: QuinoaCommandResultMessage | null): void {
   if (entry.timeoutId !== null) clearTimeout(entry.timeoutId);
   entry.timeoutId = null;
+  if (entry.staleTimer !== null) clearTimeout(entry.staleTimer);
+  entry.staleTimer = null;
   pending.delete(entry.requestId);
   if (result) entry.resolve(result);
   else entry.reject(new QuinoaCommandTimeoutError(entry.requestId, entry.commandType));
@@ -253,11 +341,14 @@ function retry(entry: PendingEntry): void {
   entry.retries += 1;
   stats.retries++;
   if (entry.timeoutId !== null) clearTimeout(entry.timeoutId);
+  if (entry.staleTimer !== null) clearTimeout(entry.staleTimer);
+  entry.staleTimer = null;
   pending.delete(entry.requestId);
   const requestId = newRequestId();
   entry.requestId = requestId;
   entry.envelope = { ...entry.envelope, requestId, commandSequence: 0 };
   entry.wire = null;
+  entry.sentAt = 0;
   armTimeout(entry);
   pending.set(requestId, entry);
   // Re-enter through the CURRENT outer chain (locker/observer see the resend).
@@ -370,9 +461,31 @@ function ensureAttached(): void {
   if (!room) return;
   if (attached && attached.room === room) {
     bindSocket(room);
+    checkIdleResync();
     return;
   }
   detach();
+
+  // CS-5: if sendMessage or trySendMessageNow is currently an own property
+  // whose value is NOT the prototype method, another wrapper is installed
+  // between us and the native send. Attaching under it would put the
+  // sequencer OUTSIDE the outer chain — every enveloped send would get its
+  // commandSequence assigned before the outer wrapper could refuse it,
+  // burning numbers. CS-2 makes QPM's own outer wrappers call us first, so
+  // this path only trips for third-party wrappers; retry on the next poll
+  // once the foreign wrapper detaches.
+  const proto = Object.getPrototypeOf(room) as { sendMessage?: unknown; trySendMessageNow?: unknown } | null;
+  const foreignSend = Object.prototype.hasOwnProperty.call(room, 'sendMessage')
+    && typeof room.sendMessage === 'function'
+    && room.sendMessage !== proto?.sendMessage;
+  const foreignTry = Object.prototype.hasOwnProperty.call(room, 'trySendMessageNow')
+    && typeof room.trySendMessageNow === 'function'
+    && room.trySendMessageNow !== proto?.trySendMessageNow;
+  if (foreignSend || foreignTry) {
+    stats.layeringRefusals++;
+    log.warn('QPM-WS-008', { phase: 'layering', foreignSend, foreignTry });
+    return;
+  }
 
   const origSend = room.sendMessage.bind(room);
   const rawTry = room.trySendMessageNow;
@@ -380,6 +493,18 @@ function ensureAttached(): void {
 
   const wrappedSend = (payload: unknown): unknown => {
     observeOutbound(payload);
+    // CS-3: sendMessage queues while disconnected and flushes on socket open
+    // BEFORE Welcome. Rewriting there burns a number the server can't accept;
+    // skip and let it land as legacy — the server refuses envelopes on that
+    // path already, and our subsequent envelopes stay in sync.
+    if (isQuinoaCommandEnvelope(payload) && room.isCommandSessionReady === false) {
+      stats.skippedPreSession++;
+      if (!skippedPreSessionWarned) {
+        skippedPreSessionWarned = true;
+        log.warn('QPM-WS-011', { requestId: payload.requestId, type: payload.command.type });
+      }
+      return origSend(payload);
+    }
     rewrite(payload);
     return origSend(payload);
   };
@@ -408,6 +533,7 @@ function ensureAttached(): void {
     if (!seeded) seedFrom(room.lastDistributedRoomPublication?.executedCommandSequence);
     attached = { room, origSend, origTry, wrappedSend, wrappedTry, unsubWelcome, unsubFrames };
     bindSocket(room);
+    checkIdleResync();
     log.debug('command sequencer attached', { wire, frontier, hasTry: !!origTry });
   } catch (err) {
     try { room.sendMessage = origSend; } catch { /* noop */ }
@@ -438,6 +564,8 @@ export function trackCommandRequest(envelope: QuinoaCommandEnvelope): Promise<Qu
       timeoutId: null,
       retries: 0,
       wire: null,
+      sentAt: 0,
+      staleTimer: null,
     };
     armTimeout(entry);
     pending.set(envelope.requestId, entry);
@@ -468,6 +596,17 @@ export function startCommandSequencer(): void {
   stopPoll = criticalInterval('qpm-command-sequencer', ensureAttached, REATTACH_POLL_MS);
 }
 
+/**
+ * CS-2: outer wrappers (locker, nativeSendObserver) call this before installing
+ * their own patch so the sequencer sits INNERMOST regardless of the order the
+ * three feature timers fire in. No-op when the sequencer is stopped or when
+ * already attached to the same connection.
+ */
+export function ensureCommandSequencerAttached(): void {
+  if (!started) return;
+  ensureAttached();
+}
+
 export function stopCommandSequencer(): void {
   if (!started) return;
   started = false;
@@ -476,6 +615,7 @@ export function stopCommandSequencer(): void {
   detach();
   for (const entry of [...pending.values()]) settle(entry, null);
   assigned.clear();
+  skippedPreSessionWarned = false;
 }
 
 export function getCommandSequencerStats(): Record<string, unknown> {
@@ -489,6 +629,7 @@ export function getCommandSequencerStats(): Record<string, unknown> {
     seeded,
     epoch,
     pending: pending.size,
+    outstanding: countOutstanding(assigned.values(), Date.now(), RESULT_TIMEOUT_MS),
     ...stats,
     resultsRejected: { ...stats.resultsRejected },
   };

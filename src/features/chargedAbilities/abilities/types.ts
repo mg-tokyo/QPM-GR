@@ -23,6 +23,8 @@ export interface AbilityProjection {
   requiredSpecies: readonly string[];
   replacementMutation: string | null;
   yieldKind: 'coin' | 'capsule';
+  /** Sprite for the projected-yield icon on capture abilities (e.g. `sprite/item/AmberCapsule`). Null on coin abilities and when the item catalog has no matching capsule. */
+  capsuleSpriteKey: string | null;
   accentColor: string;
   applies(slot: PlantSlotMinimal): boolean;
   projectGain(slot: PlantSlotMinimal): ProjectedGain;

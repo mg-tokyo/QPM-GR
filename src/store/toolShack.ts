@@ -1,6 +1,5 @@
-import { subscribe as stateTreeSubscribe } from '../core/stateTree';
-import { findSlotIdxByOwner, getPlayerIdSync } from '../core/playerContext';
-import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
+import { subscribeAtomValue } from '../core/atomRegistry';
+import type { QuinoaInventoryItem } from '../types/gameAtoms';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeToolShack', 'toolShack');
@@ -34,7 +33,10 @@ let state: ToolShackState = {
   updatedAt: 0,
 };
 
-let storageUnsub: (() => void) | null = null;
+let latestItems: ToolShackItem[] = [];
+let latestCapacity: number = DEFAULT_TOOL_SHACK_CAPACITY;
+let itemsUnsub: (() => void) | null = null;
+let capacityUnsub: (() => void) | null = null;
 const listeners = new Set<(state: ToolShackState) => void>();
 
 function notifyListeners(): void {
@@ -54,14 +56,7 @@ function healthMetrics(): Record<string, number> {
   };
 }
 
-// State-tree selector
-
-interface ToolShackSlice {
-  items: ToolShackItem[];
-  capacity: number;
-}
-
-const NULL_SLICE: ToolShackSlice = { items: [], capacity: DEFAULT_TOOL_SHACK_CAPACITY };
+// Item normalisation
 
 function toToolShackItem(raw: QuinoaInventoryItem): ToolShackItem | null {
   const toolId = raw.toolId ?? (typeof raw.itemId === 'string' ? raw.itemId : undefined) ?? raw.id;
@@ -72,41 +67,15 @@ function toToolShackItem(raw: QuinoaInventoryItem): ToolShackItem | null {
   return { toolId: toolId.trim(), quantity };
 }
 
-function selectToolShackSlice(snapshot: QuinoaStateSnapshot): ToolShackSlice {
-  const playerId = getPlayerIdSync();
-  if (!playerId) return NULL_SLICE;
-
-  const userSlots = snapshot.child?.data?.userSlots;
-  if (!Array.isArray(userSlots)) return NULL_SLICE;
-  const myIdx = findSlotIdxByOwner(userSlots, playerId);
-  if (myIdx < 0) return NULL_SLICE;
-  const mySlot = userSlots[myIdx];
-  if (!mySlot || typeof mySlot !== 'object') return NULL_SLICE;
-
-  const storages = mySlot.data?.inventory?.storages;
-  if (!Array.isArray(storages)) return NULL_SLICE;
-
-  const shack = storages.find((s: QuinoaStorageEntry) =>
-    s?.decorId === 'ToolShack' || s?.storageId === 'ToolShack' || s?.id === 'ToolShack'
-  );
-  if (!shack) return NULL_SLICE;
-
-  const rawCapacity = shack.capacitySlots ?? shack.capacityLevel;
-  const capacity = typeof rawCapacity === 'number' && Number.isFinite(rawCapacity) && rawCapacity > 0
-    ? rawCapacity
-    : DEFAULT_TOOL_SHACK_CAPACITY;
-
-  const rawItems = shack.items;
-  const items: ToolShackItem[] = [];
-  if (Array.isArray(rawItems)) {
-    for (const raw of rawItems) {
-      if (!raw || typeof raw !== 'object') continue;
-      const item = toToolShackItem(raw);
-      if (item) items.push(item);
-    }
+function mapItems(raw: QuinoaInventoryItem[] | null): ToolShackItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ToolShackItem[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = toToolShackItem(entry);
+    if (item) out.push(item);
   }
-
-  return { items, capacity };
+  return out;
 }
 
 // State updates
@@ -115,18 +84,17 @@ function itemsSignature(items: ToolShackItem[]): string {
   return items.map((i) => `${i.toolId}:${i.quantity}`).join('|');
 }
 
-function updateFromSlice(slice: ToolShackSlice | null): void {
-  const s = slice ?? NULL_SLICE;
-  const count = s.items.length;
-  const capacity = s.capacity;
+function applyLatestState(): void {
+  const count = latestItems.length;
+  const capacity = latestCapacity;
 
   const changed = state.count !== count
     || state.capacity !== capacity
-    || itemsSignature(state.items) !== itemsSignature(s.items);
+    || itemsSignature(state.items) !== itemsSignature(latestItems);
 
   if (!changed) return;
 
-  state = { items: s.items.map((i) => ({ ...i })), count, capacity, updatedAt: Date.now() };
+  state = { items: latestItems.map((i) => ({ ...i })), count, capacity, updatedAt: Date.now() };
   notifyListeners();
 
   const message = `count=${state.count}/${state.capacity}`;
@@ -141,16 +109,19 @@ function updateFromSlice(slice: ToolShackSlice | null): void {
 // Init / stop
 
 export async function startToolShackStore(): Promise<void> {
-  if (storageUnsub) return;
-  diag.register('Subscribing to state-tree shack slice');
+  if (itemsUnsub || capacityUnsub) return;
+  diag.register('Subscribing to toolShack registry keys');
 
   try {
-    storageUnsub = stateTreeSubscribe(
-      selectToolShackSlice,
-      (slice) => updateFromSlice(slice),
-      'store:toolShack',
-    );
-    diag.log.debug('store initialized (state-tree subscription)');
+    itemsUnsub = await subscribeAtomValue('toolShackItems', (raw) => {
+      latestItems = mapItems(raw);
+      applyLatestState();
+    });
+    capacityUnsub = await subscribeAtomValue('toolShackCapacity', (raw) => {
+      latestCapacity = typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TOOL_SHACK_CAPACITY;
+      applyLatestState();
+    });
+    diag.log.debug('store initialized (registry subscriptions)');
   } catch (err) {
     diag.warn('QPM-STORE-001', { phase: 'startToolShackStore' }, err);
     throw err;
@@ -158,10 +129,14 @@ export async function startToolShackStore(): Promise<void> {
 }
 
 export function stopToolShackStore(): void {
-  storageUnsub?.();
-  storageUnsub = null;
+  itemsUnsub?.();
+  capacityUnsub?.();
+  itemsUnsub = null;
+  capacityUnsub = null;
   firstStateSeen = false;
   listeners.clear();
+  latestItems = [];
+  latestCapacity = DEFAULT_TOOL_SHACK_CAPACITY;
   state = {
     items: [],
     count: 0,
@@ -205,7 +180,7 @@ export function isToolShackFull(): boolean {
 }
 
 export function isToolShackStoreActive(): boolean {
-  return storageUnsub !== null;
+  return itemsUnsub !== null || capacityUnsub !== null;
 }
 
 // Subscribe API

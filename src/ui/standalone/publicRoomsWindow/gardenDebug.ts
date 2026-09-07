@@ -71,18 +71,13 @@ export const setupGardenInspector = () => {
 
   const QPM_CURRENT_TILE = async () => {
     try {
-      const { getAtomByLabel, readAtomValue } = await import('../../../core/jotaiBridge');
+      const { readAtomValue } = await import('../../../core/atomRegistry');
 
-      const tileAtom = getAtomByLabel('myCurrentGardenTileAtom');
-      const objectAtom = getAtomByLabel('myOwnCurrentGardenObjectAtom');
-
-      if (!tileAtom || !objectAtom) {
-        console.warn('[QPM] Tile atoms not found. Make sure you\'re in your garden.');
-        return null;
-      }
-
-      const tileInfo = await readAtomValue(tileAtom) as Record<string, unknown> | null;
-      const tileObject = await readAtomValue(objectAtom) as Record<string, unknown> | null;
+      const tileInfo = await readAtomValue('gardenTile');
+      const rawTileObject = await readAtomValue('ownGardenObject');
+      const tileObject = rawTileObject && typeof rawTileObject === 'object'
+        ? (rawTileObject as Record<string, unknown>)
+        : null;
 
       console.log('[QPM] Current Tile Info:');
       console.log('  localTileIndex:', tileInfo?.localTileIndex);

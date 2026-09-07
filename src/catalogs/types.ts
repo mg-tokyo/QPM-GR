@@ -99,6 +99,12 @@ export interface PetCatalogEntry {
   hoursToMature?: number;
   maxScale?: number;
   rarity?: string;
+  /**
+   * Innate abilities the game rolls for this species. `null` value is the
+   * `Infinity` weight idiom used in bundle text (bundleTextParsing.ts:390):
+   * an ability that is always granted, not "no weight".
+   */
+  innateAbilityWeights?: Record<string, number | null>;
   [key: string]: unknown;
 }
 

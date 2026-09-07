@@ -2,6 +2,29 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.41",
+    date: "2026-09-07",
+    notes: [
+      "Rebuilt the game-state access layer: every value QPM reads now resolves through a typed source ladder that prefers the game's server state and falls back to atoms automatically, so game-side atom renames and removals no longer break features",
+      "Added game-state self-diagnostics: per-key binding and fallback info in the Diagnostics window and support payload, plus automatic divergence checks between sources (new QPM-ATOM-003 and QPM-ATOM-004 codes)",
+      "Fixed QPM actions being rejected with invalid_sequence after a blocked or refused send: the command sequencer now detects burned sequence numbers and resyncs itself, detects commands the server silently dropped as stale (new QPM-WS-011 and QPM-WS-012 codes), and refuses to attach under a third-party wrapper",
+      "Improved Charged Abilities to derive capture and charger abilities from captured game data instead of a hardcoded list, so new abilities from future game updates appear automatically",
+      "Improved capture ability cards to show the matching capsule sprite and color for their projected reward instead of a generic capsule icon",
+      "Fixed the Insta-Harvest Preserved and Rare Patch toggles sometimes never appearing: the game-file scan could stop at a translation chunk that lacked the data, it now combines every matching chunk and retries until the kinds are found",
+      "Fixed Blobling and Garden Painter presets loading before player identity resolved at boot, which could read them from the wrong storage key",
+      "Reworked the restock purchase and instant feed flows internally so purchase confirmation can complete without the alert card on screen, with no behavior change in the windows themselves",
+      "Fixed the Shop Restock items list jumping far upward after pinning or unpinning an item: the list now stays at your scroll position",
+    ],
+  },
+  {
+    version: "3.3.40",
+    date: "2026-09-06",
+    notes: [
+      "Removed the unused auto-reconnect module and its config UI (the game no longer permits client-driven reconnects); the feature was already force-disabled at boot",
+      "Added Thundercharged to the Super Cleanser weather-mutation list so tiles carrying it are matched alongside Wet, Chilled, Frozen, Thunderstruck, Dawnlit, Ambershine, Dawncharged and Ambercharged",
+    ],
+  },
+  {
     version: "3.3.39",
     date: "2026-09-05",
     notes: [

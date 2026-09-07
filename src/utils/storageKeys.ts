@@ -17,8 +17,6 @@ export const QPM_STORAGE_KEYS = [
   // Auto Favorite
   'qpm.autoFavorite.v1',
   'qpm.bulkFavorite.v1',
-  'qpm.autoReconnect.enabled.v1',
-  'qpm.autoReconnect.delayMs.v1',
 
   // Pet Hatching Tracker
   'qpm.petHatchingTracker.knownPetIds.v1',
@@ -74,6 +72,7 @@ export const QPM_STORAGE_KEYS = [
 
   // Player identity
   'quinoa:selfPlayerId',
+  'qpm.identity.playerId.v1',
 
   // Pet Teams
   'qpm.petTeams.config.v1',
@@ -311,6 +310,8 @@ export const QPM_STORAGE_KEYS = [
   // WebSocket QuinoaCommand envelope + wire sequencer kill switches
   'qpm.ws.envelope.enabled',
   'qpm.ws.sequencer.enabled',
+  'qpm.ws.sequencer.staleDetect.enabled',
+  'qpm.ws.sequencer.staleGraceMs',
   'qpm.ws.transport.v1',
 ];
 

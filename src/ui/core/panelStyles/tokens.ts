@@ -29,6 +29,7 @@ export const TOKENS_CSS = `:root {
     --qpm-dust: #ab47bc;
     --qpm-credits: #42a5f5;
     --qpm-dawn: #c084fc;
+    --qpm-amber: #ffb547;
 
     /* ── Hunger tri-state ── */
     --qpm-hunger-low: #ff6464;

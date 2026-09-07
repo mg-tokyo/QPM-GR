@@ -1,11 +1,10 @@
-// Watches pet ability triggers (myPetSlotInfosAtom) to expose live proc history.
+// Watches pet ability triggers (petSlotInfos via registry) to expose live proc history.
 
-import { getAtomByLabel, subscribeAtom } from '../core/jotaiBridge';
+import { subscribeAtomValue } from '../core/atomRegistry';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeAbilityLogs', 'abilityLogs');
 
-const ABILITY_SOURCE_LABEL = 'myPetSlotInfosAtom';
 const HISTORY_LIMIT = 30;
 const HISTORY_WINDOW_MS = 1000 * 60 * 60 * 6; // keep roughly six hours of events per ability
 const MAX_CANONICAL_HISTORIES = 500;
@@ -255,17 +254,10 @@ export async function startAbilityTriggerStore(): Promise<void> {
   if (started) return;
   started = true;
 
-  diag.register('Subscribing to myPetSlotInfosAtom');
-
-  const atom = getAtomByLabel(ABILITY_SOURCE_LABEL);
-  if (!atom) {
-    started = false;
-    diag.warn('QPM-STORE-002', { atom: ABILITY_SOURCE_LABEL });
-    throw new Error('myPetSlotInfosAtom not available');
-  }
+  diag.register('Subscribing to petSlotInfos (registry)');
 
   try {
-    unsubscribe = await subscribeAtom(atom, (value) => {
+    unsubscribe = await subscribeAtomValue('petSlotInfos', (value) => {
       try {
         processAbilitySource(value);
       } catch (error) {

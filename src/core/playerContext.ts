@@ -4,74 +4,21 @@
 // patterns that were previously duplicated across 5+ files.
 
 import { readAtomValue, readAtomValueSync } from './atomRegistry';
-import { getRoomConnection } from '../websocket/api';
+import { isGameStateReady } from './gameState';
+import { getIdentity } from './gameState/identity';
 import type { GridPosition } from '../types/gameAtoms';
 import { isRecord } from '../utils/typeGuards';
 
-/**
- * Atom-free playerId fallback for the WEB build only.
- *
- * On `magicgarden.gg` (web/webview), the WS connect URL includes a
- * `?playerId="..."` query param — the value is JSON-encoded (has literal
- * double-quotes around the string; empirically verified 2026-07-03). We
- * `JSON.parse` to strip them.
- *
- * On Discord Activity (`discordsays.com`), the URL has NO `playerId` param —
- * it uses a `jwt` with the Discord snowflake instead, which is NOT the
- * server-assigned player.id used in room state. There is no sync client-side
- * fallback for Discord; that surface still requires `playerAtom` /
- * `playerIdAtom` to be present. If those get deprecated, a Discord-specific
- * path (Discord SDK subscription or async /me lookup) will be needed.
- *
- * Returns null if the WS is missing, the URL is unparseable, the surface is
- * Discord, or the param is empty.
- */
-export function getPlayerIdFromUrl(): string | null {
-  const rc = getRoomConnection();
-  const ws = rc?.currentWebSocket ?? rc?.ws ?? rc?.socket ?? null;
-  const rawUrl = ws?.url;
-  if (typeof rawUrl !== 'string' || rawUrl.length === 0) return null;
-  try {
-    const parsed = new URL(rawUrl);
-    const raw = parsed.searchParams.get('playerId');
-    if (!raw || raw.length === 0) return null;
-    // Values in this URL are JSON-encoded strings. `raw` = `"p_juEzJpS13rS946jH"`
-    // (literal quotes included). JSON.parse strips them; if that fails, fall
-    // back to a manual quote strip so an unexpected format still works.
-    let decoded: unknown;
-    try {
-      decoded = JSON.parse(raw);
-    } catch {
-      decoded = raw.replace(/^"(.*)"$/, '$1');
-    }
-    if (typeof decoded !== 'string') return null;
-    const trimmed = decoded.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Owner id of a userSlot. Game v985 (2026-08-20) renamed `userSlots[].playerId`
- * → `userSlots[].userId`; accept both so older bundles keep working.
- */
-export function getSlotOwnerId(slot: unknown): string | null {
-  if (!isRecord(slot)) return null;
-  for (const field of ['userId', 'playerId'] as const) {
-    const candidate = slot[field];
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate.trim();
-    }
-  }
-  return null;
-}
-
-/** Index of the slot owned by `ownerId`, or -1. Tolerant of null slots. */
-export function findSlotIdxByOwner(slots: unknown, ownerId: string): number {
-  if (!Array.isArray(slots)) return -1;
-  return slots.findIndex((s) => getSlotOwnerId(s) === ownerId);
-}
+// Slot-owner primitives moved to slotOwner.ts (Task B3 Step 0) so gameState/
+// can consume them without importing atomRegistry. `getPlayerIdFromUrl` lives
+// in playerIdFromUrl.ts (needs getRoomConnection, which reaches `window` at
+// module scope — kept out of the pure slotOwner module for vitest's node env).
+// Re-exported here so the 23 existing importers keep resolving via
+// '../core/playerContext'.
+import { findSlotIdxByOwner } from './slotOwner';
+import { getPlayerIdFromUrl } from './playerIdFromUrl';
+export { getSlotOwnerId, findSlotIdxByOwner } from './slotOwner';
+export { getPlayerIdFromUrl } from './playerIdFromUrl';
 
 function extractPlayerIdFromRecord(player: unknown): string | null {
   if (!player || typeof player !== 'object') return null;
@@ -85,24 +32,27 @@ function extractPlayerIdFromRecord(player: unknown): string | null {
   return null;
 }
 
-/**
- * Resolve the current player's ID synchronously.
- * Tries the `player` atom first, then falls back to the WS URL. Suitable for
- * state-tree selectors and keydown handlers that can't await.
- */
+// Identity ladder (gameState/identity.ts) owns the primary rungs; keep the
+// legacy player-atom + URL fallbacks so a boot-race read before gameState wires
+// up still resolves. The facade throws before initGameState(), so every read
+// through it must be gated on isGameStateReady() to honour that contract.
 export function getPlayerIdSync(): string | null {
-  const fromAtom = extractPlayerIdFromRecord(readAtomValueSync('player'));
-  if (fromAtom) return fromAtom;
+  const fromLadder = getIdentity().playerId;
+  if (fromLadder) return fromLadder;
+  if (isGameStateReady()) {
+    const fromAtom = extractPlayerIdFromRecord(readAtomValueSync('player'));
+    if (fromAtom) return fromAtom;
+  }
   return getPlayerIdFromUrl();
 }
 
-/**
- * Resolve the current player's ID. Tries the `player` atom first, then falls
- * back to the WS URL (atom-free path).
- */
 export async function getPlayerId(): Promise<string | null> {
-  const fromAtom = extractPlayerIdFromRecord(await readAtomValue('player'));
-  if (fromAtom) return fromAtom;
+  const sync = getPlayerIdSync();
+  if (sync) return sync;
+  if (isGameStateReady()) {
+    const fromAtom = extractPlayerIdFromRecord(await readAtomValue('player'));
+    if (fromAtom) return fromAtom;
+  }
   return getPlayerIdFromUrl();
 }
 
@@ -111,6 +61,7 @@ export async function getPlayerId(): Promise<string | null> {
  * Reads `position` first, falls back to `localPosition`.
  */
 export async function getPlayerPosition(): Promise<GridPosition | null> {
+  if (!isGameStateReady()) return null;
   const pos = await readAtomValue('position');
   if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') return pos;
 
@@ -120,11 +71,11 @@ export async function getPlayerPosition(): Promise<GridPosition | null> {
   return null;
 }
 
-/**
- * Resolve the current player's user-slot index.
- * Reads `myUserSlotIdx` directly, falls back to searching stateAtom + playerAtom.
- */
 export async function getMyUserSlotIdx(): Promise<number | null> {
+  const fromLadder = getIdentity().myIdx;
+  if (fromLadder !== null) return fromLadder;
+  if (!isGameStateReady()) return null;
+
   const idx = await readAtomValue('myUserSlotIdx');
   if (typeof idx === 'number' && idx >= 0) return idx;
 

@@ -1,4 +1,4 @@
-import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
+import { readAtomValue } from '../../core/atomRegistry';
 import { getActivePetInfos } from '../../store/pets';
 import { delay } from '../../utils/scheduling/scheduling';
 import { hasRoomConnection, sendRoomAction } from '../../websocket/api';
@@ -23,7 +23,6 @@ export interface SwapPetIntoActiveSlotResult {
   reason?: SwapPetFailureReason;
 }
 
-const INVENTORY_ATOM_LABEL = 'myInventoryAtom';
 const HUTCH_RETRIEVE_TIMEOUT_MS = 3500;
 const SWAP_TIMEOUT_MS = 2500;
 const POLL_INTERVAL_MS = 100;
@@ -90,13 +89,8 @@ function extractCandidateIds(entry: Record<string, unknown>): string[] {
 
 async function readInventoryIdSet(): Promise<Set<string>> {
   const result = new Set<string>();
-  const atom = getAtomByLabel(INVENTORY_ATOM_LABEL);
-  if (!atom) {
-    return result;
-  }
-
   try {
-    const raw = await readAtomValue(atom);
+    const raw = await readAtomValue('inventory');
     const items = extractInventoryItems(raw);
     for (const item of items) {
       if (!item || typeof item !== 'object') {

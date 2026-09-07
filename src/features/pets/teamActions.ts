@@ -43,6 +43,11 @@ export function sendToggleLockItem(itemId: string): boolean {
   return sendAction('ToggleLockItem', { itemId }).ok;
 }
 
+/** Same send as sendToggleLockItem but returns the full WebSocketSendResult (transport, awaitResult, reason). */
+export function sendToggleLockItemResult(itemId: string): WebSocketSendResult {
+  return sendAction('ToggleLockItem', { itemId });
+}
+
 /**
  * Sell a pet directly.
  * itemId = inventory item UUID (pet must be in inventory to sell).

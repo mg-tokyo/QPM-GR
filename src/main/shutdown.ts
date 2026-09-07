@@ -36,6 +36,7 @@ import { stopWebsocketDiagnostics } from '../websocket/api';
 import { stopCommandSequencer } from '../websocket/commandSequencer';
 import { stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
 import { stopJotaiBridgeDiagnostics } from '../core/jotaiBridge';
+import { stopGameState } from '../core/gameState';
 import { stopSpriteV2Diagnostics } from '../sprite-v2/index';
 import { stopPetRive } from '../sprite-v2/petRive';
 import { stopRestockDataDiagnostics } from '../utils/restock/dataService';
@@ -91,7 +92,6 @@ export function installGlobalHandlers(): void {
     stopShopKeybinds();
     stopShopEnhancer();
     stopPanelHotkey();
-    // stopAutoReconnect() — auto reconnect disabled
     stopAntiAfk();
     stopActivityLogEnhancer();
     stopAbilityTriggerStore();
@@ -127,6 +127,7 @@ export function installGlobalHandlers(): void {
     stopCommandSequencer();
     stopWebsocketDiagnostics();
     stopCatalogsDiagnostics();
+    try { stopGameState(); } catch { /* best effort */ }
     stopJotaiBridgeDiagnostics();
     stopSpriteV2Diagnostics();
     try { stopPetRive(); } catch { /* best effort */ }

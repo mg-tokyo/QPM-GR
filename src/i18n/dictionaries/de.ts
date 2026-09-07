@@ -161,13 +161,6 @@ const de: Dictionary = {
 
   // ── Hub: Config group ─────────────────────────────────────────────────────
   'hub.config.label': 'Konfiguration',
-  'hub.config.autoReconnect.label': 'Auto-Reconnect',
-  'hub.config.autoReconnect.description': 'Nach Verbindungsabbrüchen oder abgelaufenen Spielsitzungen automatisch neu verbinden',
-  'hub.config.autoReconnect.summaryEnabled': 'Aktiviert \u00b7 {delay}',
-  'hub.config.autoReconnect.summaryDisabled': 'Deaktiviert',
-  'hub.config.autoReconnect.delayInstant': 'Sofort',
-  'hub.config.autoReconnect.delaySeconds': '{seconds}s Verzögerung',
-  'hub.config.autoReconnect.delayLabel': 'Verzögerung: {delay}',
   'hub.config.controller.label': 'Controller',
   'hub.config.controller.description': 'Gamepad-Cursorbewegung, D-Pad-Navigation und Tastenbelegungen konfigurieren',
   'hub.config.controller.summary': 'Belegungen / Deadzone / Cursor',
@@ -247,11 +240,6 @@ const de: Dictionary = {
   'feature.activityLog.infoBullet2': 'Wird bei Seitenaktualisierung/Neustart automatisch wiederhergestellt',
   'feature.activityLog.infoBullet3': 'Überlebt Browser-/Spielabstürze',
   'feature.activityLog.infoBullet4': 'Maximalgrenze: 5000 Einträge',
-
-  // ── Feature: Auto Reconnect ────────────────────────────────────────────
-  'feature.autoReconnect.enableToggle': 'Auto-Reconnect aktivieren',
-  'feature.autoReconnect.delayLabel': 'Reconnect-Verzögerung',
-  'feature.autoReconnect.delayHint': 's (0-300, Stufe 30)',
 
   // ── Feature: Protection ──────────────────────────────────────────────────
   'feature.protection.locksHeader': 'Sperren',
@@ -1705,7 +1693,6 @@ const de: Dictionary = {
   'tile.reminders.label': 'Erinnerungen',
   'tile.gardenStats.label': 'Gartenstatistiken',
   'tile.favorites.label': 'Favoriten',
-  'tile.autoReconnect.label': 'Auto-Reconnect',
   'tile.shopKeybinds.label': 'Shop-Tastenkürzel',
   'tile.panelShortcut.label': 'Panel-Kürzel',
   'tile.guide.label': 'Guide',

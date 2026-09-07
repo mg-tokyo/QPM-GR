@@ -153,6 +153,9 @@ function buildBestPatchGain(snap: PetAbilityTargetSnapshot): HTMLElement {
       ? 'qpm-charged-abilities__projection-value--coin'
       : 'qpm-charged-abilities__projection-value--capsule',
   );
+  if (snap.ability.yieldKind === 'capsule') {
+    wrap.style.color = snap.ability.accentColor;
+  }
   const text = document.createElement('span');
   if (snap.ability.yieldKind === 'coin') {
     text.textContent = t('feature.chargedAbilities.gainCoin', {
@@ -162,7 +165,9 @@ function buildBestPatchGain(snap: PetAbilityTargetSnapshot): HTMLElement {
     text.textContent = `+${snap.optimality.bestPatch.gain.capsule}`;
   }
   wrap.appendChild(text);
-  const iconKey = snap.ability.yieldKind === 'coin' ? COIN_SPRITE_KEY : CAPSULE_SPRITE_KEY;
+  const iconKey = snap.ability.yieldKind === 'coin'
+    ? COIN_SPRITE_KEY
+    : (snap.ability.capsuleSpriteKey ?? CAPSULE_SPRITE_KEY);
   const iconSrc = getAnySpriteDataUrl(iconKey);
   if (iconSrc) {
     const img = document.createElement('img');

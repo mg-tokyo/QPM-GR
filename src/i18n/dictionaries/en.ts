@@ -174,13 +174,6 @@ const en: Dictionary = {
 
   // ── Hub: Config group ─────────────────────────────────────────────────────
   'hub.config.label': 'Config',
-  'hub.config.autoReconnect.label': 'Auto Reconnect',
-  'hub.config.autoReconnect.description': 'Reconnect automatically after disconnects or expired game sessions',
-  'hub.config.autoReconnect.summaryEnabled': 'Enabled \u00b7 {delay}',
-  'hub.config.autoReconnect.summaryDisabled': 'Disabled',
-  'hub.config.autoReconnect.delayInstant': 'Instant',
-  'hub.config.autoReconnect.delaySeconds': '{seconds}s delay',
-  'hub.config.autoReconnect.delayLabel': 'Delay: {delay}',
   'hub.config.controller.label': 'Controller',
   'hub.config.controller.description': 'Configure gamepad cursor movement, D-pad navigation, and button bindings',
   'hub.config.controller.summary': 'Bindings / Deadzone / Cursor',
@@ -260,11 +253,6 @@ const en: Dictionary = {
   'feature.activityLog.infoBullet2': 'Restores automatically on page refresh/restart',
   'feature.activityLog.infoBullet3': 'Survives browser/game crash recovery',
   'feature.activityLog.infoBullet4': 'Hard cap: 5000 entries',
-
-  // ── Feature: Auto Reconnect ────────────────────────────────────────────
-  'feature.autoReconnect.enableToggle': 'Enable Auto Reconnect',
-  'feature.autoReconnect.delayLabel': 'Reconnect Delay',
-  'feature.autoReconnect.delayHint': 's (0-300, step 30)',
 
   // ── Feature: Protection ──────────────────────────────────────────────────
   'feature.protection.locksHeader': 'Locks',
@@ -1775,7 +1763,6 @@ const en: Dictionary = {
   'tile.reminders.label': 'Reminders',
   'tile.gardenStats.label': 'Garden Stats',
   'tile.favorites.label': 'Favorites',
-  'tile.autoReconnect.label': 'Auto Reconnect',
   'tile.shopKeybinds.label': 'Shop Keybinds',
   'tile.panelShortcut.label': 'Panel Shortcut',
   'tile.guide.label': 'Guide',

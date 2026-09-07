@@ -4,6 +4,7 @@
 
 import { storage } from '../utils/storage';
 import { getCatalogs, areCatalogsReady, logCatalogStatus } from '../catalogs/gameCatalogs';
+import type { GameStateKey } from '../core/gameState';
 
 // These imports are only used by debug functions, so they're fine to load here
 // when the debug API is actually accessed
@@ -20,6 +21,12 @@ type AtomsDebugApi = {
   read: (key: string) => Promise<unknown>;
   list: () => Array<{ key: string; resolved: boolean; label: string | null; via: string | null }>;
   status: () => string;
+  explain: (key: string) => import('../core/gameState').KeyExplain;
+  explainAll: () => import('../core/gameState').KeyExplain[];
+  divergence: () => import('../core/gameState').DivergenceReport;
+  simulateSourceLoss: (key: string, kind: 'stateTree' | 'atom' | 'custom') => import('../core/gameState').KeyExplain;
+  restoreSource: (key: string, kind: 'stateTree' | 'atom' | 'custom') => import('../core/gameState').KeyExplain;
+  stats: () => ReturnType<typeof import('../core/gameState').gameStateStats>;
 };
 
 type DebugApiType = {
@@ -79,6 +86,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
     spriteCompat,
     { inspectJournal },
     atomRegistryMod,
+    gameStateMod,
   ] = await Promise.all([
     import('../store/pets'),
     import('../store/petLevelCalculator'),
@@ -89,6 +97,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
     import('../sprite-v2/compat'),
     import('./inspectJournal'),
     import('../core/atomRegistry'),
+    import('../core/gameState'),
   ]);
 
   const {
@@ -180,6 +189,12 @@ export async function createDebugApi(): Promise<DebugApiType> {
       console.log(s);
       return s;
     },
+    explain: (key) => { const e = gameStateMod.explain(key as GameStateKey); console.table(e.sources); return e; },
+    explainAll: () => { const all = gameStateMod.explainAll(); console.log(gameStateMod.renderGameStateTable(all).join('\n')); return all; },
+    divergence: () => { const r = gameStateMod.divergence(); if (r.divergent.length) console.table(r.divergent); else console.log(`no divergence (${r.checked} keys compared, ${r.skipped.length} skipped)`); return r; },
+    simulateSourceLoss: (key, kind) => { gameStateMod.simulateSourceLoss(key as GameStateKey, kind); return gameStateMod.explain(key as GameStateKey); },
+    restoreSource: (key, kind) => { gameStateMod.restoreSource(key as GameStateKey, kind); return gameStateMod.explain(key as GameStateKey); },
+    stats: () => gameStateMod.gameStateStats(),
   };
 
   const debugApi: DebugApiType = {
@@ -695,7 +710,7 @@ export function createLazyDebugProxy(): Record<string, any> {
 
   // atoms namespace — same lazy pattern as jotai
   const atomsProxy: Record<string, any> = {};
-  for (const method of ['discover', 'health', 'read', 'list', 'status'] as const) {
+  for (const method of ['discover', 'health', 'read', 'list', 'status', 'explain', 'explainAll', 'divergence', 'simulateSourceLoss', 'restoreSource', 'stats'] as const) {
     Object.defineProperty(atomsProxy, method, {
       get() {
         return async (...args: any[]) => {

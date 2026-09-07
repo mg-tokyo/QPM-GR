@@ -7,8 +7,6 @@ export const DEBUG_MUTATION_DECISIONS = false;
 export const MUTATION_CONFIG_KEY = 'quinoa-mutation-reminder-config';
 export const INVENTORY_CONTAINER = '.McFlex.css-zo8r2v';
 export const INVENTORY_ITEM = 'div.css-79elbk';
-export const CROP_INVENTORY_ATOM_LABEL = 'myCropInventoryAtom';
-
 export const MUTATION_WEATHERS: MutationActiveWeather[] = ['rain', 'snow', 'dawn', 'amber'];
 
 export const SLOT_MUTATION_DEBUG_LIMIT = 5;

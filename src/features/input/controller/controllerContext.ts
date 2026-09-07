@@ -26,11 +26,11 @@
  * access needed. TypeScript `private` does not affect runtime property access.
  */
 
-import {
-  ensureJotaiStore,
-  getAtomByLabel,
-  type JotaiStore,
-} from '../../../core/jotaiBridge';
+import type { JotaiStore } from '../../../core/jotaiBridge';
+// Fiber-scanned atoms (activeModalAtom, quinoaEngineAtom) live outside the
+// gameState registry; the raw store is required to sub()/get() them.
+// eslint-disable-next-line no-restricted-imports -- fiber-scan atom subscription
+import { ensureJotaiStore } from '../../../core/jotaiBridge';
 import { pageWindow } from '../../../core/pageContext';
 import { readAtomValueSync } from '../../../core/atomRegistry';
 import {
@@ -44,15 +44,11 @@ import { isRecord } from '../../../utils/typeGuards';
 import { diag, warnFeature } from './_diagnostics';
 
 // ---------------------------------------------------------------------------
-// Atom label constants (work on dev / QPM-enriched builds)
-// ---------------------------------------------------------------------------
-
-const LABEL_ACTIVE_MODAL = 'activeModalAtom';
-
-// ---------------------------------------------------------------------------
 // Cached atom objects — set once, never cleared
 // ---------------------------------------------------------------------------
 
+// activeModalAtom is used only for the subscription-driven cachedModalOpen
+// fast path; the sync-value read now goes through readAtomValueSync('activeModal').
 let activeModalAtom:  unknown = null;
 let quinoaEngineAtom: unknown = null;
 
@@ -88,10 +84,12 @@ let modalAtomSubscribed = false;
 
 /**
  * Synchronous modal check used by GamepadPoller every frame.
- * Falls back to a quick DOM scan if activeModalAtom was never found.
+ * Falls back to a quick DOM scan if neither the registry nor the fiber-cached
+ * atom is available.
  */
 export function isModalOpenSync(): boolean {
   if (cachedModalOpen) return true;
+  if (readAtomValueSync('activeModal') !== null) return true;
   // DOM fallback: Chakra/McFlex modals have no role="dialog" but use a
   // semi-transparent dark backdrop with rgba(24, 24, 24, …).
   return (
@@ -139,26 +137,11 @@ export function isGrowSlotContextActive(): boolean {
 // ---------------------------------------------------------------------------
 
 export async function isModalOpen(): Promise<boolean> {
-  if (activeModalAtom) {
-    try {
-      const store = await ensureJotaiStore();
-      return store.get(activeModalAtom) !== null;
-    } catch {
-      // fall through to DOM
-    }
-  }
+  if (readAtomValueSync('activeModal') !== null) return true;
   return (
     document.querySelector('[role="dialog"]') !== null ||
     document.querySelector('[style*="rgba(24, 24, 24"]') !== null
   );
-}
-
-// ---------------------------------------------------------------------------
-// Label-based fast path (dev builds / QPM-enriched environments)
-// ---------------------------------------------------------------------------
-
-function tryLabelDiscovery(): void {
-  if (!activeModalAtom) activeModalAtom = getAtomByLabel(LABEL_ACTIVE_MODAL);
 }
 
 // ---------------------------------------------------------------------------
@@ -293,12 +276,10 @@ export async function initPetSlotAtoms(): Promise<void> {
   const store = await ensureJotaiStore();
   diag.debug('Jotai store connected');
 
-  // Fast path: labels present (dev / QPM-enriched builds)
-  tryLabelDiscovery();
-  if (activeModalAtom) subscribeToModalAtom(store);
-
-  // Also try engine scan immediately
+  // Try engine + modal scans immediately (labels are unreliable in prod).
   tryScanEngineAtom();
+  tryScanModalAtom();
+  if (activeModalAtom) subscribeToModalAtom(store);
 
   if (quinoaEngineAtom) {
     diag.debug('Pet slot atoms ready (immediate scan)');

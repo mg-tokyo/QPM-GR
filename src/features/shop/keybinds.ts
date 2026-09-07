@@ -2,7 +2,7 @@
 
 import { storage } from '../../utils/storage';
 import { isEditableTarget, normalizeKeybind } from '../../ui/pets/petsWindow/helpers';
-import { getAtomByLabel, writeAtomValue, ensureJotaiStore } from '../../core/jotaiBridge';
+import { writeRegistryAtom } from '../../core/atomRegistry';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
 import type { Subsystem } from '../../diagnostics/types';
 
@@ -89,11 +89,7 @@ export function getAllShopKeybinds(): Record<ShopId, string> {
 
 async function openShopModal(shopId: ShopId): Promise<void> {
   try {
-    const store = await ensureJotaiStore();
-    if (store.__polyfill) return; // no writable store available
-    const atom = getAtomByLabel('activeModalAtom');
-    if (!atom) return;
-    await writeAtomValue(atom, shopId);
+    await writeRegistryAtom('activeModal', shopId);
   } catch (err) {
     warnFeature('QPM-FEATURE-004', { what: 'openShopModal', shopId }, err);
   }

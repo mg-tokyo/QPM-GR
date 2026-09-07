@@ -8,6 +8,7 @@ import { pageWindow } from '../core/pageContext';
 import { criticalInterval } from '../utils/scheduling/timerManager';
 import { createNamedLogger } from '../diagnostics/logger';
 import { unwrapQuinoaCommand } from './envelope';
+import { ensureCommandSequencerAttached } from './commandSequencer';
 
 const diagLog = createNamedLogger('websocket');
 
@@ -76,6 +77,10 @@ function restorePatch(): void {
 }
 
 function ensurePatched(): void {
+  // CS-2: make the sequencer attach first so its wrapper is INNERMOST
+  // regardless of which of {sequencer, locker, observer} timer fires first.
+  ensureCommandSequencerAttached();
+
   const room = (pageWindow as PageWithRoom).MagicCircle_RoomConnection;
   if (!room || typeof room.sendMessage !== 'function') return;
   if (patchedRoom === room) return;

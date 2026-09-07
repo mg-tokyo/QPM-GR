@@ -1,14 +1,12 @@
 import { delay } from '../../utils/scheduling/scheduling';
 import { getActivePetInfos } from '../pets';
-import { getAtomByLabel, readAtomValue } from '../../core/jotaiBridge';
+import { readAtomValue } from '../../core/atomRegistry';
 import { DEFAULT_HUTCH_CAPACITY } from '../hutch';
 import type { InventorySnapshot, HutchSnapshot } from './types';
 import { diag } from './state';
 
 // Constants
 
-export const INVENTORY_ATOM_LABEL = 'myInventoryAtom';
-export const HUTCH_ATOM_LABEL = 'myPetHutchPetItemsAtom';
 export const PET_HUTCH_STORAGE_ID = 'PetHutch';
 export const HUTCH_RETRIEVE_TIMEOUT_MS = 3500;
 export const STORE_TIMEOUT_MS = 3000;
@@ -113,13 +111,9 @@ export function getActiveSlotIds(): string[] {
 export async function readInventorySnapshot(): Promise<InventorySnapshot> {
   const ids = new Set<string>();
   const petIds: string[] = [];
-  const atom = getAtomByLabel(INVENTORY_ATOM_LABEL);
-  if (!atom) {
-    return { ids, petIds, freeIndex: null, totalCount: 0 };
-  }
 
   try {
-    const raw = await readAtomValue(atom);
+    const raw = await readAtomValue('inventory');
     const items = extractInventoryItems(raw);
     let firstFreeIndex: number | null = null;
     let totalCount = 0;
@@ -151,21 +145,17 @@ export async function readInventorySnapshot(): Promise<InventorySnapshot> {
     const freeIndex = firstFreeIndex ?? items.length;
     return { ids, petIds, freeIndex, totalCount };
   } catch (error) {
-    diag.warn('QPM-STORE-002', { atom: INVENTORY_ATOM_LABEL, phase: 'readInventorySnapshot' }, error);
+    diag.warn('QPM-STORE-002', { atom: 'inventory', phase: 'readInventorySnapshot' }, error);
     return { ids, petIds, freeIndex: null, totalCount: 0 };
   }
 }
 
 export async function readHutchSnapshot(resolvedCapacity?: number | null): Promise<HutchSnapshot> {
   const ids = new Set<string>();
-  const atom = getAtomByLabel(HUTCH_ATOM_LABEL);
-  if (!atom) {
-    return { ids, count: 0, hutchMax: resolvedCapacity ?? DEFAULT_HUTCH_CAPACITY, freeIndex: 0 };
-  }
 
   try {
-    const raw = await readAtomValue(atom);
-    const items = Array.isArray(raw) ? raw : [];
+    const raw = await readAtomValue('hutchPets');
+    const items = raw ?? [];
     const usedStorageIndexes = new Set<number>();
     let hasStorageIndexes = false;
     let occupied = 0;
@@ -215,7 +205,7 @@ export async function readHutchSnapshot(resolvedCapacity?: number | null): Promi
 
     return { ids, count: occupied, hutchMax: effectiveMax, freeIndex };
   } catch (error) {
-    diag.warn('QPM-STORE-002', { atom: HUTCH_ATOM_LABEL, phase: 'readHutchSnapshot' }, error);
+    diag.warn('QPM-STORE-002', { atom: 'hutchPets', phase: 'readHutchSnapshot' }, error);
     return { ids, count: 0, hutchMax: resolvedCapacity ?? DEFAULT_HUTCH_CAPACITY, freeIndex: null };
   }
 }

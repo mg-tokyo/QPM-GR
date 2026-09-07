@@ -91,12 +91,17 @@ function buildRow(
       ? 'qpm-charged-abilities__projection-value--coin'
       : 'qpm-charged-abilities__projection-value--capsule',
   );
+  if (ability.yieldKind === 'capsule') {
+    gain.style.color = ability.accentColor;
+  }
   const value = document.createElement('span');
   value.textContent = ability.yieldKind === 'coin'
     ? t('feature.chargedAbilities.gainCoin', { value: formatCoins(totalGain.coin) })
     : `+${totalGain.capsule}`;
   gain.appendChild(value);
-  const iconKey = ability.yieldKind === 'coin' ? COIN_SPRITE_KEY : CAPSULE_SPRITE_KEY;
+  const iconKey = ability.yieldKind === 'coin'
+    ? COIN_SPRITE_KEY
+    : (ability.capsuleSpriteKey ?? CAPSULE_SPRITE_KEY);
   const iconSrc = getAnySpriteDataUrl(iconKey);
   if (iconSrc) {
     const img = document.createElement('img');

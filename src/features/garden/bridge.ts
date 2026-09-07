@@ -1,5 +1,4 @@
-import { ensureJotaiStore, getAtomByLabel, readAtomValue, getCachedStore } from '../../core/jotaiBridge';
-import { subscribeAtomValue } from '../../core/atomRegistry';
+import { readAtomValue, readAtomValueSync, subscribeAtomValue } from '../../core/atomRegistry';
 import { shareGlobal, readSharedGlobal } from '../../core/pageContext';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
 import type { Subsystem } from '../../diagnostics/types';
@@ -8,8 +7,6 @@ const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenBridge';
 const { diag, ensureBusRegistered, publishOk, warnFeature } =
   createFeatureDiagnostics(FEATURE_SUBSYSTEM, 'gardenBridge');
 
-const MY_DATA_ATOM_LABEL = 'myDataAtom';
-const MAP_ATOM_LABEL = 'mapAtom';
 const GLOBAL_CACHE_KEY = '__qpmGardenSnapshot__';
 const GLOBAL_MAP_CACHE_KEY = '__qpmMapSnapshot__';
 
@@ -33,7 +30,6 @@ let initialized = false;
 let cachedGarden: GardenSnapshot = readSharedGlobal<GardenSnapshot>(GLOBAL_CACHE_KEY) ?? null;
 let cachedMap: MapSnapshot | null = readSharedGlobal<MapSnapshot>(GLOBAL_MAP_CACHE_KEY) ?? null;
 let unsubscribe: (() => void) | null = null;
-let myDataAtomRef: unknown = null;
 let lastRawMyData: unknown = null;
 const listeners = new Set<(state: GardenSnapshot) => void>();
 let retryTimer: number | null = null;
@@ -66,15 +62,7 @@ function extractGarden(value: Record<string, unknown> | null | undefined): Garde
 }
 
 async function resolveGardenSnapshot(): Promise<GardenSnapshot> {
-  const myDataAtom = getAtomByLabel(MY_DATA_ATOM_LABEL);
-  if (!myDataAtom) {
-    diag.debug('myDataAtom not found (labels may be unavailable)');
-    throw new Error('Unable to locate myDataAtom in jotaiAtomCache');
-  }
-
-  diag.debug('Found myDataAtom');
-
-  const myData = await readAtomValue<Record<string, unknown> | null>(myDataAtom).catch((error) => {
+  const myData = await readAtomValue('myData').catch((error) => {
     warnFeature('QPM-FEATURE-004', { what: 'bridge:readMyData' }, error);
     return null;
   });
@@ -90,18 +78,13 @@ async function resolveGardenSnapshot(): Promise<GardenSnapshot> {
 }
 
 async function resolveMapSnapshot(): Promise<MapSnapshot | null> {
-  const mapAtom = getAtomByLabel(MAP_ATOM_LABEL);
-  if (!mapAtom) {
-    diag.debug('mapAtom not found');
-    return null;
-  }
-
-  diag.debug('Found mapAtom');
-
-  const map = await readAtomValue<MapSnapshot | null>(mapAtom).catch((error) => {
+  const raw = await readAtomValue('map').catch((error) => {
     warnFeature('QPM-FEATURE-004', { what: 'bridge:readMap' }, error);
     return null;
   });
+  const map = raw && typeof raw === 'object' && 'cols' in raw && 'rows' in raw
+    ? (raw as unknown as MapSnapshot)
+    : null;
 
   if (map && map.cols && map.rows) {
     diag.debug(`Map data loaded (${map.cols}x${map.rows} grid)`);
@@ -120,20 +103,6 @@ export async function startGardenBridge(): Promise<void> {
   if (retryTimer) {
     clearTimeout(retryTimer);
     retryTimer = null;
-  }
-
-  try {
-    await ensureJotaiStore();
-  } catch (error) {
-    warnFeature('QPM-FEATURE-003', { what: 'startBridge:jotai' }, error);
-    initialized = false;
-    if (!retryTimer) {
-      retryTimer = window.setTimeout(() => {
-        retryTimer = null;
-        void startGardenBridge();
-      }, RETRY_DELAY_MS);
-    }
-    return;
   }
 
   try {
@@ -157,19 +126,6 @@ export async function startGardenBridge(): Promise<void> {
     }
   }
 
-  myDataAtomRef = getAtomByLabel(MY_DATA_ATOM_LABEL);
-  if (!myDataAtomRef) {
-    warnFeature('QPM-FEATURE-003', { what: 'startBridge:postInitMyDataMissing' });
-    initialized = false;
-    if (!retryTimer) {
-      retryTimer = window.setTimeout(() => {
-        retryTimer = null;
-        void startGardenBridge();
-      }, RETRY_DELAY_MS);
-    }
-    return;
-  }
-
   const unsub = await subscribeAtomValue('myData', (value) => {
     lastRawMyData = value;
     updateCache(extractGarden(value ?? undefined));
@@ -186,7 +142,6 @@ export async function startGardenBridge(): Promise<void> {
 export function stopGardenBridge(): void {
   unsubscribe?.();
   unsubscribe = null;
-  myDataAtomRef = null;
   lastRawMyData = null;
   initialized = false;
   if (retryTimer) {
@@ -195,23 +150,14 @@ export function stopGardenBridge(): void {
   }
 }
 
-/**
- * Re-read myDataAtom directly via store.get() and update garden cache if changed.
- * Used by the background atom poller to detect changes when native
- * Jotai subscriptions don't fire (background tabs).
- */
+// Background poll fallback for tabs where native Jotai subscriptions may not
+// fire. Uses the registry's sync read so no jotai store/atom object is needed.
 export function forceRefreshGarden(): void {
-  if (!myDataAtomRef) return;
-  const store = getCachedStore();
-  if (!store || store.__polyfill) return;
-
-  try {
-    const fresh = store.get(myDataAtomRef);
-    if (fresh !== lastRawMyData) {
-      lastRawMyData = fresh;
-      updateCache(extractGarden((fresh as Record<string, unknown> | null) ?? undefined));
-    }
-  } catch {}
+  const fresh = readAtomValueSync('myData');
+  if (fresh !== lastRawMyData) {
+    lastRawMyData = fresh;
+    updateCache(extractGarden(fresh ?? undefined));
+  }
 }
 
 export function getGardenSnapshot(): GardenSnapshot {

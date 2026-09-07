@@ -3,11 +3,12 @@
 // Pure DOM, design-token colours, no external UI dependencies beyond the
 // existing modal-window system.
 
-import { copyPayloadToClipboard, DEFAULT_COPY_OPTIONS, renderCopyPayload, writeToClipboard } from './copyPayload';
+import { copyPayloadToClipboard, DEFAULT_COPY_OPTIONS, getGameStateSnapshotForPayload, renderCopyPayload, writeToClipboard } from './copyPayload';
 import type { CopyPayloadOptions } from './copyPayload';
 import { errorBuffer } from './errorBuffer';
 import { healthBus } from './healthBus';
 import type { AggregateStatus, ErrorBufferEntry, SubsystemHealth } from './types';
+import { renderGameStateTable } from '../core/gameState/health';
 import { watchDetach } from '../utils/dom/dom';
 
 export const DIAGNOSTICS_WINDOW_ID = 'qpm-diagnostics';
@@ -167,6 +168,13 @@ function formatSubsystemForClipboard(row: SubsystemHealth): string {
     lines.push('Metrics:');
     for (const [k, v] of Object.entries(row.metrics)) {
       lines.push(`  ${k}: ${v}`);
+    }
+  }
+  if (row.subsystem === 'gameState') {
+    const table = getGameStateSnapshotForPayload();
+    if (table) {
+      lines.push('Keys:');
+      for (const l of renderGameStateTable(table)) lines.push(`  ${l}`);
     }
   }
   if (row.lastError) {

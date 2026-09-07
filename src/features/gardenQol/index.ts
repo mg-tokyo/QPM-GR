@@ -4,7 +4,8 @@ import { startInstaHarvest, stopInstaHarvest } from './instaHarvest';
 import {
   startHarvestKindObserver,
   stopHarvestKindObserver,
-  extractInitialKinds,
+  startHarvestKindExtractor,
+  stopHarvestKindExtractor,
   setExtractorSnapshot,
   getSeedKinds,
   type ExtractedKind,
@@ -27,9 +28,9 @@ export function startGardenQol(): void {
   // zero, the seed stays visible. Trigger path never uses this — see
   // instaHarvest.ts (action-atom classification).
   setExtractorSnapshot(getSeedKinds());
-  void extractInitialKinds().then((r) => {
-    if (r.kinds.length > 0) setExtractorSnapshot(mergeKinds(getSeedKinds(), r.kinds));
-  }).catch(() => { /* seed remains */ });
+  startHarvestKindExtractor((kinds) => {
+    setExtractorSnapshot(mergeKinds(getSeedKinds(), kinds));
+  });
   startHarvestKindObserver();
   // ariesHold registers BEFORE instaAction/instaHarvest so its capture-phase
   // listener can track held state before they may stopImmediatePropagation.
@@ -41,6 +42,7 @@ export function startGardenQol(): void {
 export function stopGardenQol(): void {
   if (!running) return;
   running = false;
+  stopHarvestKindExtractor();
   stopHarvestKindObserver();
   stopAriesHold();
   stopInstaAction();

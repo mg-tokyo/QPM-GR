@@ -159,13 +159,6 @@ const es: Dictionary = {
 
   // ── Hub: Config group ─────────────────────────────────────────────────────
   'hub.config.label': 'Configuración',
-  'hub.config.autoReconnect.label': 'Reconexión automática',
-  'hub.config.autoReconnect.description': 'Reconectar automáticamente tras desconexiones o sesiones expiradas',
-  'hub.config.autoReconnect.summaryEnabled': 'Activado \u00b7 {delay}',
-  'hub.config.autoReconnect.summaryDisabled': 'Desactivado',
-  'hub.config.autoReconnect.delayInstant': 'Instantáneo',
-  'hub.config.autoReconnect.delaySeconds': '{seconds}s de espera',
-  'hub.config.autoReconnect.delayLabel': 'Espera: {delay}',
   'hub.config.controller.label': 'Controlador',
   'hub.config.controller.description': 'Configurar cursor, navegación D-pad y asignación de botones del mando',
   'hub.config.controller.summary': 'Asignaciones / Zona muerta / Cursor',
@@ -247,9 +240,6 @@ const es: Dictionary = {
   'feature.activityLog.infoBullet4': 'Límite máximo: 5000 entradas',
 
   // ── Feature: Auto Reconnect ────────────────────────────────────────────
-  'feature.autoReconnect.enableToggle': 'Activar reconexión automática',
-  'feature.autoReconnect.delayLabel': 'Espera de reconexión',
-  'feature.autoReconnect.delayHint': 's (0-300, paso 30)',
 
   // ── Feature: Protection ──────────────────────────────────────────────────
   'feature.protection.locksHeader': 'Bloqueos',
@@ -1533,7 +1523,6 @@ const es: Dictionary = {
   'tile.reminders.label': 'Recordatorios',
   'tile.gardenStats.label': 'Estadísticas del jardín',
   'tile.favorites.label': 'Favoritos',
-  'tile.autoReconnect.label': 'Reconexión automática',
   'tile.shopKeybinds.label': 'Atajos de tiendas',
   'tile.panelShortcut.label': 'Atajo del panel',
   'tile.guide.label': 'Guía',

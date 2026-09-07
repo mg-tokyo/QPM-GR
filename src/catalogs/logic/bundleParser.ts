@@ -176,23 +176,19 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
   return promise;
 }
 
-/**
- * Fetch (or reuse cached) candidate chunks and return the first whose text
- * contains the given marker. Candidates are re-collected on every call, so a
- * chunk that loads lazily after the first attempt is still found.
- */
-export async function fetchBundleContaining(marker: BundleMarker): Promise<string | null> {
+async function iterateBundlesContaining(
+  marker: BundleMarker,
+  stopAtFirst: boolean,
+): Promise<string[]> {
   const urls = findBundleCandidateUrls();
-  if (!urls.length) {
-    log.debug('bundle: no candidate URLs found');
-    return null;
-  }
+  if (!urls.length) return [];
 
+  const hits: string[] = [];
   for (const url of urls) {
     const cached = bundleTextCache.get(url);
     if (cached && markerHits(cached, marker)) {
-      log.debug('bundle: matched marker (cached)', { marker: String(marker), url });
-      return cached;
+      hits.push(cached);
+      if (stopAtFirst) return hits;
     }
   }
 
@@ -206,26 +202,37 @@ export async function fetchBundleContaining(marker: BundleMarker): Promise<strin
   for (const url of urls) {
     if (bundleTextCache.has(url) || missed.has(url)) continue;
     const text = await fetchBundleTextOnce(url);
-    if (!text) {
-      missed.add(url);
-      continue;
-    }
+    if (!text) { missed.add(url); continue; }
     if (markerHits(text, marker)) {
       bundleTextCache.set(url, text);
-      log.debug('bundle: matched marker', { marker: String(marker), url });
-      return text;
+      hits.push(text);
+      if (stopAtFirst) return hits;
+    } else {
+      missed.add(url);
     }
-    missed.add(url);
   }
-
-  log.debug('bundle: no chunk contains marker', { marker: String(marker), tried: urls.length });
-  return null;
+  return hits;
 }
 
 /**
- * Backward-compat wrapper. Returns the first cached bundle containing the
- * default ProduceScaleBoost anchor — used by weather enrichment.
+ * Fetch (or reuse cached) candidate chunks and return the first whose text
+ * contains the given marker. Candidates are re-collected on every call, so a
+ * chunk that loads lazily after the first attempt is still found.
  */
+export async function fetchBundleContaining(marker: BundleMarker): Promise<string | null> {
+  const hits = await iterateBundlesContaining(marker, true);
+  return hits[0] ?? null;
+}
+
 export async function fetchMainBundle(): Promise<string | null> {
   return fetchBundleContaining(BUNDLE_CONTENT_ANCHOR);
+}
+
+/**
+ * Return every candidate chunk whose text contains the marker. Needed when
+ * tokens of interest straddle chunks (e.g. action-type strings quoted in
+ * main-*.js and appearing as bare property keys in a lazy styles chunk).
+ */
+export async function fetchAllBundlesContaining(marker: BundleMarker): Promise<string[]> {
+  return iterateBundlesContaining(marker, false);
 }

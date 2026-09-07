@@ -38,7 +38,9 @@ import { registerPersistedItemRestockDetailOpeners } from '../ui/shop/itemRestoc
 import { startJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { runAtomHealthCheck, startAtomRegistryDiagnostics } from '../core/atomRegistry';
 import { initStateTree, startStateTreeDiagnostics } from '../core/stateTree';
-import { initializeStorage, storage, startStorageDiagnostics } from '../utils/storage';
+import { initGameState } from '../core/gameState';
+import { startGameStateDiagnostics } from '../core/gameState/health';
+import { initializeStorage, startStorageDiagnostics } from '../utils/storage';
 import { startPixiSceneDiagnostics } from '../core/pixiScene';
 import { isDevModeEnabled } from '../core/devMode';
 import { isDebugGlobalsEnabled } from '../utils/debugGlobals';
@@ -163,6 +165,7 @@ async function initialize(): Promise<void> {
   startWebsocketDiagnostics();
   startAtomRegistryDiagnostics();
   startStateTreeDiagnostics();
+  startGameStateDiagnostics();
   startCatalogsDiagnostics();
   startJotaiBridgeDiagnostics();
   startSpriteV2Diagnostics();
@@ -210,19 +213,6 @@ async function initialize(): Promise<void> {
     disposers.customSkins = initCustomSkins();
   } catch (error) {
     warnCore('QPM-INIT-001', { what: 'customSkins' }, error);
-  }
-
-  void initBloblingPresets().catch((error) => {
-    warnCore('QPM-INIT-001', { what: 'bloblingPresets' }, error);
-  });
-  void initGardenPainterPresets().catch((error) => {
-    warnCore('QPM-INIT-001', { what: 'gardenPainterPresets' }, error);
-  });
-  // Auto reconnect disabled — no longer permitted by the game.
-  // Force-disable only when a legacy user still has it flipped on; skip the
-  // write on every subsequent boot.
-  if (storage.get<boolean>('qpm.autoReconnect.enabled.v1', false) === true) {
-    storage.set('qpm.autoReconnect.enabled.v1', false);
   }
 
   // Log when catalogs become ready (for timing analysis)
@@ -314,6 +304,25 @@ async function initialize(): Promise<void> {
   // fails, atomRegistry reads fall through to the legacy label/atom paths.
   await initStateTree().catch((error) => {
     warnCore('QPM-INIT-001', { what: 'stateTree' }, error);
+  });
+
+  // gameState registry runs BEFORE runFeaturePhases so store/feature init sees a
+  // live facade. Facade is idempotent; a throw here is non-fatal (features fall
+  // back to raw label reads through the legacy atomRegistry until C1 lands).
+  try {
+    initGameState();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'gameState' }, error);
+  }
+
+  // Preset stores run after initGameState so getPlayerId() can resolve the
+  // per-player scoped storage key at boot (pre-facade they raced it and fell
+  // back to the unscoped key — or aborted on the facade's pre-init throw).
+  void initBloblingPresets().catch((error) => {
+    warnCore('QPM-INIT-001', { what: 'bloblingPresets' }, error);
+  });
+  void initGardenPainterPresets().catch((error) => {
+    warnCore('QPM-INIT-001', { what: 'gardenPainterPresets' }, error);
   });
 
   // Command sequencer MUST wrap the connection BEFORE the locker (phase 7c)

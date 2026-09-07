@@ -5,7 +5,8 @@
 // reuse its holographic frames, mutation overlays, and open animation
 // instead of recreating them in DOM.
 
-import { getAtomByLabel, readAtomValue } from '../core/jotaiBridge';
+import { readAtomValue } from '../core/atomRegistry';
+import { isRecord } from '../utils/typeGuards';
 import { createNamedLogger } from '../diagnostics/logger';
 import { healthBus } from '../diagnostics/healthBus';
 import {
@@ -204,18 +205,13 @@ async function resolveCardView(): Promise<any | null> {
   // Re-walk each call — engine atom can become null on game reconnect,
   // and beta builds can change the chain structure.
   try {
-    const atom = getAtomByLabel('quinoaEngineAtom');
-    if (!atom) {
-      warnCard('QPM-NCARD-001', { reason: 'atom_missing' });
-      return null;
-    }
-    const engine = await readAtomValue<any>(atom);
-    if (!engine || typeof engine.getSystem !== 'function') {
+    const engine = await readAtomValue('quinoaEngine');
+    if (!isRecord(engine) || typeof (engine as { getSystem?: unknown }).getSystem !== 'function') {
       warnCard('QPM-NCARD-001', { reason: 'engine_invalid' });
       cachedCardView = null;
       return null;
     }
-    const inventorySystem = engine.getSystem('inventory');
+    const inventorySystem = (engine as any).getSystem('inventory');
     const modalView = inventorySystem?.modalView;
     const cardView = modalView?.inventoryCardView;
     if (!cardView || typeof cardView.open !== 'function') {

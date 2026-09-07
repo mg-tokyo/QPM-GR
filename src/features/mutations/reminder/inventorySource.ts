@@ -1,7 +1,6 @@
 import { reminderDiag, warnReminderFeature } from './_diagnostics';
-import { ensureJotaiStore, getAtomByLabel, readAtomValue } from '../../../core/jotaiBridge';
+import { readAtomValue } from '../../../core/atomRegistry';
 import { readUserSlotsInventorySnapshot } from '../../../store/userSlots';
-import { CROP_INVENTORY_ATOM_LABEL } from './constants';
 import { reminderState } from './state';
 import { buildSlotStateFromInventorySlot, normalizePlantName } from './parsing';
 import type { GlobalInventoryResult, InventoryLookups, InventoryPlantEntry } from './types';
@@ -121,16 +120,6 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     return items;
   };
 
-  try {
-    await ensureJotaiStore();
-  } catch (error) {
-    if (!reminderState.inventoryAccessFailureLogged) {
-      warnReminderFeature('QPM-FEATURE-004', { what: 'jotai:capture' }, error);
-      reminderState.inventoryAccessFailureLogged = true;
-    }
-    return await fallback();
-  }
-
   const userSlotsSnapshot = await readUserSlotsInventorySnapshot();
   if (userSlotsSnapshot && userSlotsSnapshot.items.length > 0) {
     if (!reminderState.inventoryLookupStatsLogged) {
@@ -149,31 +138,19 @@ async function fetchCropInventoryItems(): Promise<any[]> {
     return await ensureSlotDataOrFallback(userSlotsSnapshot.items, userSlotsSnapshot.source);
   }
 
-  const atom = getAtomByLabel(CROP_INVENTORY_ATOM_LABEL);
-  if (!atom) {
-    if (!reminderState.inventoryAccessFailureLogged) {
-      warnReminderFeature('QPM-FEATURE-004', { what: 'atom:missing', atom: CROP_INVENTORY_ATOM_LABEL });
-      reminderState.inventoryAccessFailureLogged = true;
-    }
-    return await fallback();
-  }
-
   try {
-    const value = await readAtomValue<any>(atom);
+    const value = await readAtomValue('cropInventory');
     reminderState.inventoryAccessFailureLogged = false;
     if (Array.isArray(value)) {
       return await ensureSlotDataOrFallback(value, 'array');
     }
-    if (value && Array.isArray((value as Record<string, unknown>).items)) {
-      return await ensureSlotDataOrFallback((value as Record<string, any>).items as any[], 'items array');
-    }
     if (!reminderState.inventoryLookupStatsLogged) {
-      reminderDiag.debug('Crop inventory atom value not array-like', { sample: value });
+      reminderDiag.debug('Crop inventory registry value not array-like', { sample: value });
     }
     return await fallback();
   } catch (error) {
     if (!reminderState.inventoryAccessFailureLogged) {
-      warnReminderFeature('QPM-FEATURE-004', { what: 'atom:read', atom: CROP_INVENTORY_ATOM_LABEL }, error);
+      warnReminderFeature('QPM-FEATURE-004', { what: 'registry:read', key: 'cropInventory' }, error);
       reminderState.inventoryAccessFailureLogged = true;
     }
     return await fallback();
