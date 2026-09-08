@@ -19,7 +19,7 @@ import { shareGlobal } from './pageContext';
 import { deepEqual } from '../utils/deepEqual';
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
-import { recordProbe } from '../diagnostics/perfMonitor';
+import { recordProbe, setProbeAttribution } from '../diagnostics/perfMonitor';
 import type { Subsystem } from '../diagnostics/types';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 import { getRoomConnection } from '../websocket/api';
@@ -71,6 +71,11 @@ interface Subscriber {
   readonly label: string | undefined;
   readonly statePath: PatchPath | undefined;
   readonly trustPatches: boolean;
+  readonly ignorePatchSuffixes: readonly string[] | undefined;
+  // Wall time spent in this subscriber (selector + compare + callback) since the
+  // perf monitor last took a window — attributes `stateTree.event` on the Perf line.
+  windowMs: number;
+  totalMs: number;
 }
 
 let nextSubscriberId = 1;
@@ -105,6 +110,7 @@ interface PendingSubscription {
   readonly label: string | undefined;
   readonly statePath: PatchPath | undefined;
   readonly trustPatches: boolean;
+  readonly ignorePatchSuffixes: readonly string[] | undefined;
 }
 const pending: PendingSubscription[] = [];
 
@@ -173,43 +179,19 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
   // (welcome message, stateAtom fallback path, dev-tools reload) fall back to
   // running every subscriber — safe worst case, matches reactive/manager.ts.
   const havePatchInfo = patches !== undefined && patches.length > 0;
+  const snapshot = currentSnapshot;
   let myIdx: number | null | undefined; // undefined = unresolved this event
+  const myIdxOf = (): number | null => {
+    if (myIdx === undefined) myIdx = resolveMyIdx(snapshot);
+    return myIdx;
+  };
 
   for (const sub of subscribers.values()) {
-    if (havePatchInfo && sub.statePath !== undefined) {
-      if (myIdx === undefined) myIdx = resolveMyIdx(currentSnapshot);
-      let anyMatch = false;
-      for (const patch of patches) {
-        if (matchesPathPrefix(patch.path, sub.statePath, myIdx)) { anyMatch = true; break; }
-      }
-      if (!anyMatch) continue;
-      if (sub.trustPatches && sub.hasFired) {
-        let fast: unknown;
-        try { fast = sub.selector(currentSnapshot); } catch (err) {
-          diagLog.warn('QPM-STATETREE-002', { subscriber: sub.label ?? sub.id }, err);
-          try { sub.callback(null); } catch { /* swallow */ }
-          continue;
-        }
-        sub.lastValue = fast;
-        try { sub.callback(fast); } catch { /* swallow */ }
-        continue;
-      }
-    }
-    let derived: unknown;
-    try {
-      derived = sub.selector(currentSnapshot);
-    } catch (err) {
-      diagLog.warn('QPM-STATETREE-002', { subscriber: sub.label ?? sub.id }, err);
-      // Deliver null so caller can distinguish "state present, selector broken"
-      // from "state absent." Don't touch lastValue — if the selector recovers
-      // on a later event, we'll fire the update then.
-      try { sub.callback(null); } catch { /* subscriber threw — swallow */ }
-      continue;
-    }
-    if (sub.hasFired && deepEqual(derived, sub.lastValue)) continue;
-    sub.lastValue = derived;
-    sub.hasFired = true;
-    try { sub.callback(derived); } catch { /* subscriber threw — swallow */ }
+    const s0 = performance.now();
+    runSubscriber(sub, snapshot, patches, havePatchInfo, myIdxOf);
+    const dt = performance.now() - s0;
+    sub.windowMs += dt;
+    sub.totalMs += dt;
   }
 
   // Fan out to patch listeners (reactive manager). Empty patch array from
@@ -221,6 +203,67 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
     }
   }
   recordProbe('stateTree.event', performance.now() - t0);
+}
+
+// One subscriber's share of a state event; timed by the caller.
+function runSubscriber(
+  sub: Subscriber,
+  snapshot: QuinoaStateSnapshot,
+  patches: readonly PatchOp[] | undefined,
+  havePatchInfo: boolean,
+  myIdxOf: () => number | null,
+): void {
+  if (havePatchInfo && sub.statePath !== undefined && patches) {
+    const myIdx = myIdxOf();
+    let anyMatch = false;
+    for (const patch of patches) {
+      if (!matchesPathPrefix(patch.path, sub.statePath, myIdx)) continue;
+      if (sub.ignorePatchSuffixes && sub.ignorePatchSuffixes.some((s) => (s.endsWith('/') ? patch.path.includes(s) : patch.path.endsWith(s)))) continue;
+      anyMatch = true;
+      break;
+    }
+    if (!anyMatch) return;
+    if (sub.trustPatches && sub.hasFired) {
+      let fast: unknown;
+      try { fast = sub.selector(snapshot); } catch (err) {
+        diagLog.warn('QPM-STATETREE-002', { subscriber: sub.label ?? sub.id }, err);
+        try { sub.callback(null); } catch { /* swallow */ }
+        return;
+      }
+      sub.lastValue = fast;
+      try { sub.callback(fast); } catch { /* swallow */ }
+      return;
+    }
+  }
+  let derived: unknown;
+  try {
+    derived = sub.selector(snapshot);
+  } catch (err) {
+    diagLog.warn('QPM-STATETREE-002', { subscriber: sub.label ?? sub.id }, err);
+    // Deliver null so caller can distinguish "state present, selector broken"
+    // from "state absent." Don't touch lastValue — if the selector recovers
+    // on a later event, we'll fire the update then.
+    try { sub.callback(null); } catch { /* subscriber threw — swallow */ }
+    return;
+  }
+  if (sub.hasFired && deepEqual(derived, sub.lastValue)) return;
+  sub.lastValue = derived;
+  sub.hasFired = true;
+  try { sub.callback(derived); } catch { /* subscriber threw — swallow */ }
+  return;
+}
+
+/** Costliest subscriber since the last call, as a share of all subscriber time; resets the window. */
+export function takeSubscriberCostWindow(): { label: string; ms: number; totalMs: number } | null {
+  let top: Subscriber | null = null;
+  let total = 0;
+  for (const sub of subscribers.values()) {
+    total += sub.windowMs;
+    if (!top || sub.windowMs > top.windowMs) top = sub;
+  }
+  const out = top && top.windowMs > 0 ? { label: top.label ?? String(top.id), ms: top.windowMs, totalMs: total } : null;
+  for (const sub of subscribers.values()) sub.windowMs = 0;
+  return out;
 }
 
 // Resolves the local player's slot index from the current snapshot. Mirrors
@@ -338,6 +381,10 @@ async function attachSource(): Promise<void> {
 export async function initStateTree(): Promise<void> {
   if (ready) return;
   startStateTreeDiagnostics();
+  setProbeAttribution('stateTree.event', () => {
+    const top = takeSubscriberCostWindow();
+    return top && top.totalMs > 0 ? `top ${top.label} ${Math.round((100 * top.ms) / top.totalMs)}%` : null;
+  });
   try {
     await attachSource();
     ready = true;
@@ -353,6 +400,9 @@ export async function initStateTree(): Promise<void> {
         label: p.label,
         statePath: p.statePath,
         trustPatches: p.trustPatches,
+        ignorePatchSuffixes: p.ignorePatchSuffixes,
+        windowMs: 0,
+        totalMs: 0,
       };
       subscribers.set(p.id, sub);
       // Fire immediately if we already have a snapshot.
@@ -382,6 +432,7 @@ export async function initStateTree(): Promise<void> {
 
 /** Tear down. Idempotent. Used for test hot-reloads. */
 export function stopStateTree(): void {
+  setProbeAttribution('stateTree.event', null);
   try { sourceUnsubscribe?.(); } catch { /* ignore */ }
   try { welcomeUnsubscribe?.(); } catch { /* ignore */ }
   sourceUnsubscribe = null;
@@ -513,10 +564,11 @@ export function subscribe<T>(
   callback: (value: T | null) => void,
   label?: string,
   statePath?: PatchPath,
-  opts?: { trustPatches?: boolean },
+  opts?: { trustPatches?: boolean; ignorePatchSuffixes?: readonly string[] },
 ): () => void {
   const id = nextSubscriberId++;
   const trustPatches = opts?.trustPatches === true;
+  const ignorePatchSuffixes = opts?.ignorePatchSuffixes && opts.ignorePatchSuffixes.length > 0 ? opts.ignorePatchSuffixes : undefined;
 
   if (!ready) {
     // Subscribe-before-init is expected during early phase. The pending count
@@ -529,6 +581,7 @@ export function subscribe<T>(
       label,
       statePath,
       trustPatches,
+      ignorePatchSuffixes,
     });
     return () => {
       // If still pending, remove from queue; else remove from active map.
@@ -547,6 +600,9 @@ export function subscribe<T>(
     label,
     statePath,
     trustPatches,
+    ignorePatchSuffixes,
+    windowMs: 0,
+    totalMs: 0,
   };
   subscribers.set(id, sub);
 
@@ -569,11 +625,12 @@ export function subscribe<T>(
 
 // ─── Debug bridge (console-inspectable) ───────────────────────────────────
 
-function subscriberSummary(): Array<{ id: number; label: string | undefined; hasFired: boolean }> {
+function subscriberSummary(): Array<{ id: number; label: string | undefined; hasFired: boolean; totalMs: number }> {
   return [...subscribers.values()].map((s) => ({
     id: s.id,
     label: s.label,
     hasFired: s.hasFired,
+    totalMs: Math.round(s.totalMs * 10) / 10,
   }));
 }
 

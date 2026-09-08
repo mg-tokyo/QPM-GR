@@ -1,4 +1,4 @@
-import { atomSource, defineKey, stateSource } from '../define';
+import { atomSource, defineKey, PET_TICK_PATCH_PATHS, ROOT_TICK_PATCH_PATHS, stateSource } from '../define';
 import { isRecord } from '../../../utils/typeGuards';
 import { getSlotOwnerId } from '../../slotOwner';
 import type { PlayerAtomValue, QuinoaData, QuinoaStateSnapshot, QuinoaUserSlot } from '../../../types/gameAtoms';
@@ -10,21 +10,21 @@ export const PLAYER_KEYS = {
   state: defineKey<QuinoaStateSnapshot>({
     policy: 'authoritative', tier: 'state', doc: 'Root room state snapshot',
     sources: [
-      stateSource('', (s) => s, { trustPatches: true }),
+      stateSource('', (s) => s, { trustPatches: true, ignorePatchSuffixes: ROOT_TICK_PATCH_PATHS }),
       atomSource(/^(?:room|game)?[Ss]tate(?:Data)?Atom$/, 'authoritative', { structure: isSnapshot }),
     ],
   }),
   quinoaData: defineKey<QuinoaData>({
     policy: 'authoritative', tier: 'state', doc: 'child.data (shops, weather, userSlots, ...)',
     sources: [
-      stateSource('/child/data', (s) => (s.child?.data && typeof s.child.data === 'object' ? s.child.data : undefined), { trustPatches: true }),
+      stateSource('/child/data', (s) => (s.child?.data && typeof s.child.data === 'object' ? s.child.data : undefined), { trustPatches: true, ignorePatchSuffixes: ROOT_TICK_PATCH_PATHS }),
       atomSource(/^quinoaDataAtom$/, 'authoritative'),
     ],
   }),
   userSlots: defineKey<unknown[]>({
     policy: 'authoritative', tier: 'state', doc: 'All user slots (null entries for empty seats)',
     sources: [
-      stateSource('/child/data/userSlots', (s) => (Array.isArray(s.child?.data?.userSlots) ? s.child.data.userSlots : undefined), { trustPatches: true }),
+      stateSource('/child/data/userSlots', (s) => (Array.isArray(s.child?.data?.userSlots) ? s.child.data.userSlots : undefined), { trustPatches: true, ignorePatchSuffixes: PET_TICK_PATCH_PATHS }),
       atomSource(/^(?:room)?[Uu]ser[Ss]lots(?:Data)?Atom$/, 'authoritative', {
         structure: (v) => Array.isArray(v) && v.every((x) => x === null || (isRecord(x) && ('userId' in x || 'playerId' in x))),
       }),
@@ -37,7 +37,7 @@ export const PLAYER_KEYS = {
   myUserSlot: defineKey<QuinoaUserSlot>({
     policy: 'authoritative', tier: 'state', doc: 'My user slot (slot level: riddenPetId, petSlotInfos, lastActionEvent)',
     sources: [
-      stateSource('/child/data/userSlots/{myIdx}', selectMySlot, { trustPatches: true }),
+      stateSource('/child/data/userSlots/{myIdx}', selectMySlot, { trustPatches: true, ignorePatchSuffixes: PET_TICK_PATCH_PATHS }),
       atomSource(/^myUserSlotAtom$/, 'authoritative'),
     ],
   }),

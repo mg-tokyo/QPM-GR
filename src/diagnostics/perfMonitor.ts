@@ -13,10 +13,11 @@ const log = createNamedLogger(SUBSYSTEM);
 export type ProbeName = 'anchor.tick' | 'stateTree.event' | 'reactive.flush';
 const PROBE_NAMES: readonly ProbeName[] = ['anchor.tick', 'stateTree.event', 'reactive.flush'];
 // p95 budgets (ms) at which QPM's own work becomes a felt stall: anchor.tick
-// runs per rAF (7800X3D 0.1 ms), stateTree.event once per server frame and
-// brackets every consumer callback (7800X3D 4–5 ms; a slow laptop sits at
-// ~15 ms while still healthy), reactive.flush per coalesced microtask.
-const BUDGET_MS: Readonly<Record<ProbeName, number>> = { 'anchor.tick': 2, 'stateTree.event': 25, 'reactive.flush': 8 };
+// runs per rAF (7800X3D 0.1 ms); stateTree.event runs once per server frame and
+// brackets every consumer callback — 4–5 ms on the 7800X3D, 30–39 ms on a
+// Firefox/Tampermonkey isolated world (Xray reads) with no stutter reported, so
+// its line is the long-task threshold; reactive.flush per coalesced microtask.
+const BUDGET_MS: Readonly<Record<ProbeName, number>> = { 'anchor.tick': 2, 'stateTree.event': 50, 'reactive.flush': 8 };
 const RING = 256;
 const MIN_WINDOW_SAMPLES = 10;
 const PUBLISH_MS = 15_000;
@@ -27,9 +28,19 @@ interface Summary { p50: number; p95: number; max: number }
 // `last` is the previous complete publish window — what the report shows — so
 // a boot spike ages out after 15 s instead of sitting in a 256-sample ring
 // for minutes (at ~1 server frame/s the ring alone spans ~4 min).
-interface Probe { samples: Float64Array; n: number; idx: number; count: number; overBudgetWindows: number; last: Summary | null }
+interface Probe { samples: Float64Array; n: number; idx: number; count: number; overBudgetWindows: number; last: Summary | null; note: string | null }
 const probes = new Map<ProbeName, Probe>();
-for (const name of PROBE_NAMES) probes.set(name, { samples: new Float64Array(RING), n: 0, idx: 0, count: 0, overBudgetWindows: 0, last: null });
+for (const name of PROBE_NAMES) probes.set(name, { samples: new Float64Array(RING), n: 0, idx: 0, count: 0, overBudgetWindows: 0, last: null, note: null });
+// Per-probe attribution ("who inside the span was costly"), sampled at each
+// publish. Registered by the probe owner (stateTree cannot be imported here —
+// it imports recordProbe).
+const attributions = new Map<ProbeName, () => string | null>();
+export function setProbeAttribution(name: ProbeName, fn: (() => string | null) | null): void {
+  if (fn) attributions.set(name, fn); else attributions.delete(name);
+}
+// QPM-PERF-002 once per probe per session: the bus row carries the live state,
+// and a probe hovering around its budget re-fired the warn every few minutes.
+const warnedProbes = new Set<ProbeName>();
 
 let longTaskWindow = { count: 0, max: 0 };
 let lastWindow = { count: 0, max: 0 };
@@ -64,12 +75,12 @@ function currentSummary(p: Probe): Summary {
 }
 
 export function getPerfSnapshot(): {
-  probes: Record<ProbeName, Summary & { count: number }>;
+  probes: Record<ProbeName, Summary & { count: number; note: string | null }>;
   longTasks: { count: number; max: number; supported: boolean };
   anchor: ReturnType<typeof getAnchorWalkStats>;
 } {
-  const out = {} as Record<ProbeName, Summary & { count: number }>;
-  for (const [name, p] of probes) out[name] = { ...currentSummary(p), count: p.count };
+  const out = {} as Record<ProbeName, Summary & { count: number; note: string | null }>;
+  for (const [name, p] of probes) out[name] = { ...currentSummary(p), count: p.count, note: p.note };
   return { probes: out, longTasks: { ...lastWindow, supported: longTasksSupported }, anchor: getAnchorWalkStats() };
 }
 
@@ -85,7 +96,7 @@ export function formatPerfLine(): string | null {
   for (const name of PROBE_NAMES) {
     const p = s.probes[name];
     if (p.count === 0) continue;
-    parts.push(`${name} p95 ${fmt(p.p95)}ms`);
+    parts.push(`${name} p95 ${fmt(p.p95)}ms${p.note ? ` [${p.note}]` : ''}`);
   }
   parts.push(`anchor walk ${s.anchor.lastVisited}/${s.anchor.maxVisited} nodes${s.anchor.rootMissing ? ` (${s.anchor.rootMissing} missing)` : ''}`);
   return `Perf: ${parts.join('  ')}`;
@@ -102,11 +113,16 @@ function publish(): void {
     p.last = s;
     p.n = 0;
     p.idx = 0;
+    const attribute = attributions.get(name);
+    if (attribute) { try { p.note = attribute(); } catch { p.note = null; } }
     metrics[`${name}.p95`] = Math.round(s.p95 * 100) / 100;
     if (windowSamples >= MIN_WINDOW_SAMPLES && s.p95 > BUDGET_MS[name]) {
       p.overBudgetWindows += 1;
-      if (p.overBudgetWindows === 2) log.warn('QPM-PERF-002', { probe: name, p95: s.p95, budget: BUDGET_MS[name] });
-      if (p.overBudgetWindows >= 2) problems.push(`${name} p95 ${fmt(s.p95)}ms > ${BUDGET_MS[name]}ms`);
+      if (p.overBudgetWindows === 2 && !warnedProbes.has(name)) {
+        warnedProbes.add(name);
+        log.warn('QPM-PERF-002', { probe: name, p95: Math.round(s.p95), budget: BUDGET_MS[name], top: p.note });
+      }
+      if (p.overBudgetWindows >= 2) problems.push(`${name} p95 ${fmt(s.p95)}ms > ${BUDGET_MS[name]}ms${p.note ? ` [${p.note}]` : ''}`);
     } else {
       p.overBudgetWindows = 0;
     }
@@ -151,7 +167,8 @@ export function stopPerfMonitor(): void {
   observer = null;
   stopPublish?.();
   stopPublish = null;
-  for (const p of probes.values()) { p.n = 0; p.idx = 0; p.count = 0; p.overBudgetWindows = 0; p.last = null; }
+  for (const p of probes.values()) { p.n = 0; p.idx = 0; p.count = 0; p.overBudgetWindows = 0; p.last = null; p.note = null; }
+  warnedProbes.clear();
   longTaskWindow = { count: 0, max: 0 };
   lastWindow = { count: 0, max: 0 };
   longTasksSupported = false;

@@ -10,16 +10,27 @@ export function defineKey<T>(def: KeyDefinition<T>): KeyDefinition<T> {
   return def;
 }
 
+// Pet upkeep the server patches every frame (hunger + xp per pet once a
+// second, motion every couple of seconds). Whole-slot keys ignore them: their
+// consumers read gardens, inventories, shops and logs, while pet features read
+// `activePetSlots` / `petSlotInfos`, which still wake on every tick. A trailing
+// '/' means "path contains this segment", otherwise the path must end with it.
+export const PET_TICK_PATCH_PATHS: readonly string[] = ['/hunger', '/xp', '/motion/'];
+// Root keys additionally skip the server clock (patched every frame) — their
+// consumers ingest shops/user slots, never the clock.
+export const ROOT_TICK_PATCH_PATHS: readonly string[] = [...PET_TICK_PATCH_PATHS, '/currentTime', '/secondsUntilRestock'];
+
 export function stateSource<T>(
   statePath: PatchPath,
   select: (state: QuinoaStateSnapshot, identity: IdentityContext) => Selected<T>,
-  opts: { trustPatches?: boolean } = {},
+  opts: { trustPatches?: boolean; ignorePatchSuffixes?: readonly string[] } = {},
 ): StateTreeSourceSpec<T> {
   return {
     kind: 'stateTree',
     statePath,
     select,
     ...(opts.trustPatches === undefined ? {} : { trustPatches: opts.trustPatches }),
+    ...(opts.ignorePatchSuffixes === undefined ? {} : { ignorePatchSuffixes: opts.ignorePatchSuffixes }),
   };
 }
 

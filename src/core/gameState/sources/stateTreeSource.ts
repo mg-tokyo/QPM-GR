@@ -33,7 +33,10 @@ export function createStateTreeHandle<T>(
       (v) => { if (v !== undefined) cb(v); },
       `gameState:${key}`,
       spec.statePath,
-      { trustPatches: spec.trustPatches === true },
+      {
+        trustPatches: spec.trustPatches === true,
+        ...(spec.ignorePatchSuffixes ? { ignorePatchSuffixes: spec.ignorePatchSuffixes } : {}),
+      },
     ),
   };
 }

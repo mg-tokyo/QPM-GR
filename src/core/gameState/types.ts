@@ -24,6 +24,9 @@ export interface StateTreeSourceSpec<T> {
    *  skips the deep walk (the tree is freshly cloned per batch by the game).
    *  Only valid for selectors that return a subtree unchanged. */
   readonly trustPatches?: boolean;
+  /** Patch paths ending in one of these never wake this key on their own —
+   *  e.g. a per-second countdown the server patches every frame. */
+  readonly ignorePatchSuffixes?: readonly string[];
 }
 
 export interface AtomSourceSpec<T> {

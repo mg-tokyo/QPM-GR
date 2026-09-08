@@ -46,6 +46,10 @@ export function runDivergenceAudit<Defs extends DefsShape>(
     if (!a.ok || !b.ok) { report.skipped.push(key); continue; }
     report.checked++;
     if (allow.has(key)) continue;
+    // Authoritative null = the entity is absent (e.g. a storage building the
+    // player has not built). A predicted atom that still carries a base default
+    // for it is expected, not a wrong-sibling label match — the audit's target.
+    if (a.value === null) { report.skipped.push(key); continue; }
     const normalize = registry.auditNormalizerFor(key);
     const av = normalize ? normalize(a.value) : a.value;
     const bv = normalize ? normalize(b.value) : b.value;

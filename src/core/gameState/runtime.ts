@@ -16,7 +16,7 @@ export interface StateTreeRuntime {
     cb: (value: Selected<T>) => void,
     label: string,
     statePath?: PatchPath,
-    opts?: { trustPatches?: boolean },
+    opts?: { trustPatches?: boolean; ignorePatchSuffixes?: readonly string[] },
   ): () => void;
 }
 
@@ -62,7 +62,7 @@ export function createProductionRuntime(identity: () => IdentityContext): Source
         cb: (value: Selected<T>) => void,
         label: string,
         statePath?: PatchPath,
-        opts?: { trustPatches?: boolean },
+        opts?: { trustPatches?: boolean; ignorePatchSuffixes?: readonly string[] },
       ): (() => void) => stateTreeSubscribe<Selected<T>>(selector, (v) => cb(v as Selected<T>), label, statePath, opts),
     },
     atoms: {

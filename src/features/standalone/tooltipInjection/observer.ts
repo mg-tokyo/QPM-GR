@@ -253,6 +253,8 @@ function tick(): void {
   if (!cardWasVisible && !dirtyContent) {
     idleFrameCounter++;
     if (idleFrameCounter < IDLE_DISCOVERY_INTERVAL) {
+      // Recorded so the p95 reflects every rAF, not only the rare walks.
+      recordProbe('anchor.tick', 0);
       rafHandle = window.requestAnimationFrame(tick);
       return;
     }

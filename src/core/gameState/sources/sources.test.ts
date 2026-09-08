@@ -11,7 +11,7 @@ export interface FakeRuntime extends SourceRuntime {
   setIdentity(id: IdentityContext): void;
   fireState(): void;
   fireAtom(label: string): void;
-  readonly stateSubscribeOpts: ReadonlyArray<{ label: string; opts: { trustPatches?: boolean } | undefined }>;
+  readonly stateSubscribeOpts: ReadonlyArray<{ label: string; opts: { trustPatches?: boolean; ignorePatchSuffixes?: readonly string[] } | undefined }>;
   readonly findAtomsCalls: number;
   resetFindAtomsCalls(): void;
 }
@@ -22,7 +22,7 @@ export function createFakeRuntime(): FakeRuntime {
   let identity: IdentityContext = { playerId: null, myIdx: null };
   const stateSubs = new Set<() => void>();
   const atomSubs = new Map<string, Set<() => void>>();
-  const stateSubscribeOpts: Array<{ label: string; opts: { trustPatches?: boolean } | undefined }> = [];
+  const stateSubscribeOpts: Array<{ label: string; opts: { trustPatches?: boolean; ignorePatchSuffixes?: readonly string[] } | undefined }> = [];
   let findAtomsCalls = 0;
   const atomObj = (label: string): unknown => ({ debugLabel: label });
   const rt: FakeRuntime = {
@@ -181,6 +181,17 @@ describe('stateTree source trustPatches forwarding', () => {
     const call = rt.stateSubscribeOpts.find((c) => c.label === 'gameState:trusted');
     expect(call).toBeDefined();
     expect(call?.opts).toEqual({ trustPatches: true });
+  });
+  it('forwards ignorePatchSuffixes alongside trustPatches', () => {
+    const rt = createFakeRuntime();
+    const shops = defineKey<QuinoaStateSnapshot>({
+      policy: 'authoritative', doc: 'shops',
+      sources: [stateSource<QuinoaStateSnapshot>('/child', (s) => s, { trustPatches: true, ignorePatchSuffixes: ['/secondsUntilRestock'] })],
+    });
+    const [st] = createHandles('shops', shops, rt);
+    st!.subscribe(() => {});
+    const call = rt.stateSubscribeOpts.find((c) => c.label === 'gameState:shops');
+    expect(call?.opts).toEqual({ trustPatches: true, ignorePatchSuffixes: ['/secondsUntilRestock'] });
   });
   it('forwards trustPatches: false when unset on the spec (default path)', () => {
     const rt = createFakeRuntime();

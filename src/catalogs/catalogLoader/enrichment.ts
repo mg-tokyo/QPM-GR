@@ -5,7 +5,7 @@ import { DEFAULT_ABILITY_COLOR, getAbilityColorMap, type RuntimeAbilityColor } f
 import { getMutationColorMap } from '../logic/mutationColors';
 import { getWeatherCatalogMap } from '../logic/weatherCatalog';
 import { getCosmeticCatalogFromBundle } from '../logic/cosmeticCatalog';
-import { markBundleConsumerDone, onNewBundleChunk, registerBundleConsumer } from '../logic/bundleParser';
+import { getBundleFetchStats, markBundleConsumerDone, onNewBundleChunk, registerBundleConsumer } from '../logic/bundleParser';
 import { readSharedGlobal } from '../../core/pageContext';
 import type { GameCatalogs } from '../types';
 import {
@@ -346,7 +346,12 @@ function createEnrichmentPoller(spec: PollerSpec): EnrichmentPoller {
   const giveUp = (warn: boolean): void => {
     if (warn) {
       if (diagState.started) {
-        diagLog.warn('QPM-CATALOG-003', { what: spec.what, attempts: pollAttempts[spec.key], idleTicks: idleTicks[spec.key] });
+        diagLog.warn('QPM-CATALOG-003', {
+          what: spec.what,
+          attempts: pollAttempts[spec.key],
+          idleTicks: idleTicks[spec.key],
+          bundle: getBundleFetchStats(),
+        });
       }
       spec.onGiveUp?.();
     }

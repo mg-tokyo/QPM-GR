@@ -3,10 +3,14 @@
 // reference-equals only. Used as the memoization comparator for
 // stateTree.subscribe — called on every state event, so keep it fast.
 
+// Realm-agnostic: game state arrives from the page realm, and in a userscript
+// sandbox (Firefox/Tampermonkey isolated world) its `Object.prototype` is not
+// ours. Comparing against our own prototype made every state deepEqual return
+// false there, so every memoised subscriber fired on every server frame.
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
   const proto = Object.getPrototypeOf(v);
-  return proto === null || proto === Object.prototype;
+  return proto === null || proto === Object.prototype || Object.getPrototypeOf(proto) === null;
 }
 
 export function deepEqual(a: unknown, b: unknown): boolean {

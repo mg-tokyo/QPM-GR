@@ -87,7 +87,12 @@ const _errorHandler = (event: ErrorEvent): boolean => {
 
 export function installGlobalHandlers(): void {
   window.addEventListener('error', _errorHandler, true);
-  window.addEventListener('beforeunload', () => {
+  // pagehide, not beforeunload: beforeunload also fires for navigations that
+  // never complete (cancelled, or a same-URL load the game aborts), which tore
+  // QPM down inside a page that kept running. A bfcache freeze (persisted)
+  // keeps the page alive too, so it is not a shutdown either.
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) return;
     window.removeEventListener('error', _errorHandler, true);
     stopController();
     stopShopKeybinds();

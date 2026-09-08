@@ -168,10 +168,21 @@ export class Registry<Defs extends DefsShape> {
     return s.def.defaultValue ?? null;
   }
 
-  subscribe<K extends keyof Defs & string>(key: K, cb: (value: ValueOf<Defs, K> | null) => void): () => void {
+  subscribe<K extends keyof Defs & string>(key: K, cb: (value: ValueOf<Defs, K> | null) => void, origin: string | null = null): () => void {
     const s = this.state(key);
     if (s.boundIndex === null) this.bind(s);
-    return s.book.add(cb);
+    return s.book.add(cb, origin);
+  }
+
+  /** Consumer wall time per key, costliest first — pairs with the Perf line's `top <key>` note. */
+  consumerCosts(): Array<{ key: string; ms: number; consumers: Array<{ origin: string | null; ms: number; calls: number }> }> {
+    const out: Array<{ key: string; ms: number; consumers: Array<{ origin: string | null; ms: number; calls: number }> }> = [];
+    for (const [key, s] of this.states) {
+      const consumers = s.book.consumerCosts().sort((a, b) => b.ms - a.ms);
+      if (consumers.length === 0) continue;
+      out.push({ key, ms: consumers.reduce((acc, c) => acc + c.ms, 0), consumers });
+    }
+    return out.sort((a, b) => b.ms - a.ms);
   }
 
   async write<K extends keyof Defs & string>(key: K, value: ValueOf<Defs, K>): Promise<void> {

@@ -5,7 +5,9 @@
 import { deepEqual } from '../../utils/deepEqual';
 import type { SourceHandle } from './types';
 
-interface Entry<T> { readonly cb: (value: T | null) => void }
+interface Entry<T> { readonly cb: (value: T | null) => void; readonly origin: string | null; ms: number; calls: number }
+
+export interface ConsumerCost { origin: string | null; ms: number; calls: number }
 
 export class SubscriptionBook<T> {
   private readonly entries = new Set<Entry<T>>();
@@ -25,8 +27,8 @@ export class SubscriptionBook<T> {
 
   get size(): number { return this.entries.size; }
 
-  add(cb: (value: T | null) => void): () => void {
-    const entry: Entry<T> = { cb };
+  add(cb: (value: T | null) => void, origin: string | null = null): () => void {
+    const entry: Entry<T> = { cb, origin, ms: 0, calls: 0 };
     this.entries.add(entry);
     // First consumer attaches the upstream; later ones replay the last value.
     if (this.bound && this.detachUpstream === null) this.attach(this.bound);
@@ -83,7 +85,15 @@ export class SubscriptionBook<T> {
     for (const e of this.entries) this.callOne(e, value);
   }
 
+  /** Per-consumer wall time since boot — the "who is expensive under this key" view. */
+  consumerCosts(): ConsumerCost[] {
+    return Array.from(this.entries, (e) => ({ origin: e.origin, ms: e.ms, calls: e.calls }));
+  }
+
   private callOne(entry: Entry<T>, value: T | null): void {
+    const t0 = performance.now();
     try { entry.cb(value); } catch (err) { this.onError(err); }
+    entry.ms += performance.now() - t0;
+    entry.calls += 1;
   }
 }

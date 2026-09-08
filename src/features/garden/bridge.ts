@@ -53,6 +53,10 @@ function updateCache(next: GardenSnapshot) {
   notifyListeners();
 }
 
+function toGardenSnapshot(value: unknown): GardenSnapshot {
+  return value && typeof value === 'object' ? (value as GardenState) : null;
+}
+
 function extractGarden(value: Record<string, unknown> | null | undefined): GardenSnapshot {
   if (!value || typeof value !== 'object') {
     return null;
@@ -126,9 +130,11 @@ export async function startGardenBridge(): Promise<void> {
     }
   }
 
-  const unsub = await subscribeAtomValue('myData', (value) => {
+  // `myGarden` is path-gated to the garden subtree: pet hunger/xp ticks under
+  // the same slot no longer fan out to every garden listener each second.
+  const unsub = await subscribeAtomValue('myGarden', (value) => {
     lastRawMyData = value;
-    updateCache(extractGarden(value ?? undefined));
+    updateCache(toGardenSnapshot(value));
   });
   if (unsub) unsubscribe = unsub;
 
@@ -153,10 +159,10 @@ export function stopGardenBridge(): void {
 // Background poll fallback for tabs where native Jotai subscriptions may not
 // fire. Uses the registry's sync read so no jotai store/atom object is needed.
 export function forceRefreshGarden(): void {
-  const fresh = readAtomValueSync('myData');
+  const fresh = readAtomValueSync('myGarden');
   if (fresh !== lastRawMyData) {
     lastRawMyData = fresh;
-    updateCache(extractGarden(fresh ?? undefined));
+    updateCache(toGardenSnapshot(fresh));
   }
 }
 

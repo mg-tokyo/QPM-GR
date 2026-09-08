@@ -30,6 +30,7 @@ import {
   onShopDiscovered,
 } from './shopRegistry';
 import { getPlantSpecies, getEggType, getItem, getDecor } from '../catalogs/gameCatalogs';
+import { deepEqual } from '../utils/deepEqual';
 
 // Re-export types so existing importers of shopStock.ts continue to work.
 export type { ShopStockItem, ShopStockCategoryState, ShopStockState } from './shopStockParsers';
@@ -78,8 +79,11 @@ function createEmptyState(): ShopStockState {
 }
 
 function buildStateSignature(state: ShopStockState): string {
-  // Per-category composite of the already-computed per-item sig plus restock-timer
-  // fields subscribers key on. Skips `updatedAt` (bumps every rebuild by design).
+  // Per-category composite of the already-computed per-item sig plus the
+  // restock cycle fields subscribers key on. Skips `updatedAt` and the
+  // per-second `secondsUntilRestock` countdown: the server patches that every
+  // frame, and waking every listener for it was the top state-tree cost in the
+  // Firefox field report. `getShopStockState()` still carries the live value.
   let sig = '';
   for (const category of getKnownShopIds()) {
     const cat = state.categories[category];
@@ -87,7 +91,7 @@ function buildStateSignature(state: ShopStockState): string {
       sig += `${category}|_\n`;
       continue;
     }
-    sig += `${category}|${cat.signature}|${cat.availableCount}|${cat.secondsUntilRestock ?? ''}|${cat.nextRestockAt ?? ''}|${cat.restockIntervalMs ?? ''}\n`;
+    sig += `${category}|${cat.signature}|${cat.availableCount}|${cat.nextRestockAt ?? ''}|${cat.restockIntervalMs ?? ''}\n`;
   }
   return sig;
 }
@@ -145,21 +149,52 @@ function resolveWeatherShopCatalogPrices(items: ShopStockItem[]): void {
   }
 }
 
+// Every server frame patches `shops/<id>/secondsUntilRestock` (five shops, once
+// a second), and the tree is cloned per frame, so identity never short-circuits.
+// Re-parsing ten categories with catalog lookups for a countdown tick was the
+// costliest consumer in the Firefox field report; reuse the parsed items while
+// the inventory, purchases and custom inventory are content-equal.
+interface CategoryMemo {
+  inventory: unknown;
+  customInventory: unknown;
+  state: ShopStockCategoryState;
+}
+const categoryMemo = new Map<ShopCategory, CategoryMemo>();
+let memoPurchases: ShopPurchasesAtomSnapshot | null = null;
+
 function rebuildState(): void {
   const now = Date.now();
   const categories = Object.create(null) as Record<ShopCategory, ShopStockCategoryState>;
   const effectivePurchases = getEffectivePurchasesSnapshot();
   const effectiveShops = shopsSnapshot ?? quinoaDataShopsSnapshot;
+  const purchasesSame = deepEqual(effectivePurchases, memoPurchases);
+  if (!purchasesSame) memoPurchases = effectivePurchases;
+  const weatherGated = new Set<ShopCategory>(getWeatherGatedShopIds());
   for (const category of getKnownShopIds()) {
     const atomKey = getAtomKeyForCategory(category);
     const snapshot = effectiveShops?.[atomKey] ?? null;
     const customInventory = customInventories?.[atomKey] ?? null;
-    categories[category] = buildCategoryState(category, snapshot, effectivePurchases, customInventory);
-  }
-  // Weather-gated shop items have no price fields in raw atom data — resolve from game catalogs.
-  for (const id of getWeatherGatedShopIds()) {
-    const cat = categories[id];
-    if (cat) resolveWeatherShopCatalogPrices(cat.items);
+    const inventory = snapshot?.inventory ?? null;
+    const memo = categoryMemo.get(category);
+    if (memo && purchasesSame && deepEqual(inventory, memo.inventory) && deepEqual(customInventory, memo.customInventory)) {
+      const prev = memo.state;
+      const state: ShopStockCategoryState = {
+        ...prev,
+        secondsUntilRestock: typeof snapshot?.secondsUntilRestock === 'number' ? snapshot.secondsUntilRestock : null,
+        nextRestockAt: typeof snapshot?.nextRestockAt === 'number' ? snapshot.nextRestockAt : null,
+        restockIntervalMs: typeof snapshot?.restockIntervalMs === 'number' ? snapshot.restockIntervalMs : null,
+        updatedAt: now,
+        raw: snapshot ?? null,
+      };
+      categories[category] = state;
+      memo.state = state;
+      continue;
+    }
+    const built = buildCategoryState(category, snapshot, effectivePurchases, customInventory);
+    // Weather-gated shop items have no price fields in raw atom data — resolve from game catalogs.
+    if (weatherGated.has(category)) resolveWeatherShopCatalogPrices(built.items);
+    categories[category] = built;
+    categoryMemo.set(category, { inventory, customInventory, state: built });
   }
   cachedState = { updatedAt: now, categories };
   notifyState();
@@ -264,6 +299,8 @@ export function stopShopStockStore(): void {
   quinoaDataShopsUnsubscribe = null;
   discoveryUnsubscribe = null;
   startPromise = null;
+  categoryMemo.clear();
+  memoPurchases = null;
   shopsSnapshot = null;
   myDataPurchasesSnapshot = null;
   customInventories = null;

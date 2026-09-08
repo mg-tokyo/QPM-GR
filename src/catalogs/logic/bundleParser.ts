@@ -32,6 +32,12 @@ const BUNDLE_CONTENT_ANCHOR = 'ProduceScaleBoost';
 const bundleTextCache = new Map<string, string>();
 const bundleFetchInFlightByUrl = new Map<string, Promise<string | null>>();
 const bundleMarkerMisses = new Map<string, Set<string>>();
+// A failed fetch is NOT a marker miss: a transient proxy/network error must not
+// hide a chunk from every consumer for the session (2026-09-08 Firefox/Discord
+// report: weather chunk never parsed while every other chunk fetched fine).
+const bundleFetchFailures = new Map<string, number>();
+const MAX_FETCH_FAILURES_PER_URL = 3;
+const fetchStats = { attempted: 0, failed: 0, tooSmall: 0 };
 
 export type BundleMarker = string | RegExp;
 
@@ -48,6 +54,20 @@ function markerKey(marker: BundleMarker): string {
  */
 export function getMarkerMissCount(marker: BundleMarker): number {
   return bundleMarkerMisses.get(markerKey(marker))?.size ?? 0;
+}
+
+/** Triage counters for QPM-CATALOG-003 context and supportReport. */
+export function getBundleFetchStats(): {
+  candidates: number; cached: number; attempted: number; failed: number; tooSmall: number; failedUrls: string[];
+} {
+  return {
+    candidates: findBundleCandidateUrls().length,
+    cached: bundleTextCache.size,
+    attempted: fetchStats.attempted,
+    failed: fetchStats.failed,
+    tooSmall: fetchStats.tooSmall,
+    failedUrls: Array.from(bundleFetchFailures.keys()).map((u) => u.split('/').pop() ?? u),
+  };
 }
 
 // Pass non-global RegExp markers only — a global regex carries lastIndex state.
@@ -82,7 +102,17 @@ export function clearBundleTextCache(): void {
 // PRIORITY (main/index first), with every other loaded chunk as fallback.
 const GENERIC_ASSET_CHUNK_RE = /\/version\/[^/]+\/assets\/[^/]+\.js(\?|$)/;
 
+// Default buffer is 250 entries; the game loads hundreds of sprites/audio, so a
+// chunk that loads late drops out of getEntriesByType and is never a candidate.
+let resourceBufferRaised = false;
+export function ensureResourceTimingBuffer(): void {
+  if (resourceBufferRaised) return;
+  resourceBufferRaised = true;
+  try { pageWindow.performance?.setResourceTimingBufferSize?.(2000); } catch { /* ignore */ }
+}
+
 function findBundleCandidateUrls(): string[] {
+  ensureResourceTimingBuffer();
   const urls: string[] = [];
   const seen = new Set<string>();
 
@@ -152,19 +182,23 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
     : fetch;
 
   const promise = (async (): Promise<string | null> => {
+    fetchStats.attempted += 1;
     try {
       const res = await fetchFn(url, { credentials: 'include' });
       if (!res.ok) {
+        fetchStats.failed += 1;
         log.debug('bundle: fetch failed', { status: res.status, url });
         return null;
       }
       const text = await res.text();
       if (!text || text.length < 1000) {
+        fetchStats.tooSmall += 1;
         log.debug('bundle: text suspiciously small', { length: text?.length ?? 0, url });
         return null;
       }
       return text;
     } catch {
+      fetchStats.failed += 1;
       log.debug('bundle: fetch threw', { url });
       return null;
     }
@@ -204,8 +238,15 @@ async function iterateBundlesContaining(
 
   for (const url of urls) {
     if (bundleTextCache.has(url) || missed.has(url)) continue;
+    if ((bundleFetchFailures.get(url) ?? 0) >= MAX_FETCH_FAILURES_PER_URL) continue;
     const text = await fetchBundleTextOnce(url);
-    if (!text) { missed.add(url); continue; }
+    if (!text) {
+      const failures = (bundleFetchFailures.get(url) ?? 0) + 1;
+      bundleFetchFailures.set(url, failures);
+      // Give-up on this URL still counts as fetch work for retry budgets.
+      if (failures >= MAX_FETCH_FAILURES_PER_URL) missed.add(url);
+      continue;
+    }
     if (markerHits(text, marker)) {
       bundleTextCache.set(url, text);
       hits.push(text);

@@ -5,6 +5,7 @@ import { storage } from '../../utils/storage';
 import { fetchGameAccountInfo } from '../../services/gameAccount';
 import { createNamedLogger } from '../../diagnostics/logger';
 import { setGameStatePayloadSource } from '../../diagnostics/copyPayload';
+import { isDevModeEnabled } from '../devMode';
 import { getCapturedInfo, onJotaiCapture } from '../jotaiBridge';
 import { getPlayerIdFromUrl } from '../playerIdFromUrl';
 import { onStateTreeReady, onStateTreeWelcome, selectSync as stateTreeSelectSync } from '../stateTree';
@@ -143,7 +144,19 @@ export function stopGameState(): void {
 export const isGameStateReady = (): boolean => registry !== null;
 export const read = <K extends GameStateKey>(key: K): Promise<GameStateValue<K> | null> => requireRegistry().read(key);
 export const readSync = <K extends GameStateKey>(key: K): GameStateValue<K> | null => requireRegistry().readSync(key);
-export const subscribe = <K extends GameStateKey>(key: K, cb: (v: GameStateValue<K> | null) => void): (() => void) => requireRegistry().subscribe(key, cb);
+// Dev-only: the subscribe site (bundle file:line:col) so `consumerCosts()` can
+// name a hot consumer under a key — release symbol names are mangled, a stack
+// frame is the only stable handle. Stack capture is skipped outside dev mode.
+function subscribeOrigin(): string | null {
+  if (!isDevModeEnabled()) return null;
+  const lines = (new Error().stack ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  // [0] Error / this frame, [1] this facade, [2] usually the atomRegistry shim;
+  // keep the next two so a direct caller and a shim caller both resolve.
+  const frames = lines.filter((l) => /:\d+:\d+\)?$/.test(l)).slice(2, 4);
+  return frames.length ? frames.map((f) => f.replace(/^at\s+/, '').replace(/^.*?(?=[^/]*:\d+:\d+\)?$)/, '')).join(' < ') : null;
+}
+export const subscribe = <K extends GameStateKey>(key: K, cb: (v: GameStateValue<K> | null) => void): (() => void) => requireRegistry().subscribe(key, cb, subscribeOrigin());
+export const consumerCosts = (): ReturnType<Registry<typeof GAME_STATE_KEYS>['consumerCosts']> => requireRegistry().consumerCosts();
 export const write = <K extends GameStateKey>(key: K, value: GameStateValue<K>): Promise<void> => requireRegistry().write(key, value);
 export const explain = (key: GameStateKey): KeyExplain => requireRegistry().explain(key);
 export const explainAll = (): KeyExplain[] => requireRegistry().explainAll();

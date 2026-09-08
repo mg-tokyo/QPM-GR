@@ -207,6 +207,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     instaHarvestSnapshot,
     getScanStats,
     getPerfSnapshot,
+    gameStateConsumerCosts: async () => { const m = await import('../../core/gameState'); return m.consumerCosts(); },
     gameStateStop: async () => { const m = await import('../../core/gameState'); m.stopGameState(); },
     gameStateStart: async () => { const m = await import('../../core/gameState'); m.initGameState(); },
   };

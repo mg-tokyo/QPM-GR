@@ -25,7 +25,10 @@ export const SHOP_KEYS = {
   }),
   shops: defineKey<ShopsAtomSnapshot | null>({
     policy: 'authoritative', tier: 'state', doc: 'All shops keyed by id (shopsAtom was removed by the game)',
-    sources: [stateSource('/child/data/shops', shops, { trustPatches: true })],
+    // The server patches every shop's countdown once a second; nothing keyed on
+    // `shops` needs it (cycle ids use nextRestockAt), so it must not wake the
+    // store's ten-category rebuild every frame.
+    sources: [stateSource('/child/data/shops', shops, { trustPatches: true, ignorePatchSuffixes: ['/secondsUntilRestock'] })],
   }),
   seedShop: category('seed'),
   eggShop: category('egg'),

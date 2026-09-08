@@ -59,6 +59,21 @@ describe('divergence audit', () => {
     const reg2 = new Registry(petDefs, rt2); reg2.start();
     expect(runDivergenceAudit(reg2).divergent.map((d) => d.key)).toEqual(['pets']);
   });
+  it('skips a key whose authoritative rung is null (absent entity) vs a predicted default', () => {
+    const capDefs = {
+      cap: defineKey<number | null>({ policy: 'authoritative', doc: '', sources: [
+        stateSource<number | null>('/cap', () => null),
+        atomSource(/^myCapAtom$/, 'predicted', { project: (v) => (typeof v === 'number' ? v : undefined) }),
+      ] }),
+    };
+    const rt = createFakeRuntime();
+    rt.setSnapshot(snap); rt.setIdentity({ playerId: 'p1', myIdx: 0 });
+    rt.setAtoms({ myCapAtom: 25 });
+    const reg = new Registry(capDefs, rt); reg.start();
+    const report = runDivergenceAudit(reg);
+    expect(report.divergent).toEqual([]);
+    expect(report.skipped).toContain('cap');
+  });
   it('honours the allow-list', () => {
     const rt = createFakeRuntime();
     rt.setSnapshot(snap); rt.setIdentity({ playerId: 'p1', myIdx: 0 });

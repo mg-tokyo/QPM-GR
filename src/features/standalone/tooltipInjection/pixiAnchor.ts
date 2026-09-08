@@ -186,7 +186,9 @@ const lastCardMissAt = new Map<string, number>();
 const FULL_SCAN_THROTTLE_MS = 2000;
 // A detached card (spectator mode, pre-load) is rediscovered on the UI layer
 // at most this often — the observer can tick every rAF while bounds are null.
-const CARD_MISS_THROTTLE_MS = 500;
+// The scene add/remove events cache a card the moment it mounts, so this walk
+// only covers the cold start; it costs ~6 ms per 600 nodes under Firefox Xray.
+const CARD_MISS_THROTTLE_MS = 2000;
 const NO_TOOLTIPS: readonly PixiNode[] = [];
 type ScopedRootName = 'stageUiRoot' | 'uiLayer';
 const missingRoots = new Set<ScopedRootName>();

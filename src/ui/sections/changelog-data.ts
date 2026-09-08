@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.44",
+    date: "2026-09-09",
+    notes: [
+      "Fixed high per-update CPU cost on Firefox and in the Discord activity: QPM's change detection compared game objects incorrectly inside the userscript sandbox, so every state update looked like a change and woke everything, the comparison is now correct and the per-frame state cost dropped from about 30 ms to about 1 ms in testing",
+      "Fixed the weather catalog sometimes showing as missing (a false 'catalogs degraded' status), QPM now keeps more of the game's loaded files discoverable and retries a failed fetch instead of giving up, and the catalog warning now reports why it stopped",
+      "Improved background CPU use further: QPM no longer wakes its stores for the once-a-second shop restock countdown, the server clock, or pet hunger, xp and movement ticks unless a feature actually needs them, and the shop stock view reuses its parsed data between countdown ticks",
+      "Fixed a false 'gameState degraded' warning (QPM-ATOM-003) for storage buildings you have not built yet, such as the Decor Shed or Tool Shack",
+      "Fixed QPM occasionally shutting itself down on a cancelled page navigation, it now tears down only on a real page unload",
+      "Improved the Diagnostics Performance line to name the costliest state consumer, and limited the over-budget warning to once per subsystem per session so it no longer repeats",
+    ],
+  },
+  {
     version: "3.3.43",
     date: "2026-09-08",
     notes: [
