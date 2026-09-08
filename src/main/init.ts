@@ -5,7 +5,7 @@ import { isVerboseLogsEnabled } from '../diagnostics/logger';
 import { diag, publishOk as publishInitOk, warnCore } from './_diagnostics';
 import { yieldToBrowser } from '../utils/scheduling/scheduling';
 import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from '../ui/core/originalPanel';
-import { shareGlobal } from '../core/pageContext';
+import { readSharedGlobal, shareGlobal } from '../core/pageContext';
 import { startVersionChecker } from '../utils/versionChecker';
 import { initPublicRooms } from '../features/standalone/publicRooms';
 import {
@@ -74,6 +74,7 @@ import {
 import { startCatalogsDiagnostics, initCatalogHooksEarly } from '../catalogs/catalogLoader';
 import { initDiagnostics, mountDiagnosticsBadge } from '../diagnostics/init';
 import { startBundleInfoDiagnostics } from '../diagnostics/bundleInfo';
+import { startPerfMonitor } from '../diagnostics/perfMonitor';
 import { exposeLateDebugApis } from '../debug/mainApi';
 import { buildCfg } from './config';
 import { initializeGlobalApis } from './globalApis';
@@ -161,6 +162,15 @@ async function initialize(): Promise<void> {
   // Diagnostics layer (Phase 1 foundation). Must be up before any subsystem
   // could call into the health bus or named-logger pipeline.
   initDiagnostics();
+
+  // Duplicate-instance signal written by an aborted second instance (spec D10).
+  // Fires here only when the second copy loaded before this call; the common
+  // case (second copy loads later) surfaces via environmentInfo's Env line.
+  const dup = readSharedGlobal<{ version?: unknown }>('__QPM_DUPLICATE__');
+  if (dup && typeof dup === 'object' && typeof dup.version === 'string') {
+    warnCore('QPM-INIT-002', { existingVersion: dup.version });
+  }
+
   initNotifications();
   startWebsocketDiagnostics();
   startAtomRegistryDiagnostics();
@@ -173,6 +183,7 @@ async function initialize(): Promise<void> {
   startBundleInfoDiagnostics();
   startTimerManagerDiagnostics();
   startPixiSceneDiagnostics();
+  startPerfMonitor();
 
   const cfg = buildCfg();
 

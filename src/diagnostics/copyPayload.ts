@@ -11,6 +11,7 @@ import { errorBuffer } from './errorBuffer';
 import { getCapturedGameVersion } from './gameVersionCapture';
 import { healthBus } from './healthBus';
 import { detectOtherMods, formatModsLine } from './modDetection';
+import { formatPerfLine } from './perfMonitor';
 import type { ErrorCode } from './types';
 
 export { DEFAULT_COPY_OPTIONS } from './copyRender';
@@ -77,6 +78,7 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
     environmentLine: safe(() => formatEnvironmentLine(readEnvironmentInfo(now)), 'Env: ?'),
     modsLine: safe(() => formatModsLine(detectOtherMods()), null),
     flagsLine: safe(() => formatFlagsLine(readNonDefaultFlags()), null),
+    perfLine: safe(() => formatPerfLine(), null),
     subsystems: healthBus.readAll(),
     aggregate: healthBus.aggregate(),
     gameStateProblemLines: renderGameStateProblemLines(),

@@ -62,6 +62,12 @@ function wrapForPageWindow(value: unknown): unknown {
   return value;
 }
 
+// Firefox needs page-visible functions for accessors installed on page objects;
+// a raw sandbox function silently drops calls from the page realm.
+export function exportToPage<F extends Function>(fn: F): F {
+  return wrapForPageWindow(fn) as F;
+}
+
 const warnedCollisions = new Set<string>();
 
 /**

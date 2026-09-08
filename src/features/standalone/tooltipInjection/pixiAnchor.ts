@@ -11,7 +11,7 @@
 import { pageWindow } from '../../../core/pageContext';
 import { getPixiRefs } from '../../../core/pixiCapture';
 import { onPixiNodeAdded, onPixiNodeRemoved } from '../../../core/pixiSceneEvents';
-import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL, OBJECT_CARD_LABEL } from './types';
+import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL, OBJECT_CARD_LABEL, STAGE_UI_ROOT_LABEL, STAGE_UI_LAYER_LABEL } from './types';
 
 // ---------------------------------------------------------------------------
 // PIXI shapes (structural — avoids depending on pixi.js types)
@@ -85,25 +85,42 @@ function nodeBounds(node: PixiNode): PixiBounds | null {
   try { return parseBounds(node.getBounds()); } catch { return null; }
 }
 
+// Per-tick walk cost is the thing that regressed (spec F1); keep it countable.
+const walkStats = { lastVisited: 0, maxVisited: 0, walks: 0, fullScans: 0, rootMissing: null as string | null };
+
+function noteWalk(visited: number): void {
+  walkStats.walks += 1;
+  walkStats.lastVisited = visited;
+  if (visited > walkStats.maxVisited) walkStats.maxVisited = visited;
+}
+
+export function getAnchorWalkStats(): Readonly<typeof walkStats> {
+  return { ...walkStats };
+}
+
 // Reusable stack across walks — avoids per-frame allocation on the hot path.
 // Not shared between findNodeByLabel and findAllNodesByLabel to keep the
 // invariants (both fully drain before returning) simple.
 const _findStack: PixiNode[] = [];
 const _findAllStack: PixiNode[] = [];
 
-function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
+function findNodeByLabel(root: PixiNode, label: string, includeHidden = false): PixiNode | null {
   const stack = _findStack;
   stack.length = 0;
   stack.push(root);
   const seen = new WeakSet<object>();
+  let visited = 0;
   while (stack.length > 0) {
     const node = stack.pop();
     if (!node || typeof node !== 'object') continue;
     if (seen.has(node as object)) continue;
     seen.add(node as object);
-    if (!isVisible(node)) continue;
+    visited += 1;
+    if (node.destroyed === true) continue;
+    if (!includeHidden && !isVisible(node)) continue;
     if (typeof node.label === 'string' && node.label === label) {
       stack.length = 0;
+      noteWalk(visited);
       return node;
     }
     if (Array.isArray(node.children)) {
@@ -113,6 +130,7 @@ function findNodeByLabel(root: PixiNode, label: string): PixiNode | null {
       }
     }
   }
+  noteWalk(visited);
   return null;
 }
 
@@ -123,11 +141,13 @@ function findAllNodesByLabel(root: PixiNode, label: string): PixiNode[] {
   stack.push(root);
   const seen = new WeakSet<object>();
   const out: PixiNode[] = [];
+  let visited = 0;
   while (stack.length > 0) {
     const node = stack.pop();
     if (!node || typeof node !== 'object') continue;
     if (seen.has(node as object)) continue;
     seen.add(node as object);
+    visited += 1;
     if (!isVisible(node)) continue;
     if (typeof node.label === 'string' && node.label === label) out.push(node);
     if (Array.isArray(node.children)) {
@@ -137,6 +157,7 @@ function findAllNodesByLabel(root: PixiNode, label: string): PixiNode[] {
       }
     }
   }
+  noteWalk(visited);
   return out;
 }
 
@@ -154,6 +175,51 @@ function getRefs(): PixiRefs | null {
     stage: shared.stage as PixiNode,
     canvas: shared.canvas,
   };
+}
+
+// Scoped roots (spec D1/D2). Re-validated by parent identity every call so a
+// rebuilt stage child is picked up without a walk.
+let cachedUiRoot: PixiNode | null = null;
+let cachedUiLayer: PixiNode | null = null;
+let lastFullScanAt = 0;
+const lastCardMissAt = new Map<string, number>();
+const FULL_SCAN_THROTTLE_MS = 2000;
+// A detached card (spectator mode, pre-load) is rediscovered on the UI layer
+// at most this often — the observer can tick every rAF while bounds are null.
+const CARD_MISS_THROTTLE_MS = 500;
+const NO_TOOLTIPS: readonly PixiNode[] = [];
+type ScopedRootName = 'stageUiRoot' | 'uiLayer';
+const missingRoots = new Set<ScopedRootName>();
+
+function directChild(stage: PixiNode, label: string): PixiNode | null {
+  const kids = stage.children;
+  if (!Array.isArray(kids)) return null;
+  for (let i = 0; i < kids.length; i++) {
+    const c = kids[i];
+    if (c && typeof c === 'object' && typeof c.label === 'string' && c.label === label) return c;
+  }
+  return null;
+}
+
+function noteRootMissing(what: ScopedRootName, missing: boolean): void {
+  if (missing) missingRoots.add(what); else missingRoots.delete(what);
+  walkStats.rootMissing = missingRoots.size === 0 ? null : Array.from(missingRoots).join('+');
+}
+
+function scopedRoot(stage: PixiNode, cached: PixiNode | null, label: string, what: ScopedRootName): PixiNode | null {
+  const root = cached && cached.parent === stage && cached.destroyed !== true ? cached : directChild(stage, label);
+  noteRootMissing(what, root === null);
+  return root;
+}
+
+// A label rename must never re-create the per-frame stage walk: the full
+// stage is scanned at most every 2 s and the miss is recorded for P2's row.
+function fallbackRoot(stage: PixiNode): PixiNode | null {
+  const now = performance.now();
+  if (now - lastFullScanAt < FULL_SCAN_THROTTLE_MS) return null;
+  lastFullScanAt = now;
+  walkStats.fullScans += 1;
+  return stage;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,11 +247,10 @@ function ensureSceneListeners(): void {
   listenersInstalled = true;
 }
 
-function isNodeStillLive(node: PixiNode | null): boolean {
-  if (!node) return false;
-  if (node.destroyed === true) return false;
-  if (!isVisible(node)) return false;
+function isNodeAttached(node: PixiNode | null): boolean {
+  if (!node || node.destroyed === true) return false;
   let p: unknown = node.parent;
+  if (!p) return false;
   let hops = 0;
   while (p && typeof p === 'object' && hops < 20) {
     if ((p as PixiNode).destroyed === true) return false;
@@ -193,6 +258,19 @@ function isNodeStillLive(node: PixiNode | null): boolean {
     hops++;
   }
   return true;
+}
+
+// Prefer a visible match (the live card); accept a hidden one so a mounted
+// but deselected card is cached and never re-walked until it is destroyed.
+function discoverCard(stage: PixiNode, label: string): PixiNode | null {
+  const now = performance.now();
+  if (now - (lastCardMissAt.get(label) ?? 0) < CARD_MISS_THROTTLE_MS) return null;
+  cachedUiLayer = scopedRoot(stage, cachedUiLayer, STAGE_UI_LAYER_LABEL, 'uiLayer');
+  const root = cachedUiLayer ?? fallbackRoot(stage);
+  if (!root) return null;
+  const found = findNodeByLabel(root, label) ?? findNodeByLabel(root, label, true);
+  if (!found) lastCardMissAt.set(label, now);
+  return found;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,11 +284,9 @@ function isNodeStillLive(node: PixiNode | null): boolean {
  * so it never covers the ability chip in the default state and never covers
  * the expanded tooltip when it opens. Returns null when the panel is hidden.
  *
- * Cheap when the cached card node is still valid — the stage walk for the
- * card only runs when the previous card was destroyed or hidden. Tooltip
- * lookup does a stage scan every frame because tooltip nodes come and go
- * unpredictably (any PIXI hover can spawn one) and there is no reliable
- * "current tooltip" cache we can invalidate cheaply.
+ * Per-frame cost is the StageUiRoot subtree (open tooltips are reparented
+ * there) — tens of nodes; the card itself is cached and only rediscovered on
+ * the UI layer when it was destroyed or detached.
  */
 export function getCardBounds(): CardBounds | null {
   if (!cachedRefs) {
@@ -219,16 +295,15 @@ export function getCardBounds(): CardBounds | null {
   }
   ensureSceneListeners();
 
-  // Event-cache miss (listeners registered too late for an existing node,
-  // or the game re-labels an already-attached container) — do a single
-  // catch-up walk. Steady-state operation hits the cached reference.
-  if (!isNodeStillLive(cachedCard)) {
-    cachedCard = findNodeByLabel(cachedRefs.stage, GARDEN_INFO_CARD_LABEL);
+  const stage = cachedRefs.stage;
+  if (!isNodeAttached(cachedCard)) {
+    cachedCard = discoverCard(stage, GARDEN_INFO_CARD_LABEL);
     if (!cachedCard) return null;
   }
-
   const card = cachedCard;
   if (!card) return null;
+  // Mounted but hidden (no tile selected): keep the cache, walk nothing.
+  if (!isVisible(card)) return null;
 
   const b = nodeBounds(card);
   if (!b) return null;
@@ -257,7 +332,9 @@ export function getCardBounds(): CardBounds | null {
   const canvasBottom = cr.top + cr.height;
   const canvasLeft = cr.left;
   const canvasRight = cr.left + cr.width;
-  const tooltips = findAllNodesByLabel(cachedRefs.stage, PIXI_TOOLTIP_LABEL);
+  cachedUiRoot = scopedRoot(stage, cachedUiRoot, STAGE_UI_ROOT_LABEL, 'stageUiRoot');
+  const tooltipRoot = cachedUiRoot ?? fallbackRoot(stage);
+  const tooltips = tooltipRoot ? findAllNodesByLabel(tooltipRoot, PIXI_TOOLTIP_LABEL) : NO_TOOLTIPS;
   for (const tt of tooltips) {
     const tb = nodeBounds(tt);
     if (!tb || tb.width <= 0 || tb.height <= 0) continue;
@@ -310,14 +387,14 @@ export function getObjectCardBounds(): CardBounds | null {
   }
   ensureSceneListeners();
 
-  // Event-cache miss safety net — same rationale as getCardBounds().
-  if (!isNodeStillLive(cachedObjectCard)) {
-    cachedObjectCard = findNodeByLabel(cachedRefs.stage, OBJECT_CARD_LABEL);
+  if (!isNodeAttached(cachedObjectCard)) {
+    cachedObjectCard = discoverCard(cachedRefs.stage, OBJECT_CARD_LABEL);
     if (!cachedObjectCard) return null;
   }
 
   const node = cachedObjectCard;
   if (!node) return null;
+  if (!isVisible(node)) return null;
 
   const b = nodeBounds(node);
   if (!b) return null;
@@ -342,7 +419,10 @@ export function getObjectCardBounds(): CardBounds | null {
 export function resetAnchor(): void {
   cachedCard = null;
   cachedObjectCard = null;
+  cachedUiRoot = null;
+  cachedUiLayer = null;
   cachedRefs = null;
+  lastCardMissAt.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -370,6 +450,7 @@ interface AnchorDebugReport {
   pixiTooltipAllMatches: AnchorDebugNode[];
   /** Any node whose label contains 'GardenInfo' — helps spot renames. */
   gardenInfoLike: AnchorDebugNode[];
+  walkStats: Readonly<typeof walkStats>;
 }
 
 function collectAllLabeledNodes(root: PixiNode): PixiNode[] {
@@ -405,12 +486,16 @@ function debugReport(): AnchorDebugReport {
   const pixiCaptured = !!root.__QPM_PIXI_CAPTURED__;
   const refs = getRefs();
   const refsFound = !!refs;
-  const cachedValid = isNodeStillLive(cachedCard);
+  const cachedValid = isNodeAttached(cachedCard);
   const bounds = getCardBounds();
 
   let gardenInfoAll: AnchorDebugNode[] = [];
   let tooltipAll: AnchorDebugNode[] = [];
   let gardenInfoLike: AnchorDebugNode[] = [];
+  // Snapshot after getCardBounds() (a real runtime walk that stays counted)
+  // and restore around the diagnostic walks below so this debug call cannot
+  // inflate P2's `Perf:` row.
+  const saved = getAnchorWalkStats();
   if (refs) {
     gardenInfoAll = findAllNodesByLabel(refs.stage, GARDEN_INFO_CARD_LABEL).map(summarizeNode);
     tooltipAll = findAllNodesByLabel(refs.stage, PIXI_TOOLTIP_LABEL).map(summarizeNode);
@@ -419,6 +504,7 @@ function debugReport(): AnchorDebugReport {
       .filter((n) => typeof n.label === 'string' && /GardenInfo/.test(n.label))
       .map(summarizeNode);
   }
+  Object.assign(walkStats, saved);
 
   return {
     cardLabel: GARDEN_INFO_CARD_LABEL,
@@ -430,6 +516,7 @@ function debugReport(): AnchorDebugReport {
     gardenInfoAllMatches: gardenInfoAll,
     pixiTooltipAllMatches: tooltipAll,
     gardenInfoLike,
+    walkStats: saved,
   };
 }
 

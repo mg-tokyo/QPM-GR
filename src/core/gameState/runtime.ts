@@ -4,7 +4,7 @@ import type { PatchPath, SubscriberTier } from '../reactive/types';
 import type { QuinoaStateSnapshot } from '../../types/gameAtoms';
 import type { IdentityContext, Selected } from './types';
 import {
-  findAtomsByLabel, getAllAtomEntries, getCachedStore, readAtomValue, subscribeAtom, writeAtomValue,
+  findAtomsByLabel, getAtomCacheSize, getCachedStore, readAtomValue, subscribeAtom, writeAtomValue,
 } from '../jotaiBridge';
 import { selectSync as stateTreeSelectSync, stateTreeReady, subscribe as stateTreeSubscribe } from '../stateTree';
 
@@ -16,6 +16,7 @@ export interface StateTreeRuntime {
     cb: (value: Selected<T>) => void,
     label: string,
     statePath?: PatchPath,
+    opts?: { trustPatches?: boolean },
   ): () => void;
 }
 
@@ -61,7 +62,8 @@ export function createProductionRuntime(identity: () => IdentityContext): Source
         cb: (value: Selected<T>) => void,
         label: string,
         statePath?: PatchPath,
-      ): (() => void) => stateTreeSubscribe<Selected<T>>(selector, (v) => cb(v as Selected<T>), label, statePath),
+        opts?: { trustPatches?: boolean },
+      ): (() => void) => stateTreeSubscribe<Selected<T>>(selector, (v) => cb(v as Selected<T>), label, statePath, opts),
     },
     atoms: {
       findAtoms: (label) => findAtomsByLabel(label),
@@ -74,7 +76,7 @@ export function createProductionRuntime(identity: () => IdentityContext): Source
       read: (atom) => readAtomValue(atom),
       subscribe: (atom, cb, tier, statePath) => subscribeAtom(atom, cb, tier, statePath),
       write: (atom, value) => writeAtomValue(atom, value),
-      cacheSize: () => getAllAtomEntries().length,
+      cacheSize: () => getAtomCacheSize(),
     },
     identity,
     now: () => Date.now(),

@@ -8,6 +8,7 @@ export interface CopyPayloadOptions {
   environment: boolean;
   otherMods: boolean;
   flags: boolean;
+  perf: boolean;
   aggregate: boolean;
   subsystems: boolean;
   recentErrors: boolean;
@@ -22,6 +23,7 @@ export const DEFAULT_COPY_OPTIONS: CopyPayloadOptions = {
   environment: true,
   otherMods: true,
   flags: true,
+  perf: true,
   aggregate: true,
   subsystems: true,
   recentErrors: true,
@@ -37,6 +39,7 @@ export interface ReportInput {
   readonly environmentLine: string;
   readonly modsLine: string | null;
   readonly flagsLine: string | null;
+  readonly perfLine: string | null;
   readonly subsystems: readonly SubsystemHealth[];
   readonly aggregate: 'ok' | 'degraded' | 'failed';
   readonly gameStateProblemLines: readonly string[];
@@ -216,6 +219,7 @@ export function renderReport(input: ReportInput, opts: CopyPayloadOptions = DEFA
   if (opts.environment) headerLines.push(input.environmentLine);
   if (opts.otherMods && input.modsLine) headerLines.push(input.modsLine);
   if (opts.flags && input.flagsLine) headerLines.push(input.flagsLine);
+  if (opts.perf && input.perfLine) headerLines.push(input.perfLine);
 
   if (opts.aggregate) {
     headerLines.push(`Overall: ${input.aggregate}  (${okCount} ok / ${degradedCount} degraded / ${failedCount} failed)`);

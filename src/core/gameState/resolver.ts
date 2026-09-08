@@ -114,6 +114,7 @@ export class Registry<Defs extends DefsShape> {
 
   bindAll(reasons: readonly TopologyReason[] = []): void {
     this.lastReasons = reasons;
+    for (const s of this.states.values()) for (const h of s.handles) h.invalidate?.();
     for (const s of this.states.values()) this.bind(s);
   }
 

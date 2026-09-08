@@ -11,6 +11,9 @@ export interface FakeRuntime extends SourceRuntime {
   setIdentity(id: IdentityContext): void;
   fireState(): void;
   fireAtom(label: string): void;
+  readonly stateSubscribeOpts: ReadonlyArray<{ label: string; opts: { trustPatches?: boolean } | undefined }>;
+  readonly findAtomsCalls: number;
+  resetFindAtomsCalls(): void;
 }
 
 export function createFakeRuntime(): FakeRuntime {
@@ -19,12 +22,15 @@ export function createFakeRuntime(): FakeRuntime {
   let identity: IdentityContext = { playerId: null, myIdx: null };
   const stateSubs = new Set<() => void>();
   const atomSubs = new Map<string, Set<() => void>>();
+  const stateSubscribeOpts: Array<{ label: string; opts: { trustPatches?: boolean } | undefined }> = [];
+  let findAtomsCalls = 0;
   const atomObj = (label: string): unknown => ({ debugLabel: label });
   const rt: FakeRuntime = {
     stateTree: {
       ready: () => snapshot !== null,
       selectSync: (sel) => (snapshot ? sel(snapshot) : undefined),
-      subscribe: (sel, cb) => {
+      subscribe: (sel, cb, label, _statePath, opts) => {
+        stateSubscribeOpts.push({ label, opts });
         const run = (): void => { cb(snapshot ? sel(snapshot) : undefined); };
         stateSubs.add(run);
         if (snapshot) run();
@@ -32,7 +38,7 @@ export function createFakeRuntime(): FakeRuntime {
       },
     },
     atoms: {
-      findAtoms: (re) => Object.keys(atoms).filter((l) => re.test(l)).map(atomObj),
+      findAtoms: (re) => { findAtomsCalls++; return Object.keys(atoms).filter((l) => re.test(l)).map(atomObj); },
       labelOf: (a) => String((a as { debugLabel: string }).debugLabel),
       readSync: (a) => {
         const l = (a as { debugLabel: string }).debugLabel;
@@ -60,6 +66,9 @@ export function createFakeRuntime(): FakeRuntime {
     setIdentity: (id) => { identity = id; },
     fireState: () => { for (const r of stateSubs) r(); },
     fireAtom: (label) => { for (const r of atomSubs.get(label) ?? []) r(); },
+    stateSubscribeOpts,
+    get findAtomsCalls() { return findAtomsCalls; },
+    resetFindAtomsCalls: () => { findAtomsCalls = 0; },
   };
   return rt;
 }
@@ -98,11 +107,41 @@ describe('source handles', () => {
     const [, at] = createHandles('coins', def, rt);
     expect(at!.available()).toBe(false);
     rt.setAtoms({ myCoinsCountAtom: 'oops' });
+    at!.invalidate?.();
     expect(at!.available()).toBe(false);
     rt.setAtoms({ myCoinsCountAtom: 12 });
+    at!.invalidate?.();
     expect(at!.available()).toBe(true);
     expect(at!.readSync()).toEqual({ ok: true, value: 12 });
     expect(at!.describe()).toBe('atom:myCoinsCountAtom');
+  });
+
+  it('caches the resolved atom until invalidate is called', () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ myCoinsCountAtom: 5 });
+    const [, at] = createHandles('coins', def, rt);
+    rt.resetFindAtomsCalls();
+    expect(at!.readSync()).toEqual({ ok: true, value: 5 });
+    expect(at!.readSync()).toEqual({ ok: true, value: 5 });
+    expect(rt.findAtomsCalls).toBe(1);
+    at!.invalidate?.();
+    expect(at!.readSync()).toEqual({ ok: true, value: 5 });
+    expect(rt.findAtomsCalls).toBe(2);
+  });
+  it('a cached miss is re-scanned as soon as the atom cache grows, without a topology signal', () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ unrelatedAtom: 1 });
+    const [, at] = createHandles('coins', def, rt);
+    rt.resetFindAtomsCalls();
+    expect(at!.readSync().ok).toBe(false);
+    expect(at!.readSync().ok).toBe(false);
+    expect(rt.findAtomsCalls).toBe(1);
+    // Lazy chunk registers the atom: same handle, no invalidate() call.
+    rt.setAtoms({ unrelatedAtom: 1, myCoinsCountAtom: 9 });
+    expect(at!.readSync()).toEqual({ ok: true, value: 9 });
+    expect(rt.findAtomsCalls).toBe(2);
+    expect(at!.readSync()).toEqual({ ok: true, value: 9 });
+    expect(rt.findAtomsCalls).toBe(2);
   });
   it('atom subscribe attaches asynchronously and honours early unsubscribe', async () => {
     const rt = createFakeRuntime();
@@ -127,5 +166,28 @@ describe('source handles', () => {
     expect(cu!.available()).toBe(true);
     expect(cu!.readSync()).toEqual({ ok: true, value: 7 });
     expect(cu!.describe()).toBe('custom:const');
+  });
+});
+
+describe('stateTree source trustPatches forwarding', () => {
+  it('forwards trustPatches: true to runtime.subscribe when set on the spec', () => {
+    const rt = createFakeRuntime();
+    const trusted = defineKey<QuinoaStateSnapshot>({
+      policy: 'authoritative', doc: 'trusted',
+      sources: [stateSource<QuinoaStateSnapshot>('/child', (s) => s, { trustPatches: true })],
+    });
+    const [st] = createHandles('trusted', trusted, rt);
+    st!.subscribe(() => {});
+    const call = rt.stateSubscribeOpts.find((c) => c.label === 'gameState:trusted');
+    expect(call).toBeDefined();
+    expect(call?.opts).toEqual({ trustPatches: true });
+  });
+  it('forwards trustPatches: false when unset on the spec (default path)', () => {
+    const rt = createFakeRuntime();
+    const [st] = createHandles('coins', def, rt);
+    st!.subscribe(() => {});
+    const call = rt.stateSubscribeOpts.find((c) => c.label === 'gameState:coins');
+    expect(call).toBeDefined();
+    expect(call?.opts).toEqual({ trustPatches: false });
   });
 });

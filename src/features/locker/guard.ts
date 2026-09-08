@@ -11,9 +11,9 @@ import { evaluateAction, type InventorySnapshot, type TileContext } from './rule
 import { isRecord } from '../../utils/typeGuards';
 import { unwrapQuinoaCommand } from '../../websocket/envelope';
 import { ensureCommandSequencerAttached } from '../../websocket/commandSequencer';
+import { notifyChainChanged, onRoomConnectionChange } from '../../websocket/roomConnectionEvents';
 import { brandWrapper } from '../../websocket/sendChain';
 import type { GuardResult } from './types';
-import { criticalInterval } from '../../utils/scheduling/timerManager';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
 import type { Subsystem } from '../../diagnostics/types';
 
@@ -380,13 +380,12 @@ export function lockerPreflight(
 
 // ── Native sendMessage hook ────────────────────────────────────────────────
 
-const RECONNECT_POLL_MS = 2000;
 let patchedConnection: RoomConnectionLike | null = null;
 let originalSendMessage: ((payload: unknown) => unknown) | null = null;
 let originalTrySendMessageNow: ((payload: unknown) => boolean) | null = null;
 let wrappedSendRef: ((payload: unknown) => unknown) | null = null;
 let wrappedTryRef: ((payload: unknown) => boolean) | null = null;
-let stopReconnectTimer: (() => void) | null = null;
+let stopEvents: (() => void) | null = null;
 
 function restoreNativePatch(): void {
   if (!patchedConnection) return;
@@ -497,6 +496,7 @@ function ensureNativeHookPatched(): void {
     originalTrySendMessageNow = originalTry;
     wrappedSendRef = wrappedSend;
     wrappedTryRef = wrappedTry;
+    notifyChainChanged();
     publishOk();
   } catch (err) {
     patchedConnection = null;
@@ -518,15 +518,15 @@ function ensureNativeHookPatched(): void {
 // in the call chain, silently under-counting every locker-blocked send.
 export function startNativeHook(): void {
   ensureBusRegistered();
-  ensureNativeHookPatched();
-  if (stopReconnectTimer) return;
-  stopReconnectTimer = criticalInterval('locker-reconnect', ensureNativeHookPatched, RECONNECT_POLL_MS);
+  if (stopEvents) return;
+  // onRoomConnectionChange fires 'initial' synchronously with the current room.
+  stopEvents = onRoomConnectionChange(() => ensureNativeHookPatched());
 }
 
 export function stopNativeHook(): void {
-  if (stopReconnectTimer) {
-    stopReconnectTimer();
-    stopReconnectTimer = null;
+  if (stopEvents) {
+    stopEvents();
+    stopEvents = null;
   }
   restoreNativePatch();
   lastNotifyAt.clear();

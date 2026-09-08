@@ -7,6 +7,7 @@ export const DEBOUNCE_MS = 180;
 export const RESIZE_DEBOUNCE_MS = 140;
 export const CLOSE_PROBE_MS = 150;
 export const IMMEDIATE_SYNC_THROTTLE_MS = 100;
+export const IDLE_FALLBACK_SCAN_MS = 2000;
 
 export const VIEWPORT_MARGIN = 8;
 export const SIDEBAR_GAP = 8;

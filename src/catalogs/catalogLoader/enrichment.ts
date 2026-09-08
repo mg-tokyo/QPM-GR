@@ -5,7 +5,7 @@ import { DEFAULT_ABILITY_COLOR, getAbilityColorMap, type RuntimeAbilityColor } f
 import { getMutationColorMap } from '../logic/mutationColors';
 import { getWeatherCatalogMap } from '../logic/weatherCatalog';
 import { getCosmeticCatalogFromBundle } from '../logic/cosmeticCatalog';
-import { markBundleConsumerDone } from '../logic/bundleParser';
+import { markBundleConsumerDone, onNewBundleChunk, registerBundleConsumer } from '../logic/bundleParser';
 import { readSharedGlobal } from '../../core/pageContext';
 import type { GameCatalogs } from '../types';
 import {
@@ -14,6 +14,8 @@ import {
   COSMETIC_CATALOG_POLL_INTERVAL_MS,
   MAX_ABILITY_COLOR_POLL_ATTEMPTS,
   MAX_COSMETIC_CATALOG_POLL_ATTEMPTS,
+  MAX_ENRICHMENT_CHUNK_RETRIES,
+  MAX_ENRICHMENT_IDLE_TICKS,
   MAX_MUTATION_COLOR_POLL_ATTEMPTS,
   MAX_WEATHER_CATALOG_POLL_ATTEMPTS,
   MUTATION_COLOR_POLL_INTERVAL_MS,
@@ -22,8 +24,29 @@ import {
 import { diagLog, diagState, publishCatalogsHealth } from './diagnostics';
 import { capturedCatalogs, catalogLog, publishCatalogs } from './state';
 
+type PollerKey = 'abilityColor' | 'mutationColor' | 'weatherCatalog' | 'cosmeticCatalog';
+
 // Live holder — retry budgets reset from scan.ts (ability) and debug.ts (weather).
-export const pollAttempts = {
+export const pollAttempts: Record<PollerKey, number> = {
+  abilityColor: 0,
+  mutationColor: 0,
+  weatherCatalog: 0,
+  cosmeticCatalog: 0,
+};
+
+// Consecutive idle poll ticks (no new-chunk fetch, or prerequisite catalog
+// still absent). At MAX_ENRICHMENT_IDLE_TICKS the poll gives up on that tick
+// so give-up wall-clock is bounded (spec D7).
+const idleTicks: Record<PollerKey, number> = {
+  abilityColor: 0,
+  mutationColor: 0,
+  weatherCatalog: 0,
+  cosmeticCatalog: 0,
+};
+
+// After give-up, one retry per newly loaded game chunk that the enricher
+// actually fetched, capped so a page that keeps loading chunks can't loop.
+const chunkRetries: Record<PollerKey, number> = {
   abilityColor: 0,
   mutationColor: 0,
   weatherCatalog: 0,
@@ -35,13 +58,9 @@ interface EnrichmentAttempt {
   triedNewChunks: boolean;
 }
 
-let abilityColorPollTimer: ReturnType<typeof setInterval> | null = null;
 let abilityColorEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
-let mutationColorPollTimer: ReturnType<typeof setInterval> | null = null;
 let mutationColorEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
-let weatherCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
 let weatherCatalogEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
-let cosmeticCatalogPollTimer: ReturnType<typeof setInterval> | null = null;
 let cosmeticCatalogEnrichInFlight: Promise<EnrichmentAttempt> | null = null;
 
 const shouldLogAbilityColorDebug = (): boolean => {
@@ -262,168 +281,170 @@ async function enrichCosmeticCatalog(): Promise<EnrichmentAttempt> {
   return cosmeticCatalogEnrichInFlight;
 }
 
-export function stopAbilityColorPolling(): void {
-  if (!abilityColorPollTimer) return;
-  clearInterval(abilityColorPollTimer);
-  abilityColorPollTimer = null;
+
+interface PollerSpec {
+  key: PollerKey;
+  what: 'abilityColors' | 'mutationColors' | 'weatherCatalog' | 'cosmeticCatalog';
+  intervalMs: number;
+  maxAttempts: number;
+  /** bundleTextCache hold released at give-up and around each retry; null when
+   * the enricher keeps its own text cache (cosmetics). */
+  consumer: 'ability-colors' | 'mutation-colors' | 'weather' | null;
+  /** Base catalog the enricher needs. Ticks wait for it (idle-counted); a late
+   * capture restarts the poller via start(). */
+  ready?: () => boolean;
+  inFlight: () => boolean;
+  run: () => Promise<EnrichmentAttempt>;
+  onGiveUp?: () => void;
 }
 
-export function stopMutationColorPolling(): void {
-  if (!mutationColorPollTimer) return;
-  clearInterval(mutationColorPollTimer);
-  mutationColorPollTimer = null;
-}
+interface EnrichmentPoller { start(): void; stop(): void }
 
-export function stopWeatherCatalogPolling(): void {
-  if (!weatherCatalogPollTimer) return;
-  clearInterval(weatherCatalogPollTimer);
-  weatherCatalogPollTimer = null;
-}
+// Raw setInterval on purpose: timerManager is a rAF loop and never ticks in a
+// hidden tab, but a user who boots in a background tab still needs the
+// bounded (≤ 60 s) enrichment pass to finish.
+function createEnrichmentPoller(spec: PollerSpec): EnrichmentPoller {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let chunkRetry: (() => void) | null = null;
 
-export function stopCosmeticCatalogPolling(): void {
-  if (!cosmeticCatalogPollTimer) return;
-  clearInterval(cosmeticCatalogPollTimer);
-  cosmeticCatalogPollTimer = null;
-}
+  const releaseRetry = (): void => {
+    if (chunkRetry) { chunkRetry(); chunkRetry = null; }
+  };
 
-export function startAbilityColorPolling(): void {
-  if (abilityColorPollTimer) return;
-  pollAttempts.abilityColor = 0;
+  const stop = (): void => {
+    if (timer) { clearInterval(timer); timer = null; }
+    releaseRetry();
+  };
 
-  // Immediate attempt first, then bounded retry polling.
-  void enrichPetAbilityColors();
-
-  abilityColorPollTimer = setInterval(() => {
-    void (async () => {
-      // Gemini-style enrichment depends on having the ability catalog first.
-      // Do not consume retry budget before abilities are captured.
-      if (!capturedCatalogs.petAbilities) return;
-
-      const { enriched, triedNewChunks } = await enrichPetAbilityColors();
-      if (enriched) {
-        stopAbilityColorPolling();
-        return;
-      }
-      // Only count an attempt when we actually fetched a previously-untried
-      // chunk. The color switch ships in a lazy chunk (e.g. store-*.js) that
-      // loads when its owning UI mounts — burning budget on empty polls before
-      // that would spuriously fire QPM-CATALOG-003 for healthy sessions.
-      if (!triedNewChunks) return;
-      pollAttempts.abilityColor += 1;
-      if (pollAttempts.abilityColor >= MAX_ABILITY_COLOR_POLL_ATTEMPTS) {
-        if (shouldLogAbilityColorDebug()) {
-          catalogLog('Ability color enrichment timed out, using fallback colors.');
+  const installChunkRetry = (): void => {
+    if (chunkRetry) return;
+    chunkRetries[spec.key] = 0;
+    chunkRetry = onNewBundleChunk(() => {
+      void (async () => {
+        if (spec.ready && !spec.ready()) return;
+        // A hit cached during this retry must be released again: give-up already
+        // dropped the hold, so this register/release pair keeps the "text cache
+        // held iff a consumer is registered" invariant when a new chunk lands.
+        if (spec.consumer) registerBundleConsumer(spec.consumer);
+        try {
+          const { enriched, triedNewChunks } = await spec.run();
+          if (enriched) { releaseRetry(); return; }
+          // Only a chunk the enricher actually fetched spends a retry — analytics
+          // and extension scripts also show up as `.js` resource entries.
+          if (!triedNewChunks) return;
+          chunkRetries[spec.key] += 1;
+          if (chunkRetries[spec.key] >= MAX_ENRICHMENT_CHUNK_RETRIES) releaseRetry();
+        } finally {
+          if (spec.consumer) markBundleConsumerDone(spec.consumer);
         }
-        if (diagState.started) {
-          diagLog.warn('QPM-CATALOG-003', {
-            what: 'abilityColors',
-            attempts: pollAttempts.abilityColor,
-          });
-        }
-        stopAbilityColorPolling();
+      })();
+    });
+  };
+
+  // `warn` is false while the prerequisite never arrived: nothing was attempted,
+  // so QPM-CATALOG-003 would blame the enricher for a missing base catalog.
+  const giveUp = (warn: boolean): void => {
+    if (warn) {
+      if (diagState.started) {
+        diagLog.warn('QPM-CATALOG-003', { what: spec.what, attempts: pollAttempts[spec.key], idleTicks: idleTicks[spec.key] });
       }
-    })();
-  }, ABILITY_COLOR_POLL_INTERVAL_MS);
+      spec.onGiveUp?.();
+    }
+    if (spec.consumer) markBundleConsumerDone(spec.consumer);
+    stop();
+    installChunkRetry();
+  };
+
+  const tick = async (): Promise<void> => {
+    // A full pass fetches every chunk and can outlive the interval — piled-up
+    // ticks awaiting the same pass must not each consume budget.
+    if (spec.inFlight()) return;
+    if (spec.ready && !spec.ready()) {
+      idleTicks[spec.key] += 1;
+      if (idleTicks[spec.key] >= MAX_ENRICHMENT_IDLE_TICKS) giveUp(false);
+      return;
+    }
+    const { enriched, triedNewChunks } = await spec.run();
+    if (enriched) { stop(); return; }
+    // Attempts only count real new-chunk work (lazy chunks load when their UI
+    // mounts); the idle cap turns a plateau into an immediate give-up instead.
+    if (!triedNewChunks) {
+      idleTicks[spec.key] += 1;
+      if (idleTicks[spec.key] < MAX_ENRICHMENT_IDLE_TICKS) return;
+      pollAttempts[spec.key] = spec.maxAttempts - 1;
+    } else {
+      idleTicks[spec.key] = 0;
+    }
+    pollAttempts[spec.key] += 1;
+    if (pollAttempts[spec.key] >= spec.maxAttempts) giveUp(true);
+  };
+
+  // Idempotent and budget-resetting: capture sites call it again when the base
+  // catalog lands so a poller that parked while waiting resumes with full budget.
+  const start = (): void => {
+    pollAttempts[spec.key] = 0;
+    idleTicks[spec.key] = 0;
+    releaseRetry();
+    void spec.run();
+    if (timer) return;
+    timer = setInterval(() => { void tick(); }, spec.intervalMs);
+  };
+
+  return { start, stop };
 }
 
-export function startMutationColorPolling(): void {
-  if (mutationColorPollTimer) return;
-  pollAttempts.mutationColor = 0;
+const abilityColorPoller = createEnrichmentPoller({
+  key: 'abilityColor',
+  what: 'abilityColors',
+  intervalMs: ABILITY_COLOR_POLL_INTERVAL_MS,
+  maxAttempts: MAX_ABILITY_COLOR_POLL_ATTEMPTS,
+  consumer: 'ability-colors',
+  ready: () => !!capturedCatalogs.petAbilities,
+  inFlight: () => abilityColorEnrichInFlight !== null,
+  run: enrichPetAbilityColors,
+  onGiveUp: () => {
+    if (shouldLogAbilityColorDebug()) catalogLog('Ability color enrichment timed out, using fallback colors.');
+  },
+});
 
-  void enrichMutationColors();
+const mutationColorPoller = createEnrichmentPoller({
+  key: 'mutationColor',
+  what: 'mutationColors',
+  intervalMs: MUTATION_COLOR_POLL_INTERVAL_MS,
+  maxAttempts: MAX_MUTATION_COLOR_POLL_ATTEMPTS,
+  consumer: 'mutation-colors',
+  ready: () => !!capturedCatalogs.mutationCatalog,
+  inFlight: () => mutationColorEnrichInFlight !== null,
+  run: enrichMutationColors,
+});
 
-  mutationColorPollTimer = setInterval(() => {
-    void (async () => {
-      // Don't consume retry budget before the mutation catalog is captured.
-      if (!capturedCatalogs.mutationCatalog) return;
+const weatherCatalogPoller = createEnrichmentPoller({
+  key: 'weatherCatalog',
+  what: 'weatherCatalog',
+  intervalMs: WEATHER_CATALOG_POLL_INTERVAL_MS,
+  maxAttempts: MAX_WEATHER_CATALOG_POLL_ATTEMPTS,
+  consumer: 'weather',
+  inFlight: () => weatherCatalogEnrichInFlight !== null,
+  run: enrichWeatherCatalog,
+});
 
-      const { enriched, triedNewChunks } = await enrichMutationColors();
-      if (enriched) {
-        stopMutationColorPolling();
-        return;
-      }
-      // See ability color polling — same lazy-chunk rationale.
-      if (!triedNewChunks) return;
-      pollAttempts.mutationColor += 1;
-      if (pollAttempts.mutationColor >= MAX_MUTATION_COLOR_POLL_ATTEMPTS) {
-        if (diagState.started) {
-          diagLog.warn('QPM-CATALOG-003', {
-            what: 'mutationColors',
-            attempts: pollAttempts.mutationColor,
-          });
-        }
-        stopMutationColorPolling();
-      }
-    })();
-  }, MUTATION_COLOR_POLL_INTERVAL_MS);
-}
+// Cosmetics keep their own cosmeticBundleCache (cosmeticCatalog.ts), never
+// bundleTextCache, so there is no consumer hold to release.
+const cosmeticCatalogPoller = createEnrichmentPoller({
+  key: 'cosmeticCatalog',
+  what: 'cosmeticCatalog',
+  intervalMs: COSMETIC_CATALOG_POLL_INTERVAL_MS,
+  maxAttempts: MAX_COSMETIC_CATALOG_POLL_ATTEMPTS,
+  consumer: null,
+  inFlight: () => cosmeticCatalogEnrichInFlight !== null,
+  run: enrichCosmeticCatalog,
+});
 
-export function startWeatherCatalogPolling(): void {
-  if (weatherCatalogPollTimer) return;
-  pollAttempts.weatherCatalog = 0;
-
-  // Immediate attempt first, then bounded retry polling.
-  void enrichWeatherCatalog();
-
-  weatherCatalogPollTimer = setInterval(() => {
-    void (async () => {
-      // A full pass fetches every chunk and outlives the tick interval — piled-up
-      // ticks awaiting the same pass must not each consume budget.
-      if (weatherCatalogEnrichInFlight) return;
-
-      const { enriched, triedNewChunks } = await enrichWeatherCatalog();
-      if (enriched) {
-        stopWeatherCatalogPolling();
-        return;
-      }
-      // See ability color polling — the weather blueprint moved to a lazy chunk
-      // (iconTextureResolution-*.js as of Sep 2026), so only real new-chunk work counts.
-      if (!triedNewChunks) return;
-      pollAttempts.weatherCatalog += 1;
-      if (pollAttempts.weatherCatalog >= MAX_WEATHER_CATALOG_POLL_ATTEMPTS) {
-        if (diagState.started) {
-          diagLog.warn('QPM-CATALOG-003', {
-            what: 'weatherCatalog',
-            attempts: pollAttempts.weatherCatalog,
-          });
-        }
-        // Give up for the session: release the shared bundle-text cache hold too,
-        // or the multi-MB chunk texts would be retained until page unload.
-        markBundleConsumerDone('weather');
-        stopWeatherCatalogPolling();
-      }
-    })();
-  }, WEATHER_CATALOG_POLL_INTERVAL_MS);
-}
-
-export function startCosmeticCatalogPolling(): void {
-  if (cosmeticCatalogPollTimer) return;
-  pollAttempts.cosmeticCatalog = 0;
-
-  void enrichCosmeticCatalog();
-
-  cosmeticCatalogPollTimer = setInterval(() => {
-    void (async () => {
-      if (cosmeticCatalogEnrichInFlight) return;
-
-      const { enriched, triedNewChunks } = await enrichCosmeticCatalog();
-      if (enriched) {
-        stopCosmeticCatalogPolling();
-        return;
-      }
-      // The cosmetic array ships in a lazy chunk (truncatePlayerName-*.js as of
-      // Sep 2026) — only count attempts that actually fetched a new chunk.
-      if (!triedNewChunks) return;
-      pollAttempts.cosmeticCatalog += 1;
-      if (pollAttempts.cosmeticCatalog >= MAX_COSMETIC_CATALOG_POLL_ATTEMPTS) {
-        if (diagState.started) {
-          diagLog.warn('QPM-CATALOG-003', {
-            what: 'cosmeticCatalog',
-            attempts: pollAttempts.cosmeticCatalog,
-          });
-        }
-        stopCosmeticCatalogPolling();
-      }
-    })();
-  }, COSMETIC_CATALOG_POLL_INTERVAL_MS);
-}
+export function startAbilityColorPolling(): void { abilityColorPoller.start(); }
+export function stopAbilityColorPolling(): void { abilityColorPoller.stop(); }
+export function startMutationColorPolling(): void { mutationColorPoller.start(); }
+export function stopMutationColorPolling(): void { mutationColorPoller.stop(); }
+export function startWeatherCatalogPolling(): void { weatherCatalogPoller.start(); }
+export function stopWeatherCatalogPolling(): void { weatherCatalogPoller.stop(); }
+export function startCosmeticCatalogPolling(): void { cosmeticCatalogPoller.start(); }
+export function stopCosmeticCatalogPolling(): void { cosmeticCatalogPoller.stop(); }

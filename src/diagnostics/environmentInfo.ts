@@ -1,4 +1,4 @@
-import { isIsolatedContext } from '../core/pageContext';
+import { isIsolatedContext, readSharedGlobal } from '../core/pageContext';
 import { hasGmApis, isDiscordSurface } from '../utils/environment';
 import { getStorageRuntime, storage } from '../utils/storage';
 import { errorBuffer } from './errorBuffer';
@@ -21,6 +21,17 @@ export interface EnvironmentInfo {
   readonly isolatedWorld: boolean;
   readonly surface: 'web' | 'discord';
   readonly uptimeMs: number;
+  readonly duplicateVersion: string | null;
+}
+
+// Written by an aborted second QPM instance (src/core/instanceGuard.ts, spec D10).
+// Read at report-render time because the second copy may load AFTER initialize().
+function readDuplicateVersion(): string | null {
+  try {
+    const dup = readSharedGlobal<{ version?: unknown }>('__QPM_DUPLICATE__');
+    if (dup && typeof dup === 'object' && typeof dup.version === 'string') return dup.version;
+  } catch { /* shared global unreadable */ }
+  return null;
 }
 
 // Starweaver Mod Manager provides GM_* storage but no GM_info, so a missing
@@ -44,6 +55,7 @@ export function readEnvironmentInfo(now = Date.now()): EnvironmentInfo {
     isolatedWorld: isIsolatedContext,
     surface: isDiscordSurface ? 'discord' : 'web',
     uptimeMs: started > 0 ? Math.max(0, now - started) : 0,
+    duplicateVersion: readDuplicateVersion(),
   };
 }
 
@@ -63,6 +75,7 @@ export function formatEnvironmentLine(info: EnvironmentInfo): string {
   if (info.isolatedWorld) parts.push('isolated');
   parts.push(info.surface);
   parts.push(`up ${formatUptime(info.uptimeMs)}`);
+  if (info.duplicateVersion) parts.push(`dup:${info.duplicateVersion}`);
   return `Env: ${parts.join('  ')}`;
 }
 
@@ -80,6 +93,7 @@ const DEFAULT_ON_FLAGS: ReadonlyArray<{ key: string; label: string }> = [
 const DEFAULT_OFF_FLAGS: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'qpm.dev.enabled', label: 'dev' },
   { key: 'qpm.debug.globals.v1', label: 'debug' },
+  { key: 'qpm.ws.chainSafetyPoll.enabled', label: 'chainSafetyPoll' },
 ];
 
 function readBool(key: string): boolean | null {

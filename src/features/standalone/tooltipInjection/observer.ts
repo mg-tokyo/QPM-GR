@@ -12,6 +12,7 @@
 // and the config wrappers don't need signature changes.
 
 import { diag, warnFeature } from './_diagnostics';
+import { recordProbe } from '../../../diagnostics/perfMonitor';
 import { getCardBounds, getObjectCardBounds, resetAnchor, installAnchorDebugBridge, uninstallAnchorDebugBridge } from './pixiAnchor';
 import type { CardBounds } from './pixiAnchor';
 import {
@@ -238,10 +239,9 @@ function runInjectors(container: HTMLElement): void {
 let rafHandle: number | null = null;
 let cardWasVisible = false;
 let dirtyContent = true;
-// When no card is visible, `getCardBounds()` still walks the whole PIXI stage
-// looking for GardenInfoCardSystem. Decimate that walk: run only every Nth
-// frame while idle. Atoms mark `dirtyContent = true` on selection change to
-// re-arm the walk immediately.
+// While no card is visible `getCardBounds()` is a cached-node check (or a
+// throttled UI-layer rediscovery); decimate it anyway. Atoms mark
+// `dirtyContent = true` on selection change to re-arm the tick immediately.
 const IDLE_DISCOVERY_INTERVAL = 12;
 let idleFrameCounter = 0;
 
@@ -261,6 +261,7 @@ function tick(): void {
     idleFrameCounter = 0;
   }
 
+  const t0 = performance.now();
   const bounds = getCardBounds();
 
   if (!bounds) {
@@ -269,6 +270,7 @@ function tick(): void {
       hideLockBadge();
       cardWasVisible = false;
     }
+    recordProbe('anchor.tick', performance.now() - t0);
     rafHandle = window.requestAnimationFrame(tick);
     return;
   }
@@ -304,6 +306,7 @@ function tick(): void {
   const objBounds: CardBounds | null = getObjectCardBounds();
   updateLockBadge(objBounds);
 
+  recordProbe('anchor.tick', performance.now() - t0);
   rafHandle = window.requestAnimationFrame(tick);
 }
 

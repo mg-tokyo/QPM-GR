@@ -13,8 +13,14 @@ export function defineKey<T>(def: KeyDefinition<T>): KeyDefinition<T> {
 export function stateSource<T>(
   statePath: PatchPath,
   select: (state: QuinoaStateSnapshot, identity: IdentityContext) => Selected<T>,
+  opts: { trustPatches?: boolean } = {},
 ): StateTreeSourceSpec<T> {
-  return { kind: 'stateTree', statePath, select };
+  return {
+    kind: 'stateTree',
+    statePath,
+    select,
+    ...(opts.trustPatches === undefined ? {} : { trustPatches: opts.trustPatches }),
+  };
 }
 
 export function atomSource<T>(

@@ -48,15 +48,18 @@ export function installHooks(): void {
       diagLog.warn('QPM-CATALOG-004', { what: 'non-native-original-snapshot' });
     }
 
+    // Game modules that captured `Object.keys` at init keep calling these
+    // wrappers for the whole session after removeHooks(); the `removed` check
+    // keeps that permanent tax to one boolean read (live: ~100k calls/10 s).
     hookedKeysRef = function hookedKeys(target: object): string[] {
-      maybeCapture(target);
+      if (!hooksLifecycle.removed) maybeCapture(target);
       return originalKeys.call(NativeObject, target);
     };
     NativeObject.keys = hookedKeysRef;
 
     if (originalValues) {
       hookedValuesRef = function hookedValues<T>(target: Record<string, T>): T[] {
-        maybeCapture(target);
+        if (!hooksLifecycle.removed) maybeCapture(target);
         return originalValues.call(NativeObject, target);
       } as typeof Object.values;
       NativeObject.values = hookedValuesRef;
@@ -64,7 +67,7 @@ export function installHooks(): void {
 
     if (originalEntries) {
       hookedEntriesRef = function hookedEntries<T>(target: Record<string, T>): [string, T][] {
-        maybeCapture(target);
+        if (!hooksLifecycle.removed) maybeCapture(target);
         return originalEntries.call(NativeObject, target);
       } as typeof Object.entries;
       NativeObject.entries = hookedEntriesRef;

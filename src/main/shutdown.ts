@@ -34,6 +34,7 @@ import { destroyEconomyTracker } from '../store/economyTracker';
 import { stopNativeSendObserver } from '../websocket/nativeSendObserver';
 import { stopWebsocketDiagnostics } from '../websocket/api';
 import { stopCommandSequencer } from '../websocket/commandSequencer';
+import { stopPerfMonitor } from '../diagnostics/perfMonitor';
 import { stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
 import { stopJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { stopGameState } from '../core/gameState';
@@ -125,6 +126,7 @@ export function installGlobalHandlers(): void {
     // Innermost wrapper — unwrap last (outer wrappers' identity guards keep
     // the chain sound regardless).
     stopCommandSequencer();
+    stopPerfMonitor();
     stopWebsocketDiagnostics();
     stopCatalogsDiagnostics();
     try { stopGameState(); } catch { /* best effort */ }

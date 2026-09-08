@@ -1,5 +1,8 @@
-// Resolves the atom on every availability check (no session cache) so an atom
-// the game removes or registers late flips this rung without a reload.
+// Resolves the atom lazily and caches the result for the current topology
+// epoch. The resolver invalidates every handle in bindAll (cache growth,
+// capture, welcome, source failure), which restores the pre-3.3.41 per-read
+// cost. A cached MISS is additionally tied to the atom-cache size: the growth
+// signal is a 30 s poll, and a lazily loaded atom must be readable before it.
 import type { SubscriberTier } from '../../reactive/types';
 import type { SourceRuntime } from '../runtime';
 import type { AtomSourceSpec, SourceHandle, SourceRead } from '../types';
@@ -12,18 +15,28 @@ export function createAtomHandle<T>(
   tier: SubscriberTier | undefined,
 ): SourceHandle<T> {
   let lastLabel = '';
+  let cached: unknown = undefined;
+  let cacheValid = false;
+  let missAtSize = -1;
 
   const resolveAtom = (): unknown => {
+    if (cacheValid && (cached !== undefined || runtime.atoms.cacheSize() === missAtSize)) return cached;
     const matches = runtime.atoms.findAtoms(spec.label);
-    if (matches.length === 0) return undefined;
-    let atom = matches[0];
-    if (matches.length > 1 && spec.prefer) {
-      const preferred = matches.find((a) => spec.prefer!(runtime.atoms.labelOf(a)));
-      if (preferred !== undefined) atom = preferred;
+    let atom: unknown = undefined;
+    if (matches.length > 0) {
+      atom = matches[0];
+      if (matches.length > 1 && spec.prefer) {
+        const preferred = matches.find((a) => spec.prefer!(runtime.atoms.labelOf(a)));
+        if (preferred !== undefined) atom = preferred;
+      }
+      lastLabel = runtime.atoms.labelOf(atom);
     }
-    lastLabel = runtime.atoms.labelOf(atom);
+    cached = atom;
+    cacheValid = true;
+    missAtSize = atom === undefined ? runtime.atoms.cacheSize() : -1;
     return atom;
   };
+  const invalidate = (): void => { cacheValid = false; cached = undefined; missAtSize = -1; };
 
   const project = (raw: unknown): SourceRead<T> => {
     if (spec.structure && !spec.structure(raw)) return { ok: false, reason: `structure mismatch on ${lastLabel}` };
@@ -37,6 +50,7 @@ export function createAtomHandle<T>(
     try {
       return project(runtime.atoms.readSync(atom));
     } catch (err) {
+      invalidate();
       return { ok: false, reason: `read threw: ${err instanceof Error ? err.message : String(err)}` };
     }
   };
@@ -46,6 +60,7 @@ export function createAtomHandle<T>(
     index,
     describe: () => `atom:${lastLabel || spec.label.source}`,
     available: () => readSync().ok,
+    invalidate,
     readSync,
     read: async () => {
       const atom = resolveAtom();
@@ -53,6 +68,7 @@ export function createAtomHandle<T>(
       try {
         return project(await runtime.atoms.read(atom));
       } catch (err) {
+        invalidate();
         return { ok: false, reason: `read threw: ${err instanceof Error ? err.message : String(err)}` };
       }
     },

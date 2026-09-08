@@ -96,11 +96,12 @@ export interface ForeignEpisodeGate {
 }
 
 /**
- * Once-per-episode warn gating: several pollers funnel into the same attach
- * check (~1.5 checks/s), so a per-check warn floods the error buffer. The
- * threshold also proves the episode non-transient before anything fires.
+ * Once-per-episode warn gating: all three wrap sites funnel into the same
+ * attach check and, since the chain became event-driven, they run in ONE
+ * microtask — so the count alone no longer proves the episode is sustained.
+ * `minSustainedMs` adds the wall-clock floor the 2 s polls used to provide.
  */
-export function createForeignEpisodeGate(warnAfterChecks: number): ForeignEpisodeGate {
+export function createForeignEpisodeGate(warnAfterChecks: number, minSustainedMs = 0): ForeignEpisodeGate {
   let streak = 0;
   let warned = false;
   let startedAt = 0;
@@ -110,7 +111,7 @@ export function createForeignEpisodeGate(warnAfterChecks: number): ForeignEpisod
     refused() {
       streak++;
       if (streak === 1) startedAt = Date.now();
-      const warn = !warned && streak >= warnAfterChecks;
+      const warn = !warned && streak >= warnAfterChecks && Date.now() - startedAt >= minSustainedMs;
       if (warn) warned = true;
       return { warn, checks: streak };
     },

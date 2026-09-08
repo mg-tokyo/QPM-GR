@@ -1,21 +1,19 @@
-// Per-key consumer book. Consumer handles never change; the book re-attaches
-// them when the resolver rebinds and only delivers deep-not-equal values so a
-// swap is invisible upstream.
+// Per-key consumer book. ONE upstream subscription per bound handle fans out
+// to every consumer; the upstream attaches lazily on the first consumer and
+// detaches when the last one leaves, so keys with zero consumers cost nothing
+// (before R1 every registered key held a live upstream after bindAll).
 import { deepEqual } from '../../utils/deepEqual';
 import type { SourceHandle } from './types';
 
-interface Entry<T> {
-  readonly cb: (value: T | null) => void;
-  detach: (() => void) | null;
-  attachToken: number;
-  hasDelivered: boolean;
-  lastDelivered: T | null;
-}
+interface Entry<T> { readonly cb: (value: T | null) => void }
 
 export class SubscriptionBook<T> {
   private readonly entries = new Set<Entry<T>>();
   private bound: SourceHandle<T> | null = null;
-  private tokens = 0;
+  private detachUpstream: (() => void) | null = null;
+  private token = 0;
+  private hasValue = false;
+  private lastValue: T | null = null;
   lastDeliveryAt: number | null = null;
 
   constructor(
@@ -28,56 +26,64 @@ export class SubscriptionBook<T> {
   get size(): number { return this.entries.size; }
 
   add(cb: (value: T | null) => void): () => void {
-    const entry: Entry<T> = { cb, detach: null, attachToken: 0, hasDelivered: false, lastDelivered: null };
+    const entry: Entry<T> = { cb };
     this.entries.add(entry);
-    if (this.bound) this.attach(entry, this.bound);
+    // First consumer attaches the upstream; later ones replay the last value.
+    if (this.bound && this.detachUpstream === null) this.attach(this.bound);
+    else if (this.hasValue) this.callOne(entry, this.lastValue);
     return () => {
       this.entries.delete(entry);
-      this.detach(entry);
+      if (this.entries.size === 0) {
+        this.dropUpstream();
+        this.hasValue = false;
+        this.lastValue = null;
+      }
     };
   }
 
-  /** Called by the resolver on every (re)bind; `null` detaches everyone. */
+  /** Called by the resolver on every (re)bind; `null` detaches the upstream. */
   rebind(handle: SourceHandle<T> | null): void {
+    this.dropUpstream();
     this.bound = handle;
-    for (const e of this.entries) {
-      this.detach(e);
-      if (handle) this.attach(e, handle);
+    if (handle) {
+      if (this.entries.size > 0) this.attach(handle);
+      return;
     }
+    // No rung left: a late consumer must not replay a value nobody can refresh.
+    this.hasValue = false;
+    this.lastValue = null;
   }
 
-  private attach(entry: Entry<T>, handle: SourceHandle<T>): void {
-    const token = ++this.tokens;
-    entry.attachToken = token;
+  private attach(handle: SourceHandle<T>): void {
+    const token = ++this.token;
+    const memoized = handle.memoized === true;
     try {
-      entry.detach = handle.subscribe(
-        (value) => {
-          if (entry.attachToken !== token) return;
-          this.deliver(entry, value);
-        },
-        (reason) => {
-          if (entry.attachToken !== token) return;
-          this.onAttachFailure(reason);
-        },
+      this.detachUpstream = handle.subscribe(
+        (value) => { if (token === this.token) this.onUpstream(value, memoized); },
+        (reason) => { if (token === this.token) this.onAttachFailure(reason); },
       );
     } catch (err) {
-      entry.detach = null;
+      this.detachUpstream = null;
       this.onAttachFailure(err instanceof Error ? err.message : String(err));
     }
   }
 
-  private detach(entry: Entry<T>): void {
-    entry.attachToken = ++this.tokens;
-    try { entry.detach?.(); } catch { /* ignore */ }
-    entry.detach = null;
+  private dropUpstream(): void {
+    this.token += 1;
+    try { this.detachUpstream?.(); } catch { /* ignore */ }
+    this.detachUpstream = null;
   }
 
-  private deliver(entry: Entry<T>, raw: T | null): void {
+  private onUpstream(raw: T | null, memoized: boolean): void {
     const value = raw === null && this.defaultValue !== undefined ? this.defaultValue : raw;
-    if (entry.hasDelivered && deepEqual(value, entry.lastDelivered)) return;
-    entry.hasDelivered = true;
-    entry.lastDelivered = value;
+    if (this.hasValue && (memoized ? Object.is(value, this.lastValue) : deepEqual(value, this.lastValue))) return;
+    this.hasValue = true;
+    this.lastValue = value;
     this.lastDeliveryAt = this.now();
+    for (const e of this.entries) this.callOne(e, value);
+  }
+
+  private callOne(entry: Entry<T>, value: T | null): void {
     try { entry.cb(value); } catch (err) { this.onError(err); }
   }
 }

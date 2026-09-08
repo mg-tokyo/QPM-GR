@@ -25,7 +25,7 @@ export const SHOP_KEYS = {
   }),
   shops: defineKey<ShopsAtomSnapshot | null>({
     policy: 'authoritative', tier: 'state', doc: 'All shops keyed by id (shopsAtom was removed by the game)',
-    sources: [stateSource('/child/data/shops', shops)],
+    sources: [stateSource('/child/data/shops', shops, { trustPatches: true })],
   }),
   seedShop: category('seed'),
   eggShop: category('egg'),

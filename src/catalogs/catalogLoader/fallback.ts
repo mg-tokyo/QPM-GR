@@ -2,7 +2,7 @@ import { getPetAbilitiesCatalogMap } from '../logic/petAbilitiesCatalog';
 import { getDexFromBundle, holdDexBundleCache, type DexCatalogName } from '../logic/dexCatalogs';
 import { enrichMutationColors, enrichPetAbilityColors, pollAttempts, startMutationColorPolling } from './enrichment';
 import { publishCatalogsHealth } from './diagnostics';
-import { notifyPetAbilitiesCaptured } from './readyState';
+import { checkAndNotifyReady, notifyPetAbilitiesCaptured } from './readyState';
 import { captureSources, capturedCatalogs, catalogLog, publishCatalogs } from './state';
 
 let fallbackInFlight: Promise<boolean> | null = null;
@@ -160,4 +160,20 @@ export async function runDexCompletenessAudit(force = false): Promise<Record<str
   const healed = Object.entries(results).filter(([, changed]) => changed).map(([n]) => n);
   if (healed.length > 0) catalogLog(`Completeness audit healed: ${healed.join(', ')}`);
   return results;
+}
+
+/**
+ * Hook capture never delivered (QPM-CATALOG-001): seed every dex catalog from
+ * the game's bundle text so the session is not catalog-less. Same merge as
+ * the audit — a later hook capture still upgrades entries. Returns seeded names.
+ */
+export async function seedDexCatalogsFromBundle(): Promise<string[]> {
+  const results = await runDexCompletenessAudit(true);
+  const seeded = Object.entries(results).filter(([, changed]) => changed).map(([n]) => n);
+  if (seeded.length > 0) {
+    publishCatalogs();
+    publishCatalogsHealth();
+    checkAndNotifyReady();
+  }
+  return seeded;
 }

@@ -88,13 +88,18 @@ describe('Registry', () => {
       expect(reg.explain('coins').boundVia).toBe('stateTree');
     });
   });
-  it('readSync falls through the ladder per call without rebinding; defaults apply', () => {
+  it('readSync falls through the ladder per call using the resolved rung state; defaults apply', () => {
     const { rt, reg } = setup();
+    // With S3 caching, atom handles resolve once per topology epoch: setup()
+    // bound with no atoms → the atom rung caches "no match" until topology
+    // fires. Production emits atoms:cacheGrowth on atom registration; the test
+    // does that explicitly.
     rt.setAtoms({ myCoinsCountAtom: 8 });
+    signalTopology('atoms:cacheGrowth'); flushTopologyNow();
     expect(reg.readSync('coins')).toBe(8);
-    expect(reg.explain('coins').boundVia).toBeNull();
     expect(reg.readSync('modal')).toBeNull();
-    rt.setAtoms({ activeModalAtom: 'inventory' });
+    rt.setAtoms({ myCoinsCountAtom: 8, activeModalAtom: 'inventory' });
+    signalTopology('atoms:cacheGrowth'); flushTopologyNow();
     expect(reg.readSync('modal')).toBe('inventory');
   });
   it('write goes to a writable atom rung only', async () => {

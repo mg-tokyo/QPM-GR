@@ -5,7 +5,7 @@ export const PET_KEYS = {
   activePetSlots: defineKey<unknown[]>({
     policy: 'authoritative', tier: 'state', doc: 'Authoritative active pets (myData.petSlots). Feed/swap logic must not act on predictions.',
     sources: [
-      stateSource('/child/data/userSlots/{myIdx}/data/petSlots', (s, id) => { const d = selectMyData(s, id); return !d ? undefined : (Array.isArray(d.petSlots) ? d.petSlots : undefined); }),
+      stateSource('/child/data/userSlots/{myIdx}/data/petSlots', (s, id) => { const d = selectMyData(s, id); return !d ? undefined : (Array.isArray(d.petSlots) ? d.petSlots : undefined); }, { trustPatches: true }),
       atomSource(/^myPredictedPetSlotsAtom$/, 'predicted', { project: (v) => (Array.isArray(v) ? v : undefined) }),
     ],
     // Idle-queue myPredictedPetSlotsAtom returns the game's presentation-stable
@@ -26,7 +26,7 @@ export const PET_KEYS = {
         if (!slot) return undefined;
         const v = slot.petSlotInfos;
         return v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined;
-      }),
+      }, { trustPatches: true }),
       atomSource(/^myPetSlotInfosAtom$/, 'authoritative', { project: (v) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined) }),
     ],
   }),

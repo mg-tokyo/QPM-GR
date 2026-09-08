@@ -313,6 +313,7 @@ export const QPM_STORAGE_KEYS = [
   'qpm.ws.sequencer.staleDetect.enabled',
   'qpm.ws.sequencer.staleGraceMs',
   'qpm.ws.transport.v1',
+  'qpm.ws.chainSafetyPoll.enabled',
 ];
 
 /** Shop enhancer mode key. Values: 'auto' | 'force-on' | 'force-off'. */

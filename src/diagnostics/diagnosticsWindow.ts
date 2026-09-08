@@ -379,6 +379,7 @@ function buildCopyDialog(onComplete: () => void): HTMLElement {
     { key: 'os', label: 'Operating system' },
     { key: 'environment', label: 'Script manager, surface, uptime' },
     { key: 'otherMods', label: 'Other mods detected' },
+    { key: 'perf', label: 'Performance' },
     { key: 'flags', label: 'Non-default QPM flags' },
     { key: 'aggregate', label: 'Overall status + counts' },
     { key: 'subsystems', label: 'Issues (non-OK subsystems)' },

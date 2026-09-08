@@ -224,8 +224,12 @@ export async function startShopStockStore(): Promise<void> {
     // Fallback: subscribe to quinoaData.shops for categories with no customRestockInventories (e.g. dawn shop).
     try {
       const unsub = await subscribeAtomValue('quinoaData', (value) => {
-        quinoaDataShopsSnapshot = value?.shops ?? null;
-        rebuildState();
+        const next = value?.shops ?? null;
+        if (next === quinoaDataShopsSnapshot) return;
+        quinoaDataShopsSnapshot = next;
+        // `shops` (own subscription) already rebuilds for the same frame; only
+        // rebuild here when the shops atom is unavailable and this is the source.
+        if (shopsSnapshot === null) rebuildState();
       });
       if (unsub) quinoaDataShopsUnsubscribe = unsub;
     } catch (error) {

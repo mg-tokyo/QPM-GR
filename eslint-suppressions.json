@@ -1,7 +1,7 @@
 {
   "src/catalogs/catalogLoader/enrichment.ts": {
     "no-restricted-globals": {
-      "count": 4
+      "count": 1
     }
   },
   "src/catalogs/catalogLoader/lifecycle.ts": {
@@ -93,11 +93,6 @@
   "src/features/standalone/autoFavorite.ts": {
     "max-lines": {
       "count": 1
-    }
-  },
-  "src/features/standalone/autoReconnect.ts": {
-    "qpm/no-inline-ui-strings": {
-      "count": 5
     }
   },
   "src/features/standalone/bulkFavorite/sidebar.ts": {
@@ -1150,11 +1145,6 @@
     },
     "qpm/no-hardcoded-colors": {
       "count": 13
-    }
-  },
-  "src/ui/sections/autoReconnectSection.ts": {
-    "qpm/no-hardcoded-colors": {
-      "count": 11
     }
   },
   "src/ui/sections/bulkFavoriteSection.ts": {

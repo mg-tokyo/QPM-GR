@@ -170,6 +170,11 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   };
   const isDevMode = (): boolean => isDevModeEnabled();
 
+  // Perf-verification surface: the hook-scan budget counters and the perf
+  // monitor's window snapshot were unreadable live before this (R3/V1 gaps).
+  const { getScanStats } = await import('../../catalogs/catalogLoader/scan');
+  const { getPerfSnapshot } = await import('../../diagnostics/perfMonitor');
+
   const { _snapshotForDebug } = await import('../../features/gardenQol/instaHarvest');
   const { getKinds: getHarvestKinds, getUserToggles: getHarvestToggles } = await import('../../features/gardenQol/holdHarvestKinds');
   const instaHarvestSnapshot = (): unknown => {
@@ -200,6 +205,8 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     setDevMode,
     isDevMode,
     instaHarvestSnapshot,
+    getScanStats,
+    getPerfSnapshot,
     gameStateStop: async () => { const m = await import('../../core/gameState'); m.stopGameState(); },
     gameStateStart: async () => { const m = await import('../../core/gameState'); m.initGameState(); },
   };

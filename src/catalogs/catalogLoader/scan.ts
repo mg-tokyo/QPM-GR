@@ -14,9 +14,8 @@ import {
   normalizeWeatherCatalog,
 } from './detection';
 import {
-  enrichMutationColors,
-  enrichPetAbilityColors,
-  pollAttempts,
+  startAbilityColorPolling,
+  startMutationColorPolling,
   stopWeatherCatalogPolling,
 } from './enrichment';
 import { checkAndNotifyReady, notifyPetAbilitiesCaptured } from './readyState';
@@ -26,6 +25,15 @@ import { captureSources, capturedCatalogs, catalogLog, NativeObject, originalKey
 // Track objects we've already scanned to avoid infinite loops
 const seenObjects = new WeakSet<object>();
 
+// Every Object.keys/values/entries call in the game realm lands here while
+// hooks are installed (<=120 s). Bound the work per call: catalogs are keyed
+// objects enumerated at module init, never arrays, never tiny objects.
+const SCAN_NODE_BUDGET = 400;
+const MIN_CATALOG_KEYS = 5;
+let budget = 0;
+const scanStats = { calls: 0, budgetExhausted: 0 };
+export function getScanStats(): Readonly<typeof scanStats> { return { ...scanStats }; }
+
 /**
  * Recursively scan an object and its children for catalog patterns
  * Limited to depth 3 to avoid performance issues
@@ -33,6 +41,10 @@ const seenObjects = new WeakSet<object>();
 function deepScan(obj: unknown, depth: number): void {
   if (!obj || typeof obj !== 'object') return;
   if (seenObjects.has(obj as object)) return;
+  // Budget gate BEFORE seen-marking: a node rejected here must remain
+  // eligible for a later direct Object.keys(catalog) call to scan it.
+  if (budget <= 0) { scanStats.budgetExhausted += 1; return; }
+  budget -= 1;
   seenObjects.add(obj as object);
 
   let keys: string[] = [];
@@ -45,7 +57,6 @@ function deepScan(obj: unknown, depth: number): void {
   if (keys.length === 0) return;
 
   const record = obj as Record<string, unknown>;
-  let didCapture = false;
 
   // Capture-or-upgrade for dex-shaped catalogs: the game exposes partial
   // dex-shaped objects during load (spread sources for the merged dex) and
@@ -68,86 +79,87 @@ function deepScan(obj: unknown, depth: number): void {
     return true;
   };
 
-  try {
-    if (looksLikeItemCatalog(record, keys) && captureOrUpgrade('itemCatalog')) {
-      didCapture = true;
-    }
-
-    if (looksLikeDecorCatalog(record, keys) && captureOrUpgrade('decorCatalog')) {
-      didCapture = true;
-    }
-
-    if (!capturedCatalogs.mutationCatalog && looksLikeMutationCatalog(record, keys)) {
-      capturedCatalogs.mutationCatalog = record as GameCatalogs['mutationCatalog'];
-      captureSources.mutationCatalog = 'hook';
-      catalogLog('Captured mutationCatalog');
-      didCapture = true;
-      // Reset retry budget when the catalog becomes available.
-      pollAttempts.mutationColor = 0;
-      void enrichMutationColors();
-    }
-
-    if (looksLikeEggCatalog(record, keys) && captureOrUpgrade('eggCatalog')) {
-      didCapture = true;
-    }
-
-    if (looksLikePetCatalog(record, keys) && captureOrUpgrade('petCatalog')) {
-      didCapture = true;
-    }
-
-    if (looksLikePetAbilities(record, keys)) {
-      // Capture-or-upgrade, not capture-once: the game exposes partial
-      // dex-shaped objects during load (spread sources for the merged dex),
-      // and another mod's enumeration order can surface a partial one first.
-      // A strictly bigger match replaces it while hooks are still installed.
-      const current = capturedCatalogs.petAbilities;
-      const currentCount = current ? originalKeys.call(NativeObject, current).length : 0;
-      if (!current || keys.length > currentCount) {
-        capturedCatalogs.petAbilities = record as GameCatalogs['petAbilities'];
-        captureSources.petAbilities = 'hook';
-        catalogLog(current
-          ? `Upgraded petAbilities capture (${currentCount} -> ${keys.length} abilities)`
-          : 'Captured petAbilities');
+  if (keys.length >= MIN_CATALOG_KEYS) {
+    let didCapture = false;
+    try {
+      if (looksLikeItemCatalog(record, keys) && captureOrUpgrade('itemCatalog')) {
         didCapture = true;
-        // Reset retry budget when abilities become available.
-        pollAttempts.abilityColor = 0;
-        void enrichPetAbilityColors();
-        notifyPetAbilitiesCaptured();
       }
-    }
 
-    if (looksLikePlantCatalog(record, keys) && captureOrUpgrade('plantCatalog')) {
-      didCapture = true;
-    }
+      if (looksLikeDecorCatalog(record, keys) && captureOrUpgrade('decorCatalog')) {
+        didCapture = true;
+      }
 
-    if (!capturedCatalogs.weatherCatalog && looksLikeWeatherCatalog(record, keys)) {
-      capturedCatalogs.weatherCatalog = normalizeWeatherCatalog(record) as GameCatalogs['weatherCatalog'];
-      catalogLog(`Captured weatherCatalog with ${Object.keys(capturedCatalogs.weatherCatalog ?? {}).length} entries.`);
-      didCapture = true;
-      stopWeatherCatalogPolling();
-    }
+      if (!capturedCatalogs.mutationCatalog && looksLikeMutationCatalog(record, keys)) {
+        capturedCatalogs.mutationCatalog = record as GameCatalogs['mutationCatalog'];
+        captureSources.mutationCatalog = 'hook';
+        catalogLog('Captured mutationCatalog');
+        didCapture = true;
+        // Fresh budget + immediate pass now that the base catalog exists; the
+        // poller may have parked while waiting for it.
+        startMutationColorPolling();
+      }
 
-    if (!capturedCatalogs.cosmeticCatalog) {
-      for (const v of Object.values(record)) {
-        if (Array.isArray(v) && looksLikeCosmeticArray(v)) {
-          capturedCatalogs.cosmeticCatalog = v as GameCatalogs['cosmeticCatalog'];
-          catalogLog(`Captured cosmeticCatalog with ${v.length} items`);
+      if (looksLikeEggCatalog(record, keys) && captureOrUpgrade('eggCatalog')) {
+        didCapture = true;
+      }
+
+      if (looksLikePetCatalog(record, keys) && captureOrUpgrade('petCatalog')) {
+        didCapture = true;
+      }
+
+      if (looksLikePetAbilities(record, keys)) {
+        // Capture-or-upgrade, not capture-once: the game exposes partial
+        // dex-shaped objects during load (spread sources for the merged dex),
+        // and another mod's enumeration order can surface a partial one first.
+        // A strictly bigger match replaces it while hooks are still installed.
+        const current = capturedCatalogs.petAbilities;
+        const currentCount = current ? originalKeys.call(NativeObject, current).length : 0;
+        if (!current || keys.length > currentCount) {
+          capturedCatalogs.petAbilities = record as GameCatalogs['petAbilities'];
+          captureSources.petAbilities = 'hook';
+          catalogLog(current
+            ? `Upgraded petAbilities capture (${currentCount} -> ${keys.length} abilities)`
+            : 'Captured petAbilities');
           didCapture = true;
-          break;
+          startAbilityColorPolling();
+          notifyPetAbilitiesCaptured();
         }
       }
-    }
 
-    if (didCapture) {
-      publishCatalogs();
-      // A capture after the ready flip must refresh the health line too.
-      publishCatalogsHealth();
-    }
+      if (looksLikePlantCatalog(record, keys) && captureOrUpgrade('plantCatalog')) {
+        didCapture = true;
+      }
 
-    // Check if essential catalogs are ready and notify waiters
-    checkAndNotifyReady();
-  } catch (e) {
-    // Silently ignore detection errors
+      if (!capturedCatalogs.weatherCatalog && looksLikeWeatherCatalog(record, keys)) {
+        capturedCatalogs.weatherCatalog = normalizeWeatherCatalog(record) as GameCatalogs['weatherCatalog'];
+        catalogLog(`Captured weatherCatalog with ${Object.keys(capturedCatalogs.weatherCatalog ?? {}).length} entries.`);
+        didCapture = true;
+        stopWeatherCatalogPolling();
+      }
+
+      if (!capturedCatalogs.cosmeticCatalog) {
+        for (const v of Object.values(record)) {
+          if (Array.isArray(v) && looksLikeCosmeticArray(v)) {
+            capturedCatalogs.cosmeticCatalog = v as GameCatalogs['cosmeticCatalog'];
+            catalogLog(`Captured cosmeticCatalog with ${v.length} items`);
+            didCapture = true;
+            break;
+          }
+        }
+      }
+
+      if (didCapture) {
+        publishCatalogs();
+        // A capture after the ready flip must refresh the health line too.
+        publishCatalogsHealth();
+      }
+
+      // Check if essential catalogs are ready and notify waiters
+      checkAndNotifyReady();
+    } catch (e) {
+      // Silently ignore detection errors
+    }
   }
 
   // Don't recurse too deep - performance optimization
@@ -157,7 +169,7 @@ function deepScan(obj: unknown, depth: number): void {
   for (const key of keys) {
     try {
       const value = record[key];
-      if (value && typeof value === 'object') {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
         deepScan(value, depth + 1);
       }
     } catch {
@@ -186,6 +198,9 @@ export function maybeCapture(obj: unknown): void {
   // deferred removal actually clears the hook, the intercept still costs
   // a function call per Object.keys/values/entries in the game.
   if (areHookCapturableCatalogsAllCaptured()) return;
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+  scanStats.calls += 1;
+  budget = SCAN_NODE_BUDGET;
   try {
     deepScan(obj, 0);
   } catch {

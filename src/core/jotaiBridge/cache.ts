@@ -41,6 +41,16 @@ export function getAtomCache(): AtomCacheLike | undefined {
   return undefined;
 }
 
+/** O(1) on the game's Map; falls back to one iteration for duck-typed caches. */
+export function getAtomCacheSize(): number {
+  const cache = getAtomCache();
+  if (!cache) return 0;
+  if (typeof cache.size === 'number') return cache.size;
+  let n = 0;
+  for (const _ of cache.values()) n += 1;
+  return n;
+}
+
 /**
  * Wait for atom cache to become available
  */

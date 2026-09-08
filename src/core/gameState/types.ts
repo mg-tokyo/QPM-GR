@@ -20,6 +20,10 @@ export interface StateTreeSourceSpec<T> {
   /** RFC 6901 prefix for patch gating; `{myIdx}` substituted at flush time. */
   readonly statePath: PatchPath;
   readonly select: (state: QuinoaStateSnapshot, identity: IdentityContext) => Selected<T>;
+  /** When set, a patch under `statePath` counts as a real change; the book
+   *  skips the deep walk (the tree is freshly cloned per batch by the game).
+   *  Only valid for selectors that return a subtree unchanged. */
+  readonly trustPatches?: boolean;
 }
 
 export interface AtomSourceSpec<T> {
@@ -71,6 +75,9 @@ export type SourceRead<T> =
 export interface SourceHandle<T> {
   readonly kind: SourceKind;
   readonly index: number;
+  /** True when the source already delivers deep-memoised values (state tree);
+   * the book then compares by identity instead of walking the value again. */
+  readonly memoized?: boolean;
   describe(): string;
   available(): boolean;
   readSync(): SourceRead<T>;
@@ -84,6 +91,10 @@ export interface SourceHandle<T> {
   write?(value: T): Promise<void>;
   /** Atom rungs only: the resolved jotai atom object (for read-patch instrumentation). */
   atomObject?(): unknown;
+  /** Drop any topology-dependent cache. Called by the resolver on every
+   * topology change; the atom rung uses this to invalidate its resolved-atom
+   * cache so a late-registered atom is picked up on the next read. */
+  invalidate?(): void;
 }
 
 export type TopologyReason =

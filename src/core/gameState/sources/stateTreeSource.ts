@@ -23,6 +23,7 @@ export function createStateTreeHandle<T>(
   return {
     kind: 'stateTree',
     index,
+    memoized: true,
     describe: () => `stateTree:${spec.statePath || '/'}`,
     available: () => readSync().ok,
     readSync,
@@ -32,6 +33,7 @@ export function createStateTreeHandle<T>(
       (v) => { if (v !== undefined) cb(v); },
       `gameState:${key}`,
       spec.statePath,
+      { trustPatches: spec.trustPatches === true },
     ),
   };
 }

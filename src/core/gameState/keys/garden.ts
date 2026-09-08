@@ -7,7 +7,7 @@ export const GARDEN_KEYS = {
   myData: defineKey<QuinoaUserSlotData>({
     policy: 'authoritative', tier: 'state', doc: 'My slot data (garden, inventory, petSlots, journal, activityLogs, ...)',
     sources: [
-      stateSource('/child/data/userSlots/{myIdx}/data', selectMyData),
+      stateSource('/child/data/userSlots/{myIdx}/data', selectMyData, { trustPatches: true }),
       atomSource(/^my(?:Player)?Data(?:Atom)?$/, 'authoritative', { structure: (v) => isRecord(v) && isRecord(v.garden) && 'tileObjects' in v.garden }),
     ],
   }),

@@ -31,4 +31,5 @@ export type AtomCacheLike = {
   get: (key: unknown) => unknown;
   values: () => IterableIterator<any>;
   entries?: () => IterableIterator<[any, any]>;
+  size?: number;
 };

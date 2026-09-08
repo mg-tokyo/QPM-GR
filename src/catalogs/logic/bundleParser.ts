@@ -1,5 +1,5 @@
-// src/catalogs/logic/bundleParser.ts
-// Shared main-bundle parsing helpers (Gemini-style).
+// Shared game-bundle fetch + text cache; consumers register/release holds so
+// the multi-MB chunk texts are dropped once every consumer is done.
 
 import { pageWindow } from '../../core/pageContext';
 import { createNamedLogger } from '../../diagnostics/logger';
@@ -183,20 +183,23 @@ async function iterateBundlesContaining(
   const urls = findBundleCandidateUrls();
   if (!urls.length) return [];
 
-  const hits: string[] = [];
-  for (const url of urls) {
-    const cached = bundleTextCache.get(url);
-    if (cached && markerHits(cached, marker)) {
-      hits.push(cached);
-      if (stopAtFirst) return hits;
-    }
-  }
-
   const key = markerKey(marker);
   let missed = bundleMarkerMisses.get(key);
-  if (!missed) {
-    missed = new Set<string>();
-    bundleMarkerMisses.set(key, missed);
+  if (!missed) { missed = new Set<string>(); bundleMarkerMisses.set(key, missed); }
+
+  const hits: string[] = [];
+  for (const url of urls) {
+    if (missed.has(url)) continue;
+    const cached = bundleTextCache.get(url);
+    if (!cached) continue;
+    if (markerHits(cached, marker)) {
+      hits.push(cached);
+      if (stopAtFirst) return hits;
+    } else {
+      // A chunk another consumer cached and this marker already missed must
+      // not be re-scanned (2.2 MB `includes` per poll tick, spec F4).
+      missed.add(url);
+    }
   }
 
   for (const url of urls) {
@@ -235,4 +238,44 @@ export async function fetchMainBundle(): Promise<string | null> {
  */
 export async function fetchAllBundlesContaining(marker: BundleMarker): Promise<string[]> {
   return iterateBundlesContaining(marker, false);
+}
+
+// Lazy chunks can appear minutes after boot; a bounded poll cannot wait for
+// them without spinning (spec F4). Consumers that gave up subscribe here and
+// get ONE retry per newly loaded script chunk, from resource timing — the
+// same source findBundleCandidateUrls() already reads — with no interval.
+const chunkListeners = new Set<() => void>();
+const knownChunkUrls = new Set<string>();
+let chunkObserver: PerformanceObserver | null = null;
+
+export function onNewBundleChunk(cb: () => void): () => void {
+  chunkListeners.add(cb);
+  if (!chunkObserver) {
+    for (const u of findBundleCandidateUrls()) knownChunkUrls.add(u);
+    try {
+      chunkObserver = new PerformanceObserver((list) => {
+        let fresh = false;
+        for (const e of list.getEntries()) {
+          const name = e.name;
+          // Only the game's own asset chunks — analytics, Discord SDK and
+          // extension scripts are `.js` resources too and never carry a catalog.
+          if (!GENERIC_ASSET_CHUNK_RE.test(name) || knownChunkUrls.has(name)) continue;
+          knownChunkUrls.add(name);
+          fresh = true;
+        }
+        if (!fresh) return;
+        for (const l of Array.from(chunkListeners)) {
+          try { l(); } catch { /* isolate */ }
+        }
+      });
+      chunkObserver.observe({ entryTypes: ['resource'] });
+    } catch { chunkObserver = null; }
+  }
+  return () => {
+    chunkListeners.delete(cb);
+    if (chunkListeners.size === 0 && chunkObserver) {
+      try { chunkObserver.disconnect(); } catch { /* ignore */ }
+      chunkObserver = null;
+    }
+  };
 }

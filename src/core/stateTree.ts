@@ -19,6 +19,7 @@ import { shareGlobal } from './pageContext';
 import { deepEqual } from '../utils/deepEqual';
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
+import { recordProbe } from '../diagnostics/perfMonitor';
 import type { Subsystem } from '../diagnostics/types';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 import { getRoomConnection } from '../websocket/api';
@@ -33,6 +34,11 @@ const SUBSYSTEM: Subsystem = 'stateTree';
 
 /** Pure function from state snapshot to a derived value. */
 export type Selector<T> = (state: QuinoaStateSnapshot) => T;
+
+// Patch-prefix roots for subscribers that only care about the local slot;
+// `{myIdx}` is substituted per event (reactive/pathMatcher.ts).
+export const MY_SLOT_STATE_PATH: PatchPath = '/child/data/userSlots/{myIdx}';
+export const MY_INVENTORY_STATE_PATH: PatchPath = `${MY_SLOT_STATE_PATH}/data/inventory`;
 
 // ─── Internal state ───────────────────────────────────────────────────────
 
@@ -64,6 +70,7 @@ interface Subscriber {
   readonly callback: (value: unknown) => void;
   readonly label: string | undefined;
   readonly statePath: PatchPath | undefined;
+  readonly trustPatches: boolean;
 }
 
 let nextSubscriberId = 1;
@@ -97,6 +104,7 @@ interface PendingSubscription {
   readonly callback: (value: unknown) => void;
   readonly label: string | undefined;
   readonly statePath: PatchPath | undefined;
+  readonly trustPatches: boolean;
 }
 const pending: PendingSubscription[] = [];
 
@@ -158,6 +166,7 @@ function publishHealth(status: 'ok' | 'degraded' | 'failed', message: string): v
 function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
   currentSnapshot = (next as QuinoaStateSnapshot | null) ?? null;
   lastFireTs = Date.now();
+  const t0 = performance.now();
   if (!currentSnapshot) return;
 
   // Patch-prefix gating for selector subscribers. Empty / absent patches
@@ -174,6 +183,17 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
         if (matchesPathPrefix(patch.path, sub.statePath, myIdx)) { anyMatch = true; break; }
       }
       if (!anyMatch) continue;
+      if (sub.trustPatches && sub.hasFired) {
+        let fast: unknown;
+        try { fast = sub.selector(currentSnapshot); } catch (err) {
+          diagLog.warn('QPM-STATETREE-002', { subscriber: sub.label ?? sub.id }, err);
+          try { sub.callback(null); } catch { /* swallow */ }
+          continue;
+        }
+        sub.lastValue = fast;
+        try { sub.callback(fast); } catch { /* swallow */ }
+        continue;
+      }
     }
     let derived: unknown;
     try {
@@ -200,6 +220,7 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
       try { listener(p, currentSnapshot); } catch { /* swallow */ }
     }
   }
+  recordProbe('stateTree.event', performance.now() - t0);
 }
 
 // Resolves the local player's slot index from the current snapshot. Mirrors
@@ -331,6 +352,7 @@ export async function initStateTree(): Promise<void> {
         callback: p.callback,
         label: p.label,
         statePath: p.statePath,
+        trustPatches: p.trustPatches,
       };
       subscribers.set(p.id, sub);
       // Fire immediately if we already have a snapshot.
@@ -491,8 +513,10 @@ export function subscribe<T>(
   callback: (value: T | null) => void,
   label?: string,
   statePath?: PatchPath,
+  opts?: { trustPatches?: boolean },
 ): () => void {
   const id = nextSubscriberId++;
+  const trustPatches = opts?.trustPatches === true;
 
   if (!ready) {
     // Subscribe-before-init is expected during early phase. The pending count
@@ -504,6 +528,7 @@ export function subscribe<T>(
       callback: callback as (value: unknown) => void,
       label,
       statePath,
+      trustPatches,
     });
     return () => {
       // If still pending, remove from queue; else remove from active map.
@@ -521,6 +546,7 @@ export function subscribe<T>(
     callback: callback as (value: unknown) => void,
     label,
     statePath,
+    trustPatches,
   };
   subscribers.set(id, sub);
 

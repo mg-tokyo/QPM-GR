@@ -100,6 +100,13 @@ export const JOURNAL_BADGE_ATTR = 'data-qpm-journal-badge';
 // src/games/Quinoa/components/QuinoaCanvas/systems/gardenInfo/ObjectCardSection.ts:226
 export const OBJECT_CARD_LABEL = 'GardenInfoObjectCard';
 
+// Stage-level portal every open PixiTooltip popup is reparented into
+// (PixiTooltip.show → GlobalRenderLayers.stageUiRoot). Scanning it instead
+// of the stage keeps the per-frame tooltip lookup at O(tens) of nodes.
+export const STAGE_UI_ROOT_LABEL = 'StageUiRoot';
+// Direct stage child that owns GardenInfoCardSystem (the world lives under 'Camera').
+export const STAGE_UI_LAYER_LABEL = 'UI';
+
 /** Root DOM id for the QPM lock badge pinned to the object card's top-right. */
 export const LOCK_BADGE_ID = 'qpm-tile-info-lock';
 

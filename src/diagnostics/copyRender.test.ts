@@ -51,6 +51,7 @@ function input(overrides: Partial<ReportInput> = {}): ReportInput {
     environmentLine: 'Env: Tampermonkey 5.3  web  up 30m',
     modsLine: null,
     flagsLine: null,
+    perfLine: null,
     subsystems: [],
     aggregate: 'ok',
     gameStateProblemLines: [],
@@ -78,6 +79,18 @@ describe('renderReport header', () => {
     expect(optedOut).not.toContain('Env:');
     expect(optedOut).not.toContain('Mods:');
     expect(optedOut).not.toContain('Flags:');
+  });
+
+  it('prints the perf line when present and opts.perf is on; omits it when off', () => {
+    const perfLine = 'Perf: longtasks 0/15s (max 0ms)  anchor.tick p95 0.9ms  anchor walk 24/38 nodes';
+    const on = renderReport(input({ perfLine }));
+    expect(on).toContain(perfLine);
+
+    const off = renderReport(input({ perfLine }), { ...DEFAULT_COPY_OPTIONS, perf: false });
+    expect(off).not.toContain('Perf:');
+
+    const absent = renderReport(input({ perfLine: null }));
+    expect(absent).not.toContain('Perf:');
   });
 });
 

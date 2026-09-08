@@ -1,4 +1,4 @@
-import { subscribe as stateTreeSubscribe } from '../core/stateTree';
+import { MY_INVENTORY_STATE_PATH, subscribe as stateTreeSubscribe } from '../core/stateTree';
 import { findSlotIdxByOwner, getPlayerIdSync } from '../core/playerContext';
 import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
 import { createStoreDiagnostics } from './_storeDiagnostics';
@@ -147,10 +147,12 @@ export async function startSeedSiloStore(): Promise<void> {
   diag.register('Subscribing to state-tree silo slice');
 
   try {
+    // Path-gated to my inventory — see store/hutch.ts for the rationale.
     storageUnsub = stateTreeSubscribe(
       selectSeedSiloSlice,
       (slice) => updateFromSlice(slice),
       'store:seedSilo',
+      MY_INVENTORY_STATE_PATH,
     );
     diag.log.debug('store initialized (state-tree subscription)');
   } catch (err) {

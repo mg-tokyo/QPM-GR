@@ -1,5 +1,6 @@
 // Loader lifecycle — init/cleanup orchestration.
 
+import { readSharedGlobal } from '../../core/pageContext';
 import { DEX_AUDIT_DELAY_MS, HOOKS_HARD_DEADLINE_MS, HOOKS_RECHECK_INTERVAL_MS } from './constants';
 import { onCatalogsReady } from './readyState';
 import {
@@ -30,6 +31,14 @@ let dexAuditUnsub: (() => void) | null = null;
 export function initCatalogHooksEarly(): void {
   if (hooksInstalledEarly) return;
   hooksInstalledEarly = true;
+  // Test bypass for the CATALOG-001 path: with hooks disabled the game's
+  // Object.* enumerations never capture the dexes, so the watchdog fires and
+  // seedDexCatalogsFromBundle() heals the session from bundle text. Page-global
+  // only — this runs before storage is hydrated, so no dev-mode flag read here.
+  if (readSharedGlobal('__QPM_DISABLE_CATALOG_HOOKS__') === true) {
+    catalogLog('Object.* hooks skipped: __QPM_DISABLE_CATALOG_HOOKS__');
+    return;
+  }
   installHooks();
 
   // Hook removal policy: interval re-check clears hooks as soon as every

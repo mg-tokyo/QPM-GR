@@ -1,4 +1,4 @@
-import { subscribe as stateTreeSubscribe } from '../core/stateTree';
+import { MY_INVENTORY_STATE_PATH, subscribe as stateTreeSubscribe } from '../core/stateTree';
 import { findSlotIdxByOwner, getPlayerIdSync } from '../core/playerContext';
 import type { QuinoaStateSnapshot, QuinoaStorageEntry, QuinoaInventoryItem } from '../types/gameAtoms';
 import { createStoreDiagnostics } from './_storeDiagnostics';
@@ -181,10 +181,14 @@ export async function startHutchStore(): Promise<void> {
   diag.register('Subscribing to state-tree hutch slice');
 
   try {
+    // Path-gated: without a prefix the selector + deepEqual ran on every server
+    // frame (pet motion, other players' patches) for a value that only changes
+    // under my inventory. Same prefix depth as the registry's `inventory` key.
     storageUnsub = stateTreeSubscribe(
       selectHutchSlice,
       (slice) => updateFromSlice(slice),
       'store:hutch',
+      MY_INVENTORY_STATE_PATH,
     );
     diag.log.debug('store initialized (state-tree subscription)');
   } catch (err) {

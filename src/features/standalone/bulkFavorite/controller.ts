@@ -6,6 +6,7 @@ import {
   DEBOUNCE_MS,
   RESIZE_DEBOUNCE_MS,
   IMMEDIATE_SYNC_THROTTLE_MS,
+  IDLE_FALLBACK_SCAN_MS,
   ANCHOR_SETTLE_INTERVAL_MS,
   ANCHOR_SETTLE_MAX_TRIES,
 } from './constants';
@@ -94,9 +95,18 @@ function trySubscribeModal(retriesLeft = 15): void {
     .catch((err) => warnFeature('QPM-FEATURE-004', { what: 'activeModal:subscribe' }, err));
 }
 
+let lastIdleFallbackScanAt = 0;
+
 function handleMutations(): void {
   // Mutation observer should only manage visibility/position.
   // Content refresh is driven by inventory-store updates and explicit refresh calls.
+  // With the atom subscription live and the modal closed, the DOM path is only a
+  // safety net — the page mutates constantly, so cap the PIXI scan cadence.
+  if (modalUnsub && !inventoryModalOpen && !ui.sidebar) {
+    const now = Date.now();
+    if (now - lastIdleFallbackScanAt < IDLE_FALLBACK_SCAN_MS) return;
+    lastIdleFallbackScanAt = now;
+  }
   syncSidebar(false);
 }
 

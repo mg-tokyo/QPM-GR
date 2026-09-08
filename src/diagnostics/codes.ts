@@ -9,6 +9,7 @@ import { TD_CUSTOM_DESIGNS_CODES } from './codes/tdCustomDesigns';
 import { TD_SAVES_CODES } from './codes/tdSaves';
 import { TD_TRACKS_CODES } from './codes/tdTracks';
 import { PATCH_STAGE_CODES } from './codes/patchStage';
+import { PERF_CODES } from './codes/perf';
 import { WEBSOCKET_CODES } from './codes/websocket';
 
 const CURRENT_VERSION = '3.2.29';
@@ -655,6 +656,19 @@ register({
   notifyUser: false,
 });
 
+register({
+  code: 'QPM-INIT-002',
+  subsystem: 'init',
+  category: 'core',
+  severity: 'warn',
+  title: 'Duplicate QPM instance',
+  description: 'A second QPM userscript is installed on this page; only the first one started.',
+  userAction: 'Uninstall or disable one of the two QPM installs (e.g. ALPHA and private).',
+  devNotes: 'src/core/instanceGuard.ts — first-wins; the second instance aborts main.ts before hooks and writes __QPM_DUPLICATE__ so the first instance\'s report carries a dup:X marker.',
+  sinceVersion: '3.3.43',
+  notifyUser: true,
+});
+
 // Core: Timer manager (row 6.23). The RAF tick loop catches per-callback throws
 // so one broken timer never breaks the loop; that catch previously logged via
 // raw console.error, now routed through the named logger for buffer + bus
@@ -724,3 +738,4 @@ for (const def of TD_SAVES_CODES) register(def);
 for (const def of TD_TRACKS_CODES) register(def);
 for (const def of PATCH_STAGE_CODES) register(def);
 for (const def of WEBSOCKET_CODES) register(def);
+for (const def of PERF_CODES) register(def);

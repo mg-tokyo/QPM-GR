@@ -88,6 +88,12 @@ function startReadyWatchdog(): void {
       elapsedMs,
       capturedSoFar: countLoadedCatalogs().loaded,
     });
+    // Best-effort recovery: seed dex catalogs from bundle text so the session
+    // is not catalog-less. Lazy import keeps the parse pipeline out of boot.
+    void import('./fallback')
+      .then((m) => m.seedDexCatalogsFromBundle())
+      .then((seeded) => { if (seeded.length > 0) diagLog.info('catalogs seeded from bundle text after watchdog', { seeded }); })
+      .catch(() => { /* seeding is best-effort; the error row already stands */ });
   }, READY_WATCHDOG_MS);
 }
 

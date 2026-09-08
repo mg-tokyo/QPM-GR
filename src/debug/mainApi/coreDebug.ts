@@ -198,6 +198,7 @@ export const coreDebugApi = {
     const { getPitySnapshot, getPityAccountError, isPityKindEnabled } = await import('../../store/pityTracker');
     const { captureSources } = await import('../../catalogs/catalogLoader/state');
     const { getHookEnvironment } = await import('../../catalogs/catalogLoader');
+    const { isChainTrapInstalled } = await import('../../websocket/roomConnectionEvents');
 
     const pity = getPitySnapshot();
     const counters: Record<string, string> = {};
@@ -231,6 +232,8 @@ export const coreDebugApi = {
         // Other mods wrapping Object.* shift enumeration order — the trigger
         // for partial dex captures. Says who owns Object.keys right now.
         objectHooks: getHookEnvironment(),
+        // Accessor traps replace the send-chain 2 s poll (spec F6/D9).
+        chainTraps: isChainTrapInstalled(),
       },
       abilityDrift: getAbilityCatalogDrift(),
       pity: {

@@ -15,6 +15,7 @@
 // Dynamic tier: 5s safety poll for unclassified atoms.
 
 import { storage } from '../../utils/storage';
+import { recordProbe } from '../../diagnostics/perfMonitor';
 import { findSlotIdxByOwner, getPlayerIdSync } from '../playerContext';
 import { subscribeToPatches } from '../stateTree';
 import type { PatchOp } from '../stateTree';
@@ -293,6 +294,7 @@ export class ReactiveSubscriptionManager {
 
     const dur = performance.now() - start;
     this.lastFlushMs = dur;
+    recordProbe('reactive.flush', dur);
     this.flushBudgetSum += dur;
   }
 

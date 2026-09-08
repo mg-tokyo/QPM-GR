@@ -19,7 +19,7 @@ export const INVENTORY_KEYS = {
   inventory: defineKey<QuinoaInventory>({
     policy: 'authoritative', tier: 'state', doc: 'Loose inventory {items, storages, favoritedItemIds}',
     sources: [
-      stateSource('/child/data/userSlots/{myIdx}/data/inventory', selectInventory),
+      stateSource('/child/data/userSlots/{myIdx}/data/inventory', selectInventory, { trustPatches: true }),
       atomSource(/^my(?:Main)?Inventory(?:Data)?Atom$/, 'authoritative', { structure: (v) => isRecord(v) && ('storages' in v || 'items' in v) }),
     ],
   }),

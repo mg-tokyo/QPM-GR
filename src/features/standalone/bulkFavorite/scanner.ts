@@ -1,4 +1,5 @@
 import { getPixiRefs } from '../../../core/pixiCapture';
+import { STAGE_UI_LAYER_LABEL } from '../tooltipInjection/types';
 import {
   MIN_INVENTORY_WIDTH,
   MIN_INVENTORY_HEIGHT,
@@ -94,6 +95,19 @@ function findLargestNodeByLabel(
   }
 
   return best;
+}
+
+// InventoryModal lives under the direct stage child 'UI'; the world under
+// 'Camera' is 4–10× larger and this scan runs on every DOM-mutation debounce.
+// The stage itself is only the fallback for a renamed layer.
+function inventoryScanRoot(stage: PixiDisplayObject): PixiDisplayObject {
+  const kids = stage.children;
+  if (Array.isArray(kids)) {
+    for (const child of kids) {
+      if (child && typeof child === 'object' && child.label === STAGE_UI_LAYER_LABEL) return child;
+    }
+  }
+  return stage;
 }
 
 function boundsIntersect(a: PixiBounds, b: PixiBounds): boolean {
@@ -212,7 +226,7 @@ export function resolveInventoryAnchor(opts?: AnchorResolveOptions): AnchorResol
 
   // Guard against HUD/hotbar containers that may reuse inventory-like labels.
   // The actual full inventory view is wrapped by InventoryModal when open.
-  const modalMatch = findLargestNodeByLabel(stage, (label) => label === 'InventoryModal');
+  const modalMatch = findLargestNodeByLabel(inventoryScanRoot(stage), (label) => label === 'InventoryModal');
   if (!modalMatch) return miss('no-modal');
 
   const modalRect = toCssRect(modalMatch.bounds, renderer, canvas);

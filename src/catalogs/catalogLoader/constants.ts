@@ -22,6 +22,17 @@ export const MAX_WEATHER_CATALOG_POLL_ATTEMPTS = 20;
 export const COSMETIC_CATALOG_POLL_INTERVAL_MS = 1000;
 export const MAX_COSMETIC_CATALOG_POLL_ATTEMPTS = 10;
 
+// After this many consecutive idle poll ticks (no new-chunk fetch), one poll
+// attempt is consumed — bounds wall-clock time an enrichment poll can wait for
+// lazy chunks that will never arrive (spec F4 / C1 Step 2).
+export const MAX_ENRICHMENT_IDLE_TICKS = 60;
+
+// After give-up, at most this many chunk-appearance retries per consumer.
+// A lazy chunk mounted long after boot (e.g. Shop UI) gets one enrichment
+// attempt; anything past this cap is treated as "never arriving" (spec F4 /
+// R2 Step 2).
+export const MAX_ENRICHMENT_CHUNK_RETRIES = 5;
+
 /** One-shot dex completeness audit fires this long after catalogs-ready —
  * late enough to miss the load-critical window, early enough to heal an
  * enumeration-race capture before the user opens the affected UI. */

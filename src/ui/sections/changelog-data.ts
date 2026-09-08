@@ -2,6 +2,22 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.43",
+    date: "2026-09-08",
+    notes: [
+      "Fixed heavy lag while a garden tile card or tooltip was open: QPM was scanning the entire game scene every frame to position its overlays, it now looks only in the small UI layers where cards and tooltips live, QPM's share of CPU time dropped from about 30% to under 1% in testing",
+      "Fixed mutation colours missing from QPM windows since the game changed its colour table format, names now show their proper colours again and the false 'catalogs degraded' status is gone",
+      "Improved background CPU use: game-state updates now go through one subscription per key instead of one per consumer, large state keys skip redundant comparisons, hutch, seed silo and decor shed stores only react to their own inventory changes, and the shop stock store no longer rebuilds several times per server frame",
+      "Fixed the game-data colour pollers running forever in the background when the game ships no new files, they now stop after about a minute and retry only when a new game chunk actually loads",
+      "Improved startup: the temporary hooks QPM uses to capture game data are budgeted and released sooner, and if capture never completes QPM seeds its catalogs directly from the game files instead of staying stuck",
+      "Replaced the 2-second connection polls in the command sequencer, native send observer and locker guard with event-driven attach, so QPM reacts immediately when the game reconnects and runs no timers for it, with an automatic fallback if the connection cannot be watched",
+      "Improved the Bulk Favorite inventory scan to search only the game's UI layer and to idle while the inventory is closed",
+      "Added a Performance line to the Diagnostics copy report (long tasks, per-frame overlay and state costs, scene walk size) with its own checkbox, plus QPM-PERF-001 and QPM-PERF-002 warnings when a cost stays over budget",
+      "Added a duplicate-install guard: if two copies of QPM load on the same page the second one stops itself and warns, and the copy report's Env line shows the other version (new QPM-INIT-002 code)",
+      "Added chainTraps to QPM_DEBUG_API.supportReport() and getScanStats() and getPerfSnapshot() on __QPM_INTERNAL__ for support sessions",
+    ],
+  },
+  {
     version: "3.3.42",
     date: "2026-09-07",
     notes: [

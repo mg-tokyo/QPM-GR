@@ -1,21 +1,11 @@
 // src/websocket/commandSequencer.ts
-// Single wire counter for QuinoaCommand envelopes.
-//
-// Why this exists (live-tested 2026-08-28, v1040): the server accepts an
-// envelope only when `commandSequence === frontier + 1`; stale/duplicate
-// numbers are dropped WITHOUT a result and gaps return `invalid_sequence`.
-// The game's own counter is a module-private closure seeded on Welcome that
-// never resyncs from the frontier, so any second sender on the same socket
-// (QPM) desyncs it and the USER's own actions start getting dropped.
-//
-// Fix: wrap the send chokepoint and rewrite the `commandSequence` of every
-// outbound envelope — the game's included — to one monotonic counter seeded
-// from Welcome and healed from room frames. The wrapper must be the INNERMOST
-// layer (installed before locker/observer wrappers) so a number is allocated
-// only for messages that actually reach the socket.
+// Wraps the send chokepoint and rewrites every outbound envelope's
+// commandSequence so QPM and the game share ONE counter (server accepts
+// only frontier+1; stale/duplicate gets no result, gaps return
+// invalid_sequence). Wrapper is the INNERMOST layer so numbers are only
+// allocated for messages that actually reach the socket.
 
 import { pageWindow } from '../core/pageContext';
-import { criticalInterval } from '../utils/scheduling/timerManager';
 import { createNamedLogger } from '../diagnostics/logger';
 import { registerForeignSignal } from '../diagnostics/modDetection';
 import { storage } from '../utils/storage';
@@ -41,6 +31,7 @@ import {
   type CapturedSlot,
   type SendSlotClass,
 } from './sendChain';
+import { notifyChainChanged, onRoomConnectionChange } from './roomConnectionEvents';
 
 const log = createNamedLogger('websocket');
 
@@ -50,7 +41,6 @@ const STALE_DETECT_ENABLED_KEY = 'qpm.ws.sequencer.staleDetect.enabled';
 const STALE_GRACE_MS_KEY = 'qpm.ws.sequencer.staleGraceMs';
 const RESULT_TIMEOUT_MS = 5000;
 const MAX_RETRIES = 1;
-const REATTACH_POLL_MS = 2000;
 const ASSIGNED_CAP = 256;
 // CS-4: server rule is that stale/duplicate commandSequence numbers get no
 // result, so once a room frame executes past our envelope's number the send is
@@ -102,9 +92,8 @@ interface PendingEntry {
   staleTimer: ReturnType<typeof setTimeout> | null;
 }
 
-// One record per connection the sequencer ever wrapped. `live: false` means
-// the wrapper is defused: still installed (buried under outer wrappers detach
-// couldn't remove) but a pure pass-through, re-armable on a later poll.
+// One record per connection. `live: false` means the wrapper is defused
+// (buried under outer wrappers, pass-through, re-armable on a later event).
 interface InstallRecord {
   live: boolean;
   send: CapturedSlot;
@@ -120,21 +109,21 @@ const installs = new WeakMap<SequencerConnection, InstallRecord>();
 let started = false;
 let attached: { room: SequencerConnection; record: InstallRecord } | null = null;
 let boundSocket: WebSocket | null = null;
-let stopPoll: (() => void) | null = null;
+let stopEvents: (() => void) | null = null;
+let idleResyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 let wire = 0;
 let frontier = 0;
 let seeded = false;
-// Bumped on every invalid_sequence heal. Rejections for numbers allocated in
-// an older epoch are already accounted for and must not reset the counter
-// again (a burst of sibling rejections would otherwise race a live retry).
+// Bumped on every invalid_sequence heal so rejections from an older epoch
+// don't re-heal (a burst of sibling rejections would race a live retry).
 let epoch = 0;
 
 const pending = new Map<string, PendingEntry>();
 const assigned = new Map<string, { epoch: number; seq: number; at: number }>();
 let skippedPreSessionWarned = false;
 
-const foreignGate = createForeignEpisodeGate(3);
+const foreignGate = createForeignEpisodeGate(3, 3000);
 let unregisterForeignSignal: (() => void) | null = null;
 // QPM-branded wrapper on top but no re-armable record — warn once.
 let qpmToppedWarned = false;
@@ -162,11 +151,7 @@ const stats = {
 
 // ── Switches ──────────────────────────────────────────────────────────────
 
-/**
- * Default ON since 2026-08-28 (live-verified: QPM envelopes + concurrent
- * manual game actions all acked, wire == frontier). Set to false to fall
- * back to legacy flat sends for QPM's own actions.
- */
+/** Default ON since 2026-08-28. Set false to fall back to legacy flat sends. */
 export function isEnvelopeEnabled(): boolean {
   return storage.get<boolean>(ENVELOPE_ENABLED_KEY, true) !== false;
 }
@@ -223,6 +208,9 @@ function onFrame(frame: RoomFrameLike): void {
   if (seq > wire) wire = seq;
   seeded = true;
   armStaleTimers();
+  // Frames are ~1/s and cheap when pending is empty; catches a burned number
+  // between allocations without needing the removed 2 s reattach poll.
+  if (pending.size === 0) checkIdleResync();
 }
 
 // CS-4: arm a stale-drop timer for every pending entry whose commandSequence
@@ -273,10 +261,18 @@ function onStale(entry: PendingEntry): void {
   checkIdleResync();
 }
 
+// CS-1 heal used to ride the 2 s poll; a burned number is only possible after
+// an allocation, so one timer per allocation (reset on each) covers it.
+function armIdleResync(): void {
+  if (idleResyncTimer !== null) clearTimeout(idleResyncTimer);
+  idleResyncTimer = setTimeout(() => { idleResyncTimer = null; checkIdleResync(); }, RESULT_TIMEOUT_MS + 250);
+}
+
 function allocate(): number {
   if (!seeded) seedFrom(attached?.room.lastDistributedRoomPublication?.executedCommandSequence);
   if (frontier > wire) wire = frontier;
   wire += 1;
+  armIdleResync();
   stats.allocated++;
   return wire;
 }
@@ -297,9 +293,9 @@ function rememberAssigned(requestId: string, seq: number): void {
   assigned.set(requestId, { epoch, seq, at: Date.now() });
 }
 
-// CS-1: after every poll tick, if the wire drifted past the frontier while
-// nothing is in flight (a burned number from a refused send), reseed to the
-// frontier so the next envelope isn't rejected with invalid_sequence.
+// CS-1: on idle frames, the post-allocation timer and stale drops — if the wire
+// drifted past the frontier while nothing is in flight (a burned number from a
+// refused send), reseed to the frontier so the next envelope isn't rejected.
 function checkIdleResync(): void {
   const outstanding = countOutstanding(assigned.values(), Date.now(), RESULT_TIMEOUT_MS);
   if (shouldIdleResync({ wire, frontier, outstanding, pending: pending.size })) {
@@ -603,6 +599,7 @@ function ensureAttached(): void {
     qpmToppedWarned = false;
     bindSocket(room);
     checkIdleResync();
+    notifyChainChanged();
     log.debug('command sequencer attached', { wire, frontier, hasTry: !!trySlot });
   } catch (err) {
     try { restoreSendSlot(room, 'sendMessage', sendSlot, wrappedSend); } catch { /* noop */ }
@@ -642,6 +639,7 @@ function rearm(
     qpmToppedWarned = false;
     bindSocket(room);
     checkIdleResync();
+    notifyChainChanged();
     log.debug('command sequencer re-armed', { wire, frontier, sendClass, tryClass });
   } catch (err) {
     record.live = false;
@@ -702,8 +700,8 @@ export function startCommandSequencer(): void {
   }
   started = true;
   unregisterForeignSignal = registerForeignSignal('room.send', () => foreignGate.active());
-  ensureAttached();
-  stopPoll = criticalInterval('qpm-command-sequencer', ensureAttached, REATTACH_POLL_MS);
+  // onRoomConnectionChange fires 'initial' synchronously with the current room.
+  stopEvents = onRoomConnectionChange(() => ensureAttached());
 }
 
 /**
@@ -720,7 +718,8 @@ export function ensureCommandSequencerAttached(): void {
 export function stopCommandSequencer(): void {
   if (!started) return;
   started = false;
-  if (stopPoll) { stopPoll(); stopPoll = null; }
+  stopEvents?.(); stopEvents = null;
+  if (idleResyncTimer !== null) { clearTimeout(idleResyncTimer); idleResyncTimer = null; }
   if (unregisterForeignSignal) { unregisterForeignSignal(); unregisterForeignSignal = null; }
   unbindSocket();
   detach();

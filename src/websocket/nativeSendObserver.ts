@@ -5,10 +5,10 @@
 // fires listeners with the UNWRAPPED action type. Purely observational.
 
 import { pageWindow } from '../core/pageContext';
-import { criticalInterval } from '../utils/scheduling/timerManager';
 import { createNamedLogger } from '../diagnostics/logger';
 import { unwrapQuinoaCommand } from './envelope';
 import { ensureCommandSequencerAttached } from './commandSequencer';
+import { notifyChainChanged, onRoomConnectionChange } from './roomConnectionEvents';
 import { brandWrapper } from './sendChain';
 
 const diagLog = createNamedLogger('websocket');
@@ -31,10 +31,8 @@ let originalSendMessage: ((payload: unknown) => unknown) | null = null;
 let originalTrySend: ((payload: unknown) => boolean) | null = null;
 let patchedWrapper: ((payload: unknown) => unknown) | null = null;
 let patchedTryWrapper: ((payload: unknown) => boolean) | null = null;
-let stopReconnectTimer: (() => void) | null = null;
+let stopEvents: (() => void) | null = null;
 let started = false;
-
-const RECONNECT_POLL_MS = 2000;
 
 function notifyListeners(type: string, payload: Record<string, unknown>): void {
   for (const cb of listeners) {
@@ -113,6 +111,7 @@ function ensurePatched(): void {
     originalTrySend = originalTry;
     patchedWrapper = wrapped;
     patchedTryWrapper = wrappedTry;
+    notifyChainChanged();
   } catch {
     patchedRoom = null;
     originalSendMessage = null;
@@ -148,17 +147,17 @@ export function onNativeSend(listener: NativeSendListener): () => void {
 export function startNativeSendObserver(): void {
   if (started) return;
   started = true;
-  ensurePatched();
-  stopReconnectTimer = criticalInterval('native-send-observer', ensurePatched, RECONNECT_POLL_MS);
+  // onRoomConnectionChange fires 'initial' synchronously with the current room.
+  stopEvents = onRoomConnectionChange(() => ensurePatched());
   diagLog.debug('NativeSendObserver started');
 }
 
 export function stopNativeSendObserver(): void {
   if (!started) return;
   started = false;
-  if (stopReconnectTimer) {
-    stopReconnectTimer();
-    stopReconnectTimer = null;
+  if (stopEvents) {
+    stopEvents();
+    stopEvents = null;
   }
   restorePatch();
   listeners.clear();
