@@ -104,13 +104,17 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       return fiberStore;
     }
 
-    // 4) Try write-once capture (only if no other mod has captured)
+    // 4) Try write-once capture (only if no other mod has captured). The store
+    //    reports its own __source: 'write' when the write channel fired, or
+    //    'read' when only the atom.read channel captured a store getter (still
+    //    usable for reads, throws on set).
     const writeStore = await captureViaWriteOnce(5000);
     if (writeStore) {
+      const mode = writeStore.__source === 'read' ? 'read' : 'write';
       setStoreRef(writeStore);
-      setLastCaptureMode('write');
+      setLastCaptureMode(mode);
       shareStoreNonInvasively(writeStore);
-      reportJotaiCapture('write');
+      reportJotaiCapture(mode);
       return writeStore;
     }
 

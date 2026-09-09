@@ -1,9 +1,23 @@
-/** Tracks how many Crop Size Boosts are needed to maximize garden crops based on active ProduceSizeBoost(II) pets. */
+/** Tracks how many Crop Size Boosts are needed to maximize garden crops.
+ * Catalog-driven: any ability whose params match a size-boost shape is picked
+ * up automatically via sizeBoost.ts (see 2026-09-09-crop-size-boost-catalog-driven.md). */
 
 import { storage } from '../../utils/storage';
-import { getActivePetInfos, onActivePetInfos, type ActivePetInfo } from '../../store/pets';
-import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../garden/bridge';
-import { lookupMaxScale } from '../../utils/game/plantScales';
+import { getActivePetInfos, onActivePetInfos } from '../../store/pets';
+import { getGardenSnapshot, onGardenSnapshot } from '../garden/bridge';
+import { getCropSizePercent, lookupMaxScale } from '../../utils/game/plantScales';
+import {
+  arePetAbilitiesCaptured,
+  getAbilityDef,
+  mergePetAbilitiesIfIncomplete,
+  onPetAbilitiesCaptured,
+} from '../../catalogs/gameCatalogs';
+import {
+  classifySizeBoostAbility,
+  getAllSizeBoostAbilityIds,
+  type SizeBoostShape,
+} from './data/petAbilities/sizeBoost';
+import { getAbilityDefinition } from './data/petAbilities/catalogAdapter';
 import { diag, publishOk } from './_diagnostics';
 
 export interface CropBoostConfig {
@@ -18,21 +32,22 @@ export interface BoostPetInfo {
   displayName: string;
   species: string;
   strength: number;
-  abilityId: 'ProduceScaleBoost' | 'ProduceScaleBoostII';
+  abilityId: string;
   abilityName: string;
-  baseBoostPercent: number; // 6 for I, 10 for II
-  effectiveBoostPercent: number; // base × (strength / 100)
-  baseProcChance: number; // 0.30 for I, 0.40 for II
-  effectiveProcChance: number; // base × (strength / 100)
+  shape: SizeBoostShape;
+  baseAmount: number;      // shape.amountPerProc (flat) or percentPerProc (percent)
+  effectiveAmount: number; // baseAmount * (strength/100) when strengthScalesEffect
+  baseProcChance: number;
+  effectiveProcChance: number;
   expectedMinutesPerProc: number;
 }
 
 export interface CropSizeInfo {
   species: string;
-  currentScale: number;
-  maxScale: number;
-  currentSizePercent: number; // 50-100%
-  sizeRemaining: number; // percent to 100%
+  currentScale?: number;   // legacy percent-shape math only
+  maxScale?: number;       // legacy percent-shape math only
+  currentSizePercent: number; // 50-100%, always populated
+  sizeRemaining: number;
   mutations: string[];
   fruitCount: number;
   isMature: boolean;
@@ -59,9 +74,9 @@ export interface TrackerAnalysis {
   totalCropsAtMax: number;
   totalCropsNeedingBoost: number;
 
-  averageBoostPercent: number;
-  weakestBoostPercent: number;
-  strongestBoostPercent: number;
+  averageAmount: number;
+  weakestAmount: number;
+  strongestAmount: number;
 
   averageMinutesPerProc: number;
   slowestMinutesPerProc: number;
@@ -85,7 +100,7 @@ let config: CropBoostConfig = { ...DEFAULT_CONFIG };
 let currentAnalysis: TrackerAnalysis | null = null;
 let gardenUnsubscribe: (() => void) | null = null;
 let petsUnsubscribe: (() => void) | null = null;
-let refreshInterval: number | null = null;
+let catalogUnsubscribe: (() => void) | null = null;
 const changeCallbacks = new Set<(analysis: TrackerAnalysis | null) => void>();
 let lastRecalcTime = 0;
 let lastHadBoostPets = false;
@@ -136,35 +151,46 @@ export function onAnalysisChange(callback: (analysis: TrackerAnalysis | null) =>
 
 function getBoostPets(): BoostPetInfo[] {
   const pets = getActivePetInfos();
+  if (pets.length === 0) return [];
+
+  const boostIds = new Set(getAllSizeBoostAbilityIds());
+  if (boostIds.size === 0) return [];
+
   const boostPets: BoostPetInfo[] = [];
-
   for (const pet of pets) {
-    const abilities = [
-      { id: 'ProduceScaleBoost', name: 'Crop Size Boost I', base: 6, chance: 0.30 },
-      { id: 'ProduceScaleBoostII', name: 'Crop Size Boost II', base: 10, chance: 0.40 },
-    ];
+    if (!pet.abilities) continue;
+    const strength = pet.strength ?? 100;
+    const strengthFactor = strength / 100;
 
-    for (const ability of abilities) {
-      if (pet.abilities && pet.abilities.includes(ability.id)) {
-        const strength = pet.strength ?? 100;
-        const effectiveBoost = (ability.base * strength) / 100;
-        const effectiveChance = (ability.chance * strength) / 100;
-        const minutesPerProc = 100 / effectiveChance;
+    for (const abilityId of pet.abilities) {
+      if (!boostIds.has(abilityId)) continue;
+      const shape = classifySizeBoostAbility(abilityId);
+      if (!shape) continue;
+      const def = getAbilityDef(abilityId);
+      if (!def) continue;
+      const baseAmount = shape.kind === 'flatSize' ? shape.amountPerProc : shape.percentPerProc;
+      const effectiveAmount = shape.strengthScalesEffect ? baseAmount * strengthFactor : baseAmount;
+      const baseProcChance = typeof def.baseProbability === 'number' && Number.isFinite(def.baseProbability)
+        ? def.baseProbability
+        : 0;
+      const effectiveProcChance = baseProcChance * strengthFactor;
+      const abilityName = getAbilityDefinition(abilityId)?.name ?? abilityId;
+      const minutesPerProc = effectiveProcChance > 0 ? 100 / effectiveProcChance : Infinity;
 
-        boostPets.push({
-          slotIndex: pet.slotIndex,
-          displayName: pet.name ?? pet.species ?? 'Unknown',
-          species: pet.species ?? 'unknown',
-          strength,
-          abilityId: ability.id as any,
-          abilityName: ability.name,
-          baseBoostPercent: ability.base,
-          effectiveBoostPercent: effectiveBoost,
-          baseProcChance: ability.chance,
-          effectiveProcChance: effectiveChance,
-          expectedMinutesPerProc: minutesPerProc,
-        });
-      }
+      boostPets.push({
+        slotIndex: pet.slotIndex,
+        displayName: pet.name ?? pet.species ?? 'Unknown',
+        species: pet.species ?? 'unknown',
+        strength,
+        abilityId,
+        abilityName,
+        shape,
+        baseAmount,
+        effectiveAmount,
+        baseProcChance,
+        effectiveProcChance,
+        expectedMinutesPerProc: minutesPerProc,
+      });
     }
   }
 
@@ -177,7 +203,6 @@ function scanGardenCrops(): CropSizeInfo[] {
 
   const crops: CropSizeInfo[] = [];
 
-  // Helper to process tiles
   const processTiles = (tiles: Record<string, any> | undefined, prefix: string) => {
     if (!tiles) return;
 
@@ -190,28 +215,26 @@ function scanGardenCrops(): CropSizeInfo[] {
         if (!slot || !slot.species) continue;
 
         const species = slot.species;
-        const currentScale = slot.targetScale ?? slot.scale ?? slot.plantScale ?? 1.0;
-        // Normalize species name to lowercase for lookup
-        const normalizedSpecies = species.toLowerCase();
-        const maxScale = slot.maxScale ?? slot.targetMaxScale ?? lookupMaxScale(normalizedSpecies) ?? 2.0;
+        const normalizedSpecies = String(species).toLowerCase();
+        const explicitCurrentScale = slot.targetScale ?? slot.scale ?? slot.plantScale;
+        const explicitMaxScale = slot.maxScale ?? slot.targetMaxScale;
+        const currentScale = typeof explicitCurrentScale === 'number' ? explicitCurrentScale : undefined;
+        const maxScale = typeof explicitMaxScale === 'number'
+          ? explicitMaxScale
+          : (lookupMaxScale(normalizedSpecies) ?? undefined);
         const mutations = slot.mutations ?? [];
         const fruitCount = slot.fruitCount ?? slot.remainingFruitCount ?? 1;
         const endTime = slot.endTime ?? 0;
         const isMature = endTime > 0 && Date.now() >= endTime;
 
-        // Calculate size percentage
-        // Note: Crop Size Boost is applied to targetScale (1.0-3.5), not the 50-100% visual size
-        // The boost multiplies the scale, e.g., 10% boost = scale * 1.10
-        const ratio = (currentScale - 1.0) / (maxScale - 1.0);
-        const currentSizePercent = 50 + ratio * 50;
+        const currentSizePercent = getCropSizePercent(slot);
         const sizeRemaining = Math.max(0, 100 - currentSizePercent);
 
-        // Include ALL crops (growing and mature) - Crop Size Boost works on all crops!
         crops.push({
           species,
-          currentScale,
-          maxScale,
-          currentSizePercent: Math.max(50, Math.min(100, currentSizePercent)),
+          ...(currentScale !== undefined ? { currentScale } : {}),
+          ...(maxScale !== undefined ? { maxScale } : {}),
+          currentSizePercent,
           sizeRemaining,
           mutations,
           fruitCount,
@@ -229,36 +252,34 @@ function scanGardenCrops(): CropSizeInfo[] {
   return crops;
 }
 
-/**
- * Calculate boosts needed for a crop to reach 100% size
- * IMPORTANT: Crop Size Boost is applied to the scale (1.0-maxScale), not the 50-100% visual size
- * Each boost multiplies the scale by (1 + boostPercent/100)
- */
+// Shape-aware. Flat: N boosts = ceil(remaining Size / amount). Percent (legacy):
+// n = log(maxScale/currentScale) / log(1 + percent/100). Missing legacy scale
+// fields collapse to the flat approximation on the 50-100 axis.
 function calculateBoostsNeeded(
   crop: CropSizeInfo,
-  boostPercent: number
+  shape: SizeBoostShape,
 ): number {
-  if (crop.currentScale >= crop.maxScale) return 0;
-  if (boostPercent <= 0) return Infinity;
+  if (crop.sizeRemaining <= 0) return 0;
 
-  // Calculate how many boosts needed to reach maxScale
-  // Each boost: newScale = currentScale * (1 + boostPercent/100)
-  // After n boosts: finalScale = currentScale * (1 + boostPercent/100)^n
-  // We need: currentScale * (1 + boostPercent/100)^n >= maxScale
-  // Solving for n: n = log(maxScale / currentScale) / log(1 + boostPercent/100)
-  
-  const multiplier = 1 + boostPercent / 100;
-  const scaleRatio = crop.maxScale / crop.currentScale;
-  const boostsNeeded = Math.log(scaleRatio) / Math.log(multiplier);
-  
-  return Math.ceil(boostsNeeded);
+  if (shape.kind === 'flatSize') {
+    if (shape.amountPerProc <= 0) return Infinity;
+    return Math.ceil(crop.sizeRemaining / shape.amountPerProc);
+  }
+
+  if (shape.percentPerProc <= 0) return Infinity;
+  const currentScale = crop.currentScale;
+  const maxScale = crop.maxScale;
+  if (currentScale !== undefined && maxScale !== undefined && currentScale > 0 && maxScale > currentScale) {
+    const multiplier = 1 + shape.percentPerProc / 100;
+    if (multiplier <= 1) return Infinity;
+    return Math.ceil(Math.log(maxScale / currentScale) / Math.log(multiplier));
+  }
+  // Legacy shape but no scale data on this slot — fall back to the linear 50-100 axis.
+  return Math.ceil(crop.sizeRemaining / shape.percentPerProc);
 }
 
-/**
- * Calculate time estimates based on proc rates
- * NOTE: Crop Size Boost does NOT stack, so we only use the weakest pet
- * Abilities proc relatively infrequently in practice
- */
+// Only the weakest boost is used per proc, so estimate off the weakest pet.
+// Under flat-size, "weakest" is min effectiveAmount (a smaller Size delta).
 function calculateTimeEstimates(
   boostsNeeded: number,
   boostPets: BoostPetInfo[]
@@ -267,14 +288,14 @@ function calculateTimeEstimates(
     return { p10: 0, p50: 0, p90: 0 };
   }
 
-  // Find the weakest boost pet (lowest effective boost %)
-  const weakestPet = boostPets.reduce((worst, pet) => 
-    pet.effectiveBoostPercent < worst.effectiveBoostPercent ? pet : worst
+  const weakestPet = boostPets.reduce((worst, pet) =>
+    pet.effectiveAmount < worst.effectiveAmount ? pet : worst
   );
 
-  // Use only the weakest pet's proc rate for conservative estimates
-  // Expected minutes between procs for this pet
   const minutesPerProc = weakestPet.expectedMinutesPerProc;
+  if (!Number.isFinite(minutesPerProc)) {
+    return { p10: Infinity, p50: Infinity, p90: Infinity };
+  }
 
   // Conservative estimates (abilities don't proc as often in practice)
   // Add 50% buffer to account for RNG variance and real-world proc rates
@@ -331,10 +352,11 @@ function updateBoostHistory(crops: CropSizeInfo[]): void {
   }
 }
 
-/**
- * Perform full analysis of boost pets and crops
- */
 function analyzeBoostTracker(): TrackerAnalysis | null {
+  // Catalog holds the authoritative amount/chance numbers. Show nothing rather
+  // than stale hardcoded values while capture is pending.
+  if (!arePetAbilitiesCaptured()) return null;
+
   const boostPets = getBoostPets();
   const allCrops = scanGardenCrops();
 
@@ -342,28 +364,30 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
     return null;
   }
 
-  // Update boost history based on size changes
   updateBoostHistory(allCrops);
 
-  // Include ALL crops (growing and mature)
   const cropsAtMax = allCrops.filter(c => c.sizeRemaining <= 0);
   const cropsNeedingBoost = allCrops.filter(c => c.sizeRemaining > 0);
 
-  // Calculate aggregate stats
-  const boostPercents = boostPets.map(p => p.effectiveBoostPercent);
-  const averageBoostPercent = boostPercents.reduce((a, b) => a + b, 0) / boostPercents.length;
-  const weakestBoostPercent = Math.min(...boostPercents);
-  const strongestBoostPercent = Math.max(...boostPercents);
+  const amounts = boostPets.map(p => p.effectiveAmount);
+  const averageAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+  const weakestAmount = Math.min(...amounts);
+  const strongestAmount = Math.max(...amounts);
 
   const minutesList = boostPets.map(p => p.expectedMinutesPerProc);
   const averageMinutesPerProc = minutesList.reduce((a, b) => a + b, 0) / minutesList.length;
   const slowestMinutesPerProc = Math.max(...minutesList);
   const fastestMinutesPerProc = Math.min(...minutesList);
 
-  // Use average boost percent for calculations
-  const boostPercentForCalc = averageBoostPercent;
+  // Use the weakest pet's shape for the conservative estimate. Matches the
+  // "only weakest boost is used per proc" changelog rule.
+  const weakestPet = boostPets.reduce((worst, pet) =>
+    pet.effectiveAmount < worst.effectiveAmount ? pet : worst
+  );
+  const conservativeShape: SizeBoostShape = weakestPet.shape.strengthScalesEffect
+    ? { kind: 'scalePercent', percentPerProc: weakestPet.effectiveAmount, strengthScalesEffect: true }
+    : { kind: 'flatSize', amountPerProc: weakestPet.effectiveAmount, strengthScalesEffect: false };
 
-  // Calculate per-crop estimates using Monte Carlo
   const cropEstimates = new Map<string, BoostEstimate>();
   let totalBoostsNeeded = 0;
   const now = Date.now();
@@ -374,15 +398,12 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
     const boostsReceived = history?.boostTimestamps.length ?? 0;
     const lastBoostAt = history?.boostTimestamps[history.boostTimestamps.length - 1] ?? null;
 
-    const boostsNeeded = calculateBoostsNeeded(crop, boostPercentForCalc);
+    const boostsNeeded = calculateBoostsNeeded(crop, conservativeShape);
     const remainingBoosts = Math.max(0, boostsNeeded - boostsReceived);
 
-    // Calculate time estimates for remaining boosts
     const estimates = calculateTimeEstimates(remainingBoosts, boostPets);
-
-    // Calculate expected next boost time
     const singleBoostEstimate = calculateTimeEstimates(1, boostPets);
-    const expectedNextBoostAt = now + (singleBoostEstimate.p50 * 60 * 1000); // Convert to ms
+    const expectedNextBoostAt = now + (singleBoostEstimate.p50 * 60 * 1000);
 
     const estimate: BoostEstimate = {
       boostsNeeded,
@@ -395,12 +416,9 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
     };
 
     cropEstimates.set(key, estimate);
-
-    // For overall: use the crop that needs the most boosts
     totalBoostsNeeded = Math.max(totalBoostsNeeded, boostsNeeded);
   }
 
-  // Overall estimate: time until ALL crops are maxed
   const overallEstimates = calculateTimeEstimates(totalBoostsNeeded, boostPets);
 
   const analysis: TrackerAnalysis = {
@@ -408,13 +426,13 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
     crops: allCrops,
 
     totalBoostPets: boostPets.length,
-    totalMatureCrops: allCrops.length, // All crops now, not just mature
+    totalMatureCrops: allCrops.length,
     totalCropsAtMax: cropsAtMax.length,
     totalCropsNeedingBoost: cropsNeedingBoost.length,
 
-    averageBoostPercent,
-    weakestBoostPercent,
-    strongestBoostPercent,
+    averageAmount,
+    weakestAmount,
+    strongestAmount,
 
     averageMinutesPerProc,
     slowestMinutesPerProc,
@@ -425,7 +443,7 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
       timeEstimateP10: overallEstimates.p10,
       timeEstimateP50: overallEstimates.p50,
       timeEstimateP90: overallEstimates.p90,
-      boostsReceived: 0, // Overall doesn't track boosts
+      boostsReceived: 0,
       lastBoostAt: null,
       expectedNextBoostAt: 0,
     },
@@ -438,30 +456,24 @@ function analyzeBoostTracker(): TrackerAnalysis | null {
   return analysis;
 }
 
-/**
- * Recalculate analysis and notify listeners
- * Throttled to prevent performance issues from frequent updates
- */
-function recalculate(): void {
+function recalculate(force = false): void {
   const now = Date.now();
-
-  // Throttle: Don't recalculate more than once every 5 seconds
-  if (now - lastRecalcTime < RECALC_THROTTLE_MS) {
-    return;
-  }
-
+  if (!force && now - lastRecalcTime < RECALC_THROTTLE_MS) return;
   lastRecalcTime = now;
   currentAnalysis = analyzeBoostTracker();
-
   for (const cb of changeCallbacks) cb(currentAnalysis);
 }
 
 function hasBoostPets(): boolean {
   const pets = getActivePetInfos();
+  if (pets.length === 0) return false;
+  const boostIds = new Set(getAllSizeBoostAbilityIds());
+  if (boostIds.size === 0) return false;
   for (const pet of pets) {
     if (!pet.abilities) continue;
-    if (pet.abilities.includes('ProduceScaleBoost')) return true;
-    if (pet.abilities.includes('ProduceScaleBoostII')) return true;
+    for (const abilityId of pet.abilities) {
+      if (boostIds.has(abilityId)) return true;
+    }
   }
   return false;
 }
@@ -488,6 +500,9 @@ function startTracking(): void {
   if (petsUnsubscribe) return;
 
   diag.debug('crop boost tracker starting');
+  // Nudge bundle-text fallback so a missed capture still resolves without polling.
+  void mergePetAbilitiesIfIncomplete();
+
   lastHadBoostPets = hasBoostPets();
   if (lastHadBoostPets) attachGardenSubscription();
 
@@ -495,30 +510,42 @@ function startTracking(): void {
     const hasNow = hasBoostPets();
     if (hasNow === lastHadBoostPets) return;
     lastHadBoostPets = hasNow;
-    if (hasNow) {
-      attachGardenSubscription();
-    } else {
-      detachGardenSubscription();
-    }
+    if (hasNow) attachGardenSubscription();
+    else detachGardenSubscription();
   }, false);
+
+  // Catalog-capture push (persistent listener): re-check membership (pets may
+  // have arrived before the ability catalog did) and force a recalc past the
+  // 5s throttle.
+  catalogUnsubscribe = onPetAbilitiesCaptured(() => {
+    const hasNow = hasBoostPets();
+    if (hasNow !== lastHadBoostPets) {
+      lastHadBoostPets = hasNow;
+      if (hasNow) attachGardenSubscription();
+      else detachGardenSubscription();
+    }
+    recalculate(true);
+  });
 }
 
 function stopTracking(): void {
   detachGardenSubscription();
-  if (petsUnsubscribe) {
-    petsUnsubscribe();
-    petsUnsubscribe = null;
-  }
-  if (refreshInterval) {
-    clearInterval(refreshInterval);
-    refreshInterval = null;
-  }
+  if (petsUnsubscribe) { petsUnsubscribe(); petsUnsubscribe = null; }
+  if (catalogUnsubscribe) { catalogUnsubscribe(); catalogUnsubscribe = null; }
   lastHadBoostPets = false;
   diag.debug('crop boost tracker stopped');
 }
 
 export function getCurrentAnalysis(): TrackerAnalysis | null {
   return currentAnalysis;
+}
+
+// Catalog readiness gate for the tracker window. Returns false during the
+// brief window between page load and the first petAbilities capture; the
+// window shows a "loading" state so a null analysis is not misread as
+// "no boost pets on team".
+export function isBoostCatalogReady(): boolean {
+  return arePetAbilitiesCaptured();
 }
 
 export function manualRefresh(): void {

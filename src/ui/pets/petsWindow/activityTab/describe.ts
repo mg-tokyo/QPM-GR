@@ -67,6 +67,8 @@ function abilitySentence(e: PetActivityEvent, v: Record<string, EventValue>, d: 
   if (has('bonusXp') && e.targets.some((t) => t.kind === 'pet')) return T('feature.petActivity.tpl.ageBoost', { target: targetPetSeg(e, d), xp: hl(n(v.bonusXp).toLocaleString()) });
   if (e.targets.some((t) => t.kind === 'egg') && !has('secondsReduced')) return T('feature.petActivity.tpl.petRefund', { egg: hl(d.eggName(String(v.eggId))) });
   if (has('secondsReduced', 'eggsAffectedCount')) return T('feature.petActivity.tpl.eggGrowth', { n: hl(plural(d, n(v.eggsAffectedCount), 'feature.petActivity.eggs')), time: hl(d.formatDurationSec(n(v.secondsReduced))) });
+  // v1118 flat `sizeIncrease` → +N Size. Legacy `scaleIncreasePercentage` → N%.
+  if (has('sizeIncrease', 'numPlantsAffected')) return T('feature.petActivity.tpl.scaleBoostFlat', { n: hl(plural(d, n(v.numPlantsAffected), 'feature.petActivity.crops')), amount: hl(`+${n(v.sizeIncrease).toFixed(0)}`) });
   if (has('scaleIncreasePercentage', 'numPlantsAffected')) return T('feature.petActivity.tpl.scaleBoost', { n: hl(plural(d, n(v.numPlantsAffected), 'feature.petActivity.crops')), pct: hl(`${n(v.scaleIncreasePercentage).toFixed(0)}%`) });
   if (has('secondsReduced', 'numPlantsAffected')) return T('feature.petActivity.tpl.plantGrowth', { n: hl(plural(d, n(v.numPlantsAffected), 'feature.petActivity.plants')), time: hl(d.formatDurationSec(n(v.secondsReduced))) });
   if (has('mutation') && crop?.kind === 'growSlot') {

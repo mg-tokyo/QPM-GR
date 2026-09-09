@@ -94,6 +94,25 @@ export function newRequestId(): string {
 }
 
 /**
+ * Client-minted UUID for command payloads that carry an optimistic-inventory
+ * item id on the wire (HarvestCrop.cropItemId, PickupCrystal.itemId,
+ * PotPlant.plantItemId, …). Distinct from newRequestId() — that fallback
+ * emits a `qpm-…` string which fails the server's uuid-shaped schema for
+ * these fields. Live client uses `crypto.randomUUID()` unconditionally
+ * (main-*.js at the HarvestCrop call site); fallback is a v4-shaped string
+ * for non-secure contexts.
+ */
+export function newClientItemId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Build an envelope. `commandSequence` is a placeholder — the sequencer's
  * chokepoint wrapper assigns the real wire number immediately before the
  * native send (see commandSequencer.ts).

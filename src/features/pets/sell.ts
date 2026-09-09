@@ -35,15 +35,15 @@ async function invokeSend(
   return result;
 }
 
-const STORE_TIMEOUT_MS = 4000;
+const PICKUP_TIMEOUT_MS = 4000;
 const RETRIEVE_TIMEOUT_MS = 4000;
 const POLL_INTERVAL_MS = 120;
 const POST_UNFAVORITE_DELAY_MS = 200;
-const POST_STORE_DELAY_MS = 200;
+const POST_PICKUP_DELAY_MS = 200;
 const SELL_DELAY_MS = 40;
 
 /**
- * Wait for a pet to leave the active slots (after StorePet).
+ * Wait for a pet to leave the active slots (after PickupPet).
  */
 async function waitForPetLeavesActive(itemId: string, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
@@ -67,7 +67,7 @@ async function waitForPetLeavesActive(itemId: string, timeoutMs: number): Promis
  *
  * Steps:
  * 1. Fresh atom read → unfavorite/unlock via ToggleLockItem if in favoritedItemIds
- * 2. If active → StorePet → wait leave → RetrieveFromStorage → wait inventory
+ * 2. If active → PickupPet(petId) → wait leave → wait inventory
  * 3. If hutch → RetrieveFromStorage → wait inventory
  * 4. If inventory → ready
  * 5. SellPet (same as sellAllPets.ts: sendRoomAction directly)
@@ -98,30 +98,27 @@ export async function executeSellPipeline(
 
     // Step 2: Move to inventory based on location
     if (location === 'active') {
-      const storeResult = await invokeSend(send, 'StorePet', { itemId }, { throttleMs: 90 });
-      if (!storeResult.ok) {
-        return { ok: false, reason: `StorePet failed: ${storeResult.reason ?? 'unknown'}` };
+      // Wire-shape migration: StorePet is gone; PickupPet(petId) moves an
+      // active pet straight into inventory — no hutch hop needed.
+      const activePet = getActivePetInfos().find((p) => p.slotId === itemId);
+      if (!activePet?.petId) {
+        return { ok: false, reason: 'Missing petId for active pet' };
+      }
+      const pickupResult = await invokeSend(send, 'PickupPet', { petId: activePet.petId }, { throttleMs: 90 });
+      if (!pickupResult.ok) {
+        return { ok: false, reason: `PickupPet failed: ${pickupResult.reason ?? 'unknown'}` };
       }
 
-      const left = await waitForPetLeavesActive(itemId, STORE_TIMEOUT_MS);
+      const left = await waitForPetLeavesActive(itemId, PICKUP_TIMEOUT_MS);
       if (!left) {
         return { ok: false, reason: 'Timed out waiting for pet to leave active slots' };
       }
 
-      await delay(POST_STORE_DELAY_MS);
-
-      // Now in hutch — retrieve to inventory
-      const retrieveResult = await invokeSend(send, 'RetrieveItemFromStorage', {
-        itemId,
-        storageId: 'PetHutch',
-      }, { throttleMs: 0, skipThrottle: true });
-      if (!retrieveResult.ok) {
-        return { ok: false, reason: `RetrieveItemFromStorage failed: ${retrieveResult.reason ?? 'unknown'}` };
-      }
+      await delay(POST_PICKUP_DELAY_MS);
 
       const inInventory = await waitForInventoryContains(itemId, RETRIEVE_TIMEOUT_MS);
       if (!inInventory) {
-        return { ok: false, reason: 'Timed out waiting for pet in inventory after hutch retrieval' };
+        return { ok: false, reason: 'Timed out waiting for pet in inventory after PickupPet' };
       }
     } else if (location === 'hutch') {
       const retrieveResult = await invokeSend(send, 'RetrieveItemFromStorage', {

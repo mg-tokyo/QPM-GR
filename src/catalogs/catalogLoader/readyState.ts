@@ -130,20 +130,31 @@ export function arePetAbilitiesCaptured(): boolean {
   return capturedCatalogs.petAbilities !== null;
 }
 
-// Fires once per capture; safe to call repeatedly. Listeners are one-shot.
+let petAbilitiesInvokeDepth = 0;
+
+function invokePetAbilitiesCallback(cb: () => void, what: string): void {
+  petAbilitiesInvokeDepth++;
+  try { cb(); } catch (e) { diagLog.warn('QPM-CATALOG-004', { what }, e); }
+  finally { petAbilitiesInvokeDepth--; }
+}
+
+// Fires on every capture/upgrade/top-up. Listeners persist across fires;
+// the snapshot means subscriptions made inside a callback join the NEXT fire.
 export function notifyPetAbilitiesCaptured(): void {
-  const listeners = petAbilitiesCallbacks.splice(0, petAbilitiesCallbacks.length);
-  for (const cb of listeners) {
-    try { cb(); } catch (e) { diagLog.warn('QPM-CATALOG-004', { what: 'petAbilities-callback' }, e); }
+  for (const cb of petAbilitiesCallbacks.slice()) {
+    invokePetAbilitiesCallback(cb, 'petAbilities-callback');
   }
 }
 
+// Persistent subscription. Already-captured subscribers also run once
+// immediately — but never from inside another capture callback: the sync
+// immediate path recursing through a re-subscribing callback was the
+// QPM-CATALOG-004 stack overflow (2026-09-09).
 export function onPetAbilitiesCaptured(callback: () => void): () => void {
-  if (capturedCatalogs.petAbilities !== null) {
-    try { callback(); } catch (e) { diagLog.warn('QPM-CATALOG-004', { what: 'petAbilities-immediate-callback' }, e); }
-    return () => {};
-  }
   petAbilitiesCallbacks.push(callback);
+  if (capturedCatalogs.petAbilities !== null && petAbilitiesInvokeDepth === 0) {
+    invokePetAbilitiesCallback(callback, 'petAbilities-immediate-callback');
+  }
   return () => {
     const idx = petAbilitiesCallbacks.indexOf(callback);
     if (idx !== -1) petAbilitiesCallbacks.splice(idx, 1);
@@ -155,10 +166,14 @@ export function onPetAbilitiesCaptured(callback: () => void): () => void {
 export function waitForPetAbilities(timeoutMs = 8000): Promise<boolean> {
   if (capturedCatalogs.petAbilities !== null) return Promise.resolve(true);
   return new Promise((resolve) => {
+    // `let` + optional call: listeners are persistent now, so the callback
+    // must unsubscribe itself — and it can fire synchronously during
+    // registration, before the assignment completes.
+    let unsub: (() => void) | null = null;
     const timer = setTimeout(() => {
-      unsub();
+      unsub?.();
       void import('./fallback').then(m => m.ensurePetAbilitiesCatalog()).then((ok) => resolve(ok));
     }, timeoutMs);
-    const unsub = onPetAbilitiesCaptured(() => { clearTimeout(timer); resolve(true); });
+    unsub = onPetAbilitiesCaptured(() => { unsub?.(); clearTimeout(timer); resolve(true); });
   });
 }

@@ -9,6 +9,7 @@ import {
   type AbilityDefinition,
   type CatalogParameterMetadata,
 } from './definitions';
+import { FLAT_SIZE_KEYS, PERCENT_SIZE_KEYS } from './sizeBoost';
 
 const abilityLookup = new Map<string, AbilityDefinition>();
 
@@ -194,6 +195,9 @@ const SPECIFIC_RULES: readonly SpecificRule[] = [
   { match: /^bonusXp$/,                     category: 'xp',          effectUnit: 'xp',      effectLabel: 'Bonus XP',              effectSuffix: '' },
   { match: /^baseMaxCoinsFindable$/,        category: 'coins',       effectUnit: 'coins',   effectLabel: 'Coin range',            effectSuffix: '' },
   { match: /^scaleIncreasePercentage$/,     category: 'misc',        effectUnit: 'coins',   effectLabel: 'Scale increase',        effectSuffix: '%' },
+  // v1118 flat-Size shape: {sizeIncrease: N}. Bare integer, no unit suffix — the game renders
+  // it as "+N Size" via its own Size icon.
+  { match: /^sizeIncrease$/,                category: 'misc',                              effectLabel: 'Size increase',         effectSuffix: '' },
   { match: /^mutationChanceIncreasePercentage$/, category: 'misc',   effectLabel: 'Chance increase',       effectSuffix: '%', coinUnitWhenContinuous: true },
   { match: /^cropSellPriceIncreasePercentage$/,  effectLabel: 'Sell price bonus', effectSuffix: '%', coinUnitWhenContinuous: true, coinsCategoryWhenContinuous: true },
   { match: /^hungerRestorePercentage$/,     category: 'misc',        effectLabel: 'Hunger restore',        effectSuffix: '%' },
@@ -271,12 +275,24 @@ export function resolveCatalogParameterMetadata(
     if (!category) category = trigger === 'hatchEgg' ? 'eggGrowth' : 'misc';
     if (!effectLabel) effectLabel = deriveLabelFromKey(key);
 
+    let effectMode: CatalogParameterMetadata['effectMode'];
+    let strengthScalesEffect: CatalogParameterMetadata['strengthScalesEffect'];
+    if (FLAT_SIZE_KEYS.has(key)) {
+      effectMode = 'flatSize';
+      strengthScalesEffect = false;
+    } else if (PERCENT_SIZE_KEYS.has(key)) {
+      effectMode = 'scalePercent';
+      strengthScalesEffect = true;
+    }
+
     return {
       category,
       effectBaseValue: value,
       ...(effectUnit ? { effectUnit } : {}),
       ...(effectSuffix != null ? { effectSuffix } : {}),
       ...(effectLabel ? { effectLabel } : {}),
+      ...(effectMode ? { effectMode } : {}),
+      ...(strengthScalesEffect !== undefined ? { strengthScalesEffect } : {}),
     };
   }
 
@@ -344,6 +360,8 @@ function buildDefinitionFromCatalog(abilityId: string, raw: string): AbilityDefi
     ...(parameterMetadata.effectLabel ? { effectLabel: parameterMetadata.effectLabel } : {}),
     ...(parameterMetadata.effectBaseValue != null ? { effectBaseValue: parameterMetadata.effectBaseValue } : {}),
     ...(parameterMetadata.effectSuffix != null ? { effectSuffix: parameterMetadata.effectSuffix } : {}),
+    ...(parameterMetadata.effectMode ? { effectMode: parameterMetadata.effectMode } : {}),
+    ...(parameterMetadata.strengthScalesEffect !== undefined ? { strengthScalesEffect: parameterMetadata.strengthScalesEffect } : {}),
     ...(requiredWeather ? { requiredWeather } : {}),
   };
 

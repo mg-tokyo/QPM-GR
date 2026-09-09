@@ -2,6 +2,19 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.45",
+    date: "2026-09-09",
+    notes: [
+      "Fixed harvesting through QPM being rejected by the game after the latest game update, Insta-Harvest and other harvest actions work again",
+      "Fixed selling an active pet: the game removed the store-to-hutch step QPM relied on, pets are now picked up straight to inventory before selling",
+      "Updated Crop Size Boost support for the game's new flat size format: the tracker, Pet Optimizer and activity log now read boost values live from game data, show them as +N Size per proc, and pick up future game rebalances automatically",
+      "Fixed crop size percent readings after the game update for the locker guard and size displays, with a fallback for older data",
+      "Fixed the repeating 'catalogs degraded' warning at startup (QPM-CATALOG-004 stack overflow errors on Chrome and Firefox), catalog subscriptions no longer re-trigger themselves",
+      "Improved game state capture on Firefox: QPM can now capture the store through a read-only channel when no write is seen, so fewer sessions fall back to the degraded polyfill",
+      "Improved diagnostics: recorded errors now include where they were thrown, and the Crop Size Boost Tracker shows a loading state while pet abilities are still being captured",
+    ],
+  },
+  {
     version: "3.3.44",
     date: "2026-09-09",
     notes: [

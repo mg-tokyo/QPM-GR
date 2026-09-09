@@ -17,7 +17,7 @@ export const cropBoostTour: TourDefinition = {
       id: 'pets',
       selector: '[data-tour="cropboost-pets"]',
       title: 'Your active boost pets',
-      body: 'Lists every pet with a crop size ability, their boost percentage, and how often it procs.',
+      body: 'Lists every pet with a crop size ability, their per-proc boost amount, and how often it procs.',
       placement: 'bottom',
     },
     {

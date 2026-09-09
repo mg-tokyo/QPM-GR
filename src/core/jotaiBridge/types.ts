@@ -25,7 +25,7 @@ export interface ReactiveHook {
   readonly subscribe: (atom: unknown, opts: import('../reactive/types').ReactiveSubscribeOptions) => () => void;
 }
 
-export type CaptureMode = 'aries' | 'shared' | 'fiber' | 'write' | 'cache-read' | 'none';
+export type CaptureMode = 'aries' | 'shared' | 'fiber' | 'write' | 'read' | 'cache-read' | 'none';
 
 export type AtomCacheLike = {
   get: (key: unknown) => unknown;

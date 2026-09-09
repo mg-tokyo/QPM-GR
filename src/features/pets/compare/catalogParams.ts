@@ -1,4 +1,6 @@
 import { getAbilityDef } from '../../../catalogs/gameCatalogs';
+import { classifySizeBoostAbility } from '../data/petAbilities/sizeBoost';
+import { getAbilityDefinition } from '../data/petAbilities/catalogAdapter';
 
 function toFinitePositiveNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
@@ -19,12 +21,16 @@ export function resolveCatalogFamilyKey(abilityId: string): string | null {
     return null;
   }
 
+  // Size-boost family is role-based, not param-name-based: any shape the
+  // classifier recognises (v1118 flat sizeIncrease OR legacy percent) is the
+  // same family for compare/scoring purposes.
+  if (classifySizeBoostAbility(abilityId) != null) return 'producescaleboost';
+
   const params = catalogEntry.baseParameters as Record<string, unknown>;
   if (toFinitePositiveNumber(params['plantGrowthReductionMinutes']) != null) return 'plantgrowthboost';
   if (toFinitePositiveNumber(params['eggGrowthTimeReductionMinutes']) != null) return 'egggrowthboost';
   if (toFinitePositiveNumber(params['hungerRestorePercentage']) != null) return 'hungerrestore';
   if (toFinitePositiveNumber(params['hungerRefundPercentage']) != null) return 'hungerboost';
-  if (toFinitePositiveNumber(params['scaleIncreasePercentage']) != null) return 'producescaleboost';
   if (toFinitePositiveNumber(params['baseMaxCoinsFindable']) != null) return 'coinfinder';
   if (toFinitePositiveNumber(params['bonusXp']) != null) {
     return catalogEntry.trigger === 'hatchEgg' ? 'petageboost' : 'petxpboost';
@@ -52,6 +58,9 @@ export function resolveCatalogScaledParameterValue(
 
   const params = catalogEntry.baseParameters as Record<string, unknown>;
   const strengthScaleFactor = getStrengthScaleFactor(strength);
+  // Definition's strengthScalesEffect gates STR multiplication; false = raw
+  // (v1118 sizeIncrease), undefined = STR-scaled (existing behavior).
+  const scalesWithStrength = getAbilityDefinition(abilityId)?.strengthScalesEffect !== false;
 
   const orderedKeys = [
     'mutationChanceIncreasePercentage',
@@ -60,6 +69,7 @@ export function resolveCatalogScaledParameterValue(
     'hungerRestorePercentage',
     'plantGrowthReductionMinutes',
     'eggGrowthTimeReductionMinutes',
+    'sizeIncrease',
     'scaleIncreasePercentage',
     'baseMaxCoinsFindable',
     'bonusXp',
@@ -71,7 +81,7 @@ export function resolveCatalogScaledParameterValue(
     const raw = toFinitePositiveNumber(params[key]);
     if (raw == null) continue;
     return {
-      value: raw * strengthScaleFactor,
+      value: scalesWithStrength ? raw * strengthScaleFactor : raw,
       sourceKey: key,
     };
   }

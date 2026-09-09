@@ -10,3 +10,11 @@ export {
   isLowValueAbility,
   getSpecialAbilityScore,
 } from './classification';
+export type { SizeBoostShape } from './sizeBoost';
+export {
+  FLAT_SIZE_KEYS,
+  PERCENT_SIZE_KEYS,
+  classifySizeBoostAbility,
+  isSizeBoostAbility,
+  getAllSizeBoostAbilityIds,
+} from './sizeBoost';

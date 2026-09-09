@@ -34,6 +34,7 @@ import {
 } from './validation';
 
 export { sendSetPlayerData, type CosmeticColor, type SetPlayerDataPayload } from './playerData';
+export { newClientItemId } from './envelope';
 export type { QuinoaCommandResultMessage } from './envelope';
 
 const log = createNamedLogger('websocket');
@@ -42,7 +43,6 @@ export type RoomActionType =
   | 'ToggleLockItem'
   | 'ToggleFavoriteItem'
   | 'FeedPet'
-  | 'StorePet'
   | 'PickupPet'
   | 'PlacePet'
   | 'SellPet'
@@ -73,7 +73,10 @@ export type RoomActionType =
   // Keep the SetRiddenPet member as the final entry of this union — the
   // QPM FULL PRIVATE overlay's apply-transforms.js anchors ws:extend-union
   // to that literal line and inserts automation-only types after it. Add
-  // new base members ABOVE this comment, not below.
+  // new base members ABOVE this comment, not below. Note: QPM stopped
+  // sending SetRiddenPet at v1040 (see store/mountState.ts); RidePet /
+  // DismountPet are the whole native flow. The type is retained purely
+  // as the overlay anchor — the wire schema no longer accepts it.
   | 'SetRiddenPet';
 
 export type WebSocketSendFailureReason =
@@ -215,7 +218,6 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       const p = payload as PickupPetPayload;
       return isNonEmptyString(p.petId);
     }
-    case 'StorePet':
     case 'SellPet':
       return isNonEmptyString(payload.itemId);
     case 'PlacePet': {
@@ -283,8 +285,13 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       return payload.petId === null || isNonEmptyString(payload.petId);
     case 'HarvestCrop':
       // `slot` is the dirt-tile index; `slotsIndex` is the grow-slot id within
-      // that tile. Both required and finite.
-      return isFiniteNumber(payload.slot) && isFiniteNumber(payload.slotsIndex);
+      // that tile. `cropItemId` is a client-minted UUID for the optimistic
+      // inventory item — verified in live main-*.js: the game calls
+      // `crypto.randomUUID()` at the call site and the wire schema requires it.
+      // Missing → server rejects with `invalid_message`.
+      return isFiniteNumber(payload.slot)
+        && isFiniteNumber(payload.slotsIndex)
+        && isNonEmptyString(payload.cropItemId);
     case 'RemoveGardenObject':
       // `slot` is the local tile index; `slotType` is the tile type string.
       return isFiniteNumber(payload.slot) && isNonEmptyString(payload.slotType);
@@ -340,7 +347,6 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
   switch (type) {
     case 'ToggleLockItem':
     case 'ToggleFavoriteItem':
-    case 'StorePet':
     case 'SellPet':
     case 'RetrieveItemFromStorage':
     case 'PutItemInStorage':

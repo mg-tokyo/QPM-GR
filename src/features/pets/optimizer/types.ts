@@ -7,7 +7,7 @@ export type OptimizerCompareFilter = CompareAbilityGroup | 'all';
 
 export interface CollectedPet {
   id: string;
-  /** Item UUID used for WS actions (StorePet, SellPet, etc.). For active pets this is slotId, not petId. */
+  /** Item UUID used for WS actions (SellPet, PutItemInStorage, etc.). For active pets this is slotId, not petId. */
   itemId: string;
   name: string | null;
   species: string | null;

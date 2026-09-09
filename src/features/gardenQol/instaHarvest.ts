@@ -10,7 +10,7 @@ import { createNamedLogger } from '../../diagnostics/logger';
 import { buildError } from '../../diagnostics/result';
 import type { Subsystem } from '../../diagnostics/types';
 import { pageWindow } from '../../core/pageContext';
-import { sendRoomAction } from '../../websocket/api';
+import { newClientItemId, sendRoomAction } from '../../websocket/api';
 import { getGardenSnapshot } from '../garden/bridge';
 import { isRecord } from '../../utils/typeGuards';
 import { isHarvestAction } from './actionShape';
@@ -119,9 +119,10 @@ function onKeyDownCapture(event: KeyboardEvent): void {
   event.stopImmediatePropagation();
   event.preventDefault();
 
+  const cropItemId = newClientItemId();
   const result = sendRoomAction(
     'HarvestCrop',
-    { slot: dirtTileIndex, slotsIndex: slotId },
+    { slot: dirtTileIndex, slotsIndex: slotId, cropItemId },
     { skipThrottle: true },
   );
   if (!result.ok) {

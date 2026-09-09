@@ -5,7 +5,7 @@ import { getGardenSnapshot } from '../garden/bridge';
 import { getSellAllPetsSettings } from '../pets/sellAll';
 import { getPetMetadata } from '../pets/data/petMetadata';
 import { calculateMaxStrength } from '../../store/xpTracker';
-import { getCropMaxScaleSafe } from '../../utils/game/catalogHelpers';
+import { getCropSizePercent } from '../../utils/game/plantScales';
 import { getLockerConfig } from './state';
 import { evaluateAction, type InventorySnapshot, type TileContext } from './rules';
 import { isRecord } from '../../utils/typeGuards';
@@ -184,14 +184,12 @@ function resolveTileContext(slot: unknown, slotsIndex?: unknown): TileContext | 
       }
       mutations = extractSlotMutations(targetSlot);
 
-      // Size percent: convert targetScale → 50–100% using the slot species' maxScale
-      const scale = typeof targetSlot.targetScale === 'number' ? targetSlot.targetScale : null;
-      if (species && scale !== null && Number.isFinite(scale)) {
-        const maxScale = getCropMaxScaleSafe(species);
-        if (maxScale !== null && maxScale > 1) {
-          const clamped = Math.max(1, Math.min(maxScale, scale));
-          sizePercent = Math.max(50, Math.min(100, Math.round(50 + ((clamped - 1) / (maxScale - 1)) * 50)));
-        }
+      // v1118 slots carry `size` (50–100) directly; getCropSizePercent falls back
+      // to the legacy targetScale/maxScale ratio for pre-v1118 captures.
+      const slotForSize = species ? { ...targetSlot, species } : targetSlot;
+      const rawPercent = getCropSizePercent(slotForSize);
+      if (Number.isFinite(rawPercent)) {
+        sizePercent = Math.max(50, Math.min(100, Math.round(rawPercent)));
       }
     }
   }

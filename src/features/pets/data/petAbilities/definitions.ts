@@ -17,11 +17,16 @@ export interface AbilityDefinition {
   effectBaseValue?: number;  // e.g., 10 for "10% × STR"
   effectSuffix?: string;     // e.g., "%", "m", "" for ranges
   requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm';
+  // Present only for crop-size boosts. 'flatSize' = adds N Size points (v1118).
+  // 'scalePercent' = legacy pre-v1118 shape.
+  effectMode?: 'flatSize' | 'scalePercent';
+  // Whether pet strength multiplies the effect value (chance is separate).
+  strengthScalesEffect?: boolean;
 }
 
 export type CatalogParameterMetadata = Pick<
   AbilityDefinition,
-  'category' | 'effectUnit' | 'effectLabel' | 'effectBaseValue' | 'effectSuffix'
+  'category' | 'effectUnit' | 'effectLabel' | 'effectBaseValue' | 'effectSuffix' | 'effectMode' | 'strengthScalesEffect'
 >;
 
 export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
@@ -31,13 +36,7 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     aliases: ['Crop Size Boost 1'],
     category: 'misc',
     trigger: 'continuous',
-    baseProbability: 0.30,
     rollPeriodMinutes: 1,
-    effectUnit: 'coins',
-    effectLabel: 'Scale increase',
-    effectBaseValue: 6.0,
-    effectSuffix: '%',
-    notes: 'Chance: 0.30% × STR. Effect: 6% size increase × STR, capped at max scale.',
   },
   {
     id: 'ProduceScaleBoostII',
@@ -45,13 +44,23 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     aliases: ['Crop Size Boost 2'],
     category: 'misc',
     trigger: 'continuous',
-    baseProbability: 0.4,
     rollPeriodMinutes: 1,
-    effectUnit: 'coins',
-    effectLabel: 'Scale increase',
-    effectBaseValue: 10,
-    effectSuffix: '%',
-    notes: 'Chance: 0.40% × STR. Effect: 10% size increase × STR, capped at max scale.',
+  },
+  {
+    id: 'ProduceScaleBoostIII',
+    name: 'Crop Size Boost III',
+    aliases: ['Crop Size Boost 3'],
+    category: 'misc',
+    trigger: 'continuous',
+    rollPeriodMinutes: 1,
+  },
+  {
+    id: 'SnowyCropSizeBoost',
+    name: 'Snow Crop Size Boost',
+    category: 'misc',
+    trigger: 'continuous',
+    rollPeriodMinutes: 1,
+    requiredWeather: 'snow',
   },
   {
     id: 'DoubleHarvest',

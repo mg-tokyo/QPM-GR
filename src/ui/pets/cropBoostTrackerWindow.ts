@@ -13,7 +13,9 @@ import {
   formatTimeEstimate,
   formatTimeRange,
   getAvailableSpecies,
+  isBoostCatalogReady,
 } from '../../features/pets/cropBoostTracker';
+import type { SizeBoostShape } from '../../features/pets/data/petAbilities/sizeBoost';
 import { getCropSpriteCanvas, getCropSpriteWithMutations } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { createButton, createEmptyState } from '../components';
@@ -28,6 +30,16 @@ function capitalize(str: string): string {
 
 function formatNumber(num: number): string {
   return num.toFixed(1);
+}
+
+function formatPerProc(shape: SizeBoostShape, amount: number): string {
+  if (shape.kind === 'flatSize') {
+    return t('feature.cropBoost.perProcFlat', {
+      n: formatNumber(amount),
+      unit: t('feature.cropBoost.unitSize'),
+    });
+  }
+  return t('feature.cropBoost.perProcPercent', { n: formatNumber(amount) });
 }
 
 function isWindowBodyVisible(root: HTMLElement | null): boolean {
@@ -65,7 +77,10 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
   const config = getConfig();
 
   if (!analysis) {
-    const empty = createEmptyState(`${t('feature.cropBoost.emptyTitle')} — ${t('feature.cropBoost.emptyHint')}`);
+    const message = !isBoostCatalogReady()
+      ? t('feature.cropBoost.loadingCatalog')
+      : `${t('feature.cropBoost.emptyTitle')} — ${t('feature.cropBoost.emptyHint')}`;
+    const empty = createEmptyState(message);
     root.appendChild(empty);
     return;
   }
@@ -95,7 +110,7 @@ function renderCropBoostSection(root: HTMLElement, options?: { preserveScroll?: 
     nameStrong.textContent = pet.displayName;
     const boostSpan = document.createElement('span');
     boostSpan.style.cssText = 'color: var(--qpm-positive); font-weight: 600;';
-    boostSpan.textContent = ` (+${formatNumber(pet.effectiveBoostPercent)}% ${t('feature.cropBoost.perProc')})`;
+    boostSpan.textContent = ` (${formatPerProc(pet.shape, pet.effectiveAmount)})`;
     petRow.append(`• `, nameStrong, `: ${pet.abilityName} `, boostSpan);
     petsList.appendChild(petRow);
   });

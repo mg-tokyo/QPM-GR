@@ -13,6 +13,7 @@ import { isRecord } from '../../utils/typeGuards';
 import { getAbilityDef } from '../../catalogs/gameCatalogs';
 import { getWeatherSnapshot } from '../../store/weatherHub';
 import { getAbilityDefinition } from './data/petAbilities';
+import { classifySizeBoostAbility, type SizeBoostShape } from './data/petAbilities/sizeBoost';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
 const MIN_SCALE = 1;
 const MIN_PERCENT = 50;
@@ -159,6 +160,10 @@ function resolveCatalogScaledParameter(
 
   const rawValue = toFiniteNumber(catalogEntry.baseParameters[parameterKey]);
   if (rawValue == null) return null;
+  // v1118 flat-size params opt out of STR scaling via the catalog adapter's
+  // strengthScalesEffect flag. Undefined preserves current STR-scaled behavior.
+  const definition = getAbilityDefinition(abilityId);
+  if (definition?.strengthScalesEffect === false) return rawValue;
   return rawValue * getStrengthScaleFactor(strength);
 }
 
@@ -293,8 +298,25 @@ function extractMatureCrops(snapshot: GardenSnapshot | null): MatureCrop[] {
   const endTime = typeof endTimeRaw === 'number' ? endTimeRaw : Number(endTimeRaw);
   const isMature = Number.isFinite(endTime) ? endTime <= now : false;
 
-        const scaleRaw = slot.targetScale ?? slot.scale ?? slot.plantScale;
-        const scale = typeof scaleRaw === 'number' && Number.isFinite(scaleRaw) ? Math.max(MIN_SCALE, scaleRaw) : MIN_SCALE;
+        // v1118 slots carry only `slot.size` (50-100). Reconstruct scale via the
+        // species' catalog maxScale so `calculatePlantValue` still sees the real
+        // grown-scale value; legacy captures with targetScale keep working.
+        const legacyScaleRaw = slot.targetScale ?? slot.scale ?? slot.plantScale;
+        const hasLegacyScale = typeof legacyScaleRaw === 'number' && Number.isFinite(legacyScaleRaw);
+        const flatSize = typeof slot.size === 'number' && Number.isFinite(slot.size) ? slot.size : null;
+        let scale: number;
+        if (hasLegacyScale) {
+          scale = Math.max(MIN_SCALE, legacyScaleRaw as number);
+        } else if (flatSize != null) {
+          const normalized = normalizeSpeciesKey(species);
+          const catalogMax = normalized ? lookupMaxScale(normalized) : null;
+          const speciesMax = catalogMax != null && Number.isFinite(catalogMax) && catalogMax > MIN_SCALE
+            ? catalogMax
+            : FALLBACK_MAX_SCALE;
+          scale = convertPercentToScale(flatSize, speciesMax);
+        } else {
+          scale = MIN_SCALE;
+        }
 
         const mutationsRaw = Array.isArray(slot.mutations) ? slot.mutations : [];
         const mutations: string[] = mutationsRaw
@@ -307,7 +329,14 @@ function extractMatureCrops(snapshot: GardenSnapshot | null): MatureCrop[] {
         const breakdown = computeMutationMultiplier(mutations);
         const hasColor = breakdown.color?.definition?.name === 'Gold' || breakdown.color?.definition?.name === 'Rainbow';
 
-        const { maxScale, sizePercent } = resolveSizeMetadata(scale, species, slot);
+        // v1118 flat-size takes precedence when present; `resolveSizeMetadata`
+        // still resolves maxScale for the returned crop, and its own sizePercent
+        // fallback is overridden below.
+        const meta = resolveSizeMetadata(scale, species, slot);
+        const maxScale = meta.maxScale;
+        const sizePercent = flatSize != null
+          ? Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, flatSize))
+          : meta.sizePercent;
         const fruitCount = resolveFruitCount(slot, allowMultiHarvest);
 
         mature.push({
@@ -351,19 +380,18 @@ export function buildAbilityValuationContext(snapshot: GardenSnapshot | null = g
   };
 }
 
+// Shape-aware. Flat shape adds N Size points; percent shape (legacy) applies
+// percentPerProc × STR/100 as percentage points on the 50-100 axis. Both feed
+// the same value-per-scale delta calc.
 function resolveCropScaleEffect(
   context: AbilityValuationContext,
   strength: number | null | undefined,
-  basePercent: number | null,
-  abilityId?: string,
+  shape: SizeBoostShape,
 ): DynamicAbilityEffect | null {
-  const effectPercent = basePercent != null
-    ? (basePercent * getStrengthScaleFactor(strength))
-    : (abilityId ? resolveCatalogScaledParameter(abilityId, 'scaleIncreasePercentage', strength) : null);
-  if (effectPercent == null) {
-    return null;
-  }
-  if (!context.crops.length || effectPercent <= 0) {
+  const effectSizePoints = shape.kind === 'flatSize'
+    ? shape.amountPerProc
+    : shape.percentPerProc * getStrengthScaleFactor(strength);
+  if (!context.crops.length || effectSizePoints <= 0) {
     return null;
   }
 
@@ -373,42 +401,32 @@ function resolveCropScaleEffect(
   }
 
   let weightedDelta = 0;
-  let weightedPercentApplied = 0;
+  let weightedApplied = 0;
   let totalWeight = 0;
 
   for (const crop of eligible) {
     const weight = Math.max(1, Math.floor(crop.fruitCount));
     const remainingPercent = Math.max(0, MAX_PERCENT - crop.sizePercent);
-    if (remainingPercent <= 0) {
-      continue;
-    }
+    if (remainingPercent <= 0) continue;
 
-    const appliedPercent = Math.min(effectPercent, remainingPercent);
-    if (appliedPercent <= 0) {
-      continue;
-    }
+    const applied = Math.min(effectSizePoints, remainingPercent);
+    if (applied <= 0) continue;
 
-    const targetPercent = crop.sizePercent + appliedPercent;
+    const targetPercent = crop.sizePercent + applied;
     const newScale = convertPercentToScale(targetPercent, crop.maxScale);
     const currentScale = crop.scale > 0 ? crop.scale : MIN_SCALE;
     const scaleDelta = Math.max(0, newScale - currentScale);
-    if (scaleDelta <= 0) {
-      continue;
-    }
+    if (scaleDelta <= 0) continue;
 
     const valuePerScale = currentScale > 0 ? crop.currentValue / currentScale : 0;
-    if (!Number.isFinite(valuePerScale) || valuePerScale <= 0) {
-      continue;
-    }
+    if (!Number.isFinite(valuePerScale) || valuePerScale <= 0) continue;
 
     const deltaValue = valuePerScale * scaleDelta;
-    if (!Number.isFinite(deltaValue) || deltaValue <= 0) {
-      continue;
-    }
+    if (!Number.isFinite(deltaValue) || deltaValue <= 0) continue;
 
     totalWeight += weight;
     weightedDelta += deltaValue * weight;
-    weightedPercentApplied += appliedPercent * weight;
+    weightedApplied += applied * weight;
   }
 
   if (weightedDelta <= 0 || totalWeight === 0) {
@@ -416,9 +434,10 @@ function resolveCropScaleEffect(
   }
 
   const expectedDelta = weightedDelta / totalWeight;
-  const averageGain = weightedPercentApplied / totalWeight;
+  const averageApplied = weightedApplied / totalWeight;
   const impactedFruits = totalWeight;
-  const detail = `Boosts ${impactedFruits} mature fruit${impactedFruits === 1 ? '' : 's'} by ~${averageGain.toFixed(2)}% size (friend bonus applied, weighted by fruit count).`;
+  const unit = shape.kind === 'flatSize' ? 'Size' : '% size';
+  const detail = `Boosts ${impactedFruits} mature fruit${impactedFruits === 1 ? '' : 's'} by ~${averageApplied.toFixed(2)} ${unit} (friend bonus applied, weighted by fruit count).`;
 
   return {
     effectPerProc: expectedDelta,
@@ -542,8 +561,9 @@ function resolveCatalogBackedDynamicEffect(
     };
   }
 
-  if (toFiniteNumber(baseParameters['scaleIncreasePercentage']) != null) {
-    return resolveCropScaleEffect(context, strength, null, abilityId);
+  const sizeBoostShape = classifySizeBoostAbility(abilityId);
+  if (sizeBoostShape) {
+    return resolveCropScaleEffect(context, strength, sizeBoostShape);
   }
 
   if (toFiniteNumber(baseParameters['mutationChanceIncreasePercentage']) != null) {
@@ -564,10 +584,6 @@ export function resolveDynamicAbilityEffect(
   }
 
   switch (abilityId) {
-    case 'ProduceScaleBoost':
-      return resolveCropScaleEffect(context, strength, 6);
-    case 'ProduceScaleBoostII':
-      return resolveCropScaleEffect(context, strength, 10);
     case 'GoldGranter':
       return resolveColorGranterEffect(context, 'Gold');
     case 'RainbowGranter':

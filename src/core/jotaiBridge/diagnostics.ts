@@ -24,6 +24,7 @@ const MODE_TO_STATUS: Record<CaptureMode, SubsystemHealth['status']> = {
   shared: 'ok',
   fiber: 'ok',
   write: 'ok',
+  read: 'ok',
   'cache-read': 'degraded',
   none: 'failed',
 };
@@ -33,6 +34,7 @@ const MODE_TO_MESSAGE: Record<CaptureMode, string> = {
   shared: 'Captured via shared global store',
   fiber: 'Captured via React fiber walk',
   write: 'Captured via write-once patch',
+  read: 'Captured via atom.read patch (read-only)',
   'cache-read': 'Read-only cache-read fallback (polyfill)',
   none: 'No store available — polyfill that throws',
 };

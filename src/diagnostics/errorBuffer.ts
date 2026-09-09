@@ -49,7 +49,16 @@ function safeStringifyContext(context: Record<string, unknown> | undefined): str
 function describeCause(cause: unknown): string | undefined {
   if (cause == null) return undefined;
   if (cause instanceof Error) {
-    return cause.stack ? `${cause.name}: ${cause.message}` : `${cause.name}: ${cause.message}`;
+    const head = `${cause.name}: ${cause.message}`;
+    if (!cause.stack) return head;
+    // Two top frames localise the throw without bloating the 200-entry buffer.
+    // Chrome stacks lead with "Name: message"; Firefox stacks are frames only.
+    const frames = cause.stack
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !head.startsWith(line))
+      .slice(0, 2);
+    return frames.length > 0 ? `${head} | ${frames.join(' | ')}` : head;
   }
   try {
     return JSON.stringify(cause);

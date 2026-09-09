@@ -17,7 +17,7 @@ import {
   setOptimizerConfig,
 } from '../../features/pets/optimizer';
 import type { OptimizerConfig } from '../../features/pets/optimizer';
-import { getAbilityCatalogDrift } from '../../features/pets/data/petAbilities/drift';
+import { getAbilityCatalogDrift, getCropSizeBoostDrift } from '../../features/pets/data/petAbilities/drift';
 import { isHighValueAbility, isLowValueAbility } from '../../features/pets/data/petAbilities';
 import { getAllAbilities, waitForPetAbilities } from '../../catalogs/gameCatalogs';
 import { testPetData, testComparePets, testAbilityDefinitions } from '../../utils/petDataTester';
@@ -44,6 +44,7 @@ export const coreDebugApi = {
   optimizerExplain: (petIdOrName: string, mode?: 'specialist' | 'slot_efficiency') =>
     getOptimizerDebugExplain(petIdOrName, mode),
   abilityCatalogDrift: () => getAbilityCatalogDrift(),
+  cropSizeBoostDrift: () => getCropSizeBoostDrift(),
   abilityClassification: () => {
     const ids = getAllAbilities();
     return {

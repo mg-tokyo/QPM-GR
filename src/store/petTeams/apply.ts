@@ -177,13 +177,6 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
       skipThrottle ? { skipThrottle: true } : { throttleMs: 100 },
     );
 
-  const sendStorePetDirect = (itemId: string, skipThrottle = false) =>
-    sendRoomAction(
-      'StorePet',
-      { itemId },
-      skipThrottle ? { skipThrottle: true } : { throttleMs: 100 },
-    );
-
   const sendPutItemInStorage = (itemId: string, toStorageIndex: number | null, skipThrottle = false) => {
     const payload: Record<string, unknown> = {
       itemId,
@@ -605,37 +598,32 @@ async function applyTeamBody(teamId: string): Promise<ApplyTeamResult> {
     const leftovers = activePetsNow.filter((p) => p.slotId && !validTargetSet.has(p.slotId));
     for (const extra of leftovers) {
       const extraSlotId = extra.slotId!;
-      // Primary: StorePet sends active → hutch directly (no inventory impact)
-      const storeResult = sendStorePetDirect(extraSlotId, false);
-      if (storeResult.ok) {
-        const removed = await waitForPetNotActive(extraSlotId, STORE_TIMEOUT_MS);
-        if (!removed) {
-          pushError('store_failed_or_timeout', 'StorePet timed out: ' + extraSlotId);
-          continue;
-        }
-      } else {
-        // Fallback: if StorePet fails (hutch full?), try PickupPet if inventory has room
-        const inv = await readInventorySnapshot();
-        if (inv.totalCount < INVENTORY_MAX && extra.petId) {
-          const pickup = sendPickupPet(extra.petId, false);
-          if (!pickup.ok) {
-            pushError(
-              mapSendReason(pickup.reason, 'hutch_store_failed_or_full'),
-              'PickupPet failed: ' + extraSlotId + ' (' + String(pickup.reason ?? 'unknown') + ')',
-            );
-            continue;
-          }
-          const picked = await waitForPetNotActive(extraSlotId, STORE_TIMEOUT_MS);
-          if (!picked) {
-            pushError('store_failed_or_timeout', 'PickupPet timed out: ' + extraSlotId);
-            continue;
-          }
-          await putInventoryPetInHutchWithConfirm(extraSlotId, true);
-        } else {
-          pushError('hutch_store_failed_or_full', 'StorePet failed and inventory full: ' + extraSlotId);
-          continue;
-        }
+      // StorePet is gone from the live schema (verified in main-*.js); the
+      // wire path is now PickupPet(petId) → PutItemInStorage(slotId).
+      if (!extra.petId) {
+        pushError('hutch_store_failed_or_full', 'Missing petId for active pet: ' + extraSlotId);
+        continue;
       }
+      const inv = await readInventorySnapshot();
+      if (inv.totalCount >= INVENTORY_MAX) {
+        pushError('hutch_store_failed_or_full', 'Inventory full — cannot pick up active pet: ' + extraSlotId);
+        continue;
+      }
+      const pickup = sendPickupPet(extra.petId, false);
+      if (!pickup.ok) {
+        pushError(
+          mapSendReason(pickup.reason, 'hutch_store_failed_or_full'),
+          'PickupPet failed: ' + extraSlotId + ' (' + String(pickup.reason ?? 'unknown') + ')',
+        );
+        continue;
+      }
+      const picked = await waitForPetNotActive(extraSlotId, STORE_TIMEOUT_MS);
+      if (!picked) {
+        pushError('store_failed_or_timeout', 'PickupPet timed out: ' + extraSlotId);
+        continue;
+      }
+      const stored = await putInventoryPetInHutchWithConfirm(extraSlotId, true);
+      if (!stored) continue;
       applied++;
       await delay(APPLY_STEP_DELAY_MS);
     }

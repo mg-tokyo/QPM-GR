@@ -7,17 +7,12 @@ import { getActivePetInfos } from '../../store/pets';
 import { isRecord } from '../../utils/typeGuards';
 import { getMyUserSlotIdx } from '../../core/playerContext';
 
-function sendAction(type: 'StorePet' | 'PlacePet' | 'ToggleFavoriteItem' | 'ToggleLockItem' | 'SellPet', payload: Record<string, unknown>): WebSocketSendResult {
+function sendAction(type: 'PlacePet' | 'ToggleFavoriteItem' | 'ToggleLockItem' | 'SellPet', payload: Record<string, unknown>): WebSocketSendResult {
   const sent = sendRoomAction(type, payload, { throttleMs: 90 });
   if (!sent.ok && sent.reason !== 'throttled') {
     warnFeature('QPM-FEATURE-001', { type, reason: sent.reason ?? 'unknown' });
   }
   return sent;
-}
-
-/** Send an active pet to the hutch. itemId = ActivePetInfo.slotId. */
-export function sendStorePet(itemId: string): WebSocketSendResult {
-  return sendAction('StorePet', { itemId });
 }
 
 /**

@@ -514,6 +514,7 @@ const pt: Dictionary = {
   'feature.petActivity.tpl.petRefund': '{pet} reembolsou 1 {egg}',
   'feature.petActivity.tpl.eggGrowth': '{pet} acelerou o crescimento de {n} em {time}',
   'feature.petActivity.tpl.scaleBoost': '{pet} aumentou o tamanho de {n} em {pct}',
+  'feature.petActivity.tpl.scaleBoostFlat': '[VERIFY] {pet} aumentou o tamanho de {n} em {amount} Tamanho',
   'feature.petActivity.tpl.plantGrowth': '{pet} acelerou o crescimento de {n} em {time}',
   'feature.petActivity.tpl.granter': '{pet} fez seu {crop} virar {mutation}',
   'feature.petActivity.tpl.granterFrozen': '{pet} fez seu {crop} {prev} virar {mutation}',
