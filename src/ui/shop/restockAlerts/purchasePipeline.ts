@@ -17,6 +17,7 @@ import {
   type WebSocketSendResult,
 } from '../../../websocket/api';
 import {
+  armReactiveConfirmation,
   captureOwnershipBaseline,
   debugLog,
   hasOwnershipSource,
@@ -122,10 +123,10 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
   const sender: PurchaseSender = opts?.send ?? sendPurchase;
   let sent = 0;
   let firstFailureReason: PurchaseSendFailureReason | null = null;
-  // Set by an earlier send's envelope result while the loop is still running.
-  // handler_error / timeout = outcome UNKNOWN (never a confirmed failure);
-  // resentAsLegacy = the command still went out flat. Neither halts the batch.
+  // Halts *future* iterations only; caller uses awaitResults for per-send
+  // rejection surface (see armReactiveConfirmation, Signal C).
   let serverRejectionCode: string | null = null;
+  const awaitResults: Array<() => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>> = [];
   for (let i = 0; i < requested; i++) {
     if (!isRoomSocketOpen()) {
       firstFailureReason = 'socket_not_open';
@@ -143,11 +144,15 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
       debugLog('Buy-all send failed', { key: model.key, requested, sent, index: i, reason: firstFailureReason });
       break;
     }
-    result.awaitResult?.().then((r) => {
-      if (!r.ok && !r.resentAsLegacy && r.code !== 'handler_error') {
-        serverRejectionCode = typeof r.code === 'string' ? r.code : 'rejected';
-      }
-    }).catch(() => { /* timeout — outcome unknown; ownership confirmation decides */ });
+    if (result.awaitResult) {
+      const awaitFn = result.awaitResult;
+      awaitResults.push(awaitFn);
+      awaitFn().then((r) => {
+        if (!r.ok && !r.resentAsLegacy && r.code !== 'handler_error') {
+          serverRejectionCode = typeof r.code === 'string' ? r.code : 'rejected';
+        }
+      }).catch(() => { /* timeout — outcome unknown; ownership confirmation decides */ });
+    }
     sent += 1;
     if (i === 0 || i === requested - 1 || i % 5 === 0) {
       debugLog('Buy-all send succeeded', { key: model.key, index: i, sent, requested });
@@ -165,8 +170,9 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
     baseline: ownershipBaseline,
     confirmationAvailable: hasOwnershipSource(ownershipBaseline),
     error: null,
+    ...(awaitResults.length > 0 ? { awaitResults } : {}),
   };
-  debugLog('Buy-all send loop completed', { key: model.key, requested, sent, confirmationAvailable: response.confirmationAvailable });
+  debugLog('Buy-all send loop completed', { key: model.key, requested, sent, confirmationAvailable: response.confirmationAvailable, envelopeReplies: awaitResults.length });
   return response;
 }
 
@@ -244,10 +250,14 @@ export async function purchaseAndConfirm(req: PurchaseRequest): Promise<Purchase
       autoStoreStorageId: autoStoreTarget?.storageId ?? null,
       autoStoreLabel: autoStoreTarget?.label ?? null,
       storedInTargetStorage: false,
+      shopPurchasesBaseline: null,
+      cycleArmFp: null,
+      cleanups: [],
       presenter: null,
       settle: resolve,
     };
     pendingOwnershipConfirmations.set(req.key, pending);
+    armReactiveConfirmation(pending, result.awaitResults ? { rejectionAwaits: result.awaitResults } : {});
     scheduleMaxConfirmationTimeout(req.key);
     processPendingOwnershipConfirmations();
   });

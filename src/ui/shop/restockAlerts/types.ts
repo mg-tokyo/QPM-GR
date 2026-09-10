@@ -17,8 +17,12 @@ export const ALERT_EXIT_MS              = 180;
 export const BUY_SEND_DELAY_MS          = 100;
 export const BUY_ACTION_THROTTLE_MS     = 80;
 export const OWNERSHIP_BASELINE_WAIT_MS = 1_500;
-export const OWNERSHIP_STALE_NOTICE_MS  = 10_000;
-export const OWNERSHIP_MAX_CONFIRMATION_MS = 45_000;
+// Reactive signals (shopPurchases delta / cycle rollover / envelope reject /
+// inventory delta) settle the pending in the common case; these two are the
+// defensive last-resort covering scenarios where every reactive source is
+// silent (backgrounded tab, offline atom, etc.).
+export const OWNERSHIP_STALE_NOTICE_MS  = 5_000;
+export const OWNERSHIP_MAX_CONFIRMATION_MS = 15_000;
 export const SOCKET_BIND_POLL_MS           = 500;
 export const MY_DATA_ATOM_LABEL             = 'myDataAtom';
 export const MY_TOOL_INVENTORY_ATOM_LABEL   = 'myToolInventoryAtom';
@@ -80,6 +84,8 @@ export interface BuyAllResult {
   baseline: OwnershipBaseline | null;
   confirmationAvailable: boolean;
   error: string | null;
+  /** Envelope-transport only. One entry per sent request; empty under legacy. */
+  awaitResults?: Array<() => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>>;
 }
 
 export interface OwnershipBaseline {
@@ -115,6 +121,13 @@ export interface PendingPresenter {
   showFailure(reason: string): void;
 }
 
+/** Fields whose change signals a cycle rollover (server-side stock reset). */
+export interface CycleFingerprint {
+  nextRestockAt: number | null;
+  initialStock: number | null;
+  canSpawn: boolean;
+}
+
 export interface PendingOwnershipConfirmation {
   key: string;
   shopType: RestockShopType;
@@ -132,6 +145,12 @@ export interface PendingOwnershipConfirmation {
   autoStoreStorageId: string | null;
   autoStoreLabel: string | null;
   storedInTargetStorage: boolean;
+  /** Signal A baseline — server-acked purchases counter at arm time. Null when discovery couldn't locate shopPurchases. */
+  shopPurchasesBaseline: number | null;
+  /** Signal B baseline — cycle fingerprint at arm time. Null when the item wasn't in the shop snapshot at arm. */
+  cycleArmFp: CycleFingerprint | null;
+  /** Reactive subscription teardowns installed at arm time; called in clearPendingOwnershipConfirmation. */
+  cleanups: Array<() => void>;
   /** Null for headless purchases; alert card writer for Buy-button flow. */
   presenter: PendingPresenter | null;
   /** Called exactly once on completion, failure, or timeout. */

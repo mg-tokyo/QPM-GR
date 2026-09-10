@@ -36,6 +36,7 @@ import {
   schedulePendingStaleNotice,
   scheduleMaxConfirmationTimeout,
   processPendingOwnershipConfirmations,
+  armReactiveConfirmation,
   debugLog,
   debugLogError,
   toCanonicalKey,
@@ -520,6 +521,9 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
       autoStoreStorageId: autoStoreTarget?.storageId ?? null,
       autoStoreLabel: autoStoreTarget?.label ?? null,
       storedInTargetStorage: false,
+      shopPurchasesBaseline: null,
+      cycleArmFp: null,
+      cleanups: [],
       presenter: createAlertPresenter(active.model.key),
     };
     debugLog('Pending ownership confirmation created', {
@@ -533,6 +537,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     });
     clearPendingOwnershipConfirmation(active.model.key);
     pendingOwnershipConfirmations.set(active.model.key, pending);
+    armReactiveConfirmation(pending, result.awaitResults ? { rejectionAwaits: result.awaitResults } : {});
     setAlertPendingConfirmation(active, true);
     active.statusEl.style.color = '#fde68a';
     active.statusEl.textContent = `Sent ${result.sent} \u2014 confirming\u2026`;

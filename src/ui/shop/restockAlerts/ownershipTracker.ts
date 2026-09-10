@@ -43,16 +43,19 @@ export {
 import {
   alertState,
   activeAlerts,
+  dismissedInStockKeys,
   ownershipListeners,
   pendingOwnershipConfirmations,
   debugLastStockStateByKey,
 } from './alertState';
 
 // Forward imports (circular — safe in esbuild IIFE)
-import { updateAlertQuantity } from './alertDom';
+import { updateAlertQuantity, removeAlert } from './alertDom';
 import { hasReachedToolInventoryCap, shouldLockDismissForPurchaseCompletion, maybeAutoStoreConfirmedDelta } from './purchaseActions';
-import { processShopStock } from './stockProcessor';
-import { getShopStockState } from '../../../store/shopStock';
+import { processShopStock, markDismissedCycle } from './stockProcessor';
+import { getShopStockState, getShopStockItemByKey, onShopStockItemChange, type ShopStockItem } from '../../../store/shopStock';
+import type { CycleFingerprint } from './types';
+import type { QuinoaCommandResultMessage } from '../../../websocket/envelope';
 
 // ---------------------------------------------------------------------------
 // Debug helpers
@@ -235,6 +238,151 @@ export function readOwnershipDelta(key: string, baseline: OwnershipBaseline): nu
 // Pending ownership confirmation lifecycle
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Reactive signal helpers (Signal A: shopPurchases delta / Signal B: cycle
+// rollover / Signal C: envelope reject). Signal D (inventory delta) stays in
+// processPendingOwnershipConfirmations below.
+// ---------------------------------------------------------------------------
+
+function fingerprintCycle(item: ShopStockItem | null): CycleFingerprint | null {
+  if (!item) return null;
+  return {
+    nextRestockAt: null,
+    initialStock: item.initialStock,
+    canSpawn: item.canSpawn,
+  };
+}
+
+function cycleRolled(prev: CycleFingerprint | null, next: CycleFingerprint | null): boolean {
+  if (!prev) return false;
+  if (!next) return true;
+  if (prev.initialStock !== next.initialStock) return true;
+  if (prev.canSpawn !== next.canSpawn) return true;
+  return false;
+}
+
+/**
+ * Sets up the pending's reactive signals. Idempotent: existing subs are
+ * torn down first. Must be called AFTER the pending is placed in
+ * pendingOwnershipConfirmations. Envelope reject (Signal C) is optional and
+ * absent under legacy transport.
+ */
+export function armReactiveConfirmation(
+  pending: PendingOwnershipConfirmation,
+  options: { rejectionAwaits?: Array<() => Promise<QuinoaCommandResultMessage>> } = {},
+): void {
+  for (const teardown of pending.cleanups) {
+    try { teardown(); } catch { /* ignore */ }
+  }
+  pending.cleanups.length = 0;
+
+  const item0 = getShopStockItemByKey(pending.key);
+  pending.shopPurchasesBaseline = item0 ? item0.purchased : null;
+  pending.cycleArmFp = fingerprintCycle(item0);
+
+  const key = pending.key;
+  const cycleUnsub = onShopStockItemChange(key, (item) => {
+    const latest = pendingOwnershipConfirmations.get(key);
+    if (!latest) return;
+    if (item && latest.shopPurchasesBaseline != null) {
+      const delta = Math.max(0, item.purchased - latest.shopPurchasesBaseline);
+      if (delta >= latest.expectedIncrease) {
+        completeFromShopPurchases(latest, delta);
+        return;
+      }
+    }
+    const nextFp = fingerprintCycle(item);
+    if (cycleRolled(latest.cycleArmFp, nextFp)) {
+      debugLog('Pending failed: shop cycle rolled', { key, armFp: latest.cycleArmFp, nextFp });
+      failPendingAndDismissForCycle(key, 'Cycle rolled before confirmation — retry');
+    }
+  });
+  pending.cleanups.push(cycleUnsub);
+
+  if (options.rejectionAwaits && options.rejectionAwaits.length > 0) {
+    let rejected = false;
+    for (const awaitResult of options.rejectionAwaits) {
+      awaitResult().then((r) => {
+        if (rejected) return;
+        if (r.ok || r.resentAsLegacy || r.code === 'handler_error') return;
+        rejected = true;
+        const latest = pendingOwnershipConfirmations.get(key);
+        if (!latest) return;
+        const code = typeof r.code === 'string' ? r.code : 'rejected';
+        debugLog('Pending failed: envelope reject', { key, code });
+        failPendingAndDismissForCycle(key, 'Shop rejected the purchase (sold out or not enough coins)');
+      }).catch(() => { /* timeout = unknown outcome; other signals decide */ });
+    }
+  }
+}
+
+/**
+ * Fail the pending AND dismiss the alert for its stock cycle. Used when a
+ * reactive signal concludes this cycle's stock is unattainable — envelope
+ * reject (Signal C) or cycle rollover (Signal B) — so the alert clears
+ * instead of flashing red and reverting to "Ready to buy".
+ */
+export function failPendingAndDismissForCycle(key: string, reason: string): void {
+  const pending = pendingOwnershipConfirmations.get(key);
+  if (!pending) return;
+  const cycleId = pending.stockCycleId;
+  const outcome: PurchaseOutcome = {
+    sent: pending.sent,
+    confirmed: pending.confirmed,
+    storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
+    error: reason,
+    timedOut: false,
+  };
+  const settle = pending.settle;
+  debugLog('Fail-and-dismiss pending for cycle', {
+    key, reason, cycleId, sent: pending.sent, confirmed: pending.confirmed,
+    headless: pending.presenter === null,
+  });
+  clearPendingOwnershipConfirmation(key);
+  settle?.(outcome);
+  dismissedInStockKeys.add(key);
+  markDismissedCycle(key, cycleId);
+  removeAlert(key);
+}
+
+function completeFromShopPurchases(pending: PendingOwnershipConfirmation, delta: number): void {
+  const confirmed = Math.min(pending.expectedIncrease, delta);
+  if (confirmed <= pending.confirmed) return;
+  pending.confirmed = confirmed;
+  void maybeAutoStoreConfirmedDelta(pending, confirmed);
+  const completed = pending.confirmed >= pending.expectedIncrease;
+  if (!completed) {
+    pending.presenter?.showProgress(confirmed, pending.sent);
+    return;
+  }
+  const storedNote = pending.storedInTargetStorage && pending.autoStoreLabel
+    ? ` + moved to ${pending.autoStoreLabel}`
+    : '';
+  const lockDismissForCycle = shouldLockDismissForPurchaseCompletion(pending.key);
+  debugLog('Pending completed via shopPurchases delta', {
+    key: pending.key,
+    confirmed: pending.confirmed,
+    expectedIncrease: pending.expectedIncrease,
+    baseline: pending.shopPurchasesBaseline,
+  });
+  pending.presenter?.showCompletion({
+    confirmed: pending.confirmed,
+    storedNote,
+    completionSuffix: '',
+    lockDismissForCycle,
+    stockCycleId: pending.stockCycleId,
+  });
+  const outcome: PurchaseOutcome = {
+    sent: pending.sent,
+    confirmed: pending.confirmed,
+    storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
+    error: null,
+    timedOut: false,
+  };
+  pending.settle?.(outcome);
+  clearPendingOwnershipConfirmation(pending.key);
+}
+
 export function clearPendingOwnershipConfirmation(key: string): void {
   const pending = pendingOwnershipConfirmations.get(key);
   if (!pending) return;
@@ -248,6 +396,10 @@ export function clearPendingOwnershipConfirmation(key: string): void {
   });
   if (pending.staleNoticeTimerId != null) window.clearTimeout(pending.staleNoticeTimerId);
   if (pending.maxTimeoutTimerId != null) window.clearTimeout(pending.maxTimeoutTimerId);
+  for (const teardown of pending.cleanups) {
+    try { teardown(); } catch (error) { warnFeature('QPM-FEATURE-004', { what: 'pending:cleanup', key }, error); }
+  }
+  pending.cleanups.length = 0;
   pendingOwnershipConfirmations.delete(key);
 }
 

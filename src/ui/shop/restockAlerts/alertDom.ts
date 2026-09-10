@@ -19,11 +19,14 @@ import {
 import {
   activeAlerts,
   alertSpriteUrlCache,
+  alertPurchaseWatchers,
   dismissedInStockKeys,
+  pendingOwnershipConfirmations,
 } from './alertState';
 import { debugLog, toCanonicalKey, clearPendingOwnershipConfirmation } from './ownershipTracker';
 import { handleBuyAll } from './purchaseActions';
 import { markDismissedCycle } from './stockProcessor';
+import { getShopStockItemByKey, onShopStockItemChange } from '../../../store/shopStock';
 import { getSoundConfig, getCustomSounds, DEFAULT_LOOP_INTERVAL_MS } from './soundConfig';
 import { playSound, playCustomSound, startLoop, stopLoop, isLooping, isBuiltinSound } from './soundEngine';
 
@@ -189,6 +192,11 @@ export function removeAlertRootIfEmpty(): void {
 export function removeAlert(key: string): void {
   clearPendingOwnershipConfirmation(key);
   stopLoop(key);
+  const watcher = alertPurchaseWatchers.get(key);
+  if (watcher) {
+    try { watcher.unsubscribe(); } catch { /* ignore */ }
+    alertPurchaseWatchers.delete(key);
+  }
   const active = activeAlerts.get(key);
   if (!active) return;
   debugLog('Removing alert', {
@@ -208,6 +216,71 @@ export function removeAlert(key: string): void {
   card.addEventListener('animationend', cleanup, { once: true });
   // Safety fallback if animationend never fires (e.g. display:none, detached)
   window.setTimeout(cleanup, ALERT_EXIT_MS + 50);
+}
+
+/**
+ * Reactive live-quantity decrement + dismiss. Captures at first fire the
+ * displayed quantity + purchased counter; on each subsequent item change,
+ * derives remaining = max(0, initialDisplayed - purchasesSinceFirstFire) and
+ * writes it back to the alert card (overriding a stale processShopStock
+ * quantity that came from a weather-shop atom where currentStock doesn't
+ * decrement). Dismisses the cycle when remaining hits 0. Fires only when no
+ * pending is armed — the pending path owns quantity display then.
+ */
+function armAlertPurchaseWatcher(key: string, cycleId: string | null): void {
+  const existing = alertPurchaseWatchers.get(key);
+  if (existing) {
+    try { existing.unsubscribe(); } catch { /* ignore */ }
+    alertPurchaseWatchers.delete(key);
+  }
+  const item0 = getShopStockItemByKey(key);
+  const active0 = activeAlerts.get(key);
+  const state: {
+    purchasedAtFirstFire: number | null;
+    initialDisplayQuantity: number | null;
+    cycleId: string | null;
+  } = {
+    purchasedAtFirstFire: item0 ? item0.purchased : null,
+    initialDisplayQuantity: active0 ? active0.model.quantity : null,
+    cycleId,
+  };
+  const unsubscribe = onShopStockItemChange(key, (item) => {
+    if (!item) return;
+    if (pendingOwnershipConfirmations.has(key)) return;
+    if (state.purchasedAtFirstFire == null || state.initialDisplayQuantity == null) {
+      const active = activeAlerts.get(key);
+      state.purchasedAtFirstFire = item.purchased;
+      if (state.initialDisplayQuantity == null && active) {
+        state.initialDisplayQuantity = active.model.quantity;
+      }
+      return;
+    }
+    const purchasesSinceFirstFire = Math.max(0, item.purchased - state.purchasedAtFirstFire);
+    if (purchasesSinceFirstFire <= 0) return;
+    const derivedRemaining = Math.max(0, state.initialDisplayQuantity - purchasesSinceFirstFire);
+    if (derivedRemaining <= 0) {
+      debugLog('Alert dismissed via purchased-grow watcher (derived remaining = 0)', {
+        key,
+        purchasedAtFirstFire: state.purchasedAtFirstFire,
+        purchased: item.purchased,
+        initialDisplayQuantity: state.initialDisplayQuantity,
+        cycleId: state.cycleId,
+      });
+      dismissAlertForCurrentStock(key, state.cycleId);
+      return;
+    }
+    const active = activeAlerts.get(key);
+    if (!active) return;
+    if (active.model.quantity === derivedRemaining) return;
+    debugLog('Alert quantity decremented via purchased-grow watcher', {
+      key,
+      prevQuantity: active.model.quantity,
+      derivedRemaining,
+      purchasesSinceFirstFire,
+    });
+    updateAlertQuantity(active, derivedRemaining);
+  });
+  alertPurchaseWatchers.set(key, { ...state, unsubscribe });
 }
 
 export function dismissAlertForCurrentStock(key: string, stockCycleId: string | null): void {
@@ -398,12 +471,14 @@ export function createAlert(model: AlertModel): ActiveAlert {
   });
 
   activeAlerts.set(model.key, active);
+  armAlertPurchaseWatcher(model.key, model.stockCycleId);
   return active;
 }
 
 export function upsertAlert(model: AlertModel): void {
   const existing = activeAlerts.get(model.key);
   if (existing) {
+    const prevCycleId = existing.model.stockCycleId;
     if (!existing.busy || !existing.model.itemId.trim()) existing.model.itemId = model.itemId;
     existing.model.stockCycleId = model.stockCycleId;
     existing.model.label        = model.label;
@@ -416,6 +491,9 @@ export function upsertAlert(model: AlertModel): void {
     if (!existing.busy && !existing.pendingConfirmation) {
       existing.statusEl.style.color = 'rgba(200,192,255,0.72)';
       existing.statusEl.textContent = t('feature.restockAlert.readyToBuy');
+    }
+    if (prevCycleId !== model.stockCycleId) {
+      armAlertPurchaseWatcher(model.key, model.stockCycleId);
     }
     return;
   }

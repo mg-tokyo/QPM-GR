@@ -7,6 +7,7 @@ import type {
 } from '../types/gameAtoms';
 import { type ShopCategory, type StandardShopId } from '../types/shops';
 import { getKnownShopIds, isStandardShop } from './shopRegistry';
+import { discoverShopPurchasesRoot } from './shopPurchasesDiscovery';
 
 // Constants & type aliases (exported for use in shopStock.ts)
 
@@ -340,10 +341,9 @@ function normalizePurchaseBucket(raw: unknown): { purchases?: Record<string, num
 }
 
 export function extractMyDataShopPurchases(value: unknown): ShopPurchasesAtomSnapshot | null {
-  if (!value || typeof value !== 'object') return null;
-  const rawShopPurchases = (value as Record<string, unknown>).shopPurchases;
-  if (!rawShopPurchases || typeof rawShopPurchases !== 'object') return null;
-  const root = rawShopPurchases as Record<string, unknown>;
+  // Discovered by shape (see shopPurchasesDiscovery.ts) — no hardcoded field name.
+  const root = discoverShopPurchasesRoot(value);
+  if (!root) return null;
 
   const snapshot: ShopPurchasesAtomSnapshot = {};
   let hasAnyBucket = false;

@@ -44,8 +44,20 @@ function parseSlot(raw: unknown): ResolvedSlot | null {
   const species = raw.species;
   if (typeof species !== 'string' || !species) return null;
 
-  const targetScale = raw.targetScale ?? raw.scale;
-  if (typeof targetScale !== 'number') return null;
+  // v1118 slots carry a flat `size` (50-100) instead of targetScale/scale.
+  // Reconstruct targetScale via the species maxScale so downstream callers
+  // (sell-price row, ETA row, lock-check sizePercent) keep working with the
+  // legacy shape. Matches abilityValuation.ts:301-319.
+  const legacyScale = raw.targetScale ?? raw.scale;
+  let targetScale: number | null = null;
+  if (typeof legacyScale === 'number' && Number.isFinite(legacyScale)) {
+    targetScale = legacyScale;
+  } else if (typeof raw.size === 'number' && Number.isFinite(raw.size)) {
+    const maxScale = getCropMaxScaleSafe(species);
+    const safeMax = maxScale != null && maxScale > 1 ? maxScale : 2.0;
+    targetScale = 1 + ((raw.size - 50) / 50) * (safeMax - 1);
+  }
+  if (targetScale == null) return null;
 
   const slotId = typeof raw.slotId === 'number' ? raw.slotId : 0;
   const endTime = typeof raw.endTime === 'number' ? raw.endTime : 0;

@@ -19,6 +19,16 @@ export const fallbackCycleByKey = new Map<string, number>();
 export const lastSeenStockQtyByKey = new Map<string, number>();
 export const debugLastStockStateByKey = new Map<string, string>();
 
+/** Per-active-alert state for the reactive purchased-grow watcher (live
+ *  quantity decrement + dismiss for weather-shop atom lag). */
+export interface AlertPurchaseWatcher {
+  purchasedAtFirstFire: number | null;
+  initialDisplayQuantity: number | null;
+  cycleId: string | null;
+  unsubscribe: () => void;
+}
+export const alertPurchaseWatchers = new Map<string, AlertPurchaseWatcher>();
+
 // ---------------------------------------------------------------------------
 // Reassignable state (use alertState.prop = ... from any importer)
 // ---------------------------------------------------------------------------

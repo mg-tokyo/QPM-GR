@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.46",
+    date: "2026-09-10",
+    notes: [
+      "Fixed in-game crop tooltips losing their sell value, harvest countdown and lock badge after the latest game update, QPM now reads the game's new crop size format",
+      "Fixed restock alert quantities going stale during weather shop events, alert cards now count down as you buy and clear themselves once the stock is gone",
+      "Improved Buy All confirmation: purchases are confirmed from the shop's own purchase counter, so alerts settle in seconds instead of sitting on 'confirming' for up to 45 seconds",
+      "Fixed Buy All getting stuck when the shop rejects a purchase (sold out or not enough coins) or restocks mid purchase, the alert now clears for that cycle instead of reverting to 'Ready to buy'",
+      "Improved restock purchase tracking to find the game's purchase data by its shape rather than a fixed name, so it keeps working if the game renames it",
+    ],
+  },
+  {
     version: "3.3.45",
     date: "2026-09-09",
     notes: [
