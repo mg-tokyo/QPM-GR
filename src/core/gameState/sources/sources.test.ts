@@ -169,6 +169,76 @@ describe('source handles', () => {
   });
 });
 
+describe('atom source requiresSeat', () => {
+  const seatDef = defineKey<number>({
+    policy: 'client',
+    doc: 'seat-guarded',
+    sources: [
+      atomSource(/^myCoinsCountAtom$/, 'client', {
+        project: (raw) => (typeof raw === 'number' ? raw : undefined),
+        requiresSeat: true,
+      }),
+    ],
+  });
+
+  it('readSync reports "no seat" when identity.myIdx is null, without touching the atom cache', () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ myCoinsCountAtom: 42 });
+    const [at] = createHandles('coins', seatDef, rt);
+    rt.setIdentity({ playerId: 'p1', myIdx: null });
+    rt.resetFindAtomsCalls();
+    const r = at!.readSync();
+    expect(r.ok).toBe(false);
+    expect(r).toEqual({ ok: false, reason: 'no seat' });
+    expect(at!.available()).toBe(false);
+    expect(rt.findAtomsCalls).toBe(0);
+  });
+
+  it('readSync delivers the value once myIdx becomes a number', () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ myCoinsCountAtom: 42 });
+    const [at] = createHandles('coins', seatDef, rt);
+    rt.setIdentity({ playerId: 'p1', myIdx: null });
+    expect(at!.readSync().ok).toBe(false);
+    rt.setIdentity({ playerId: 'p1', myIdx: 0 });
+    expect(at!.readSync()).toEqual({ ok: true, value: 42 });
+  });
+
+  it('async read reports "no seat" when myIdx is null', async () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ myCoinsCountAtom: 42 });
+    const [at] = createHandles('coins', seatDef, rt);
+    rt.setIdentity({ playerId: 'p1', myIdx: null });
+    const r = await at!.read();
+    expect(r).toEqual({ ok: false, reason: 'no seat' });
+  });
+
+  it('subscribe suppresses delivery while myIdx is null; delivers again after a seat rebind', async () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ myCoinsCountAtom: 1 });
+    const [at] = createHandles('coins', seatDef, rt);
+    rt.setIdentity({ playerId: 'p1', myIdx: null });
+    const seen: Array<number | null> = [];
+    at!.subscribe((v) => seen.push(v));
+    await Promise.resolve(); await Promise.resolve();
+    rt.setAtoms({ myCoinsCountAtom: 2 });
+    rt.fireAtom('myCoinsCountAtom');
+    expect(seen).toEqual([]);
+    rt.setIdentity({ playerId: 'p1', myIdx: 0 });
+    rt.setAtoms({ myCoinsCountAtom: 3 });
+    rt.fireAtom('myCoinsCountAtom');
+    expect(seen).toEqual([3]);
+  });
+
+  it('is a no-op when requiresSeat is unset (default path)', () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ myCoinsCountAtom: 5 });
+    const [, at] = createHandles('coins', def, rt);
+    rt.setIdentity({ playerId: 'p1', myIdx: null });
+    expect(at!.readSync()).toEqual({ ok: true, value: 5 });
+  });
+});
+
 describe('stateTree source trustPatches forwarding', () => {
   it('forwards trustPatches: true to runtime.subscribe when set on the spec', () => {
     const rt = createFakeRuntime();

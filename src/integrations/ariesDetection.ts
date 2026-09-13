@@ -8,7 +8,7 @@
 // Detection signals (all realm-shared, so this works identically on
 // magicgarden.gg and on <appId>.discordsays.com):
 //   1. `.qws2`                      — Aries HUD root (verified hud.ts:174)
-//   2. pageWindow.__tmMessageHookInstalled  — Aries WS-hook (ws-hook.ts:466)
+//   2. pageWindow.__tmMessageHookInstalled  — Aries WS-hook (ws-hook.ts:512, v3.2.202)
 //   3. pageWindow.__tmHarvestHookInstalled  — Aries WS-hook (ws-hook.ts:954)
 //   4. [data-aries-value-row] / [data-aries-coin-value] — Aries tooltip rows
 //      (already used by src/features/standalone/tooltipInjection/ariesCompat.ts:11,12)

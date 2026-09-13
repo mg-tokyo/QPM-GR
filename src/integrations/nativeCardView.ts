@@ -6,7 +6,7 @@
 // instead of recreating them in DOM.
 
 import { readAtomValue } from '../core/atomRegistry';
-import { isRecord } from '../utils/typeGuards';
+import { getEngineSystem, isQuinoaEngine } from '../utils/quinoaEngine';
 import { createNamedLogger } from '../diagnostics/logger';
 import { healthBus } from '../diagnostics/healthBus';
 import {
@@ -206,14 +206,13 @@ async function resolveCardView(): Promise<any | null> {
   // and beta builds can change the chain structure.
   try {
     const engine = await readAtomValue('quinoaEngine');
-    if (!isRecord(engine) || typeof (engine as { getSystem?: unknown }).getSystem !== 'function') {
+    if (!isQuinoaEngine(engine)) {
       warnCard('QPM-NCARD-001', { reason: 'engine_invalid' });
       cachedCardView = null;
       return null;
     }
-    const inventorySystem = (engine as any).getSystem('inventory');
-    const modalView = inventorySystem?.modalView;
-    const cardView = modalView?.inventoryCardView;
+    const inventorySystem = getEngineSystem(engine, 'inventory') as { modalView?: { inventoryCardView?: any } } | null;
+    const cardView = inventorySystem?.modalView?.inventoryCardView;
     if (!cardView || typeof cardView.open !== 'function') {
       warnCard('QPM-NCARD-001', { reason: 'cardview_missing' });
       cachedCardView = null;

@@ -10,13 +10,13 @@ const num = (v: unknown): number | undefined => (typeof v === 'number' && Number
 function items(storage: StorageId, itemType: string | undefined, label: RegExp, doc: string) {
   return defineKey<QuinoaInventoryItem[]>({
     policy: 'authoritative', tier: 'state', doc,
-    sources: [stateSource(STORAGES, selectStorageItems(storage, itemType)), atomSource(label, 'predicted', { project: itemArray })],
+    sources: [stateSource(STORAGES, selectStorageItems(storage, itemType)), atomSource(label, 'predicted', { project: itemArray, requiresSeat: true })],
   });
 }
 function capacity(storage: StorageId, label: RegExp, doc: string) {
   return defineKey<number | null>({
     policy: 'authoritative', tier: 'state', doc,
-    sources: [stateSource(STORAGES, selectStorageCapacity(storage)), atomSource(label, 'predicted', { project: num })],
+    sources: [stateSource(STORAGES, selectStorageCapacity(storage)), atomSource(label, 'predicted', { project: num, requiresSeat: true })],
   });
 }
 
@@ -25,7 +25,10 @@ export const STORAGE_KEYS = {
     policy: 'authoritative', tier: 'state', doc: 'PetHutch storage entry (null until the building exists)',
     sources: [
       stateSource(STORAGES, selectStorage('PetHutch')),
-      atomSource(/^myPetHutchStoragesAtom$/, 'predicted', { project: (v) => (Array.isArray(v) ? ((v[0] as QuinoaStorageEntry | undefined) ?? null) : undefined) }),
+      atomSource(/^myPetHutchStoragesAtom$/, 'predicted', {
+        project: (v) => (Array.isArray(v) ? ((v[0] as QuinoaStorageEntry | undefined) ?? null) : undefined),
+        requiresSeat: true,
+      }),
     ],
   }),
   hutchPets: items('PetHutch', 'Pet', /^myPetHutchPetItemsAtom$/, 'Pets stored in the hutch'),

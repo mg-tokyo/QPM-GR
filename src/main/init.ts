@@ -336,9 +336,10 @@ async function initialize(): Promise<void> {
     warnCore('QPM-INIT-001', { what: 'gardenPainterPresets' }, error);
   });
 
-  // Command sequencer MUST wrap the connection BEFORE the locker (phase 7c)
-  // and the native-send observer so it is the innermost layer: a sequence
-  // number is then allocated only for messages that actually hit the wire.
+  // Chokepoint mode (the sequencer wraps the game's internal send method) is
+  // order-independent. The slot-mode fallback still needs the sequencer to
+  // wrap BEFORE the locker (phase 7c) and the native-send observer so it is
+  // the innermost layer and numbers only messages that hit the wire.
   try {
     startCommandSequencer();
   } catch (error) {

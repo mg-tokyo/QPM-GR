@@ -27,6 +27,7 @@ const addListeners = new Map<string, Set<NodeListener>>();
 const removeListeners = new Map<string, Set<NodeListener>>();
 const addPrefixListeners = new Map<string, Set<NodeListener>>();
 const removePrefixListeners = new Map<string, Set<NodeListener>>();
+const anyAddListeners = new Set<NodeListener>();
 let patched = false;
 
 function dispatch(
@@ -82,6 +83,9 @@ function ensurePatched(): boolean {
       const label = child?.label;
       if (typeof label !== 'string' || label.length === 0) continue;
       dispatch(label, addListeners, addPrefixListeners, child);
+      for (const cb of anyAddListeners) {
+        try { cb(child); } catch { /* isolate listener failures */ }
+      }
     }
     return result;
   };
@@ -143,6 +147,18 @@ export function onPixiNodeAdded(label: string, cb: NodeListener): () => void {
  */
 export function onPixiNodeAddedByPrefix(prefix: string, cb: NodeListener): () => void {
   return registerAdd(addPrefixListeners, prefix, (l) => l.startsWith(prefix), cb);
+}
+
+/**
+ * Fires for EVERY labeled child added anywhere in the scene graph. For
+ * consumers that key on the PARENT (e.g. "a child landed under a Tile
+ * container") where the child's own label is unbounded. Callbacks must be
+ * O(1)-cheap; no initial scan is performed. Returns an unsubscribe function.
+ */
+export function onAnyPixiNodeAdded(cb: NodeListener): () => void {
+  ensurePatched();
+  anyAddListeners.add(cb);
+  return () => { anyAddListeners.delete(cb); };
 }
 
 function registerAdd(

@@ -28,6 +28,7 @@ import {
 } from './ownershipTracker';
 import { pendingOwnershipConfirmations } from './alertState';
 import { applyInventoryCapToQuantity, resolveAutoStoreTarget } from './purchaseActions';
+import { describeConfirmationSourceGaps } from './sourceGaps';
 
 // ---------------------------------------------------------------------------
 // WS send helpers
@@ -162,7 +163,7 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
 
   if (sent <= 0) {
     debugLog('Buy-all failed before any sends completed', { key: model.key, requested, sent, failureReason: firstFailureReason, confirmationAvailable: hasOwnershipSource(ownershipBaseline) });
-    return { sent: 0, baseline: null, confirmationAvailable: hasOwnershipSource(ownershipBaseline), error: explainSendFailure(firstFailureReason) };
+    return { sent: 0, baseline: null, confirmationAvailable: hasOwnershipSource(ownershipBaseline), error: explainSendFailure(firstFailureReason), hasEnvelope: false };
   }
 
   const response: BuyAllResult = {
@@ -170,6 +171,7 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
     baseline: ownershipBaseline,
     confirmationAvailable: hasOwnershipSource(ownershipBaseline),
     error: null,
+    hasEnvelope: awaitResults.length > 0,
     ...(awaitResults.length > 0 ? { awaitResults } : {}),
   };
   debugLog('Buy-all send loop completed', { key: model.key, requested, sent, confirmationAvailable: response.confirmationAvailable, envelopeReplies: awaitResults.length });
@@ -205,7 +207,7 @@ export async function purchaseAndConfirm(req: PurchaseRequest): Promise<Purchase
     return { sent: 0, confirmed: 0, storedIn: null, error: 'purchase already pending', timedOut: false };
   }
 
-  const requested = applyInventoryCapToQuantity(req.shopType, req.itemId, req.key, Math.max(1, Math.floor(req.quantity)));
+  const requested = applyInventoryCapToQuantity(req.shopType, req.itemId, req.key, Math.max(1, Math.floor(req.quantity)), req.itemType);
   if (requested <= 0) {
     return { sent: 0, confirmed: 0, storedIn: null, error: 'inventory cap reached', timedOut: false };
   }
@@ -227,7 +229,10 @@ export async function purchaseAndConfirm(req: PurchaseRequest): Promise<Purchase
     return { sent: result.sent, confirmed: 0, storedIn: null, error: result.error ?? 'purchase failed', timedOut: false };
   }
   if (!result.confirmationAvailable || !result.baseline) {
-    return { sent: result.sent, confirmed: 0, storedIn: null, error: 'no confirmation source', timedOut: false };
+    const gapText = result.baseline
+      ? describeConfirmationSourceGaps(result.baseline, result.hasEnvelope ?? false)
+      : '';
+    return { sent: result.sent, confirmed: 0, storedIn: null, error: `no confirmation source${gapText}`, timedOut: false };
   }
 
   const autoStoreTarget = req.autoStore ? resolveAutoStoreTarget(req.shopType, req.key) : null;
@@ -251,6 +256,7 @@ export async function purchaseAndConfirm(req: PurchaseRequest): Promise<Purchase
       autoStoreLabel: autoStoreTarget?.label ?? null,
       storedInTargetStorage: false,
       shopPurchasesBaseline: null,
+      shopPurchasesArmed: false,
       cycleArmFp: null,
       cleanups: [],
       presenter: null,

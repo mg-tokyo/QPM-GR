@@ -9,7 +9,7 @@
 // button) so we cache the node reference and re-walk only when it dies.
 
 import { pageWindow } from '../../../core/pageContext';
-import { getPixiRefs } from '../../../core/pixiCapture';
+import { getPixiRefs, getCaptureGeneration, getCaptureDiag } from '../../../core/pixiCapture';
 import { onPixiNodeAdded, onPixiNodeRemoved } from '../../../core/pixiSceneEvents';
 import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL, OBJECT_CARD_LABEL, STAGE_UI_ROOT_LABEL, STAGE_UI_LAYER_LABEL } from './types';
 
@@ -86,16 +86,24 @@ function nodeBounds(node: PixiNode): PixiBounds | null {
 }
 
 // Per-tick walk cost is the thing that regressed (spec F1); keep it countable.
-const walkStats = { lastVisited: 0, maxVisited: 0, walks: 0, fullScans: 0, rootMissing: null as string | null };
+const walkStats = { lastVisited: 0, maxVisited: 0, windowMaxVisited: 0, walks: 0, fullScans: 0, rootMissing: null as string | null };
 
 function noteWalk(visited: number): void {
   walkStats.walks += 1;
   walkStats.lastVisited = visited;
   if (visited > walkStats.maxVisited) walkStats.maxVisited = visited;
+  if (visited > walkStats.windowMaxVisited) walkStats.windowMaxVisited = visited;
 }
 
 export function getAnchorWalkStats(): Readonly<typeof walkStats> {
   return { ...walkStats };
+}
+
+/** Windowed max for the perf publish line; resets the window. */
+export function takeAnchorWalkWindow(): number {
+  const m = walkStats.windowMaxVisited;
+  walkStats.windowMaxVisited = 0;
+  return m;
 }
 
 // Reusable stack across walks — avoids per-frame allocation on the hot path.
@@ -236,6 +244,14 @@ let cachedObjectCard: PixiNode | null = null;
 let cachedRefs: PixiRefs | null = null;
 let listenersInstalled = false;
 
+// When pixiCapture heals a dead app (T2 replace-repair), the counter bumps and
+// every anchor cache is stale — drop them so the next read re-resolves.
+let lastSeenCaptureGen = getCaptureGeneration();
+function invalidateOnGeneration(): void {
+  const g = getCaptureGeneration();
+  if (g !== lastSeenCaptureGen) { lastSeenCaptureGen = g; resetAnchor(); }
+}
+
 function ensureSceneListeners(): void {
   if (listenersInstalled) return;
   onPixiNodeAdded(GARDEN_INFO_CARD_LABEL, (node) => { cachedCard = node; });
@@ -291,6 +307,7 @@ function discoverCard(stage: PixiNode, label: string): PixiNode | null {
  * the UI layer when it was destroyed or detached.
  */
 export function getCardBounds(): CardBounds | null {
+  invalidateOnGeneration();
   if (!cachedRefs) {
     cachedRefs = getRefs();
     if (!cachedRefs) return null;
@@ -383,6 +400,7 @@ export function getCardBounds(): CardBounds | null {
  * when the card is hidden. Cheap when the cached node is still valid.
  */
 export function getObjectCardBounds(): CardBounds | null {
+  invalidateOnGeneration();
   if (!cachedRefs) {
     cachedRefs = getRefs();
     if (!cachedRefs) return null;
@@ -453,6 +471,8 @@ interface AnchorDebugReport {
   /** Any node whose label contains 'GardenInfo' — helps spot renames. */
   gardenInfoLike: AnchorDebugNode[];
   walkStats: Readonly<typeof walkStats>;
+  captureGeneration: number;
+  captureDiag: ReturnType<typeof getCaptureDiag>;
 }
 
 function collectAllLabeledNodes(root: PixiNode): PixiNode[] {
@@ -519,6 +539,8 @@ function debugReport(): AnchorDebugReport {
     pixiTooltipAllMatches: tooltipAll,
     gardenInfoLike,
     walkStats: saved,
+    captureGeneration: getCaptureGeneration(),
+    captureDiag: getCaptureDiag(),
   };
 }
 

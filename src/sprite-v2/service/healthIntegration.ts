@@ -2,6 +2,8 @@ import { healthBus } from '../../diagnostics/healthBus';
 import { createNamedLogger } from '../../diagnostics/logger';
 import type { Subsystem, SubsystemHealth } from '../../diagnostics/types';
 import { spriteLog } from '../diagnostics';
+import { hasOwnTextureAccessor } from '../utils';
+import type { PixiConstructors } from '../types';
 import { HYDRATION_EVENT } from './constants';
 import { bootReportRef } from './bootReport';
 import { ctxRef } from './state';
@@ -15,6 +17,14 @@ let spriteDiagnosticsStarted = false;
 let hydrationEventHandler: ((event: Event) => void) | null = null;
 let lastPublishedSig = '';
 const spriteRenderFailureSignatures = new Set<string>();
+
+export function checkSpriteCtorCapture(ctors: PixiConstructors | null | undefined): void {
+  if (!ctors) return;
+  if (hasOwnTextureAccessor(ctors.Sprite)) return;
+  const head = String(ctors.Sprite).slice(0, 80);
+  spriteLog('warn', 'ctor-capture-suspect', 'Captured Sprite class lacks its own texture accessor', { head });
+  diagLog.warn('QPM-SPRITE-007', { head });
+}
 
 export function rememberRenderFailure(sig: string, detail: Record<string, unknown>): void {
   if (spriteRenderFailureSignatures.has(sig)) return;

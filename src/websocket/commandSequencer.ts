@@ -7,70 +7,39 @@
 
 import { pageWindow } from '../core/pageContext';
 import { createNamedLogger } from '../diagnostics/logger';
-import { registerForeignSignal } from '../diagnostics/modDetection';
+import { registerForeignSignal, registerSendChainLineSource } from '../diagnostics/modDetection';
 import { storage } from '../utils/storage';
 import {
   QUINOA_COMMAND_RESULT_TYPE,
   QUINOA_COMMAND_TYPE,
   effectiveMessageType,
   isQuinoaCommandEnvelope,
-  isQuinoaCommandResult,
   newRequestId,
   type QuinoaCommandEnvelope,
   type QuinoaCommandResultMessage,
 } from './envelope';
+import { createResultBinder } from './sequencerSocket';
+import { armStaleTimers } from './sequencerStale';
 import { isQpmOriginSend, recordGameTransport, recordServerLegacyVerdict, withQpmOrigin } from './transport';
-import { countOutstanding, shouldIdleResync } from './sequencerHeal';
+import { countOutstanding, nextWire, readExecutedSequence, shouldIdleResync } from './sequencerHeal';
 import { isRecord } from '../utils/typeGuards';
-import {
-  brandWrapper,
-  captureSendSlot,
-  classifySendSlot,
-  createForeignEpisodeGate,
-  restoreSendSlot,
-  type CapturedSlot,
-  type SendSlotClass,
-} from './sendChain';
-import { notifyChainChanged, onRoomConnectionChange } from './roomConnectionEvents';
+import { createForeignEpisodeGate, formatSendChainLine, type SendChainReport } from './sendChain';
+import { onRoomConnectionChange } from './roomConnectionEvents';
+import { createSequencerAttach, type RoomFrameLike, type SequencerConnection } from './sequencerAttach';
 
 const log = createNamedLogger('websocket');
 
 export const ENVELOPE_ENABLED_KEY = 'qpm.ws.envelope.enabled';
 export const SEQUENCER_ENABLED_KEY = 'qpm.ws.sequencer.enabled';
-const STALE_DETECT_ENABLED_KEY = 'qpm.ws.sequencer.staleDetect.enabled';
-const STALE_GRACE_MS_KEY = 'qpm.ws.sequencer.staleGraceMs';
 const RESULT_TIMEOUT_MS = 5000;
 const MAX_RETRIES = 1;
 const ASSIGNED_CAP = 256;
-// CS-4: server rule is that stale/duplicate commandSequence numbers get no
-// result, so once a room frame executes past our envelope's number the send is
-// definitely lost. The grace covers the ~100 ms result window observed in
-// v1040 with headroom; a live frame→result measurement (Runtime Verification
-// Suite, CS-4 entry) sets the final default.
-const DEFAULT_STALE_GRACE_MS = 750;
 
 export class QuinoaCommandTimeoutError extends Error {
   constructor(public readonly requestId: string, public readonly commandType: string) {
     super(`QuinoaCommand ${commandType} (${requestId}) got no result within ${RESULT_TIMEOUT_MS} ms — outcome unknown`);
     this.name = 'QuinoaCommandTimeoutError';
   }
-}
-
-interface RoomFrameLike { executedCommandSequence?: unknown }
-
-interface SequencerConnection {
-  sendMessage: (payload: unknown) => unknown;
-  trySendMessageNow?: (payload: unknown) => boolean;
-  subscribeToWelcome?: (cb: (state: unknown, publishedAtServerMs?: unknown, executedCommandSequence?: unknown) => void) => unknown;
-  subscribeToRoomFrames?: (cb: (frame: RoomFrameLike) => void) => unknown;
-  lastDistributedRoomPublication?: { executedCommandSequence?: unknown };
-  ws?: WebSocket | null;
-  socket?: WebSocket | null;
-  currentWebSocket?: WebSocket | null;
-  // False before Welcome. Envelopes sent via `sendMessage` in that window get
-  // queued and later flushed with a stale commandSequence — CS-3 guard skips
-  // rewrite so they land as legacy and don't burn a fresh number.
-  isCommandSessionReady?: boolean;
 }
 
 interface PageWithRoom extends Window { MagicCircle_RoomConnection?: SequencerConnection }
@@ -92,29 +61,18 @@ interface PendingEntry {
   staleTimer: ReturnType<typeof setTimeout> | null;
 }
 
-// One record per connection. `live: false` means the wrapper is defused
-// (buried under outer wrappers, pass-through, re-armable on a later event).
-interface InstallRecord {
-  live: boolean;
-  send: CapturedSlot;
-  trySlot: CapturedSlot | null;
-  wrappedSend: (payload: unknown) => unknown;
-  wrappedTry: ((payload: unknown) => boolean) | null;
-  unsubWelcome: (() => void) | null;
-  unsubFrames: (() => void) | null;
-}
-
-const installs = new WeakMap<SequencerConnection, InstallRecord>();
-
 let started = false;
-let attached: { room: SequencerConnection; record: InstallRecord } | null = null;
-let boundSocket: WebSocket | null = null;
+const resultBinder = createResultBinder((res) => handleResult(res));
 let stopEvents: (() => void) | null = null;
 let idleResyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 let wire = 0;
 let frontier = 0;
 let seeded = false;
+// CS-18: highest number we put on the wire and never heard back about. The
+// server answers a stale/duplicate number with SILENCE, so re-emitting it is
+// unrecoverable; overshooting is not (invalid_sequence is answered and heals).
+let unansweredFloor = 0;
 // Bumped on every invalid_sequence heal so rejections from an older epoch
 // don't re-heal (a burst of sibling rejections would race a live retry).
 let epoch = 0;
@@ -125,8 +83,7 @@ let skippedPreSessionWarned = false;
 
 const foreignGate = createForeignEpisodeGate(3, 3000);
 let unregisterForeignSignal: (() => void) | null = null;
-// QPM-branded wrapper on top but no re-armable record — warn once.
-let qpmToppedWarned = false;
+let unregisterChainLine: (() => void) | null = null;
 
 const stats = {
   welcomes: 0,
@@ -147,7 +104,32 @@ const stats = {
   dropped: 0,
   rearms: 0,
   defusedDetaches: 0,
+  frontierCatchUps: 0,
+  unansweredProbes: 0,
+  chokepointCovered: 0,
+  chokepointReinstalls: 0,
+  chokepointBypassed: 0,
 };
+
+const attach = createSequencerAttach({
+  getRoom,
+  observeOutbound,
+  skipPreSession,
+  rewrite,
+  rollback,
+  onFrame,
+  onWelcome,
+  seedIfUnseeded: (room) => {
+    if (!seeded) seedFrom(room.lastDistributedRoomPublication?.executedCommandSequence);
+  },
+  refresh: (room) => {
+    resultBinder.bind(room);
+    checkIdleResync();
+  },
+  counters: () => ({ wire, frontier }),
+  stats,
+  gate: foreignGate,
+});
 
 // ── Switches ──────────────────────────────────────────────────────────────
 
@@ -179,20 +161,37 @@ function getRoom(): SequencerConnection | null {
   return room && typeof room.sendMessage === 'function' ? room : null;
 }
 
-function getSocket(room: SequencerConnection | null): WebSocket | null {
-  if (!room) return null;
-  return room.currentWebSocket ?? room.ws ?? room.socket ?? null;
+function seedFrom(seq: unknown): void {
+  const value = readExecutedSequence(seq);
+  if (value === null) return;
+  frontier = value;
+  wire = value;
+  seeded = true;
 }
 
-function seedFrom(seq: unknown): void {
-  if (typeof seq !== 'number' || !Number.isFinite(seq)) return;
-  frontier = seq;
-  wire = seq;
+function readRoomExecuted(): number | null {
+  return readExecutedSequence(attach.attachedRoom()?.lastDistributedRoomPublication?.executedCommandSequence);
+}
+
+// CS-18: `frontier` is otherwise fed only by the room-frame subscription and
+// Welcome. That subscription can go silent while the wrapper is still live (a
+// missed socket swap, a torn-down sub), and the server answers a stale number
+// with nothing at all — so the sequencer would re-emit the same dead number
+// forever. The room's own counter is a plain property read on a different
+// path; consult it every time we allocate or resync.
+function refreshFrontier(): void {
+  const seq = readRoomExecuted();
+  if (seq === null) return;
+  if (seq > frontier) { frontier = seq; stats.frontierCatchUps++; }
+  if (seq > wire) wire = seq;
   seeded = true;
 }
 
 function onWelcome(seq: unknown): void {
   stats.welcomes++;
+  // New command session: the server's counter restarts, so a number that went
+  // unanswered on the previous session no longer constrains anything.
+  unansweredFloor = 0;
   // A (re)connect starts a fresh command session server-side: reset, and fail
   // anything still in flight — its result will never arrive on this session.
   seedFrom(seq);
@@ -201,37 +200,16 @@ function onWelcome(seq: unknown): void {
 }
 
 function onFrame(frame: RoomFrameLike): void {
-  const seq = frame?.executedCommandSequence;
-  if (typeof seq !== 'number' || !Number.isFinite(seq)) return;
+  const seq = readExecutedSequence(frame?.executedCommandSequence);
+  if (seq === null) return;
   stats.frames++;
   if (seq > frontier) frontier = seq;
   if (seq > wire) wire = seq;
   seeded = true;
-  armStaleTimers();
+  if (pending.size > 0) armStaleTimers(pending.values(), frontier, onStale);
   // Frames are ~1/s and cheap when pending is empty; catches a burned number
   // between allocations without needing the removed 2 s reattach poll.
   if (pending.size === 0) checkIdleResync();
-}
-
-// CS-4: arm a stale-drop timer for every pending entry whose commandSequence
-// has already been executed by the room. If no real result arrives within the
-// grace, onStale settles it as `dropped_stale` and reuses CS-1's heal. Cheap
-// when pending is empty (the common case) and driven by frames, not by a poll.
-function armStaleTimers(): void {
-  if (pending.size === 0) return;
-  const enabled = storage.get<boolean>(STALE_DETECT_ENABLED_KEY, true) !== false;
-  if (!enabled) return;
-  const grace = getStaleGraceMs();
-  for (const entry of pending.values()) {
-    if (entry.wire !== null && entry.wire <= frontier && entry.staleTimer === null) {
-      entry.staleTimer = setTimeout(() => onStale(entry), grace);
-    }
-  }
-}
-
-function getStaleGraceMs(): number {
-  const raw = storage.get<number>(STALE_GRACE_MS_KEY, DEFAULT_STALE_GRACE_MS);
-  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_STALE_GRACE_MS;
 }
 
 function onStale(entry: PendingEntry): void {
@@ -256,8 +234,8 @@ function onStale(entry: PendingEntry): void {
     code: 'dropped_stale',
   });
   // A stale drop leaves wire > frontier with nothing else outstanding — the
-  // exact burn CS-1's heal predicate detects on the 2s poll. Fire immediately
-  // so the next envelope isn't rejected with invalid_sequence.
+  // exact burn CS-1's heal predicate detects. Fire immediately so the next
+  // envelope isn't rejected with invalid_sequence.
   checkIdleResync();
 }
 
@@ -269,8 +247,11 @@ function armIdleResync(): void {
 }
 
 function allocate(): number {
-  if (!seeded) seedFrom(attached?.room.lastDistributedRoomPublication?.executedCommandSequence);
-  if (frontier > wire) wire = frontier;
+  // CS-18: subsumes the old cold-seed branch — with wire/frontier starting at
+  // 0, the first refresh both seeds and catches up.
+  refreshFrontier();
+  const floor = nextWire({ frontier, unansweredFloor });
+  if (floor > wire) wire = floor;
   wire += 1;
   armIdleResync();
   stats.allocated++;
@@ -297,11 +278,14 @@ function rememberAssigned(requestId: string, seq: number): void {
 // drifted past the frontier while nothing is in flight (a burned number from a
 // refused send), reseed to the frontier so the next envelope isn't rejected.
 function checkIdleResync(): void {
+  // CS-18: pin to the authoritative counter, never to a frontier the frame
+  // subscription may have stopped updating.
+  refreshFrontier();
   const outstanding = countOutstanding(assigned.values(), Date.now(), RESULT_TIMEOUT_MS);
-  if (shouldIdleResync({ wire, frontier, outstanding, pending: pending.size })) {
+  if (shouldIdleResync({ wire, frontier, outstanding, pending: pending.size, unansweredFloor })) {
     stats.idleResyncs++;
-    log.debug('idle resync', { wire, frontier });
-    wire = frontier;
+    log.debug('idle resync', { wire, frontier, unansweredFloor });
+    wire = nextWire({ frontier, unansweredFloor });
   }
 }
 
@@ -332,6 +316,20 @@ function rewrite(payload: unknown): number | null {
   return seq;
 }
 
+// CS-3: sendMessage queues while disconnected and flushes on socket open
+// BEFORE Welcome. Rewriting there burns a number the server can't accept;
+// skip and let it land as legacy — the server refuses envelopes on that
+// path already, and our subsequent envelopes stay in sync.
+function skipPreSession(room: SequencerConnection, payload: unknown): boolean {
+  if (!isQuinoaCommandEnvelope(payload) || room.isCommandSessionReady !== false) return false;
+  stats.skippedPreSession++;
+  if (!skippedPreSessionWarned) {
+    skippedPreSessionWarned = true;
+    log.warn('QPM-WS-011', { requestId: payload.requestId, type: payload.command.type });
+  }
+  return true;
+}
+
 // ── Results ───────────────────────────────────────────────────────────────
 
 function settle(entry: PendingEntry, result: QuinoaCommandResultMessage | null): void {
@@ -347,8 +345,8 @@ function settle(entry: PendingEntry, result: QuinoaCommandResultMessage | null):
 function heal(): void {
   epoch += 1;
   stats.heals++;
-  log.info('QuinoaCommand invalid_sequence — resyncing wire counter to frontier', { wire, frontier });
-  wire = frontier;
+  log.info('QuinoaCommand invalid_sequence — resyncing wire counter to frontier', { wire, frontier, unansweredFloor });
+  wire = nextWire({ frontier, unansweredFloor });
 }
 
 function armTimeout(entry: PendingEntry): void {
@@ -370,7 +368,7 @@ function retry(entry: PendingEntry): void {
   armTimeout(entry);
   pending.set(requestId, entry);
   // Re-enter through the CURRENT outer chain (locker/observer see the resend).
-  const room = attached?.room ?? getRoom();
+  const room = attach.attachedRoom() ?? getRoom();
   let sent = false;
   try {
     sent = withQpmOrigin(() => room?.trySendMessageNow?.(entry.envelope) === true);
@@ -386,7 +384,7 @@ function retry(entry: PendingEntry): void {
 function fallBackToLegacy(entry: PendingEntry, res: QuinoaCommandResultMessage): void {
   recordServerLegacyVerdict(entry.commandType);
   stats.legacyFallbacks++;
-  const room = attached?.room ?? getRoom();
+  const room = attach.attachedRoom() ?? getRoom();
   let resent = false;
   try {
     withQpmOrigin(() => {
@@ -401,6 +399,15 @@ function onTimeout(entry: PendingEntry): void {
   if (pending.get(entry.requestId) !== entry) return;
   stats.timeouts++;
   log.warn('QPM-WS-007', { type: entry.commandType, requestId: entry.requestId, seq: entry.wire });
+  // CS-18: the number was neither acknowledged nor observed as executed. Since
+  // the server's only answer to a stale number is silence, re-emitting it can
+  // never recover — treat it as spent and bias every later allocation past it.
+  refreshFrontier();
+  if (entry.wire !== null && entry.wire > frontier && entry.wire > unansweredFloor) {
+    unansweredFloor = entry.wire;
+    stats.unansweredProbes++;
+    log.warn('QPM-WS-014', { type: entry.commandType, seq: entry.wire, frontier, roomExecuted: readRoomExecuted() });
+  }
   settle(entry, null);
 }
 
@@ -408,6 +415,9 @@ function handleResult(res: QuinoaCommandResultMessage): void {
   const code = typeof res.code === 'string' ? res.code : 'unknown';
   if (res.ok) stats.resultsOk++;
   else stats.resultsRejected[code] = (stats.resultsRejected[code] ?? 0) + 1;
+  // CS-18: any reply proves the socket is answering us again, so the forward
+  // bias has done its job and must not keep the counter pinned.
+  unansweredFloor = 0;
 
   const slot = assigned.get(res.requestId);
   assigned.delete(res.requestId);
@@ -415,6 +425,11 @@ function handleResult(res: QuinoaCommandResultMessage): void {
 
   const entry = pending.get(res.requestId);
   if (!entry) return;
+  // wire === null: the sequencer never saw this envelope, so the chokepoint
+  // wrapper is off the send path (server answers a zero sequence invalid_message).
+  if (!res.ok && code === 'invalid_message' && entry.wire === null) {
+    attach.reportBypass({ type: entry.commandType, requestId: entry.requestId });
+  }
   if (!res.ok) {
     log.warn('QPM-WS-006', { type: entry.commandType, code, seq: entry.wire, retries: entry.retries });
     if (code === 'not_ackable') {
@@ -427,229 +442,6 @@ function handleResult(res: QuinoaCommandResultMessage): void {
     }
   }
   settle(entry, res);
-}
-
-function onSocketMessage(event: MessageEvent): void {
-  const raw = event.data;
-  if (typeof raw !== 'string' || raw.indexOf(QUINOA_COMMAND_RESULT_TYPE) === -1) return;
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw); } catch { return; }
-  if (isQuinoaCommandResult(parsed)) handleResult(parsed);
-}
-
-function bindSocket(room: SequencerConnection | null): void {
-  const ws = getSocket(room);
-  if (ws === boundSocket) return;
-  unbindSocket();
-  if (!ws) return;
-  ws.addEventListener('message', onSocketMessage);
-  boundSocket = ws;
-}
-
-function unbindSocket(): void {
-  if (!boundSocket) return;
-  try { boundSocket.removeEventListener('message', onSocketMessage); } catch { /* closed */ }
-  boundSocket = null;
-}
-
-// ── Chokepoint wrappers ───────────────────────────────────────────────────
-
-function toUnsub(result: unknown): (() => void) | null {
-  if (typeof result === 'function') return result as () => void;
-  if (result && typeof result === 'object' && typeof (result as { unsubscribe?: unknown }).unsubscribe === 'function') {
-    return (result as { unsubscribe: () => void }).unsubscribe;
-  }
-  return null;
-}
-
-function detach(): void {
-  if (!attached) return;
-  const { room, record } = attached;
-  try { record.unsubWelcome?.(); } catch { /* noop */ }
-  try { record.unsubFrames?.(); } catch { /* noop */ }
-  record.unsubWelcome = null;
-  record.unsubFrames = null;
-  let sendRestored = false;
-  let tryRestored = true;
-  try { sendRestored = restoreSendSlot(room, 'sendMessage', record.send, record.wrappedSend); } catch { /* noop */ }
-  try {
-    if (record.wrappedTry && record.trySlot) {
-      tryRestored = restoreSendSlot(room, 'trySendMessageNow', record.trySlot, record.wrappedTry);
-    }
-  } catch { tryRestored = false; }
-  if (sendRestored && tryRestored) {
-    installs.delete(room);
-  } else {
-    // Buried under outer wrappers — defuse: the closures become transparent
-    // pass-throughs and the record stays re-armable for this connection.
-    record.live = false;
-    stats.defusedDetaches++;
-  }
-  attached = null;
-}
-
-function ensureAttached(): void {
-  const room = getRoom();
-  if (!room) return;
-  if (attached && attached.room === room) {
-    bindSocket(room);
-    checkIdleResync();
-    return;
-  }
-  detach();
-
-  // CS-5: an own-property send function that is neither the prototype method
-  // nor QPM-branded is a third-party wrapper; attaching under it would burn a
-  // number for every send its layer refuses. QPM-branded tops are our own
-  // outer wrappers over a buried (defused) sequencer wrapper: re-arm it.
-  const sendClass = classifySendSlot(room, 'sendMessage');
-  const tryClass = classifySendSlot(room, 'trySendMessageNow');
-  const foreignSend = sendClass === 'foreign';
-  const foreignTry = tryClass === 'foreign';
-  if (foreignSend || foreignTry) {
-    stats.layeringRefusals++;
-    const refusal = foreignGate.refused();
-    if (refusal.warn) {
-      log.warn('QPM-WS-013', { phase: 'layering', foreignSend, foreignTry, sustainedChecks: refusal.checks });
-    }
-    return;
-  }
-  const episode = foreignGate.cleared();
-  if (episode?.warned) {
-    log.info('foreign send wrapper cleared', { checks: episode.checks, durationMs: episode.durationMs });
-  }
-
-  if (sendClass === 'qpm' || tryClass === 'qpm') {
-    const record = installs.get(room);
-    if (!record) {
-      // Our outer wrappers sit directly over the prototype and no sequencer
-      // wrapper is buried below them (kill switch off at their install time).
-      // Attaching over the top would break the innermost invariant — refuse;
-      // a page reload resolves the ordering.
-      if (!qpmToppedWarned) {
-        qpmToppedWarned = true;
-        log.warn('QPM-WS-008', { phase: 'layering', qpmBranded: true, rearmable: false });
-      }
-      return;
-    }
-    rearm(room, record, sendClass, tryClass);
-    return;
-  }
-
-  // Chain fully unwound — any old record's wrapper is no longer installed.
-  installs.delete(room);
-
-  const sendSlot = captureSendSlot(room, 'sendMessage');
-  if (!sendSlot) return;
-  const trySlot = captureSendSlot(room, 'trySendMessageNow');
-
-  const record: InstallRecord = {
-    live: true,
-    send: sendSlot,
-    trySlot,
-    wrappedSend: sendSlot.bound,
-    wrappedTry: null,
-    unsubWelcome: null,
-    unsubFrames: null,
-  };
-  const wrappedSend = brandWrapper((payload: unknown): unknown => {
-    if (!record.live) return sendSlot.bound(payload);
-    observeOutbound(payload);
-    // CS-3: sendMessage queues while disconnected and flushes on socket open
-    // BEFORE Welcome. Rewriting there burns a number the server can't accept;
-    // skip and let it land as legacy — the server refuses envelopes on that
-    // path already, and our subsequent envelopes stay in sync.
-    if (isQuinoaCommandEnvelope(payload) && room.isCommandSessionReady === false) {
-      stats.skippedPreSession++;
-      if (!skippedPreSessionWarned) {
-        skippedPreSessionWarned = true;
-        log.warn('QPM-WS-011', { requestId: payload.requestId, type: payload.command.type });
-      }
-      return sendSlot.bound(payload);
-    }
-    rewrite(payload);
-    return sendSlot.bound(payload);
-  }, 'commandSequencer');
-  record.wrappedSend = wrappedSend;
-  const wrappedTry = trySlot
-    ? brandWrapper((payload: unknown): boolean => {
-        if (!record.live) return trySlot.bound(payload) === true;
-        observeOutbound(payload);
-        const seq = rewrite(payload);
-        const sent = trySlot.bound(payload);
-        if (seq !== null && sent !== true) rollback(seq);
-        return sent === true;
-      }, 'commandSequencer')
-    : null;
-  record.wrappedTry = wrappedTry;
-
-  try {
-    room.sendMessage = wrappedSend;
-    if (wrappedTry) room.trySendMessageNow = wrappedTry;
-    if (typeof room.subscribeToRoomFrames === 'function') {
-      record.unsubFrames = toUnsub(room.subscribeToRoomFrames(onFrame));
-    }
-    if (typeof room.subscribeToWelcome === 'function') {
-      // Fires synchronously with the current publication when already connected.
-      record.unsubWelcome = toUnsub(room.subscribeToWelcome((_state, _ms, seq) => onWelcome(seq)));
-    }
-    if (!seeded) seedFrom(room.lastDistributedRoomPublication?.executedCommandSequence);
-    installs.set(room, record);
-    attached = { room, record };
-    qpmToppedWarned = false;
-    bindSocket(room);
-    checkIdleResync();
-    notifyChainChanged();
-    log.debug('command sequencer attached', { wire, frontier, hasTry: !!trySlot });
-  } catch (err) {
-    try { restoreSendSlot(room, 'sendMessage', sendSlot, wrappedSend); } catch { /* noop */ }
-    try { if (wrappedTry && trySlot) restoreSendSlot(room, 'trySendMessageNow', trySlot, wrappedTry); } catch { /* noop */ }
-    try { record.unsubWelcome?.(); } catch { /* noop */ }
-    try { record.unsubFrames?.(); } catch { /* noop */ }
-    installs.delete(room);
-    attached = null;
-    log.warn('QPM-WS-008', { phase: 'attach' }, err);
-  }
-}
-
-// Re-enter a defused install: the wrapper is still buried in the chain, so
-// re-arming it (not wrapping on top) preserves the innermost position. Slots
-// classified 'clean' get our wrapper re-installed — the captured original is
-// still valid because our own restore returned the slot to its prior state.
-function rearm(
-  room: SequencerConnection,
-  record: InstallRecord,
-  sendClass: SendSlotClass,
-  tryClass: SendSlotClass,
-): void {
-  try {
-    if (sendClass === 'clean') room.sendMessage = record.wrappedSend;
-    if (tryClass === 'clean' && record.wrappedTry) room.trySendMessageNow = record.wrappedTry;
-    if (typeof room.subscribeToRoomFrames === 'function') {
-      record.unsubFrames = toUnsub(room.subscribeToRoomFrames(onFrame));
-    }
-    if (typeof room.subscribeToWelcome === 'function') {
-      // Fires synchronously when connected — reseeds wire/frontier, which may
-      // have reset server-side while the wrapper was defused.
-      record.unsubWelcome = toUnsub(room.subscribeToWelcome((_state, _ms, seq) => onWelcome(seq)));
-    }
-    record.live = true;
-    attached = { room, record };
-    stats.rearms++;
-    qpmToppedWarned = false;
-    bindSocket(room);
-    checkIdleResync();
-    notifyChainChanged();
-    log.debug('command sequencer re-armed', { wire, frontier, sendClass, tryClass });
-  } catch (err) {
-    record.live = false;
-    try { record.unsubWelcome?.(); } catch { /* noop */ }
-    try { record.unsubFrames?.(); } catch { /* noop */ }
-    record.unsubWelcome = null;
-    record.unsubFrames = null;
-    attached = null;
-    log.warn('QPM-WS-008', { phase: 'rearm' }, err);
-  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────
@@ -687,9 +479,9 @@ export function cancelCommandRequest(requestId: string): void {
 
 /** True when the wrapper is installed on the live connection and the switch is on. */
 export function isCommandSequencerActive(room?: unknown): boolean {
-  if (!started || !attached || !attached.record.live) return false;
+  if (!started || !attach.isLive()) return false;
   const current = room ?? getRoom();
-  return attached.room === current;
+  return attach.attachedRoom() === current;
 }
 
 export function startCommandSequencer(): void {
@@ -700,8 +492,9 @@ export function startCommandSequencer(): void {
   }
   started = true;
   unregisterForeignSignal = registerForeignSignal('room.send', () => foreignGate.active());
+  unregisterChainLine = registerSendChainLineSource(() => formatSendChainLine(attach.chain()));
   // onRoomConnectionChange fires 'initial' synchronously with the current room.
-  stopEvents = onRoomConnectionChange(() => ensureAttached());
+  stopEvents = onRoomConnectionChange(() => attach.ensureAttached());
 }
 
 /**
@@ -712,7 +505,12 @@ export function startCommandSequencer(): void {
  */
 export function ensureCommandSequencerAttached(): void {
   if (!started) return;
-  ensureAttached();
+  attach.ensureAttached();
+}
+
+/** Every layer on both send slots and the chokepoint, top→bottom (debug + copy report). */
+export function getSendChainReport(): SendChainReport | null {
+  return attach.chain();
 }
 
 export function stopCommandSequencer(): void {
@@ -721,25 +519,30 @@ export function stopCommandSequencer(): void {
   stopEvents?.(); stopEvents = null;
   if (idleResyncTimer !== null) { clearTimeout(idleResyncTimer); idleResyncTimer = null; }
   if (unregisterForeignSignal) { unregisterForeignSignal(); unregisterForeignSignal = null; }
-  unbindSocket();
-  detach();
+  if (unregisterChainLine) { unregisterChainLine(); unregisterChainLine = null; }
+  resultBinder.unbind();
+  attach.detach();
   for (const entry of [...pending.values()]) settle(entry, null);
   assigned.clear();
+  unansweredFloor = 0;
   skippedPreSessionWarned = false;
   foreignGate.reset();
-  qpmToppedWarned = false;
+  attach.resetWarnings();
 }
 
 export function getCommandSequencerStats(): Record<string, unknown> {
   return {
     started,
     attached: isCommandSequencerActive(),
+    ...attach.describe(),
     envelopeEnabled: isEnvelopeEnabled(),
     sequencerEnabled: isSequencerEnabled(),
     wire,
     frontier,
     seeded,
     epoch,
+    unansweredFloor,
+    roomExecuted: readRoomExecuted(),
     pending: pending.size,
     outstanding: countOutstanding(assigned.values(), Date.now(), RESULT_TIMEOUT_MS),
     ...stats,

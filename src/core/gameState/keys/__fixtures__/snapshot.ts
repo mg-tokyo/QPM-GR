@@ -15,6 +15,7 @@ export const FIXTURE_SNAPSHOT: QuinoaStateSnapshot = {
     data: {
       weather: null,
       shops: { seed: { inventory: [] } },
+      spectators: [],
       userSlots: [
         null,
         {

@@ -1,6 +1,7 @@
 // Client-local atoms with no room-state path.
 import { atomSource, defineKey } from '../define';
 import { isRecord } from '../../../utils/typeGuards';
+import { isQuinoaEngine } from '../../../utils/quinoaEngine';
 import type { GridPosition } from '../../../types/gameAtoms';
 
 const KNOWN_MODALS = new Set([
@@ -9,6 +10,7 @@ const KNOWN_MODALS = new Set([
 ]);
 const pos = (v: unknown): GridPosition | null | undefined =>
   (isRecord(v) && typeof v.x === 'number' && typeof v.y === 'number' ? { x: v.x, y: v.y } : v === null ? null : undefined);
+const slotIdOrNull = (v: unknown): number | null => (typeof v === 'number' ? v : null);
 
 export const UI_KEYS = {
   activeModal: defineKey<string | null>({
@@ -24,12 +26,20 @@ export const UI_KEYS = {
     sources: [atomSource(/^mySelectedItemIdAtom$/, 'client', { writable: true, project: (v) => (typeof v === 'string' ? v : null) })],
   }),
   selectedSlotId: defineKey<number | null>({
-    policy: 'client', tier: 'client', defaultValue: null, doc: 'Selected grow slot id',
-    sources: [atomSource(/^mySelectedSlotIdAtom$/, 'client', { project: (v) => (typeof v === 'number' ? v : null) })],
+    policy: 'client', tier: 'client', defaultValue: null,
+    doc: 'Selected grow slot id — game ≥1152 selectedCropSlotIdAtom (resolved slot on the plant under the player); older builds mySelectedSlotIdAtom',
+    sources: [
+      atomSource(/^selectedCropSlotIdAtom$/, 'client', { project: slotIdOrNull }),
+      atomSource(/^mySelectedSlotIdAtom$/, 'client', { project: slotIdOrNull }),
+    ],
   }),
   currentGrowSlotId: defineKey<number | null>({
-    policy: 'client', tier: 'composite', defaultValue: null, doc: 'Grow slot id currently being harvested (myCurrentGrowSlotIdAtom)',
-    sources: [atomSource(/^myCurrentGrowSlotIdAtom$/, 'client', { project: (v) => (typeof v === 'number' ? v : null) })],
+    policy: 'client', tier: 'composite', defaultValue: null,
+    doc: 'Grow slot id currently rendered for the plant under the player — game ≥1152 selectedCropSlotIdAtom; older builds myCurrentGrowSlotIdAtom',
+    sources: [
+      atomSource(/^selectedCropSlotIdAtom$/, 'client', { project: slotIdOrNull }),
+      atomSource(/^myCurrentGrowSlotIdAtom$/, 'client', { project: slotIdOrNull }),
+    ],
   }),
   action: defineKey<unknown>({
     policy: 'client', tier: 'composite', doc: 'Current action type (state + input dependent)',
@@ -44,7 +54,7 @@ export const UI_KEYS = {
     sources: [atomSource(/^localPlayerPositionAtom$/, 'client', { project: pos })],
   }),
   quinoaEngine: defineKey<unknown>({
-    policy: 'client', tier: 'dynamic', doc: 'PIXI engine handle (quinoaEngineAtom)',
-    sources: [atomSource(/^quinoaEngineAtom$/, 'client', { structure: (v) => isRecord(v) && typeof v.getSystem === 'function' })],
+    policy: 'client', tier: 'dynamic', doc: 'Game engine handle (quinoaEngineAtom; quinoaDevEngineAtom since game 1152 — systems on boot.seatScope/worldScope)',
+    sources: [atomSource(/^quinoa(?:Dev)?EngineAtom$/, 'client', { structure: isQuinoaEngine, prefer: (l) => l === 'quinoaEngineAtom' })],
   }),
 };

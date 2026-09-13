@@ -4,7 +4,6 @@ import { isWeatherShopType } from '../../../types/shops';
 import { warnFeature } from './_diagnostics';
 import type { InventoryData } from '../../../store/inventory';
 import {
-  ALERT_DEBUG_ENABLED,
   OWNERSHIP_BASELINE_WAIT_MS,
   OWNERSHIP_STALE_NOTICE_MS,
   OWNERSHIP_MAX_CONFIRMATION_MS,
@@ -47,6 +46,7 @@ import {
   ownershipListeners,
   pendingOwnershipConfirmations,
   debugLastStockStateByKey,
+  isAlertDebug,
 } from './alertState';
 
 // Forward imports (circular — safe in esbuild IIFE)
@@ -62,21 +62,21 @@ import type { QuinoaCommandResultMessage } from '../../../websocket/envelope';
 // ---------------------------------------------------------------------------
 
 export function debugLog(message: string, details?: Record<string, unknown>): void {
-  if (!ALERT_DEBUG_ENABLED) return;
+  if (!isAlertDebug()) return;
   const prefix = '[QPM][ShopRestockAlerts][Debug]';
   if (details) { console.log(`${prefix} ${message}`, details); return; }
   console.log(`${prefix} ${message}`);
 }
 
 export function debugLogError(message: string, error: unknown, details?: Record<string, unknown>): void {
-  if (!ALERT_DEBUG_ENABLED) return;
+  if (!isAlertDebug()) return;
   const prefix = '[QPM][ShopRestockAlerts][Debug]';
   if (details) { console.error(`${prefix} ${message}`, { ...details, error }); return; }
   console.error(`${prefix} ${message}`, error);
 }
 
 export function debugLogStockStateIfChanged(key: string, snapshot: Record<string, unknown>): void {
-  if (!ALERT_DEBUG_ENABLED) return;
+  if (!isAlertDebug()) return;
   const nextSignature = JSON.stringify(snapshot);
   const prevSignature = debugLastStockStateByKey.get(key);
   if (prevSignature === nextSignature) return;
@@ -278,12 +278,23 @@ export function armReactiveConfirmation(
 
   const item0 = getShopStockItemByKey(pending.key);
   pending.shopPurchasesBaseline = item0 ? item0.purchased : null;
-  pending.cycleArmFp = fingerprintCycle(item0);
+  pending.shopPurchasesArmed    = item0 != null;
+  pending.cycleArmFp            = fingerprintCycle(item0);
 
   const key = pending.key;
   const cycleUnsub = onShopStockItemChange(key, (item) => {
     const latest = pendingOwnershipConfirmations.get(key);
     if (!latest) return;
+    // Late-arm: when the shop bucket was empty at buy time (weather event
+    // between pushes, myData rebinding mid-flight), baseline the FIRST tick
+    // where the item exists and don't count it as a delta.
+    if (item && !latest.shopPurchasesArmed) {
+      latest.shopPurchasesBaseline = item.purchased;
+      latest.shopPurchasesArmed = true;
+      latest.cycleArmFp = fingerprintCycle(item);
+      debugLog('Pending late-armed on first item appearance', { key, purchasedAtBaseline: item.purchased });
+      return;
+    }
     if (item && latest.shopPurchasesBaseline != null) {
       const delta = Math.max(0, item.purchased - latest.shopPurchasesBaseline);
       if (delta >= latest.expectedIncrease) {
@@ -333,7 +344,10 @@ export function failPendingAndDismissForCycle(key: string, reason: string): void
     error: reason,
     timedOut: false,
   };
+  // Disarm before clearing: clearPendingOwnershipConfirmation now settles any
+  // still-armed pending itself, and this outcome is the more specific one.
   const settle = pending.settle;
+  pending.settle = null;
   debugLog('Fail-and-dismiss pending for cycle', {
     key, reason, cycleId, sent: pending.sent, confirmed: pending.confirmed,
     headless: pending.presenter === null,
@@ -379,7 +393,9 @@ function completeFromShopPurchases(pending: PendingOwnershipConfirmation, delta:
     error: null,
     timedOut: false,
   };
-  pending.settle?.(outcome);
+  const settle = pending.settle;
+  pending.settle = null;
+  settle?.(outcome);
   clearPendingOwnershipConfirmation(pending.key);
 }
 
@@ -401,6 +417,22 @@ export function clearPendingOwnershipConfirmation(key: string): void {
   }
   pending.cleanups.length = 0;
   pendingOwnershipConfirmations.delete(key);
+  // A headless caller (purchaseAndConfirm) is awaiting this pending's settle.
+  // Every path that clears a pending must therefore resolve it — removeAlert()
+  // clears unconditionally, so without this the promise hangs forever with the
+  // caller's in-flight flag stuck on. Sites with a more specific outcome null
+  // out `settle` before calling here, so this never double-settles.
+  const orphaned = pending.settle;
+  if (orphaned) {
+    pending.settle = null;
+    orphaned({
+      sent: pending.sent,
+      confirmed: pending.confirmed,
+      storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
+      error: 'purchase cleared',
+      timedOut: false,
+    });
+  }
 }
 
 export function schedulePendingStaleNotice(key: string): void {
@@ -439,6 +471,7 @@ export function failPendingConfirmation(key: string, reason: string): void {
   };
   const presenter = pending.presenter;
   const settle = pending.settle;
+  pending.settle = null;
   clearPendingOwnershipConfirmation(key);
   settle?.(outcome);
   presenter?.showFailure(reason);
@@ -536,7 +569,9 @@ export function processPendingOwnershipConfirmations(): void {
         error: null,
         timedOut: false,
       };
-      pending.settle?.(outcome);
+      const settle = pending.settle;
+      pending.settle = null;
+      settle?.(outcome);
       clearPendingOwnershipConfirmation(key);
       continue;
     }

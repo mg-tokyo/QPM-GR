@@ -16,6 +16,7 @@ import {
   trackCommandRequest,
 } from './commandSequencer';
 import { wsCounters, maybePublishRecovery, startWebsocketHealth, stopWebsocketHealth } from './health';
+import { getSocket } from './sequencerSocket';
 import {
   PET_TEAM_ICON_IDS,
   isFiniteNumber,
@@ -185,15 +186,10 @@ export function hasRoomConnection(): boolean {
   return getRoomConnection() !== null;
 }
 
-function getRoomSocket(connection: RoomConnection | null): WebSocket | null {
-  if (!connection) return null;
-  return connection.ws ?? connection.socket ?? connection.currentWebSocket ?? null;
-}
-
 export function isRoomSocketOpen(): boolean {
   const connection = getRoomConnection();
   if (!connection) return false;
-  const socket = getRoomSocket(connection);
+  const socket = getSocket(connection);
   if (!socket) {
     // Some builds hide the socket field on the room connection; treat as unknown/open.
     return true;

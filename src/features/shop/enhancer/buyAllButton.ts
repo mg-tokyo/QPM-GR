@@ -310,6 +310,7 @@ function wirePurchaseHandler(
       itemId,
       canonicalKey,
       quantity,
+      itemType,
     );
 
     if (cappedQty <= 0) {

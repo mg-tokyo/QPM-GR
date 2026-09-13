@@ -87,7 +87,8 @@ function ensurePatched(): void {
   // Connection changed — restore previous patch and re-wrap
   restorePatch();
 
-  const original = room.sendMessage.bind(room);
+  const rawSend = room.sendMessage;
+  const original = rawSend.bind(room);
   const wrapped = (payload: unknown): unknown => {
     observe(payload);
     return original(payload);
@@ -100,8 +101,8 @@ function ensurePatched(): void {
         return originalTry(payload);
       }
     : null;
-  brandWrapper(wrapped, 'nativeSendObserver');
-  if (wrappedTry) brandWrapper(wrappedTry, 'nativeSendObserver');
+  brandWrapper(wrapped, 'nativeSendObserver', rawSend);
+  if (wrappedTry) brandWrapper(wrappedTry, 'nativeSendObserver', rawTry);
 
   try {
     room.sendMessage = wrapped;

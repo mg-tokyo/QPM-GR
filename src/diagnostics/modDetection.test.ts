@@ -1,5 +1,13 @@
+/* eslint-disable no-restricted-properties -- fixtures set up room slots to test collectWrapperFingerprints; not a real WS send. */
 import { describe, expect, it } from 'vitest';
-import { collectWrapperFingerprints, detectOtherMods, formatModsLine, sweepModGlobals } from './modDetection';
+import {
+  collectWrapperFingerprints,
+  detectOtherMods,
+  formatModsLine,
+  readSendChainLine,
+  registerSendChainLineSource,
+  sweepModGlobals,
+} from './modDetection';
 
 const nativeLike = (): (() => void) => (function () { /* stub */ }).bind(null);
 
@@ -91,5 +99,75 @@ describe('detectOtherMods', () => {
     const r = detectOtherMods();
     expect(Array.isArray(r.known)).toBe(true);
     expect(Array.isArray(r.discovered)).toBe(true);
+  });
+});
+
+function WrappedWebSocket(url: string, protocols?: string | string[]): unknown {
+  const ws = protocols !== void 0 ? [url, protocols] : [url];
+  return ws;
+}
+
+describe("Arie's Mod identification", () => {
+  it('labels the WebSocket constructor excerpt from the 2026-09-11 field report', () => {
+    const win = { WebSocket: Object.assign(WrappedWebSocket, { prototype: { send: nativeLike() } }) };
+    const out = collectWrapperFingerprints(win as unknown as Record<string, unknown>);
+    expect(out[0]?.excerpt).toBe('function WrappedWebSocket(url, protocols) { const ws = protocols !== voi');
+    expect(out[0]?.label).toBe('AriesMod');
+  });
+
+  it('fingerprints a foreign room.sendMessage beneath QPM wrappers', () => {
+    class Room {
+      sendMessage(_m: unknown): void { /* proto */ }
+      trySendMessageNow(_m: unknown): boolean { return true; }
+    }
+    const room = new Room();
+    const aries = function (message: unknown, ...rest2: unknown[]): unknown {
+      let currentMessage = message;
+      currentMessage = currentMessage ?? rest2;
+      return currentMessage;
+    };
+    const locker = Object.assign(function locker(p: unknown): unknown { return aries(p); }, {
+      __qpmWrapped: true, __qpmLabel: 'lockerGuard', __qpmInner: aries,
+    });
+    (room as unknown as Record<string, unknown>).sendMessage = locker;
+    const win = { WebSocket: Object.assign(nativeLike(), { prototype: { send: nativeLike() } }), MagicCircle_RoomConnection: room };
+    const out = collectWrapperFingerprints(win as unknown as Record<string, unknown>);
+    expect(out.map((w) => [w.target, w.label])).toEqual([['room.sendMessage', 'AriesMod']]);
+  });
+
+  it('ignores room slots whose QPM chain bottoms out at the prototype', () => {
+    class Room { sendMessage(_m: unknown): void { /* proto */ } }
+    const room = new Room();
+    (room as unknown as Record<string, unknown>).sendMessage = Object.assign(function locker(): void { /* x */ }, {
+      __qpmWrapped: true, __qpmLabel: 'lockerGuard', __qpmInner: Room.prototype.sendMessage,
+    });
+    const win = { MagicCircle_RoomConnection: room };
+    expect(collectWrapperFingerprints(win as unknown as Record<string, unknown>)).toEqual([]);
+  });
+
+  it('adds AriesMod from the hook marker once, and not when a signature already named it', () => {
+    expect(detectOtherMods({ __tmMessageHookInstalled: true }).known).toEqual(['AriesMod']);
+    const win = {
+      __tmMessageHookInstalled: true,
+      WebSocket: Object.assign(WrappedWebSocket, { prototype: { send: nativeLike() } }),
+    };
+    expect(detectOtherMods(win).known).toEqual(['AriesMod (WebSocket)']);
+  });
+});
+
+describe('send chain line source', () => {
+  it('reads the latest source and ignores a stale unregister', () => {
+    const stopA = registerSendChainLineSource(() => 'Chain: A');
+    const stopB = registerSendChainLineSource(() => 'Chain: B');
+    stopA();
+    expect(readSendChainLine()).toBe('Chain: B');
+    stopB();
+    expect(readSendChainLine()).toBeNull();
+  });
+
+  it('treats a throwing source as no line', () => {
+    const stop = registerSendChainLineSource(() => { throw new Error('boom'); });
+    expect(readSendChainLine()).toBeNull();
+    stop();
   });
 });

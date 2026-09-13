@@ -42,7 +42,20 @@ const KNOWN_MOD_GLOBALS: ReadonlyArray<{ global: string; label: string }> = [
 
 // Grows from real Discord reports: a stable substring of the collapsed wrapper
 // source identifies the mod even when it carries no global.
-const WRAPPER_SIGNATURES: ReadonlyArray<{ pattern: string; label: string }> = [];
+const WRAPPER_SIGNATURES: ReadonlyArray<{ pattern: string; label: string }> = [
+  // Arie's Mod WebSocket constructor (3.4.409 field report, 2026-09-11; same in 3.2.209).
+  { pattern: 'function WrappedWebSocket(url, protocols)', label: 'AriesMod' },
+  // Arie's Mod own-property MagicCircle_RoomConnection.sendMessage wrapper (3.2.209, live 2026-09-11).
+  { pattern: 'let currentMessage = message', label: 'AriesMod' },
+];
+
+// Globals a mod sets as install flags; only reported when nothing else named that mod.
+const KNOWN_MOD_MARKERS: ReadonlyArray<{ global: string; label: string }> = [
+  { global: '__tmMessageHookInstalled', label: 'AriesMod' },
+];
+
+const ROOM_SEND_KEYS: readonly string[] = ['sendMessage', 'trySendMessageNow'];
+const INNER_MAX_DEPTH = 8;
 
 const EXCERPT_MAX = 72;
 const SWEEP_MAX_RESULTS = 6;
@@ -97,6 +110,20 @@ function isQpmBranded(fn: unknown): boolean {
   }
 }
 
+// QPM wrap sites record the raw function they wrap as __qpmInner (sendChain.ts
+// brandWrapper); follow it to the first non-QPM layer.
+function belowQpmLayers(fn: unknown): unknown {
+  let cur = fn;
+  for (let i = 0; i < INNER_MAX_DEPTH && isQpmBranded(cur); i++) {
+    try {
+      cur = (cur as { __qpmInner?: unknown }).__qpmInner;
+    } catch {
+      return undefined;
+    }
+  }
+  return isQpmBranded(cur) ? undefined : cur;
+}
+
 function fingerprintWrapper(target: string, fn: unknown): WrapperFingerprint | null {
   if (typeof fn !== 'function' || isQpmBranded(fn)) return null;
   let src: string;
@@ -138,6 +165,18 @@ export function collectWrapperFingerprints(
       if (open) out.push(open);
     }
   } catch { /* no access */ }
+  try {
+    const room = win.MagicCircle_RoomConnection;
+    if (room && typeof room === 'object') {
+      const proto = Object.getPrototypeOf(room) as Record<string, unknown> | null;
+      for (const key of ROOM_SEND_KEYS) {
+        const below = belowQpmLayers((room as Record<string, unknown>)[key]);
+        if (below === undefined || below === proto?.[key]) continue;
+        const fp = fingerprintWrapper(`room.${key}`, below);
+        if (fp) out.push(fp);
+      }
+    }
+  } catch { /* no access */ }
   return out;
 }
 
@@ -170,8 +209,9 @@ export function sweepModGlobals(
   return out;
 }
 
-export function detectOtherMods(): ModDetectionResult {
-  const win = pageWindow as unknown as Record<string, unknown>;
+export function detectOtherMods(
+  win: Record<string, unknown> = pageWindow as unknown as Record<string, unknown>,
+): ModDetectionResult {
   const known: string[] = [];
   for (const { global, label } of KNOWN_MOD_GLOBALS) {
     let value: unknown;
@@ -184,6 +224,13 @@ export function detectOtherMods(): ModDetectionResult {
   const fingerprints = collectWrapperFingerprints(win);
   for (const w of fingerprints) {
     if (w.label) known.push(`${w.label} (${w.target})`);
+  }
+
+  for (const { global, label } of KNOWN_MOD_MARKERS) {
+    if (known.some((k) => k === label || k.startsWith(`${label} `))) continue;
+    let value: unknown;
+    try { value = win[global]; } catch { continue; }
+    if (value) known.push(label);
   }
 
   const signals: string[] = [];
@@ -211,4 +258,23 @@ export function formatModsLine(result: ModDetectionResult): string | null {
   if (result.signals.length > 0) parts.push(`+unknown(${result.signals.join(', ')})`);
   if (parts.length === 0) return null;
   return `Mods: ${parts.join('  ')}`;
+}
+
+// The command sequencer registers its chain formatter here so the copy report
+// can print it without diagnostics importing websocket code.
+let sendChainLineSource: (() => string | null) | null = null;
+
+export function registerSendChainLineSource(source: () => string | null): () => void {
+  sendChainLineSource = source;
+  return () => {
+    if (sendChainLineSource === source) sendChainLineSource = null;
+  };
+}
+
+export function readSendChainLine(): string | null {
+  try {
+    return sendChainLineSource ? sendChainLineSource() : null;
+  } catch {
+    return null;
+  }
 }

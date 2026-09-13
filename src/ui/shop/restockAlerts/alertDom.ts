@@ -190,6 +190,9 @@ export function removeAlertRootIfEmpty(): void {
 // ---------------------------------------------------------------------------
 
 export function removeAlert(key: string): void {
+  // Unconditional and ahead of the alert-existence guard: a headless
+  // purchaseAndConfirm() has no alert card, and this clear is what settles its
+  // promise (with `error: 'purchase cleared'`) when the alert goes away.
   clearPendingOwnershipConfirmation(key);
   stopLoop(key);
   const watcher = alertPurchaseWatchers.get(key);
@@ -219,13 +222,12 @@ export function removeAlert(key: string): void {
 }
 
 /**
- * Reactive live-quantity decrement + dismiss. Captures at first fire the
- * displayed quantity + purchased counter; on each subsequent item change,
- * derives remaining = max(0, initialDisplayed - purchasesSinceFirstFire) and
- * writes it back to the alert card (overriding a stale processShopStock
- * quantity that came from a weather-shop atom where currentStock doesn't
- * decrement). Dismisses the cycle when remaining hits 0. Fires only when no
- * pending is armed — the pending path owns quantity display then.
+ * Reactive quantity-decrement + dismiss watcher. Captures purchased at first
+ * fire; derives remaining = max(0, initialDisplayed - purchasesSinceFirstFire)
+ * and writes it back (weather-shop atoms don't decrement currentStock).
+ * Dismisses when remaining hits 0 — unless a pending confirmation owns the
+ * key: this listener runs first (Set insertion order), and dismissing here
+ * would clear the pending before its own tick confirms the purchase.
  */
 function armAlertPurchaseWatcher(key: string, cycleId: string | null): void {
   const existing = alertPurchaseWatchers.get(key);
@@ -246,7 +248,6 @@ function armAlertPurchaseWatcher(key: string, cycleId: string | null): void {
   };
   const unsubscribe = onShopStockItemChange(key, (item) => {
     if (!item) return;
-    if (pendingOwnershipConfirmations.has(key)) return;
     if (state.purchasedAtFirstFire == null || state.initialDisplayQuantity == null) {
       const active = activeAlerts.get(key);
       state.purchasedAtFirstFire = item.purchased;
@@ -258,7 +259,7 @@ function armAlertPurchaseWatcher(key: string, cycleId: string | null): void {
     const purchasesSinceFirstFire = Math.max(0, item.purchased - state.purchasedAtFirstFire);
     if (purchasesSinceFirstFire <= 0) return;
     const derivedRemaining = Math.max(0, state.initialDisplayQuantity - purchasesSinceFirstFire);
-    if (derivedRemaining <= 0) {
+    if (derivedRemaining <= 0 && !pendingOwnershipConfirmations.has(key)) {
       debugLog('Alert dismissed via purchased-grow watcher (derived remaining = 0)', {
         key,
         purchasedAtFirstFire: state.purchasedAtFirstFire,

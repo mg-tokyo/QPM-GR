@@ -11,7 +11,7 @@ const itemArray = (v: unknown): QuinoaInventoryItem[] | undefined => (Array.isAr
 function typed(key: string, type: string, label: RegExp) {
   return defineKey<QuinoaInventoryItem[]>({
     policy: 'authoritative', tier: 'state', doc: `${key}: loose inventory items with itemType === '${type}'`,
-    sources: [stateSource(ITEMS, selectItemsOfType(type)), atomSource(label, 'predicted', { project: itemArray })],
+    sources: [stateSource(ITEMS, selectItemsOfType(type)), atomSource(label, 'predicted', { project: itemArray, requiresSeat: true })],
   });
 }
 
@@ -20,12 +20,15 @@ export const INVENTORY_KEYS = {
     policy: 'authoritative', tier: 'state', doc: 'Loose inventory {items, storages, favoritedItemIds}',
     sources: [
       stateSource('/child/data/userSlots/{myIdx}/data/inventory', selectInventory, { trustPatches: true }),
-      atomSource(/^my(?:Main)?Inventory(?:Data)?Atom$/, 'authoritative', { structure: (v) => isRecord(v) && ('storages' in v || 'items' in v) }),
+      atomSource(/^my(?:Main)?Inventory(?:Data)?Atom$/, 'authoritative', {
+        structure: (v) => isRecord(v) && ('storages' in v || 'items' in v),
+        requiresSeat: true,
+      }),
     ],
   }),
   inventoryItems: defineKey<QuinoaInventoryItem[]>({
     policy: 'authoritative', tier: 'state', doc: 'All loose inventory items',
-    sources: [stateSource(ITEMS, selectItems), atomSource(/^myPredictedInventoryItemsAtom$/, 'predicted', { project: itemArray })],
+    sources: [stateSource(ITEMS, selectItems), atomSource(/^myPredictedInventoryItemsAtom$/, 'predicted', { project: itemArray, requiresSeat: true })],
   }),
   cropInventory: typed('cropInventory', 'Produce', /^myCropInventoryAtom$/),
   toolInventory: typed('toolInventory', 'Tool', /^myToolInventoryAtom$/),

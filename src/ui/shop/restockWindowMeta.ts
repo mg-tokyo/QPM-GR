@@ -330,31 +330,37 @@ export function mergeToolFallbackRows(items: RestockItem[]): RestockItem[] {
   return merged;
 }
 
-/** Catalog-unavailable fallback only; the live membership comes from blueprints' `eligibleShops`. */
-const WEATHER_SHOP_FALLBACK_ITEM_IDS: Record<string, readonly string[]> = {
-  dawn: ['Daisy', 'Lavender', 'Saffron', 'Eggplant', 'Ube', 'Dawnbreaker', 'DawnCelestial', 'DawnEgg'],
-  snow: [
-    'Snowdrop', 'Leek', 'PineTree', 'Squash', 'Poinsettia',
-    'SnowEgg', 'ChilledPotion', 'FrozenPotion',
-    'WoodCaribou', 'StoneCaribou', 'MarbleCaribou', 'ColoredStringLights',
-  ],
-};
+export const LOADING_ITEM_ID = '__loading__';
 
-/** Adds an empty row for every item a weather shop can carry, so shops appear even before the restock API has seen them. */
+function makeLoadingRestockRow(shopType: string): RestockItem {
+  const row = makeEmptyRestockRow(LOADING_ITEM_ID, shopType);
+  row.is_dormant = null;
+  return row;
+}
+
+/**
+ * Adds an empty row for every item a weather shop can carry so shops appear
+ * in the window as soon as the registry knows them. Real membership comes
+ * from `eligibleShops`; before catalogs load, one placeholder per known
+ * weather shop keeps the group visible instead of silently dropping it.
+ */
 export function mergeWeatherShopFallbackRows(items: RestockItem[]): RestockItem[] {
+  const shopIds = getWeatherShopIds();
+  if (shopIds.length === 0) return items;
   const catalogsLoaded = areShopCatalogsLoaded();
-  const shopIds = catalogsLoaded ? getWeatherShopIds() : Object.keys(WEATHER_SHOP_FALLBACK_ITEM_IDS);
   let merged: RestockItem[] | null = null;
   for (const shopId of shopIds) {
-    const ids = catalogsLoaded ? getShopEligibleItemIds(shopId) : (WEATHER_SHOP_FALLBACK_ITEM_IDS[shopId] ?? []);
-    if (ids.length === 0) continue;
     const existing = new Set<string>();
     for (const row of items) {
       if (row.shop_type === shopId) existing.add(row.item_id);
     }
-    for (const id of ids) {
-      if (existing.has(id)) continue;
-      (merged ??= items.slice()).push(makeEmptyRestockRow(id, shopId));
+    if (catalogsLoaded) {
+      for (const id of getShopEligibleItemIds(shopId)) {
+        if (existing.has(id)) continue;
+        (merged ??= items.slice()).push(makeEmptyRestockRow(id, shopId));
+      }
+    } else if (existing.size === 0) {
+      (merged ??= items.slice()).push(makeLoadingRestockRow(shopId));
     }
   }
   return merged ?? items;

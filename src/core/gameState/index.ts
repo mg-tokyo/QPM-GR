@@ -4,7 +4,7 @@ import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { storage } from '../../utils/storage';
 import { fetchGameAccountInfo } from '../../services/gameAccount';
 import { createNamedLogger } from '../../diagnostics/logger';
-import { setGameStatePayloadSource } from '../../diagnostics/copyPayload';
+import { setGameStateIdentitySource, setGameStatePayloadSource } from '../../diagnostics/copyPayload';
 import { isDevModeEnabled } from '../devMode';
 import { getCapturedInfo, onJotaiCapture } from '../jotaiBridge';
 import { getPlayerIdFromUrl } from '../playerIdFromUrl';
@@ -17,6 +17,7 @@ import { publishGameStateHealth, startGameStateDiagnostics } from './health';
 import { GAME_STATE_KEYS, validateKeyTable, type GameStateKey, type GameStateValue } from './keys';
 import { Registry } from './resolver';
 import { createProductionRuntime, type SourceRuntime } from './runtime';
+import { startSeatWatcher, stopSeatWatcher } from './seatWatcher';
 import { getTopologyStats, onTopologyChange, resetTopology, signalTopology } from './topology';
 import type { KeyExplain, SourceKind } from './types';
 
@@ -71,6 +72,11 @@ function readUserSlots(): unknown {
   });
 }
 
+function readIsSpectating(reg: Registry<typeof GAME_STATE_KEYS>): boolean {
+  try { return reg.readSync('isSpectating') === true; }
+  catch { return false; }
+}
+
 function scheduleDivergenceAudit(): void {
   if (divergenceTimer !== null) clearTimeout(divergenceTimer);
   divergenceTimer = setTimeout(() => {
@@ -80,7 +86,7 @@ function scheduleDivergenceAudit(): void {
     const pending = readAtomByExactLabel('pendingQuinoaPredictionsAtom');
     if (Array.isArray(pending) && pending.length > 0) { scheduleDivergenceAudit(); return; }
     lastDivergent = runDivergenceAudit(reg, { emit: true }).divergent.map((d) => d.key);
-    publishGameStateHealth(reg, lastDivergent);
+    publishGameStateHealth(reg, lastDivergent, readIsSpectating(reg));
   }, DIVERGENCE_IDLE_MS);
 }
 
@@ -110,7 +116,7 @@ export function initGameState(): void {
   });
   registry = reg;
 
-  disposers.push(onTopologyChange(() => { publishGameStateHealth(reg, lastDivergent); scheduleDivergenceAudit(); }));
+  disposers.push(onTopologyChange(() => { publishGameStateHealth(reg, lastDivergent, readIsSpectating(reg)); scheduleDivergenceAudit(); }));
   disposers.push(onStateTreeReady(() => { refreshIdentity(); signalTopology('stateTree:ready'); }));
   disposers.push(onStateTreeWelcome(() => { refreshIdentity(); signalTopology('stateTree:welcome'); }));
   disposers.push(onJotaiCapture(() => { refreshIdentity(); signalTopology('jotai:capture'); }));
@@ -120,18 +126,22 @@ export function initGameState(): void {
   }, CACHE_GROWTH_POLL_MS));
 
   reg.start();
+  startSeatWatcher();
+  disposers.push(stopSeatWatcher);
   setGameStatePayloadSource(() => reg.explainAll());
+  setGameStateIdentitySource(() => ({ ...explainIdentity(), isSpectating: readIsSpectating(reg) }));
   if (getCapturedInfo().mode !== null) signalTopology('jotai:capture');
   if (getIdentity().playerId === null) {
     void hydrateIdentityFromAccount().then((ok) => { if (ok) log.info('identity resolved via account endpoint'); });
   }
-  publishGameStateHealth(reg, lastDivergent);
+  publishGameStateHealth(reg, lastDivergent, readIsSpectating(reg));
 }
 
 export function stopGameState(): void {
   for (const d of disposers.splice(0)) { try { d(); } catch { /* ignore */ } }
   if (divergenceTimer !== null) { clearTimeout(divergenceTimer); divergenceTimer = null; }
   setGameStatePayloadSource(null);
+  setGameStateIdentitySource(null);
   registry?.stop();
   registry = null;
   runtime = null;

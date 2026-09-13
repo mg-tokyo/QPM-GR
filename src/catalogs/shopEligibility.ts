@@ -91,6 +91,21 @@ export function isItemCatalogLoaded(): boolean {
   return getKindCatalog('item') !== null;
 }
 
+/** Every non-empty `eligibleShops` id observed across every catalog blueprint. */
+export function getAllEligibleShopIds(): Set<string> {
+  const out = new Set<string>();
+  for (const kind of SHOP_CATALOG_KINDS) {
+    const catalog = getKindCatalog(kind);
+    if (!catalog) continue;
+    for (const raw of Object.values(catalog)) {
+      const facing = toShopFacingEntry(kind, raw);
+      if (!facing) continue;
+      for (const id of readStringArray(facing.eligibleShops)) out.add(id);
+    }
+  }
+  return out;
+}
+
 let eligibleMemo: { refs: Array<Record<string, unknown> | null>; byShop: Map<string, string[]> } | null = null;
 
 /** Every catalog item whose blueprint lists `shopId` in `eligibleShops`. Memoised per catalog identity. */

@@ -2,9 +2,13 @@
 // (ktx2.worker-<hash>.js, libktx-<hash>.wasm, rive-<hash>.wasm, ...).
 //
 // Strategy A: match perf resource entries by filename.
-// Strategy B: fetch a handful of already-loaded JS chunks and regex the text
-// for asset paths. Both strategies avoid touching the game's decoder state —
+// Strategy B: delegate chunk enumeration + text fetch to bundleParser
+// (every /version/N/assets/*.js in DOM + resource timing, text cache, per-
+// marker miss cache, raised resource-timing buffer) and regex the chunk text
+// for the asset URL. Both strategies avoid touching the game's decoder state —
 // we only learn URLs.
+
+import { ensureResourceTimingBuffer, fetchBundleHitContaining, onNewBundleChunk } from '../catalogs/logic/bundleParser';
 
 export type GameAssetQuery = {
   key: string;
@@ -19,11 +23,12 @@ export type GameAssetHit = {
 
 export type DiscoverOptions = {
   chunkFilter?: RegExp;
+  // Upper bound for one wait on a not-yet-loaded chunk (0 disables). Game 1152
+  // keeps the KTX2 loader in a lazy chunk.
+  lateChunkWaitMs?: number;
 };
 
-const MAX_BUNDLE_SCAN_CHUNKS = 5;
-const VERSION_ASSETS_RE = /\/version\/\d+\/assets\//i;
-const MAIN_CHUNK_RE = /\/main-[\w.-]+\.js(?:\?|$)/i;
+const DEFAULT_LATE_CHUNK_WAIT_MS = 8000;
 
 const sessionCache = new Map<string, GameAssetHit>();
 
@@ -45,10 +50,15 @@ export async function discoverGameAssets(
   }
 
   if (pending.length > 0) {
+    ensureResourceTimingBuffer();
     matchFromResourceTimings(pending, hits);
-    const stillPending = pending.filter((q) => !hits.has(q.key));
-    if (stillPending.length > 0) {
-      await matchFromBundleScan(stillPending, hits, opts?.chunkFilter);
+    let missing = pending.filter((q) => !hits.has(q.key));
+    if (missing.length > 0) await matchFromBundleScan(missing, hits, opts?.chunkFilter);
+    missing = missing.filter((q) => !hits.has(q.key));
+    const waitMs = opts?.lateChunkWaitMs ?? DEFAULT_LATE_CHUNK_WAIT_MS;
+    if (missing.length > 0 && waitMs > 0 && (await waitForNewChunk(waitMs))) {
+      matchFromResourceTimings(missing, hits);
+      await matchFromBundleScan(missing.filter((q) => !hits.has(q.key)), hits, opts?.chunkFilter);
     }
   }
 
@@ -86,75 +96,31 @@ async function matchFromBundleScan(
   hits: Map<string, GameAssetHit>,
   chunkFilter: RegExp | undefined,
 ): Promise<void> {
-  const chunkUrls = collectChunkCandidates(chunkFilter);
-  let scanned = 0;
-  for (const chunkUrl of chunkUrls) {
-    if (scanned >= MAX_BUNDLE_SCAN_CHUNKS) break;
-    const outstanding = queries.filter((q) => !hits.has(q.key));
-    if (outstanding.length === 0) break;
-
-    let text: string;
-    try {
-      const response = await fetch(chunkUrl, { cache: 'force-cache' });
-      if (!response.ok) continue;
-      text = await response.text();
-    } catch {
-      continue;
-    }
-    scanned++;
-
-    for (const query of outstanding) {
-      const found = extractAssetUrl(text, chunkUrl, query.filenamePattern);
-      if (found) {
-        hits.set(query.key, { key: query.key, url: found, strategy: 'bundle-scan' });
-      }
-    }
+  for (const query of queries) {
+    if (hits.has(query.key)) continue;
+    const hit = await fetchBundleHitContaining(query.filenamePattern);
+    if (!hit) continue;
+    if (chunkFilter && !chunkFilter.test(hit.url)) continue;
+    const found = extractAssetUrl(hit.text, hit.url, query.filenamePattern);
+    if (found) hits.set(query.key, { key: query.key, url: found, strategy: 'bundle-scan' });
   }
 }
 
-function collectChunkCandidates(chunkFilter: RegExp | undefined): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-
-  const add = (raw: string | null | undefined): void => {
-    if (!raw) return;
-    const url = resolveUrl(raw, location.origin);
-    if (!url) return;
-    if (!VERSION_ASSETS_RE.test(url)) return;
-    if (chunkFilter && !chunkFilter.test(url)) return;
-    if (seen.has(url)) return;
-    seen.add(url);
-    ordered.push(url);
-  };
-
-  try {
-    const scripts = document.querySelectorAll('script[src]');
-    scripts.forEach((el) => add((el as HTMLScriptElement).src));
-    const modulepreloads = document.querySelectorAll('link[rel="modulepreload"]');
-    modulepreloads.forEach((el) => add((el as HTMLLinkElement).href));
-  } catch {
-    // DOM unavailable — resource entries below still work.
-  }
-
-  try {
-    const entries = performance.getEntriesByType('resource');
-    for (const entry of entries) {
-      const url = entry.name;
-      if (typeof url === 'string' && /\.js(?:\?|$)/i.test(url)) {
-        add(url);
-      }
-    }
-  } catch {
-    // Ignore — DOM path already contributed.
-  }
-
-  ordered.sort((a, b) => {
-    const aMain = MAIN_CHUNK_RE.test(a) ? 0 : 1;
-    const bMain = MAIN_CHUNK_RE.test(b) ? 0 : 1;
-    return aMain - bMain;
+// Resolves true when a new same-origin script chunk lands before `ms` elapses.
+function waitForNewChunk(ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false;
+    let off: (() => void) | null = null;
+    const finish = (value: boolean): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      off?.();
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(false), ms);
+    off = onNewBundleChunk(() => finish(true));
   });
-
-  return ordered;
 }
 
 function resolveUrl(raw: string, base: string): string | null {

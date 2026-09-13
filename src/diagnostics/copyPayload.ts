@@ -10,7 +10,7 @@ import { formatEnvironmentLine, formatFlagsLine, readEnvironmentInfo, readNonDef
 import { errorBuffer } from './errorBuffer';
 import { getCapturedGameVersion } from './gameVersionCapture';
 import { healthBus } from './healthBus';
-import { detectOtherMods, formatModsLine } from './modDetection';
+import { detectOtherMods, formatModsLine, readSendChainLine } from './modDetection';
 import { formatPerfLine } from './perfMonitor';
 import type { ErrorCode } from './types';
 
@@ -29,11 +29,66 @@ export function getGameStateSnapshotForPayload(): readonly KeyExplain[] | null {
   catch { return null; }
 }
 
+export interface IdentityPayload {
+  readonly playerId: string | null;
+  readonly myIdx: number | null;
+  readonly rung: string | null;
+  readonly isSpectating: boolean;
+}
+
+let gameStateIdentitySource: (() => IdentityPayload | null) | null = null;
+export function setGameStateIdentitySource(source: (() => IdentityPayload | null) | null): void {
+  gameStateIdentitySource = source;
+}
+
+// Confirmation channels the restock feature can still hear from. 'A' shopPurchases
+// counter, 'B' shop cycle rollover (always in list — weather events end reliably),
+// 'C' envelope-transport reject fast-path (per-purchase transient; not tracked here),
+// 'D' inventory / storage baseline delta.
+export interface RestockPayload {
+  readonly pendings: number;
+  readonly active: number;
+  readonly sources: readonly ('A' | 'B' | 'C' | 'D')[];
+  readonly purchasesField: string | null;
+}
+
+let restockPayloadSource: (() => RestockPayload | null) | null = null;
+export function setRestockPayloadSource(source: (() => RestockPayload | null) | null): void {
+  restockPayloadSource = source;
+}
+
+function renderRestockLine(): string | null {
+  const row = healthBus.readAll().find((s) => s.subsystem === 'feature:shopRestockAlerts');
+  if (!row || row.status === 'ok' || row.status === 'starting') return null;
+  if (!restockPayloadSource) return null;
+  try {
+    const p = restockPayloadSource();
+    if (!p) return null;
+    const sources = p.sources.length === 0 ? '[]' : `[${p.sources.join(',')}]`;
+    const field = p.purchasesField ?? 'absent';
+    return `Restock: pendings=${p.pendings}, active=${p.active}, sources=${sources}, purchasesField=${field}`;
+  } catch { return null; }
+}
+
+function renderIdentityLine(): string | null {
+  if (!gameStateIdentitySource) return null;
+  try {
+    const p = gameStateIdentitySource();
+    if (!p) return null;
+    const pid = p.playerId ?? 'null';
+    const myIdx = p.myIdx === null ? 'null' : String(p.myIdx);
+    const rung = p.rung ?? 'null';
+    return `Identity: pid=${pid} myIdx=${myIdx} rung=${rung} spectating=${p.isSpectating ? 't' : 'f'}`;
+  } catch { return null; }
+}
+
 function renderGameStateProblemLines(): string[] {
   const gs = getGameStateSnapshotForPayload();
   if (!gs) return [];
-  return gs.filter((e) => e.boundVia === null || !e.preferred).slice(0, 12)
+  const problems = gs.filter((e) => e.boundVia === null || !e.preferred).slice(0, 12)
     .map((e) => `${e.key}: ${e.boundDescription ?? 'unbound'}${e.preferred ? '' : ' (fallback)'}`);
+  const idLine = renderIdentityLine();
+  return idLine ? [idLine, ...problems] : problems;
 }
 
 interface UAInfo { browser: string; os: string }
@@ -77,8 +132,10 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
     os: ua.os,
     environmentLine: safe(() => formatEnvironmentLine(readEnvironmentInfo(now)), 'Env: ?'),
     modsLine: safe(() => formatModsLine(detectOtherMods()), null),
+    chainLine: safe(() => readSendChainLine(), null),
     flagsLine: safe(() => formatFlagsLine(readNonDefaultFlags()), null),
     perfLine: safe(() => formatPerfLine(), null),
+    restockLine: safe(() => renderRestockLine(), null),
     subsystems: healthBus.readAll(),
     aggregate: healthBus.aggregate(),
     gameStateProblemLines: renderGameStateProblemLines(),

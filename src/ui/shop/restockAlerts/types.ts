@@ -35,7 +35,6 @@ export const TOOL_SHACK_WS_STORAGE_ID = 'ToolShack';
 /** Fallback tool caps, used only while the item catalog (`maxInventoryQuantity`) is unavailable. */
 export const TOOL_STACK_LIMIT   = 99;
 export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan', 'replenishpotion', 'xppotion']);
-export const ALERT_DEBUG_ENABLED = false;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +85,8 @@ export interface BuyAllResult {
   error: string | null;
   /** Envelope-transport only. One entry per sent request; empty under legacy. */
   awaitResults?: Array<() => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>>;
+  /** True when at least one send returned an envelope await (Signal C is available); false under legacy transport. */
+  hasEnvelope?: boolean;
 }
 
 export interface OwnershipBaseline {
@@ -147,6 +148,8 @@ export interface PendingOwnershipConfirmation {
   storedInTargetStorage: boolean;
   /** Signal A baseline — server-acked purchases counter at arm time. Null when discovery couldn't locate shopPurchases. */
   shopPurchasesBaseline: number | null;
+  /** Signal A late-arm flag: true once the pending has captured a non-null shopPurchases baseline from `getShopStockItemByKey`. Delta comparisons are gated on this flag. */
+  shopPurchasesArmed: boolean;
   /** Signal B baseline — cycle fingerprint at arm time. Null when the item wasn't in the shop snapshot at arm. */
   cycleArmFp: CycleFingerprint | null;
   /** Reactive subscription teardowns installed at arm time; called in clearPendingOwnershipConfirmation. */
@@ -154,5 +157,5 @@ export interface PendingOwnershipConfirmation {
   /** Null for headless purchases; alert card writer for Buy-button flow. */
   presenter: PendingPresenter | null;
   /** Called exactly once on completion, failure, or timeout. */
-  settle?: (outcome: PurchaseOutcome) => void;
+  settle?: ((outcome: PurchaseOutcome) => void) | null;
 }

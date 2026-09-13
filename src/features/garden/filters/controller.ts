@@ -8,9 +8,10 @@ import { STORAGE_KEY, DIM_ALPHA } from './constants';
 import type { GardenFiltersConfig, CachedFilterSets } from './types';
 import { normalizeMutationFilterKey } from './mutationKeys';
 import { installVisibleGuard, removeVisibleGuard, removeAllVisibleGuards } from './alphaGuard';
-import { getPixiApp, getOrBuildTileNodeCache, applyFiltersToStage, resetFiltersOnStage, tileCache } from './pixiStage';
+import { getPixiApp, getOrBuildTileNodeCache, applyFiltersToStage, resetFiltersOnStage, setTileDim, tileCache } from './pixiStage';
 import { diagnoseGardenFilters, testSpeciesFilter } from './diagnostics';
 import { watchNodeIdentity } from './nodeWatch';
+import { startFilterReapplyTriggers } from './reapply';
 
 let config: GardenFiltersConfig = {
   enabled: false,
@@ -76,6 +77,12 @@ export function getExcludeMutationsState(): { shouldExclude: boolean; allMode: b
     shouldExclude: statsHubExcludeMutationsSet !== null || config.excludeMutations,
     allMode: statsHubExcludeMutationsAllMode,
   };
+}
+
+/** True when any dim source (main config or a stats-hub override) is active. */
+export function isFilteringActive(): boolean {
+  return config.enabled || statsHubOverride !== null
+    || statsHubTileKeySet !== null || statsHubExcludeMutationsSet !== null;
 }
 
 /** Internal state snapshot for diagnoseGardenFilters (diagnostics.ts). */
@@ -146,10 +153,10 @@ export function applyFilters(): void {
         }
         if (tileKey !== null && statsHubTileKeySet.has(tileKey)) {
           removeVisibleGuard(node);
-          node.alpha = 1.0;
+          setTileDim(node, false);
           visible++;
         } else {
-          node.alpha = DIM_ALPHA;
+          setTileDim(node, true);
           installVisibleGuard(node);
           dimmed++;
         }
@@ -295,6 +302,11 @@ function notifyListeners(): void {
 function startFilteringPolling(): void {
   if (cleanupInterval !== null) return;
 
+  // polling-justified: reconciliation backstop only. Re-application is
+  // event-driven (reapply.ts: onGardenSnapshot + onAnyPixiNodeAdded), but the
+  // scene hook attaches only after PIXI capture and a missed event would leave
+  // a tile wrongly lit until the next event. Full pass: 1.1 ms avg / 1.9 ms
+  // max @ 1216 tiles (measured 2026-09-12), so 2000 ms ≈ 0.06 % duty.
   cleanupInterval = visibleInterval(
     'garden-filters-poll',
     () => {
@@ -306,10 +318,10 @@ function startFilteringPolling(): void {
       if (!config.enabled) return;
       applyFilters();
     },
-    500 // Every 500ms — fast enough to catch tiles created during viewport scrolling
+    2000
   );
 
-  diag.debug('Polling started (500ms interval, visibility-aware)');
+  diag.debug('Polling started (2000ms reconciliation sweep, visibility-aware)');
 }
 
 /**
@@ -341,6 +353,7 @@ export function initializeGardenFilters(): void {
   ensureBusRegistered();
   loadConfig();
   startFilteringPolling();
+  startFilterReapplyTriggers();
 
   // When catalogs arrive, invalidate cached filter sets so getAllPlantSpecies()
   // picks up new species for the UI.

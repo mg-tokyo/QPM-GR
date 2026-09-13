@@ -2,7 +2,7 @@
 // Prediction and history row builders for the Shop Restock window.
 // Row builders receive callbacks instead of closing over render state.
 
-import { getItemName, getItemRarity, getItemPrice, getItemMeta, getSpriteUrl, getCoinSpriteUrl } from './restockWindowMeta';
+import { getItemName, getItemRarity, getItemPrice, getItemMeta, getSpriteUrl, getCoinSpriteUrl, LOADING_ITEM_ID } from './restockWindowMeta';
 import {
   rarityColor,
   rarityBorderStyle,
@@ -24,6 +24,7 @@ import { getSoundConfig } from './restockAlerts/soundConfig';
 import { showSoundPopover } from './restockAlerts/soundPopover';
 import { getRequiredWeather, CELESTIAL_BG_TINT, CELESTIAL_BG_HOVER, CELESTIAL_BORDER } from './restockWindowConstants';
 import { getWeatherSnapshot, onWeatherSnapshot } from '../../store/weatherHub';
+import { capitalizeWord } from '../core/panelHelpers';
 import type { RestockItem } from '../../utils/restock/dataService';
 
 export type EtaRef = { el: HTMLElement; ts: number };
@@ -79,6 +80,21 @@ export function makeIconWrap(item: RestockItem, size = 42): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Loading placeholder (shown while catalogs still resolve)
+// ---------------------------------------------------------------------------
+
+function buildLoadingRow(shopType: string): HTMLTableRowElement {
+  const tr = document.createElement('tr');
+  tr.style.cssText = 'opacity:0.65;cursor:default;';
+  const td = document.createElement('td');
+  td.colSpan = 4;
+  td.style.cssText = 'padding:10px 12px;font-size:12px;font-style:italic;color:var(--qpm-text-muted);';
+  td.textContent = t('feature.shopRestock.loadingShopItems', { shop: capitalizeWord(shopType) });
+  tr.appendChild(td);
+  return tr;
+}
+
+// ---------------------------------------------------------------------------
 // Prediction row
 // ---------------------------------------------------------------------------
 
@@ -90,6 +106,12 @@ export function buildPredRow(
     openDetail(item: RestockItem, name: string): void;
   },
 ): { row: HTMLElement; etaRef: EtaRef; cleanups: Array<() => void> } {
+  if (item.item_id === LOADING_ITEM_ID) {
+    const placeholder = document.createElement('div');
+    placeholder.style.cssText = 'padding:8px 12px;font-size:12px;font-style:italic;color:var(--qpm-text-muted);';
+    placeholder.textContent = t('feature.shopRestock.loadingShopItems', { shop: capitalizeWord(item.shop_type) });
+    return { row: placeholder, etaRef: { el: document.createElement('span'), ts: 0 }, cleanups: [] };
+  }
   const ts       = item.estimated_next_timestamp ?? 0;
   const hasData  = (item.total_occurrences ?? 0) >= 2 && ts > 0;
   const rate     = getItemProbability(item);
@@ -287,6 +309,9 @@ export function buildHistRow(
     openDetail(item: RestockItem, name: string): void;
   },
 ): { row: HTMLElement; cleanups: Array<() => void> } {
+  if (item.item_id === LOADING_ITEM_ID) {
+    return { row: buildLoadingRow(item.shop_type), cleanups: [] };
+  }
   const rarity = getItemRarity(item.item_id, item.shop_type);
   const price  = getItemPrice(item.item_id, item.shop_type);
   const cel    = isCelestial(item.item_id);

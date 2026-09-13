@@ -26,7 +26,7 @@ export interface PixiBounds {
 
 export interface InventoryAnchor {
   rect: Rect;
-  source: 'InventoryItems' | 'InventoryContent';
+  source: 'InventoryContent';
 }
 
 export type AnchorMissReason = 'no-capture' | 'no-canvas' | 'no-modal' | 'modal-small' | 'below-threshold';

@@ -4,7 +4,7 @@
 import type { DetailedWeather } from '../../utils/game/weatherDetection';
 import { STANDARD_RESTOCK_SHOP_TYPES } from '../../types/shops';
 import { getShopWeatherKind, getWeatherShopIds } from '../../store/shopRegistry';
-import { areShopCatalogsLoaded, getItemCatalogRarity, getItemEligibleShops } from '../../catalogs/shopEligibility';
+import { getItemCatalogRarity, getItemEligibleShops } from '../../catalogs/shopEligibility';
 
 // Time-limited seasonal items -- hidden from history after expiry.
 // Key: "shopType:itemId"  Value: expiry timestamp (ms UTC)
@@ -88,25 +88,16 @@ export const SEARCH_DEBOUNCE_MS = 140;
 export const UI_STATE_SAVE_DEBOUNCE_MS = 180;
 export const HISTORY_CHUNK_SIZE = 40;
 
-/** Catalog-unavailable fallback only; live answers come from blueprints' `eligibleShops`. */
-const WEATHER_LOCK_FALLBACK: Record<string, DetailedWeather> = {
-  'SnowEgg': 'snow',
-  'DawnEgg': 'dawn',
-  'ThunderEgg': 'thunderstorm',
-};
-
 /** Weather an item is locked behind: its blueprint's weather shop, unless a standard shop also sells it. */
 export function getRequiredWeather(itemId: string): DetailedWeather | null {
   const shops = getItemEligibleShops(itemId);
-  if (shops.length > 0) {
-    if (shops.some((id) => STANDARD_RESTOCK_SHOP_TYPES.has(id))) return null;
-    for (const id of shops) {
-      const kind = getShopWeatherKind(id);
-      if (kind) return kind;
-    }
-    return null;
+  if (shops.length === 0) return null;
+  if (shops.some((id) => STANDARD_RESTOCK_SHOP_TYPES.has(id))) return null;
+  for (const id of shops) {
+    const kind = getShopWeatherKind(id);
+    if (kind) return kind;
   }
-  return areShopCatalogsLoaded() ? null : (WEATHER_LOCK_FALLBACK[itemId] ?? null);
+  return null;
 }
 
 /** Curated highlight set (pods, MythicalEgg) on top of catalog rarity `Celestial`. */

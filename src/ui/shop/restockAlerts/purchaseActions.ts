@@ -45,6 +45,7 @@ import {
 import { removeAlert, setAlertBusy, setAlertPendingConfirmation } from './alertDom';
 import { clearDismissedCycle, markDismissedCycle, processShopStock } from './stockProcessor';
 import { sendItemToStorage, sendPurchaseBatch } from './purchasePipeline';
+import { describeConfirmationSourceGaps } from './sourceGaps';
 export { sendPurchase, explainSendFailure, sendItemToStorage } from './purchasePipeline';
 
 // ---------------------------------------------------------------------------
@@ -77,12 +78,39 @@ export function getOwnedToolCount(itemId: string, canonicalKey: string): number 
   return owned;
 }
 
+/**
+ * Resolve an alert key to the `tool:` key its stack cap is stored under, or
+ * null when the item has no tool stack cap. Weather shops (`snow:ChilledPotion`)
+ * sell tools under their own prefix, and `getToolInventoryLimitFromKey` only
+ * understands `tool:` — without this the weather branch below is dead.
+ * The key's own prefix IS the shop type (`toCanonicalKey` builds `type:id`).
+ */
+function toToolCapKey(key: string, itemType?: string): string | null {
+  if (key.startsWith('tool:')) return key;
+  const sep = key.indexOf(':');
+  if (sep <= 0 || !isWeatherShopType(key.slice(0, sep))) return null;
+  // Owned case: the ownership tracker already maps `snow:X` → `tool:X`.
+  const resolved = resolveOwnershipKey(key);
+  if (resolved.startsWith('tool:')) return resolved;
+  // Zero-owned case: nothing to resolve against, so trust the shop entry's type.
+  return itemType === 'Tool' ? toCanonicalKey('tool', key.slice(sep + 1)) : null;
+}
+
+/** Stack cap that applies to an alert key (weather keys included), or null when uncapped. */
+export function getToolInventoryLimitForAlert(key: string, itemType?: string): number | null {
+  const capKey = toToolCapKey(key, itemType);
+  return capKey == null ? null : getToolInventoryLimitFromKey(capKey);
+}
+
 export function hasReachedToolInventoryCap(
   key: string,
   itemId: string,
+  itemType?: string,
 ): { reached: boolean; limit: number | null; owned: number } {
-  const limit = getToolInventoryLimitFromKey(key);
-  const owned = getOwnedToolCount(itemId, key);
+  const capKey = toToolCapKey(key, itemType);
+  if (capKey == null) return { reached: false, limit: null, owned: getOwnedToolCount(itemId, key) };
+  const limit = getToolInventoryLimitFromKey(capKey);
+  const owned = getOwnedToolCount(itemId, capKey);
   if (limit == null) return { reached: false, limit: null, owned };
   return { reached: owned >= limit, limit, owned };
 }
@@ -92,11 +120,14 @@ export function applyInventoryCapToQuantity(
   itemId: string,
   canonicalKey: string,
   requested: number,
+  itemType?: string,
 ): number {
   if (shopType !== 'tool' && !isWeatherShopType(shopType)) return requested;
-  const limit = getToolInventoryLimitFromKey(canonicalKey);
+  const capKey = toToolCapKey(canonicalKey, itemType);
+  if (capKey == null) return requested;
+  const limit = getToolInventoryLimitFromKey(capKey);
   if (limit == null) return requested;
-  const owned = getOwnedToolCount(itemId, canonicalKey);
+  const owned = getOwnedToolCount(itemId, capKey);
   const remainingCapacity = Math.max(0, limit - owned);
   return Math.max(0, Math.min(requested, remainingCapacity));
 }
@@ -429,10 +460,11 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
   active.statusEl.textContent = 'Buying...';
 
   try {
-    const cappedRequested = applyInventoryCapToQuantity(buyModel.shopType, buyModel.itemId, buyModel.key, requested);
+    const cappedRequested = applyInventoryCapToQuantity(buyModel.shopType, buyModel.itemId, buyModel.key, requested, buyModel.itemType);
     if (cappedRequested <= 0) {
-      const owned = getOwnedToolCount(buyModel.itemId, buyModel.key);
-      const limit = getToolInventoryLimitFromKey(buyModel.key);
+      const capState = hasReachedToolInventoryCap(buyModel.key, buyModel.itemId, buyModel.itemType);
+      const owned = capState.owned;
+      const limit = capState.limit;
       debugLog('Buy-all skipped because inventory cap is already reached', {
         key: buyModel.key,
         label: buyModel.label,
@@ -454,8 +486,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         label: buyModel.label,
         requested,
         cappedRequested,
-        owned: getOwnedToolCount(buyModel.itemId, buyModel.key),
-        limit: getToolInventoryLimitFromKey(buyModel.key),
+        ...hasReachedToolInventoryCap(buyModel.key, buyModel.itemId, buyModel.itemType),
       });
       requested = cappedRequested;
       active.statusEl.style.color = '#fde68a';
@@ -495,10 +526,13 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     }
 
     if (!result.confirmationAvailable || !result.baseline) {
-      debugLog('Buy-all sent but confirmation source unavailable', { key: buyModel.key, requested, sent: result.sent, confirmationAvailable: result.confirmationAvailable });
+      const gapText = result.baseline
+        ? describeConfirmationSourceGaps(result.baseline, result.hasEnvelope ?? false)
+        : '';
+      debugLog('Buy-all sent but confirmation source unavailable', { key: buyModel.key, requested, sent: result.sent, confirmationAvailable: result.confirmationAvailable, hasEnvelope: result.hasEnvelope ?? false });
       setAlertPendingConfirmation(active, false);
       active.statusEl.style.color = '#fca5a5';
-      active.statusEl.textContent = `Sent ${result.sent} \u2014 no confirmation source`;
+      active.statusEl.textContent = `Sent ${result.sent} \u2014 no confirmation source${gapText}`;
       setAlertBusy(active, false);
       return;
     }
@@ -522,6 +556,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
       autoStoreLabel: autoStoreTarget?.label ?? null,
       storedInTargetStorage: false,
       shopPurchasesBaseline: null,
+      shopPurchasesArmed: false,
       cycleArmFp: null,
       cleanups: [],
       presenter: createAlertPresenter(active.model.key),

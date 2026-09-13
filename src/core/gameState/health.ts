@@ -21,6 +21,7 @@ export function startGameStateDiagnostics(): void {
 export function buildGameStateHealth(
   source: HealthSource,
   divergent: readonly string[],
+  isSpectating: boolean = false,
 ): { status: 'ok' | 'degraded'; message: string; metrics: Record<string, number> } {
   const stats = source.stats();
   const explains = source.explainAll();
@@ -46,12 +47,23 @@ export function buildGameStateHealth(
   if (problems.length === 0) {
     return { status: 'ok', message: `${stats.keys} keys bound (${viaStateTree} state / ${viaAtom} atom / ${viaCustom} custom)`, metrics };
   }
+  // Spectating: the seat is legitimately absent, so masking the affected keys as
+  // "degraded" (implying a source failure) misleads the reader. Swap to a wording
+  // that names the seat cause; count of affected keys stays visible.
+  const affected = stats.unbound.length + stats.fallback.length;
+  if (isSpectating && affected > 0) {
+    return { status: 'degraded', message: `no seat: spectating — ${affected} key(s) awaiting seat`, metrics };
+  }
   return { status: 'degraded', message: `degraded: ${problems.join('; ')}`, metrics };
 }
 
-export function publishGameStateHealth(source: HealthSource, divergent: readonly string[]): void {
+export function publishGameStateHealth(
+  source: HealthSource,
+  divergent: readonly string[],
+  isSpectating: boolean = false,
+): void {
   if (!started) return;
-  const h = buildGameStateHealth(source, divergent);
+  const h = buildGameStateHealth(source, divergent, isSpectating);
   healthBus.publish({ subsystem: GAME_STATE_SUBSYSTEM, category: 'core', status: h.status, message: h.message, metrics: h.metrics });
 }
 

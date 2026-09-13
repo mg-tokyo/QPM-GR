@@ -1,4 +1,4 @@
-import { getPixiRefs } from '../../../core/pixiCapture';
+import { getPixiRefs, getCaptureDiag } from '../../../core/pixiCapture';
 import { STAGE_UI_LAYER_LABEL } from '../tooltipInjection/types';
 import {
   MIN_INVENTORY_WIDTH,
@@ -214,7 +214,10 @@ export function resolveInventoryAnchor(opts?: AnchorResolveOptions): AnchorResol
   const miss = (reason: AnchorMissReason): AnchorResolveResult => ({ anchor: null, miss: reason, detail });
 
   const refs = getPixiRefs();
-  detail.capture = refs ? { app: !!refs.app, renderer: !!refs.renderer, stage: !!refs.stage } : null;
+  const cd = getCaptureDiag();
+  detail.capture = refs
+    ? { app: !!refs.app, renderer: !!refs.renderer, stage: !!refs.stage, appLive: cd.appLive, gen: cd.generation }
+    : { app: cd.appPresent, renderer: false, stage: false, appLive: cd.appLive, gen: cd.generation };
   if (!refs?.stage) return miss('no-capture');
   const renderer = refs.renderer as PixiRendererLike;
   const stage = refs.stage as PixiDisplayObject;
@@ -240,11 +243,10 @@ export function resolveInventoryAnchor(opts?: AnchorResolveOptions): AnchorResol
   }
   const minViewCount = confirmedOpen ? 1 : MIN_OPEN_ITEM_VIEW_COUNT;
 
-  const itemsMatch = findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryItems');
+  // Beta 3668 InventoryModalView.ts:1641 labels the item container 'InventoryContent';
+  // no 'InventoryItems' container exists in any bundle — probing it was a wasted subtree walk.
   const contentMatch = findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryContent');
-
   const candidates: Array<{ match: PixiNodeMatch; source: InventoryAnchor['source'] }> = [];
-  if (itemsMatch) candidates.push({ match: itemsMatch, source: 'InventoryItems' });
   if (contentMatch) candidates.push({ match: contentMatch, source: 'InventoryContent' });
 
   const tried: string[] = [];

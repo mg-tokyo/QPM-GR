@@ -31,6 +31,30 @@ function getRoot(): any {
   return pageWindow;
 }
 
+/** True when `ctor.prototype` itself defines `texture` (PIXI Sprite does; its Container base and game subclasses do not). */
+export function hasOwnTextureAccessor(ctor: unknown): boolean {
+  if (typeof ctor !== 'function') return false;
+  const proto = (ctor as { prototype?: object }).prototype;
+  return !!proto && Object.prototype.hasOwnProperty.call(proto, 'texture');
+}
+
+// Walks a captured sprite's constructor chain to PIXI's own Sprite class.
+// The stage's first textured node may be a game subclass whose constructor
+// expects an options object (game 1152 leads with a Rive-backed sprite that
+// throws on a bare Texture). PIXI Sprite is the highest class in the chain
+// that still defines `texture` on its own prototype.
+export function resolveBaseSpriteCtor(ctor: unknown): unknown {
+  let best = ctor;
+  let cur: unknown = ctor;
+  for (let depth = 0; depth < 16 && typeof cur === 'function'; depth++) {
+    if (hasOwnTextureAccessor(cur)) best = cur;
+    const parent: unknown = Object.getPrototypeOf(cur);
+    if (!parent || parent === Function.prototype) break;
+    cur = parent;
+  }
+  return best;
+}
+
 // Uses unsafeWindow consistently for Chrome/Firefox compatibility.
 export function getCtors(app: any, renderer?: any): PixiConstructors {
   const root = getRoot();
@@ -60,7 +84,7 @@ export function getCtors(app: any, renderer?: any): PixiConstructors {
 
       return {
         Container: stage.constructor,
-        Sprite: anySpr.constructor,
+        Sprite: resolveBaseSpriteCtor(anySpr.constructor),
         Texture: anySpr.texture.constructor,
         Rectangle: anySpr.texture.frame.constructor,
         Text: anyTxt?.constructor || null,

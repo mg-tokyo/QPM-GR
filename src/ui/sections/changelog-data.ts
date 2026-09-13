@@ -2,6 +2,22 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.47",
+    date: "2026-09-14",
+    notes: [
+      "Fixed QPM actions silently not registering when Arie's Mod is installed (websocket degraded QPM-WS-008, sends stuck at 0, Buy All stuck confirming): the command sequencer now attaches to the game's own send method instead of competing for the WebSocket wrapper, so both mods work together in any install order, with an automatic fallback and a QPM-WS-015 warning if that method is replaced",
+      "Fixed Garden Filters dimming being undone whenever any player walked over a filtered tile: the dim now targets the tile's object view so the game's occlusion pass no longer resets it, and filters re-apply the moment new tiles appear instead of polling every half second",
+      "Fixed Amber shop items missing from the Shop Restock window: weather shops are now discovered from game data, so Amber, Rain and any future weather shop appear alongside Dawn, Snow and Thunder, with loading rows shown until the catalogs finish loading",
+      "Fixed restock alert cards sticking on 'Sent 1, confirming (slow)' when the item was bought through another mod's auto-buy or the purchase counter arrived late: cards now settle on the first confirmation signal, and when confirmation is impossible the card names the reason (inventory unbound, legacy transport) instead of hanging",
+      "Fixed most sprites failing to render in QPM windows after game build 1152 (Hydration 0% and QPM-SPRITE-004/005 errors): QPM now resolves the game's real Sprite class instead of its Rive sprite subclass, and finds the KTX2 texture loader the game moved into a lazily loaded chunk",
+      "Fixed false 'gameState degraded' warnings for selectedSlotId, currentGrowSlotId and quinoaEngine after game build 1152 renamed those atoms",
+      "Fixed a permanent 'gameState degraded' state after losing or changing your garden seat, with inventory, pets, storages and shop purchases stuck unbound: QPM now re-binds as soon as your seat changes and reports 'no seat: spectating' while you are spectating",
+      "Fixed Bulk Favorite reporting 'no-capture' and crop tooltips reporting 'uiLayer missing' after the game rebuilt its renderer mid session: QPM now detects a dead renderer capture and heals it from the live game app",
+      "Improved performance in the Discord activity: pet team sync no longer wakes on every other player's pet tick, and the reactive flush over-budget warning now names the costliest subscriber instead of 'top: null'",
+      "Improved the Diagnostics copy report with Chain, Restock and Identity lines, and the websocket degraded text now names which mod's wrapper is covering QPM's",
+    ],
+  },
+  {
     version: "3.3.46",
     date: "2026-09-10",
     notes: [

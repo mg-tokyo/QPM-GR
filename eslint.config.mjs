@@ -44,7 +44,16 @@ export default [
       ],
       'no-restricted-imports': ['error', { patterns: [jotaiBridgeRestriction] }],
       'max-lines': ['error', { max: 750, skipBlankLines: false, skipComments: false }],
+      // Reactive first: sanctioned pollers need a written reason (CLAUDE.md "Reactive first").
+      'qpm/polling-needs-justification': 'error',
     },
+  },
+  {
+    // Game data comes from catalogs/atoms/bundle text, never literals (architecture.md).
+    // Scope is deliberately feature/UI/store: core, catalogs, websocket, sprite-v2 and
+    // rive-engine hold genuine protocol/asset tables.
+    files: ['src/features/**/*.ts', 'src/ui/**/*.ts', 'src/store/**/*.ts'],
+    rules: { 'qpm/no-literal-domain-lists': 'error' },
   },
   {
     files: ['src/ui/**/*.ts'],
@@ -83,7 +92,7 @@ export default [
   // ---- Exemptions (later objects win for matching files) ----
   {
     files: ['src/utils/timerManager.ts'],
-    rules: { 'no-restricted-globals': 'off', 'no-restricted-properties': 'off' },
+    rules: { 'no-restricted-globals': 'off', 'no-restricted-properties': 'off', 'qpm/polling-needs-justification': 'off' },
   },
   {
     files: ['src/utils/storage.ts', 'src/services/storage.ts'],

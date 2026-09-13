@@ -115,7 +115,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   // Also expose to __QPM_INTERNAL__ for legacy/diagnostic access
   const { getGardenFiltersConfig, updateGardenFiltersConfig, applyGardenFiltersNow } = await import('../../features/garden/filters');
   const { getJotaiSubscriptionStats, debugReactiveRouting } = await import('../../core/jotaiBridge');
-  const { getReactiveStats } = await import('../../core/reactive/manager');
+  const { getReactiveStats, getReactiveEntryCosts } = await import('../../core/reactive/manager');
   const { storage: reactiveKillStorage } = await import('../../utils/storage');
   const KILL_SWITCH_KEYS = {
     state:     'qpm.perf.reactive.stateEnabled',
@@ -143,9 +143,10 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     setEnvelopeEnabled,
     isSequencerEnabled,
     setSequencerEnabled,
+    getSendChainReport,
   } = await import('../../websocket/commandSequencer');
   const { transportAudit, resolveTransport, getSendBudgetStats } = await import('../../websocket/transport');
-  const { sendToggleLockItem } = await import('../../features/pets/teamActions');
+  const { sendToggleLockItem, sendToggleLockItemResult } = await import('../../features/pets/teamActions');
   const commandSequencer = {
     stats: getCommandSequencerStats,
     isEnvelopeEnabled,
@@ -157,6 +158,9 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     sendBudget: getSendBudgetStats,
     // Real QPM send through sendRoomAction (reversible) for live transport checks.
     debugToggleLock: sendToggleLockItem,
+    // Same send returning transport + awaitResult, for live sequencer checks.
+    debugToggleLockResult: sendToggleLockItemResult,
+    chain: getSendChainReport,
   };
   const { getRiveRules, reapplyAllRiveRules } = await import('../../features/standalone/riveControl');
   const riveControl = {
@@ -197,6 +201,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     applyGardenFiltersNow,
     getJotaiSubscriptionStats,
     getReactiveStats,
+    getReactiveEntryCosts,
     setReactiveKillSwitch,
     getReactiveKillSwitches,
     debugReactiveRouting,

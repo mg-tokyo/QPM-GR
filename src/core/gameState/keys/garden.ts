@@ -8,7 +8,10 @@ export const GARDEN_KEYS = {
     policy: 'authoritative', tier: 'state', doc: 'My slot data (garden, inventory, petSlots, journal, activityLogs, ...)',
     sources: [
       stateSource('/child/data/userSlots/{myIdx}/data', selectMyData, { trustPatches: true, ignorePatchSuffixes: PET_TICK_PATCH_PATHS }),
-      atomSource(/^my(?:Player)?Data(?:Atom)?$/, 'authoritative', { structure: (v) => isRecord(v) && isRecord(v.garden) && 'tileObjects' in v.garden }),
+      atomSource(/^my(?:Player)?Data(?:Atom)?$/, 'authoritative', {
+        structure: (v) => isRecord(v) && isRecord(v.garden) && 'tileObjects' in v.garden,
+        requiresSeat: true,
+      }),
     ],
   }),
   myGarden: defineKey<Record<string, unknown>>({
@@ -21,6 +24,7 @@ export const GARDEN_KEYS = {
       atomSource(/^my(?:Player)?Data(?:Atom)?$/, 'authoritative', {
         structure: (v) => isRecord(v) && isRecord(v.garden) && 'tileObjects' in v.garden,
         project: (v) => (isRecord(v) && isRecord(v.garden) ? v.garden : undefined),
+        requiresSeat: true,
       }),
     ],
   }),

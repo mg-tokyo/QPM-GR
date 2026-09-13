@@ -11,6 +11,8 @@ import { TD_TRACKS_CODES } from './codes/tdTracks';
 import { PATCH_STAGE_CODES } from './codes/patchStage';
 import { PERF_CODES } from './codes/perf';
 import { WEBSOCKET_CODES } from './codes/websocket';
+import { GAMESTATE_CODES } from './codes/gameState';
+import { SPRITE_CODES } from './codes/sprite';
 
 const CURRENT_VERSION = '3.2.29';
 
@@ -234,7 +236,7 @@ register({
   title: 'KTX2 decoder unavailable',
   description: 'Discovery of the game\'s ktx2.worker-*.js / libktx-*.wasm assets on the game origin failed, or the wasm fetch failed. Compressed atlases cannot decode; sprite hydration degrades and QPM-SPRITE-001/002 will surface the user-visible signal.',
   userAction: 'Refresh the game tab.',
-  devNotes: 'src/sprite-v2/ktx2/client.ts + src/utils/gameAssetDiscovery.ts. If the game renamed assets, update the DISCOVERY_QUERIES filename patterns (ktx2.worker-*.js / libktx-*.wasm) in client.ts.',
+  devNotes: 'src/sprite-v2/ktx2/client.ts + src/utils/gameAssetDiscovery.ts (delegates chunk enumeration to catalogs/logic/bundleParser.ts). Game 1152 moved the KTX2 loader into a lazy rolldown chunk; discovery scans every loaded /version/N/assets/*.js and waits once for a late chunk. If it fires again, first check the filenames in DISCOVERY_QUERIES against performance.getEntriesByType("resource"), then whether the referencing chunk loads before the sprite boot.',
   sinceVersion: CURRENT_VERSION,
   // §9 — user-facing signal already emerges via SPRITE-001/002; this row targets the diagnostics
   // panel so a developer can distinguish "game renamed assets" from generic hydration failure.
@@ -739,3 +741,5 @@ for (const def of TD_TRACKS_CODES) register(def);
 for (const def of PATCH_STAGE_CODES) register(def);
 for (const def of WEBSOCKET_CODES) register(def);
 for (const def of PERF_CODES) register(def);
+for (const def of GAMESTATE_CODES) register(def);
+for (const def of SPRITE_CODES) register(def);

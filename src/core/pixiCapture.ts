@@ -27,8 +27,22 @@ export interface PixiRefs {
 const log = createNamedLogger('pixiCapture');
 const repairedSources = new Set<string>();
 
+let captureGeneration = 0;
+
+/** Bumped whenever a dead app is replaced by a live one. Consumers compare it to drop stale caches. */
+export function getCaptureGeneration(): number {
+  return captureGeneration;
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
+}
+
+/** The build's Application has no `destroyed` flag; liveness is the stage. */
+function isAppStageLive(app: unknown): app is PixiAppLike {
+  if (!isObject(app)) return false;
+  const stage = (app as PixiAppLike).stage;
+  return isObject(stage) && (stage as { destroyed?: unknown }).destroyed !== true;
 }
 
 function readRawCapture(): Record<string, unknown> | null {
@@ -84,6 +98,17 @@ export function repairPixiCapture(partial: Partial<PixiCaptureBundle>, source: s
   if (!target) return;
   let filled = false;
   try {
+    // Replace a present-but-dead app with a live one (rebuild heal — the only
+    // path that reaches the Discord capture, where the page script never runs).
+    if (partial.app && isAppStageLive(partial.app) && partial.app !== target.app
+        && isObject(target.app) && !isAppStageLive(target.app)) {
+      target.app = partial.app;
+      if (partial.renderer) target.renderer = partial.renderer;
+      if (partial.version && typeof partial.version === 'string') target.version = partial.version;
+      captureGeneration += 1;
+      log.info('pixi-capture-replaced', { source, generation: captureGeneration });
+      return;
+    }
     if (partial.app && !isObject(target.app)) {
       target.app = partial.app;
       filled = true;
@@ -115,11 +140,17 @@ export function repairPixiCapture(partial: Partial<PixiCaptureBundle>, source: s
  */
 export function getPixiCapture(): PixiCaptureBundle | null {
   const raw = readRawCapture();
-  if (raw && isObject(raw.app) && isObject(raw.renderer)) {
+  if (raw && isAppStageLive(raw.app) && isObject(raw.renderer)) {
     return toBundle(raw);
   }
 
   const fromService = readServiceState();
+  if (fromService && isAppStageLive(fromService.app)) {
+    repairPixiCapture(fromService, 'service-live');   // replace branch heals a dead target
+    const healed = readRawCapture();
+    if (healed && isAppStageLive(healed.app)) return toBundle(healed);
+    return fromService;
+  }
   if (fromService) {
     repairPixiCapture(fromService, 'service-state');
     const healed = readRawCapture();
@@ -132,6 +163,18 @@ export function getPixiCapture(): PixiCaptureBundle | null {
   return null;
 }
 
+/** Label-free stage recovery: renderer.lastObjectRendered is the parent-less stage. */
+function recoverStageStructurally(renderer: unknown): PixiNodeLike | null {
+  if (!isObject(renderer)) return null;
+  const lo = (renderer as Record<string, unknown>).lastObjectRendered;
+  if (!isObject(lo)) return null;
+  const node = lo as { destroyed?: unknown; children?: unknown; parent?: unknown };
+  if (node.destroyed === true) return null;
+  if (!Array.isArray(node.children) || node.children.length === 0) return null;
+  if (node.parent) return null;
+  return lo as PixiNodeLike;
+}
+
 /** Derived accessor most consumers want; null when no renderer is resolvable. */
 export function getPixiRefs(): PixiRefs | null {
   const capture = getPixiCapture();
@@ -140,8 +183,30 @@ export function getPixiRefs(): PixiRefs | null {
   const renderer = capture.renderer
     ?? (app && isObject(app.renderer) ? app.renderer as PixiRendererLike : null);
   if (!renderer) return null;
-  const stage = app && isObject(app.stage) ? app.stage as PixiNodeLike : null;
+  let stage = isAppStageLive(app) ? (app.stage as PixiNodeLike) : null;
+  if (!stage) stage = recoverStageStructurally(renderer);
   return { app, renderer, stage, canvas: getGameCanvas(renderer) };
+}
+
+export interface PixiCaptureDiag {
+  appPresent: boolean;
+  appLive: boolean;
+  stageLive: boolean;
+  generation: number;
+  canvasStamped: boolean;
+}
+
+export function getCaptureDiag(): PixiCaptureDiag {
+  const raw = readRawCapture();
+  const app = raw && isObject(raw.app) ? raw.app : null;
+  const refs = getPixiRefs();
+  return {
+    appPresent: !!app,
+    appLive: isAppStageLive(app),
+    stageLive: !!refs?.stage,
+    generation: captureGeneration,
+    canvasStamped: false,   // this build never stamps canvas.__PIXI_APP__ (live-verified)
+  };
 }
 
 /**

@@ -30,4 +30,39 @@ describe('gameState health', () => {
     const lines = renderGameStateTable([ex('coins', 'stateTree', true)]);
     expect(lines[0]).toMatch(/^coins\s+stateTree:x\s+preferred\s+subs=2\s+rebinds=1/);
   });
+
+  it('swaps the "degraded" wording for a spectator-aware message when isSpectating is true', () => {
+    const h = buildGameStateHealth({
+      stats: () => ({ keys: 5, bound: 2, preferred: 2, unbound: ['c'], fallback: ['b', 'd'], lastReasons: [] }),
+      explainAll: () => [
+        ex('a', 'stateTree', true),
+        ex('b', 'atom', false),
+        ex('c', null, false),
+        ex('d', 'atom', false),
+        ex('e', 'stateTree', true),
+      ],
+    }, [], true);
+    expect(h.status).toBe('degraded');
+    expect(h.message).toBe('no seat: spectating — 3 key(s) awaiting seat');
+    expect(h.message).not.toContain('degraded:');
+  });
+
+  it('keeps the "degraded" wording when isSpectating is false (default)', () => {
+    const h = buildGameStateHealth({
+      stats: () => ({ keys: 3, bound: 2, preferred: 1, unbound: ['c'], fallback: ['b'], lastReasons: [] }),
+      explainAll: () => [ex('a', 'stateTree', true), ex('b', 'atom', false), ex('c', null, false)],
+    }, [], false);
+    expect(h.status).toBe('degraded');
+    expect(h.message).toMatch(/^degraded:/);
+    expect(h.message).not.toContain('spectating');
+  });
+
+  it('leaves "ok" untouched when isSpectating is true but nothing is degraded', () => {
+    const h = buildGameStateHealth({
+      stats: () => ({ keys: 2, bound: 2, preferred: 2, unbound: [], fallback: [], lastReasons: [] }),
+      explainAll: () => [ex('a', 'stateTree', true), ex('b', 'atom', true)],
+    }, [], true);
+    expect(h.status).toBe('ok');
+    expect(h.message).not.toContain('spectating');
+  });
 });

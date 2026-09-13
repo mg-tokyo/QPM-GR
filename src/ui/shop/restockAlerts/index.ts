@@ -9,6 +9,7 @@ import { startShopRegistry } from '../../../store/shopRegistry';
 import { onInventoryChange, startInventoryStore } from '../../../store/inventory';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
 import { pageWindow } from '../../../core/pageContext';
+import { installDebugNamespace } from '../../../utils/debugGlobals';
 import {
   DISMISSED_CYCLES_KEY,
   ALERT_STYLE_ID,
@@ -26,7 +27,10 @@ import {
   fallbackCycleByKey,
   lastSeenStockQtyByKey,
   ownershipListeners,
+  setAlertDebug,
 } from './alertState';
+import { getDiscoveredShopPurchasesFieldName } from '../../../store/shopPurchasesDiscovery';
+import { setRestockPayloadSource } from '../../../diagnostics/copyPayload';
 import {
   clearPendingOwnershipConfirmation,
   failAllPendingConfirmations,
@@ -112,6 +116,9 @@ function ensureAlertSocketPollRunning(): void {
   if (boundSocket) return;
   if (alertState.socketPollStop != null) return;
   alertState.socketPollGeneration++;
+  // polling-justified: the game emits no event when MagicCircle_RoomConnection
+  // swaps its socket; this probe runs only while unbound and stops on the first
+  // successful bind (performance-audit-tracker 3.5).
   alertState.socketPollStop = visibleInterval(
     `shop-restock-socket-poll-v${alertState.socketPollGeneration}`,
     () => {
@@ -218,11 +225,56 @@ export function startShopRestockAlerts(): void {
     ensureAlertSocketPollRunning();
 
     startWeatherAlertProcessor();
+    installDebugBridge();
+    setRestockPayloadSource(() => ({
+      pendings: pendingOwnershipConfirmations.size,
+      active: activeAlerts.size,
+      sources: currentConfirmationSources(),
+      purchasesField: getDiscoveredShopPurchasesFieldName(),
+    }));
     publishOk('Started');
   } catch (error) {
     alertState.started = false;
     warnFeature('QPM-FEATURE-003', { what: 'start' }, error);
   }
+}
+
+function currentConfirmationSources(): readonly ('A' | 'B' | 'C' | 'D')[] {
+  const list: ('A' | 'B' | 'C' | 'D')[] = [];
+  if (getDiscoveredShopPurchasesFieldName() !== null) list.push('A');
+  list.push('B');
+  if (
+    alertState.hasInventoryBaseline &&
+    (alertState.hasSeedSiloBaseline || alertState.hasDecorShedBaseline || alertState.hasToolShackBaseline)
+  ) list.push('D');
+  return list;
+}
+
+let removeDebugBridge: (() => void) | null = null;
+
+function installDebugBridge(): void {
+  removeDebugBridge?.();
+  removeDebugBridge = installDebugNamespace('restockAlerts', {
+    setDebug: setAlertDebug,
+    getPendings: () => Array.from(pendingOwnershipConfirmations.entries()).map(([key, p]) => ({
+      key,
+      shopType: p.shopType,
+      itemId: p.itemId,
+      sent: p.sent,
+      confirmed: p.confirmed,
+      shopPurchasesArmed: p.shopPurchasesArmed,
+      cycleArmFp: p.cycleArmFp,
+      hasPresenter: p.presenter !== null,
+    })),
+    getActiveAlerts: () => Array.from(activeAlerts.keys()),
+    getPurchasesFieldName: () => getDiscoveredShopPurchasesFieldName(),
+    getSourceState: () => ({
+      hasInventory: alertState.hasInventoryBaseline,
+      hasSeedSilo:  alertState.hasSeedSiloBaseline,
+      hasDecorShed: alertState.hasDecorShedBaseline,
+      hasToolShack: alertState.hasToolShackBaseline,
+    }),
+  });
 }
 
 export function stopShopRestockAlerts(): void {
@@ -276,4 +328,8 @@ export function stopShopRestockAlerts(): void {
     removeAlert(key);
   }
   document.getElementById(ALERT_STYLE_ID)?.remove();
+  setAlertDebug(false);
+  removeDebugBridge?.();
+  removeDebugBridge = null;
+  setRestockPayloadSource(null);
 }

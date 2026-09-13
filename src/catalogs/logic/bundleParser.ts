@@ -210,10 +210,10 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
   return promise;
 }
 
-async function iterateBundlesContaining(
+async function iterateBundleHits(
   marker: BundleMarker,
   stopAtFirst: boolean,
-): Promise<string[]> {
+): Promise<Array<{ url: string; text: string }>> {
   const urls = findBundleCandidateUrls();
   if (!urls.length) return [];
 
@@ -221,13 +221,13 @@ async function iterateBundlesContaining(
   let missed = bundleMarkerMisses.get(key);
   if (!missed) { missed = new Set<string>(); bundleMarkerMisses.set(key, missed); }
 
-  const hits: string[] = [];
+  const hits: Array<{ url: string; text: string }> = [];
   for (const url of urls) {
     if (missed.has(url)) continue;
     const cached = bundleTextCache.get(url);
     if (!cached) continue;
     if (markerHits(cached, marker)) {
-      hits.push(cached);
+      hits.push({ url, text: cached });
       if (stopAtFirst) return hits;
     } else {
       // A chunk another consumer cached and this marker already missed must
@@ -249,7 +249,7 @@ async function iterateBundlesContaining(
     }
     if (markerHits(text, marker)) {
       bundleTextCache.set(url, text);
-      hits.push(text);
+      hits.push({ url, text });
       if (stopAtFirst) return hits;
     } else {
       missed.add(url);
@@ -264,7 +264,14 @@ async function iterateBundlesContaining(
  * chunk that loads lazily after the first attempt is still found.
  */
 export async function fetchBundleContaining(marker: BundleMarker): Promise<string | null> {
-  const hits = await iterateBundlesContaining(marker, true);
+  const hits = await iterateBundleHits(marker, true);
+  return hits[0]?.text ?? null;
+}
+
+// Like fetchBundleContaining but also names the chunk — for callers that
+// resolve relative asset paths against it.
+export async function fetchBundleHitContaining(marker: BundleMarker): Promise<{ url: string; text: string } | null> {
+  const hits = await iterateBundleHits(marker, true);
   return hits[0] ?? null;
 }
 
@@ -278,7 +285,7 @@ export async function fetchMainBundle(): Promise<string | null> {
  * main-*.js and appearing as bare property keys in a lazy styles chunk).
  */
 export async function fetchAllBundlesContaining(marker: BundleMarker): Promise<string[]> {
-  return iterateBundlesContaining(marker, false);
+  return (await iterateBundleHits(marker, false)).map((h) => h.text);
 }
 
 // Lazy chunks can appear minutes after boot; a bounded poll cannot wait for

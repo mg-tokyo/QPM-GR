@@ -6,16 +6,18 @@
 import { getCachedStore } from '../core/jotaiBridge';
 import { atomObjectFor } from '../core/gameState';
 import { readAtomValueSync, subscribeAtomValue } from '../core/atomRegistry';
+import { installDebugNamespace } from '../utils/debugGlobals';
 import {
   STANDARD_SHOP_IDS,
   STANDARD_RESTOCK_SHOP_TYPES,
-  INITIALLY_KNOWN_WEATHER_GATED_SHOP_IDS,
   type StandardShopId,
 } from '../types/shops';
 import type { ShopInventoryEntry } from '../types/gameAtoms';
 import { storage } from '../utils/storage';
 import { DETAILED_WEATHER_KINDS, type DetailedWeather } from '../utils/game/weatherDetection';
 import { getWeatherSnapshot } from './weatherHub';
+import { getAllEligibleShopIds } from '../catalogs/shopEligibility';
+import { onCatalogsReady } from '../catalogs/gameCatalogs';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeShopRegistry', 'shopRegistry');
@@ -24,14 +26,17 @@ const STORAGE_KEY = 'qpm.shopRegistry.discovered.v1';
 const WEATHER_STORAGE_KEY = 'qpm.shopRegistry.weather.v1';
 
 const STANDARD_SET: ReadonlySet<string> = new Set(STANDARD_SHOP_IDS);
-const INITIAL_WEATHER_GATED_SET: ReadonlySet<string> = new Set(INITIALLY_KNOWN_WEATHER_GATED_SHOP_IDS);
+/** Weather-gated shop ids derived from catalog `eligibleShops` — seeded on `onCatalogsReady`. */
+let catalogWeatherShopSet: Set<string> = new Set();
 
 let discoveredIds: Set<string> = new Set();
 let observedWeatherByShop: Record<string, DetailedWeather> = {};
 /** Shops seen with live stock during sunny weather are not weather-gated (e.g. apology) — never map them. */
 const openDuringSunny = new Set<string>();
 let quinoaDataUnsubscribe: (() => void) | null = null;
+let catalogsReadyUnsubscribe: (() => void) | null = null;
 let startPromise: Promise<void> | null = null;
+let removeDebugNamespace: (() => void) | null = null;
 
 const discoveryListeners = new Set<(id: string) => void>();
 
@@ -115,7 +120,7 @@ function ingestShopsSnapshot(value: unknown): void {
   let added = false;
   for (const id of Object.keys(shops)) {
     if (isStandardShopAlias(id)) continue;
-    if (INITIAL_WEATHER_GATED_SET.has(id)) continue;
+    if (catalogWeatherShopSet.has(id)) continue;
     if (discoveredIds.has(id)) continue;
     discoveredIds.add(id);
     added = true;
@@ -125,6 +130,25 @@ function ingestShopsSnapshot(value: unknown): void {
   observeShopWeather(shops as Record<string, unknown>);
 }
 
+/**
+ * Rebuild `catalogWeatherShopSet` from every blueprint's `eligibleShops` and
+ * merge new ids into `discoveredIds`. Idempotent; called on catalog-ready.
+ */
+function reseedFromCatalogs(): void {
+  const nextSet = new Set<string>();
+  let addedToDiscovered = false;
+  for (const id of getAllEligibleShopIds()) {
+    if (isStandardShopAlias(id)) continue;
+    nextSet.add(id);
+    if (discoveredIds.has(id)) continue;
+    discoveredIds.add(id);
+    addedToDiscovered = true;
+    notifyDiscovered(id);
+  }
+  catalogWeatherShopSet = nextSet;
+  if (addedToDiscovered) persistDiscovered();
+}
+
 export async function startShopRegistry(): Promise<void> {
   if (startPromise) return startPromise;
   diag.register('Loading persisted shop registry');
@@ -132,6 +156,8 @@ export async function startShopRegistry(): Promise<void> {
   persistDiscovered();
   observedWeatherByShop = loadPersistedWeather();
   exposeDebugNamespace();
+  // Fires now if catalogs already ready; else defers to first ready-fire.
+  catalogsReadyUnsubscribe = onCatalogsReady(() => reseedFromCatalogs());
   startPromise = (async () => {
     try {
       const unsub = await subscribeAtomValue('quinoaData', (value) => {
@@ -149,12 +175,16 @@ export async function startShopRegistry(): Promise<void> {
 export function stopShopRegistry(): void {
   try { quinoaDataUnsubscribe?.(); } catch {}
   quinoaDataUnsubscribe = null;
+  try { catalogsReadyUnsubscribe?.(); } catch {}
+  catalogsReadyUnsubscribe = null;
+  removeDebugNamespace?.();
+  removeDebugNamespace = null;
   startPromise = null;
   // discoveredIds is NOT cleared — restart resumes from persisted state.
 }
 
 export function getKnownShopIds(): readonly string[] {
-  return [...STANDARD_SHOP_IDS, ...INITIALLY_KNOWN_WEATHER_GATED_SHOP_IDS, ...discoveredIds];
+  return [...STANDARD_SHOP_IDS, ...discoveredIds];
 }
 
 export function getStandardShopIds(): readonly StandardShopId[] {
@@ -162,7 +192,7 @@ export function getStandardShopIds(): readonly StandardShopId[] {
 }
 
 export function getWeatherGatedShopIds(): readonly string[] {
-  return [...INITIALLY_KNOWN_WEATHER_GATED_SHOP_IDS, ...discoveredIds];
+  return [...discoveredIds];
 }
 
 export function isStandardShop(id: string): boolean {
@@ -198,7 +228,7 @@ export function onShopDiscovered(cb: (id: string) => void): () => void {
 }
 
 export function registerDiscovered(id: string): void {
-  if (STANDARD_SET.has(id) || INITIAL_WEATHER_GATED_SET.has(id)) return;
+  if (STANDARD_SET.has(id) || catalogWeatherShopSet.has(id)) return;
   if (discoveredIds.has(id)) return;
   discoveredIds.add(id);
   persistDiscovered();
@@ -240,22 +270,18 @@ export function injectShopInventory(
 }
 
 function exposeDebugNamespace(): void {
-  try {
-    const w = globalThis as Record<string, unknown>;
-    const existing = (w.__QPM_DEBUG as Record<string, unknown> | undefined) ?? {};
-    existing.shopRegistry = {
-      getKnownShopIds,
-      getStandardShopIds,
-      getWeatherGatedShopIds,
-      isStandardShop,
-      isWeatherGatedShop,
-      getShopWeatherKind,
-      getWeatherShopIds,
-      getObservedShopWeather: () => ({ ...observedWeatherByShop }),
-      registerDiscovered,
-      clearDiscovered,
-      injectShopInventory,
-    };
-    w.__QPM_DEBUG = existing;
-  } catch {}
+  removeDebugNamespace?.();
+  removeDebugNamespace = installDebugNamespace('shopRegistry', {
+    getKnownShopIds,
+    getStandardShopIds,
+    getWeatherGatedShopIds,
+    isStandardShop,
+    isWeatherGatedShop,
+    getShopWeatherKind,
+    getWeatherShopIds,
+    getObservedShopWeather: () => ({ ...observedWeatherByShop }),
+    registerDiscovered,
+    clearDiscovered,
+    injectShopInventory,
+  });
 }

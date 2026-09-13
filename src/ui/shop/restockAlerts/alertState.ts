@@ -29,6 +29,13 @@ export interface AlertPurchaseWatcher {
 }
 export const alertPurchaseWatchers = new Map<string, AlertPurchaseWatcher>();
 
+// Runtime debug toggle. Off by default; flipped via the __QPM_DEBUG bridge
+// so a live probe can silence or unsilence the [Debug] log stream without
+// a rebuild.
+let debugEnabled = false;
+export function setAlertDebug(value: boolean): void { debugEnabled = value === true; }
+export function isAlertDebug(): boolean { return debugEnabled; }
+
 // ---------------------------------------------------------------------------
 // Reassignable state (use alertState.prop = ... from any importer)
 // ---------------------------------------------------------------------------

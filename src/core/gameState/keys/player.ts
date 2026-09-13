@@ -38,7 +38,13 @@ export const PLAYER_KEYS = {
     policy: 'authoritative', tier: 'state', doc: 'My user slot (slot level: riddenPetId, petSlotInfos, lastActionEvent)',
     sources: [
       stateSource('/child/data/userSlots/{myIdx}', selectMySlot, { trustPatches: true, ignorePatchSuffixes: PET_TICK_PATCH_PATHS }),
-      atomSource(/^myUserSlotAtom$/, 'authoritative'),
+      // Structure guard: myUserSlotAtom is `myUserSlots[myIdx]` in beta baseAtoms.ts;
+      // it delivers `null` when the player has no seat. Reject null so the ladder
+      // reports UNBOUND rather than "bound with null".
+      atomSource(/^myUserSlotAtom$/, 'authoritative', {
+        structure: (v) => v !== null && typeof v === 'object',
+        requiresSeat: true,
+      }),
     ],
   }),
   myUserSlotIdx: defineKey<number>({
@@ -51,7 +57,10 @@ export const PLAYER_KEYS = {
         const idx = slots.findIndex((x) => getSlotOwnerId(x) === id.playerId);
         return idx >= 0 ? idx : undefined;
       }),
-      atomSource(/^my(?:User)?Slot(?:Idx|Index)(?:Data)?Atom$/, 'authoritative', { structure: (v) => typeof v === 'number' }),
+      atomSource(/^my(?:User)?Slot(?:Idx|Index)(?:Data)?Atom$/, 'authoritative', {
+        structure: (v) => typeof v === 'number',
+        requiresSeat: true,
+      }),
     ],
   }),
   playerId: defineKey<string>({
@@ -62,6 +71,28 @@ export const PLAYER_KEYS = {
     policy: 'client', tier: 'client', doc: 'My player record',
     sources: [
       atomSource(/^player(?:Data)?Atom$/, 'client', { structure: (v) => isRecord(v) && typeof v.id === 'string' && 'name' in v }),
+    ],
+  }),
+  spectators: defineKey<readonly string[]>({
+    policy: 'authoritative', tier: 'state', defaultValue: [],
+    doc: 'Player ids currently spectating this room (data.spectators)',
+    sources: [
+      stateSource('/child/data/spectators', (s) => (Array.isArray(s.child?.data?.spectators) ? s.child.data.spectators : undefined)),
+      atomSource(/^spectatorsAtom$/, 'authoritative', {
+        structure: (v) => Array.isArray(v) && v.every((x) => typeof x === 'string'),
+      }),
+    ],
+  }),
+  // policy:'client' (not 'authoritative') because the ladder is atom-only:
+  // isSpectatingAtom is a composite derived by the game from myUserSlotIdx
+  // and spectators (baseAtoms.ts:44-49); mirroring the formula on the
+  // state-tree rung would duplicate that derivation. assertLadderPolicy
+  // requires authoritative keys to list a stateTree source first.
+  isSpectating: defineKey<boolean>({
+    policy: 'client', tier: 'composite', defaultValue: false,
+    doc: 'True iff the player has no seat AND their id is in spectators (isSpectatingAtom)',
+    sources: [
+      atomSource(/^isSpectatingAtom$/, 'client', { structure: (v) => typeof v === 'boolean' }),
     ],
   }),
 };

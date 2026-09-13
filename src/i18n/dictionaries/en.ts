@@ -736,6 +736,7 @@ const en: Dictionary = {
   'feature.shopRestock.hoursAgo': '{h}h ago',
   'feature.shopRestock.minutesAgo': '{m}m ago',
   'feature.shopRestock.loadingRestock': 'Loading restock data...',
+  'feature.shopRestock.loadingShopItems': 'Loading {shop} shop items...',
   'feature.shopRestock.next': 'next',
   'feature.shopRestock.noItemsFound': 'No items found.',
   'feature.shopRestock.notEnoughData': 'Not enough data',

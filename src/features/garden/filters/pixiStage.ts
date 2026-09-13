@@ -61,6 +61,25 @@ export function getOrBuildTileNodeCache(stage: any): TileNode[] {
 }
 
 /**
+ * The single write path for filter dimming. Dims the tile's CONTENT CHILDREN,
+ * never the Tile container: the game's occlusion mask renders the child view
+ * with its root alpha saved/forced/restored through the PIXI setter every
+ * ≤250 ms while an avatar stands on the tile, so a dim on that node is
+ * re-dirtied and survives — a dim on the Tile container is permanently
+ * bypassed after render-group demotion (see the 2026-09-11 occlusion spec).
+ * Always heals tile.alpha to 1 (repairs container dims from older builds).
+ */
+export function setTileDim(node: any, dimmed: boolean): void {
+  if (node.alpha !== 1) node.alpha = 1;
+  const children = node.children;
+  if (!Array.isArray(children)) return;
+  const target = dimmed ? DIM_ALPHA : 1;
+  for (const child of children) {
+    if (child && child.alpha !== target) child.alpha = target;
+  }
+}
+
+/**
  * Traverse PIXI stage and apply filters based on child labels and mutations
  *
  * How it works:
@@ -161,10 +180,10 @@ export function applyFiltersToStage(
 
       if (shouldShow) {
         removeVisibleGuard(node);
-        node.alpha = 1.0;
+        setTileDim(node, false);
         stats.visible++;
       } else {
-        node.alpha = DIM_ALPHA;
+        setTileDim(node, true);
         installVisibleGuard(node);
         stats.dimmed++;
       }
@@ -191,7 +210,7 @@ export function resetFiltersOnStage(
 
   if (typeof node.label === 'string' && TILE_LABEL_TEST_RE.test(node.label)) {
     removeVisibleGuard(node);
-    node.alpha = 1.0;
+    setTileDim(node, false);
   }
 
   if (node.children && Array.isArray(node.children)) {

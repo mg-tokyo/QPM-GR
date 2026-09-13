@@ -30,7 +30,7 @@ import {
 } from './ownershipTracker';
 import {
   applyInventoryCapToQuantity,
-  getToolInventoryLimitFromKey,
+  getToolInventoryLimitForAlert,
   getOwnedToolCount,
 } from './purchaseActions';
 import { removeAlert, upsertAlert, updateAlertQuantity } from './alertDom';
@@ -223,7 +223,13 @@ export function processShopStock(state: ShopStockState): void {
 
       const trackedNow            = isTrackedItem(tracked, shopType, purchaseItemId);
       const rawQty                = getItemQuantity(item);
-      const currentQty            = applyInventoryCapToQuantity(shopType, purchaseItemId, canonicalKey, rawQty);
+      // Resolved before the cap call: weather shops sell tools under their own
+      // key prefix, so the cap lookup needs the entry's itemType to find the
+      // stack limit when the player owns none of the tool yet.
+      const raw                   = item.raw as Record<string, unknown> | undefined;
+      const identity              = getShopEntryIdentity(raw);
+      const resolvedItemType      = identity?.itemType ?? (raw?.itemType as string | undefined);
+      const currentQty            = applyInventoryCapToQuantity(shopType, purchaseItemId, canonicalKey, rawQty, resolvedItemType);
       const stockCycleId          = getStockCycleId(canonicalKey, bucket, item, rawQty);
       const dismissedForCycle     = isDismissedForCycle(canonicalKey, stockCycleId);
       const hasActiveAlert        = activeAlerts.has(canonicalKey);
@@ -238,7 +244,7 @@ export function processShopStock(state: ShopStockState): void {
           currentQty,
           rawQty,
           cappedOutByInventoryLimit: rawQty > 0 && currentQty <= 0,
-          toolInventoryLimit: getToolInventoryLimitFromKey(canonicalKey),
+          toolInventoryLimit: getToolInventoryLimitForAlert(canonicalKey, resolvedItemType),
           currentStock: item.currentStock,
           remaining: item.remaining,
           initialStock: item.initialStock,
@@ -271,7 +277,7 @@ export function processShopStock(state: ShopStockState): void {
       }
 
       if (currentQty <= 0) {
-        if (rawQty > 0 && getToolInventoryLimitFromKey(canonicalKey) != null) {
+        if (rawQty > 0 && getToolInventoryLimitForAlert(canonicalKey, resolvedItemType) != null) {
           debugLog('Suppressing alert because inventory tool stack limit reached', {
             key: canonicalKey,
             shopType,
@@ -279,7 +285,7 @@ export function processShopStock(state: ShopStockState): void {
             stockQty: rawQty,
             cappedQty: currentQty,
             inventoryOwned: getOwnedToolCount(purchaseItemId, canonicalKey),
-            limit: getToolInventoryLimitFromKey(canonicalKey),
+            limit: getToolInventoryLimitForAlert(canonicalKey, resolvedItemType),
           });
         }
         // Keep same-cycle dismiss lock to avoid hide/show flicker during purchase sync.
@@ -300,9 +306,6 @@ export function processShopStock(state: ShopStockState): void {
         continue;
       }
 
-      const raw = item.raw as Record<string, unknown> | undefined;
-      const identity = getShopEntryIdentity(raw);
-      const resolvedItemType = identity?.itemType ?? (raw?.itemType as string | undefined);
       upsertAlert({
         key: canonicalKey,
         shopType,

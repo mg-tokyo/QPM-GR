@@ -15,7 +15,7 @@
 // Dynamic tier: 5s safety poll for unclassified atoms.
 
 import { storage } from '../../utils/storage';
-import { recordProbe } from '../../diagnostics/perfMonitor';
+import { recordProbe, setProbeAttribution } from '../../diagnostics/perfMonitor';
 import { findSlotIdxByOwner, getPlayerIdSync } from '../playerContext';
 import { subscribeToPatches } from '../stateTree';
 import type { PatchOp } from '../stateTree';
@@ -40,6 +40,10 @@ interface Entry {
   readonly debugLabel: string | undefined;
   lastValue: unknown;
   dirty: boolean;
+  // Wall time inside the flush span (getValue + callbacks) since the perf
+  // monitor last took a window — attributes `reactive.flush` on the Perf line.
+  windowMs: number;
+  totalMs: number;
 }
 
 const KILL_SWITCH_KEYS: Readonly<Record<SubscriberTier, string>> = {
@@ -89,10 +93,15 @@ export class ReactiveSubscriptionManager {
     this.stateEventUnsub = subscribeToPatches((patches, newState) => {
       this.onStateEvent(newState, patches);
     });
+    setProbeAttribution('reactive.flush', () => {
+      const top = this.takeEntryCostWindow();
+      return top && top.totalMs > 0 ? `top ${top.label} ${Math.round((100 * top.ms) / top.totalMs)}%` : null;
+    });
     this.lastStatsSampleTs = performance.now();
   }
 
   stop(): void {
+    setProbeAttribution('reactive.flush', null);
     try { this.stateEventUnsub?.(); } catch { /* ignore */ }
     this.stateEventUnsub = null;
     this.detachInputListeners();
@@ -117,6 +126,8 @@ export class ReactiveSubscriptionManager {
         debugLabel: opts.debugLabel ?? atomLabel(atom),
         lastValue: safeGetValue(opts.getValue),
         dirty: false,
+        windowMs: 0,
+        totalMs: 0,
       };
       this.entries.set(atom, entry);
     }
@@ -165,6 +176,28 @@ export class ReactiveSubscriptionManager {
     this.flushBudgetSum = 0;
     this.lastStatsSampleTs = now;
     return stats;
+  }
+
+  /** Costliest entry since the last call, as a share of all entry time; resets the window. */
+  takeEntryCostWindow(): { label: string; ms: number; totalMs: number } | null {
+    let top: Entry | null = null;
+    let total = 0;
+    for (const e of this.entries.values()) {
+      total += e.windowMs;
+      if (!top || e.windowMs > top.windowMs) top = e;
+    }
+    const out = top && top.windowMs > 0
+      ? { label: top.debugLabel ?? 'unlabeled', ms: top.windowMs, totalMs: total }
+      : null;
+    for (const e of this.entries.values()) e.windowMs = 0;
+    return out;
+  }
+
+  /** Per-entry lifetime cost — the "who is expensive inside reactive.flush" console view. */
+  getEntryCosts(): Array<{ label: string | undefined; tier: SubscriberTier; ms: number; cbs: number }> {
+    return [...this.entries.values()]
+      .map((e) => ({ label: e.debugLabel, tier: e.tier, ms: Math.round(e.totalMs * 100) / 100, cbs: e.callbacks.size }))
+      .sort((a, b) => b.ms - a.ms);
   }
 
   // ── Internals ───────────────────────────────────────────────────────────
@@ -283,13 +316,18 @@ export class ReactiveSubscriptionManager {
                  : e.tier === 'composite' ? compositeEnabled
                  :                          dynamicEnabled;
       if (!gate) continue;
+      const t0 = performance.now();
       const current = safeGetValue(e.getValue);
-      if (current === e.lastValue) continue;
-      e.lastValue = current;
-      for (const cb of e.callbacks) {
-        try { cb(); } catch { /* subscriber error — swallow */ }
+      if (current !== e.lastValue) {
+        e.lastValue = current;
+        for (const cb of e.callbacks) {
+          try { cb(); } catch { /* subscriber error — swallow */ }
+        }
+        this.callbackFireCount += e.callbacks.size;
       }
-      this.callbackFireCount += e.callbacks.size;
+      const dt = performance.now() - t0;
+      e.windowMs += dt;
+      e.totalMs += dt;
     }
 
     const dur = performance.now() - start;
@@ -395,4 +433,7 @@ export const reactiveManager = new ReactiveSubscriptionManager();
 export function initReactiveManager(): void { reactiveManager.init(); }
 export function stopReactiveManager(): void { reactiveManager.stop(); }
 export function getReactiveStats(): ReactiveStats { return reactiveManager.getStats(); }
+export function getReactiveEntryCosts(): ReturnType<ReactiveSubscriptionManager['getEntryCosts']> {
+  return reactiveManager.getEntryCosts();
+}
 export function isReactiveTierEnabled(tier: SubscriberTier): boolean { return isTierEnabled(tier); }

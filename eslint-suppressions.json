@@ -1,4 +1,9 @@
 {
+  "src/audio/catalog.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
   "src/catalogs/catalogLoader/enrichment.ts": {
     "no-restricted-globals": {
       "count": 1
@@ -9,9 +14,19 @@
       "count": 1
     }
   },
+  "src/core/gameState/index.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
   "src/core/pageContext.ts": {
     "@typescript-eslint/ban-ts-comment": {
       "count": 2
+    }
+  },
+  "src/core/pixiScene.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/core/reactive/manager.ts": {
@@ -47,12 +62,20 @@
       "count": 1
     }
   },
+  "src/diagnostics/perfMonitor.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
   "src/features/activity/activityLogNativeEnhancer/modal.ts": {
     "max-lines": {
       "count": 1
     },
     "qpm/no-inline-ui-strings": {
       "count": 8
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/features/activity/activityLogNativeEnhancer/rendering.ts": {
@@ -65,8 +88,61 @@
       "count": 1
     }
   },
+  "src/features/battleship/gardenStage.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
+  "src/features/battleship/mpSession.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/battleship/state.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/bloblingCustomiser/avatarPreview.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/chargedAbilities/selector.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/economy/storageValue.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/garden/data/cropOptimization.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
+  "src/features/garden/filters/controller.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/garden/filters/diagnostics.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
   "src/features/gardenQol/ariesHold.ts": {
     "no-restricted-globals": {
+      "count": 1
+    }
+  },
+  "src/features/gardenQol/holdHarvestKinds/extractor.ts": {
+    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -80,9 +156,55 @@
       "count": 1
     }
   },
+  "src/features/mutations/valueTracking.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/mutations/weatherTracking.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/pets/abilityValuation.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
+  "src/features/pets/compare/constants.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 2
+    }
+  },
+  "src/features/pets/data/petAbilities/classification.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
+  "src/features/pets/optimizer/constants.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 2
+    }
+  },
   "src/features/pets/sellAll.ts": {
     "qpm/no-inline-ui-strings": {
       "count": 4
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
+  "src/features/shop/enhancer/detection.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/features/shop/enhancer/index.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/features/standalone/antiAfk.ts": {
@@ -92,6 +214,9 @@
   },
   "src/features/standalone/autoFavorite.ts": {
     "max-lines": {
+      "count": 1
+    },
+    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -108,6 +233,11 @@
   "src/features/standalone/textureSwapper/layerB-prepare.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
+    }
+  },
+  "src/features/standalone/textureSwapper/rive/constants.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/features/standalone/textureSwapper/rive/detection.ts": {
@@ -175,6 +305,11 @@
       "count": 2
     }
   },
+  "src/features/towerDefense/debug/perfOverlay.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
   "src/i18n/dictionaries/de.ts": {
     "max-lines": {
       "count": 1
@@ -193,6 +328,16 @@
   "src/i18n/dictionaries/fr.ts": {
     "max-lines": {
       "count": 1
+    }
+  },
+  "src/i18n/gameLocale.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/main/init.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 3
     }
   },
   "src/rive-engine/instanceTracker.ts": {
@@ -215,8 +360,28 @@
       "count": 1
     }
   },
+  "src/store/economyTracker.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/store/friendBonus.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
   "src/store/pets.ts": {
     "max-lines": {
+      "count": 1
+    }
+  },
+  "src/store/stats.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/store/weatherHub.ts": {
+    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -498,6 +663,11 @@
       "count": 1
     }
   },
+  "src/ui/economy/cropCalculatorWindow/constants.ts": {
+    "qpm/no-literal-domain-lists": {
+      "count": 1
+    }
+  },
   "src/ui/economy/cropCalculatorWindow/domHelpers.ts": {
     "qpm/no-emoji-in-ui": {
       "count": 2
@@ -548,6 +718,9 @@
   "src/ui/economy/storageValueOverlay.ts": {
     "qpm/no-hardcoded-colors": {
       "count": 2
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/ui/economy/storageValueWindow.ts": {
@@ -665,6 +838,9 @@
   "src/ui/journalChecker/constants.ts": {
     "qpm/no-hardcoded-colors": {
       "count": 7
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/ui/journalChecker/section.ts": {
@@ -788,6 +964,14 @@
   "src/ui/panel/tileStatusesCore.ts": {
     "qpm/no-inline-ui-strings": {
       "count": 2
+    },
+    "qpm/polling-needs-justification": {
+      "count": 7
+    }
+  },
+  "src/ui/panel/tileStatusesNew.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 3
     }
   },
   "src/ui/pets/cropBoostTrackerWindow.ts": {
@@ -1090,6 +1274,9 @@
     },
     "qpm/no-inline-ui-strings": {
       "count": 1
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/ui/riveControl/editorPanel.ts": {
@@ -1174,6 +1361,9 @@
     },
     "qpm/no-hardcoded-colors": {
       "count": 21
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/ui/sections/dashboardModules.ts": {
@@ -1182,6 +1372,9 @@
     },
     "qpm/no-hardcoded-colors": {
       "count": 31
+    },
+    "qpm/polling-needs-justification": {
+      "count": 2
     }
   },
   "src/ui/sections/favoritesSection.ts": {
@@ -1287,6 +1480,11 @@
       "count": 15
     }
   },
+  "src/ui/shop/restockAlerts/soundEngine.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
   "src/ui/shop/restockAlerts/soundPopover.ts": {
     "qpm/no-emoji-in-ui": {
       "count": 1
@@ -1304,11 +1502,17 @@
     },
     "qpm/no-inline-ui-strings": {
       "count": 1
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/ui/shop/restockWindowConstants.ts": {
     "qpm/no-hardcoded-colors": {
       "count": 13
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/ui/shop/restockWindowFormatters.ts": {
@@ -1318,6 +1522,9 @@
   },
   "src/ui/shop/restockWindowMeta.ts": {
     "no-restricted-imports": {
+      "count": 1
+    },
+    "qpm/no-literal-domain-lists": {
       "count": 1
     }
   },
@@ -1491,6 +1698,9 @@
   "src/ui/standalone/textureSwapperWindow/sort.ts": {
     "no-restricted-imports": {
       "count": 1
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/ui/standalone/textureSwapperWindow/spriteGrid.ts": {
@@ -1504,6 +1714,9 @@
   "src/ui/standalone/textureSwapperWindow/types.ts": {
     "qpm/no-hardcoded-colors": {
       "count": 11
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/ui/stats/statsHeaderSection.ts": {
@@ -1514,6 +1727,9 @@
       "count": 25
     },
     "qpm/no-inline-ui-strings": {
+      "count": 1
+    },
+    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -1557,6 +1773,9 @@
     },
     "qpm/no-hardcoded-colors": {
       "count": 17
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/ui/stats/statsHubWindow/gardenTileCard.ts": {
@@ -1602,6 +1821,9 @@
     },
     "qpm/no-hardcoded-colors": {
       "count": 7
+    },
+    "qpm/no-literal-domain-lists": {
+      "count": 1
     }
   },
   "src/ui/stats/statsSection.ts": {
@@ -1618,6 +1840,9 @@
     },
     "qpm/no-inline-ui-strings": {
       "count": 2
+    },
+    "qpm/polling-needs-justification": {
+      "count": 1
     }
   },
   "src/ui/superCleanser/floatingPanel.ts": {
@@ -1627,6 +1852,11 @@
   },
   "src/ui/superCleanser/styles.ts": {
     "qpm/no-hardcoded-colors": {
+      "count": 1
+    }
+  },
+  "src/ui/tour/discovery/engine.ts": {
+    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -1684,6 +1914,21 @@
   },
   "src/utils/restock/dataService.ts": {
     "max-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/versionChecker.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 1
+    }
+  },
+  "src/websocket/health.ts": {
+    "qpm/polling-needs-justification": {
+      "count": 2
+    }
+  },
+  "src/websocket/roomConnectionEvents.ts": {
+    "qpm/polling-needs-justification": {
       "count": 1
     }
   }

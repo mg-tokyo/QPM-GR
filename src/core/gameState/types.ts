@@ -40,6 +40,10 @@ export interface AtomSourceSpec<T> {
   /** Shape adapter so this rung yields the same T as the state-tree rung. */
   readonly project?: (raw: unknown) => Selected<T>;
   readonly writable?: boolean;
+  /** When true, this rung reports unavailable while `runtime.identity().myIdx === null`.
+   *  Used on game atoms that null-coalesce to 0/`[]`/etc. when the player has no seat,
+   *  so the ladder falls through to `defaultValue ?? null` (unmasking the "fallback delivers 0" case). */
+  readonly requiresSeat?: boolean;
 }
 
 export interface CustomSourceSpec<T> {
@@ -107,6 +111,10 @@ export type TopologyReason =
   | 'jotai:capture'
   | 'atoms:cacheGrowth'
   | 'identity:changed'
+  // Fires when the resolved myIdx crosses the null↔number boundary, regardless
+  // of whether playerId changed. Emitted by the seat watcher on userSlots
+  // patches (seatWatcher.ts) so the resolver re-walks {myIdx}-dependent keys.
+  | 'identity:seat'
   | 'source:failure'
   | 'debug:simulate';
 

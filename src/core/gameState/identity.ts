@@ -23,7 +23,14 @@ let deps: IdentityDeps | null = null;
 let playerId: string | null = null;
 let rung: IdentityRung | null = null;
 let cachedIdx: number | null = null;
+// undefined = no baseline yet; comparing on first call reports no transition.
+let lastObservedIdx: number | null | undefined = undefined;
 const listeners = new Set<(id: IdentityContext) => void>();
+
+export interface SeatTransitionResult {
+  readonly ctx: IdentityContext;
+  readonly seatTransition: boolean;
+}
 
 function nonEmpty(v: unknown): string | null {
   return typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
@@ -69,6 +76,7 @@ export function stopIdentity(): void {
   playerId = null;
   rung = null;
   cachedIdx = null;
+  lastObservedIdx = undefined;
   listeners.clear();
 }
 
@@ -122,4 +130,16 @@ export async function hydrateIdentityFromAccount(): Promise<boolean> {
 export function explainIdentity(): { playerId: string | null; myIdx: number | null; rung: IdentityRung | null } {
   const ctx = getIdentity();
   return { playerId: ctx.playerId, myIdx: ctx.myIdx, rung };
+}
+
+/** Refreshes identity as `refreshIdentity` does; additionally reports whether
+ *  myIdx crossed the null↔number boundary since the last call. Called only by
+ *  the seat watcher — other identity re-drives use `refreshIdentity`. */
+export function refreshIdentityAndDetectSeat(): SeatTransitionResult {
+  const ctx = refreshIdentity();
+  const seatTransition =
+    lastObservedIdx !== undefined &&
+    ((lastObservedIdx === null) !== (ctx.myIdx === null));
+  lastObservedIdx = ctx.myIdx;
+  return { ctx, seatTransition };
 }

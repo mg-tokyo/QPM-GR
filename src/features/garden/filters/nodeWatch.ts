@@ -43,6 +43,8 @@ export function watchNodeIdentity(): () => void {
     childLabel: string;
     childAlpha: number;
     childVisible: boolean;
+    childGroupAlpha: number;
+    childIsRenderGroup: boolean;
   }
 
   const knownNodes = new Map<string, NodeSnapshot>();
@@ -65,6 +67,8 @@ export function watchNodeIdentity(): () => void {
       childLabel: child?.label ?? 'none',
       childAlpha: child?.alpha ?? 1,
       childVisible: child?.visible ?? true,
+      childGroupAlpha: child?.groupAlpha ?? -1,
+      childIsRenderGroup: !!child?.renderGroup,
     };
   }
 
@@ -170,6 +174,17 @@ export function watchNodeIdentity(): () => void {
           from: prev.childAlpha.toFixed(3),
           to: cur.childAlpha.toFixed(3),
         });
+      }
+
+      // Child derived groupAlpha (the occlusion-corruption blind spot)
+      if (Math.abs(cur.childGroupAlpha - prev.childGroupAlpha) > 0.001 && prev.childGroupAlpha >= 0) {
+        logEvent('CHILD_GROUP_ALPHA', key, {
+          from: prev.childGroupAlpha.toFixed(3),
+          to: cur.childGroupAlpha.toFixed(3),
+        });
+      }
+      if (cur.childIsRenderGroup !== prev.childIsRenderGroup) {
+        logEvent('CHILD_RENDER_GROUP', key, { from: prev.childIsRenderGroup, to: cur.childIsRenderGroup });
       }
 
       // Child visible

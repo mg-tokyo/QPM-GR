@@ -38,8 +38,10 @@ export interface ReportInput {
   readonly os: string;
   readonly environmentLine: string;
   readonly modsLine: string | null;
+  readonly chainLine: string | null;
   readonly flagsLine: string | null;
   readonly perfLine: string | null;
+  readonly restockLine: string | null;
   readonly subsystems: readonly SubsystemHealth[];
   readonly aggregate: 'ok' | 'degraded' | 'failed';
   readonly gameStateProblemLines: readonly string[];
@@ -218,8 +220,10 @@ export function renderReport(input: ReportInput, opts: CopyPayloadOptions = DEFA
 
   if (opts.environment) headerLines.push(input.environmentLine);
   if (opts.otherMods && input.modsLine) headerLines.push(input.modsLine);
+  if (opts.otherMods && input.chainLine) headerLines.push(input.chainLine);
   if (opts.flags && input.flagsLine) headerLines.push(input.flagsLine);
   if (opts.perf && input.perfLine) headerLines.push(input.perfLine);
+  if (input.restockLine) headerLines.push(input.restockLine);
 
   if (opts.aggregate) {
     headerLines.push(`Overall: ${input.aggregate}  (${okCount} ok / ${degradedCount} degraded / ${failedCount} failed)`);

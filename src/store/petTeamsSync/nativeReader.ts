@@ -1,4 +1,4 @@
-import { select, selectSync, subscribe } from '../../core/stateTree';
+import { MY_SLOT_STATE_PATH, select, selectSync, subscribe } from '../../core/stateTree';
 import { findSlotIdxByOwner, getPlayerIdSync } from '../../core/playerContext';
 import type { QuinoaStateSnapshot } from '../../types/gameAtoms';
 import type { NativePetTeam, NativePetTeamMember, NativePetTeamEmblem } from './types';
@@ -79,10 +79,15 @@ export async function readMyOptimisticPetTeams(): Promise<NativePetTeam[]> {
 export function subscribeToNativeTeams(
   cb: (teams: NativePetTeam[]) => void,
 ): () => void {
+  // Scoped to my slot's petTeams subtree: the unscoped '/child/data/userSlots'
+  // woke this selector on every player's per-second pet tick (measured 60/60
+  // idle events, 0/172 with this path — spec 2026-09-11 § RC2). Patch-less
+  // events (welcome/reconnect) still run every subscriber, so the value
+  // re-syncs on every (re)connect even while {myIdx} is unresolved.
   return subscribe<NativePetTeam[]>(
     selectMyPetTeams,
     (teams) => cb(teams ?? []),
     'petTeamsSync.myPetTeams',
-    '/child/data/userSlots',
+    `${MY_SLOT_STATE_PATH}/data/petTeams`,
   );
 }

@@ -28,7 +28,8 @@ export function installSendGuard(
   if (guarded) return true;
   const connection = getRoomConnection();
   if (!connection || typeof connection.sendMessage !== 'function') return false;
-  const original = connection.sendMessage.bind(connection);
+  const rawSend = connection.sendMessage;
+  const original = rawSend.bind(connection);
   const rawTry = connection.trySendMessageNow;
   const originalTry = typeof rawTry === 'function' ? rawTry.bind(connection) : null;
   guarded = { connection, original, originalTry, blockedCount: 0 };
@@ -51,7 +52,7 @@ export function installSendGuard(
       return;
     }
     return original(payload);
-  }, 'battleshipSendGuard');
+  }, 'battleshipSendGuard', rawSend);
   if (originalTry) {
     // false mirrors "connection closed" — the game's RPC caller rejects its
     // pending command and swallows the rejection.
@@ -62,7 +63,7 @@ export function installSendGuard(
         return false;
       }
       return originalTry(payload);
-    }, 'battleshipSendGuard');
+    }, 'battleshipSendGuard', rawTry);
   }
   return true;
 }

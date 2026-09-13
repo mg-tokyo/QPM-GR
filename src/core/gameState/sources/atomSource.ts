@@ -45,6 +45,7 @@ export function createAtomHandle<T>(
   };
 
   const readSync = (): SourceRead<T> => {
+    if (spec.requiresSeat && runtime.identity().myIdx === null) return { ok: false, reason: 'no seat' };
     const atom = resolveAtom();
     if (atom === undefined) return { ok: false, reason: `no atom matches ${spec.label.source}` };
     try {
@@ -63,6 +64,7 @@ export function createAtomHandle<T>(
     invalidate,
     readSync,
     read: async () => {
+      if (spec.requiresSeat && runtime.identity().myIdx === null) return { ok: false, reason: 'no seat' };
       const atom = resolveAtom();
       if (atom === undefined) return { ok: false, reason: `no atom matches ${spec.label.source}` };
       try {
@@ -81,6 +83,7 @@ export function createAtomHandle<T>(
       } else {
         void runtime.atoms.subscribe(atom, (raw) => {
           if (disposed) return;
+          if (spec.requiresSeat && runtime.identity().myIdx === null) return;
           const r = project(raw);
           if (r.ok) cb(r.value);
         }, tier, undefined).then((off) => {

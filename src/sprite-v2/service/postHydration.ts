@@ -119,7 +119,12 @@ export async function runBackgroundCompressedRehydrate(
       dispatchHydrationEvent('rehydrated', {
         attempt,
         loadMode: state.loadMode ?? 'unknown',
+        mode: finalized.finalMode,
+        status: finalized.status,
         degraded: atlasReports.some((r) => r.status !== 'ok'),
+        expectedFrames: finalized.expectedFrames,
+        hydratedFrames: finalized.hydratedFrames,
+        coverage: Number(finalized.coverage.toFixed(3)),
         textures: state.tex.size,
         reports: atlasReports.map((r) => ({
           atlasPath: r.atlasPath,

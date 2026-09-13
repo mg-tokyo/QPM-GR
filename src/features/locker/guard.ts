@@ -434,7 +434,8 @@ function ensureNativeHookPatched(): void {
   // ── sendMessage: catches the classic path (HatchEgg, SellPet, SellAllCrops,
   //    PickupDecor, RemoveGardenObject, PickupObject, ...).
   // eslint-disable-next-line no-restricted-properties -- capturing the original to wrap; the wrapper is what enforces the locker rules
-  const originalSend = room.sendMessage.bind(room);
+  const rawSend = room.sendMessage;
+  const originalSend = rawSend.bind(room);
   const wrappedSend = (payload: unknown): unknown => {
     if (payload && typeof payload === 'object') {
       const rec = payload as Record<string, unknown>;
@@ -479,8 +480,8 @@ function ensureNativeHookPatched(): void {
       }
     : null;
 
-  brandWrapper(wrappedSend, 'lockerGuard');
-  if (wrappedTry) brandWrapper(wrappedTry, 'lockerGuard');
+  brandWrapper(wrappedSend, 'lockerGuard', rawSend);
+  if (wrappedTry) brandWrapper(wrappedTry, 'lockerGuard', rawTry);
 
   try {
     // eslint-disable-next-line no-restricted-properties -- installing the locker wrapper (the sanctioned patch), not sending

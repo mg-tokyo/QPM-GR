@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  explainIdentity, getIdentity, initIdentity, onIdentityChange, refreshIdentity, stopIdentity, type IdentityDeps,
+  explainIdentity, getIdentity, initIdentity, onIdentityChange, refreshIdentity, refreshIdentityAndDetectSeat, stopIdentity, type IdentityDeps,
 } from './identity';
 import { resetTopology } from './topology';
 
@@ -62,5 +62,63 @@ describe('identity ladder', () => {
     expect(getIdentity().myIdx).toBe(0);
     slots = [null, { userId: 'p1' }];
     expect(getIdentity().myIdx).toBe(1);
+  });
+});
+
+describe('refreshIdentityAndDetectSeat', () => {
+  it('reports no transition on the first call (no prior baseline)', () => {
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => [{ userId: 'p1' }] }));
+    const r = refreshIdentityAndDetectSeat();
+    expect(r.ctx.myIdx).toBe(0);
+    expect(r.seatTransition).toBe(false);
+  });
+
+  it('fires when myIdx crosses number -> null (seat lost)', () => {
+    let slots: unknown[] = [{ userId: 'p1' }];
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => slots }));
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
+    slots = [null, null];
+    const r = refreshIdentityAndDetectSeat();
+    expect(r.ctx.myIdx).toBeNull();
+    expect(r.seatTransition).toBe(true);
+  });
+
+  it('fires when myIdx crosses null -> number (seat regained)', () => {
+    let slots: unknown[] = [null, null];
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => slots }));
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
+    expect(refreshIdentityAndDetectSeat().ctx.myIdx).toBeNull();
+    slots = [{ userId: 'p1' }, null];
+    const r = refreshIdentityAndDetectSeat();
+    expect(r.ctx.myIdx).toBe(0);
+    expect(r.seatTransition).toBe(true);
+  });
+
+  it('does not fire when myIdx moves between two numbers (seat swap)', () => {
+    let slots: unknown[] = [{ userId: 'p1' }];
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => slots }));
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
+    slots = [null, { userId: 'p1' }];
+    const r = refreshIdentityAndDetectSeat();
+    expect(r.ctx.myIdx).toBe(1);
+    expect(r.seatTransition).toBe(false);
+  });
+
+  it('does not fire when myIdx stays null across ticks', () => {
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => [null, null] }));
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
+  });
+
+  it('stopIdentity resets the baseline so the next first call is quiet again', () => {
+    let slots: unknown[] = [{ userId: 'p1' }];
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => slots }));
+    refreshIdentityAndDetectSeat();
+    slots = [null, null];
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(true);
+    stopIdentity();
+    initIdentity(deps({ readAtomByExactLabel: (l) => (l === 'playerIdAtom' ? 'p1' : undefined), userSlots: () => [null, null] }));
+    expect(refreshIdentityAndDetectSeat().seatTransition).toBe(false);
   });
 });

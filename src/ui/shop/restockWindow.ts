@@ -19,6 +19,7 @@ import {
 import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { watchDetach } from '../../utils/dom/dom';
 import { onSpritesReady } from '../../sprite-v2/compat';
+import { onCatalogsReady } from '../../utils/game/catalogHelpers';
 import { storage } from '../../utils/storage';
 import { t } from '../../i18n';
 import {
@@ -705,6 +706,17 @@ function renderShopRestockWindow(root: HTMLElement): void {
     scheduleRender(true, true);
   });
 
+  // Weather-shop rows show a loading placeholder until eligibleShops is known;
+  // re-merge and re-render as soon as catalogs resolve so the placeholders swap out.
+  const stopCatalogsReady = onCatalogsReady(() => {
+    const source = getRestockDataSync();
+    if (source) {
+      shopData = mergeWeatherShopFallbackRows(mergeToolFallbackRows(source));
+      rebuildAllData();
+    }
+    scheduleRender(true, true);
+  });
+
   // -- Cleanup when window is removed --
   watchDetach(root, () => {
     if (searchDebounceTimer !== null) window.clearTimeout(searchDebounceTimer);
@@ -723,6 +735,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     stopWeatherDataUpdates();
     stopTicker();
     stopSpritesReady();
+    stopCatalogsReady();
     stopRestockDataUpdates();
   });
 

@@ -6,6 +6,7 @@ import { pageWindow, isIsolatedContext } from '../../../core/pageContext';
 import { SPECIES_TO_VIEW } from './speciesView';
 import { getPixiApp, buildTileNodeCache, getOrBuildTileNodeCache } from './pixiStage';
 import { getGardenTileData, tileMatchesSpecies } from './tileData';
+import { DIM_ALPHA } from './constants';
 
 /** Slot-level species of a tile (rare variants live here, not in tile.species). */
 function getSlotSpeciesList(tileData: any): string[] {
@@ -114,6 +115,31 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
     };
   } else {
     diag.tileNodes = 'no-app-or-stage';
+  }
+
+  // Dim-integrity probe: detects the occlusion-corruption class (derived
+  // groupAlpha diverging from the authored child alpha).
+  if (app?.stage) {
+    const nodes = getOrBuildTileNodeCache(app.stage);
+    const rows: Array<Record<string, unknown>> = [];
+    for (const { node } of nodes) {
+      const child = node.children?.[0];
+      if (!child || Math.abs((child.alpha ?? 1) - DIM_ALPHA) > 0.01) continue;
+      let deepest = child;
+      let hops = 0;
+      while (deepest.children?.[0] && hops < 8) { deepest = deepest.children[0]; hops++; }
+      const childGroupAlpha = Number(child.groupAlpha ?? -1);
+      rows.push({
+        tile: node.label,
+        tileAlpha: node.alpha,
+        childAlpha: child.alpha,
+        childGroupAlpha,
+        deepestGroupAlpha: Number(deepest.groupAlpha ?? -1),
+        corrupted: childGroupAlpha >= 0 && childGroupAlpha > DIM_ALPHA + 0.05,
+      });
+      if (rows.length >= 5) break;
+    }
+    diag.dimIntegrity = rows.length > 0 ? rows : 'no dimmed tiles in scene';
   }
 
   // 7. Garden data

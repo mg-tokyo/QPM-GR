@@ -5,7 +5,8 @@ import { healthBus } from './healthBus';
 import { createNamedLogger } from './logger';
 import type { Subsystem } from './types';
 import { visibleInterval } from '../utils/scheduling/timerManager';
-import { getAnchorWalkStats } from '../features/standalone/tooltipInjection/pixiAnchor';
+import { getAnchorWalkStats, takeAnchorWalkWindow } from '../features/standalone/tooltipInjection/pixiAnchor';
+import { isDiscordSurface } from '../utils/environment';
 
 const SUBSYSTEM: Subsystem = 'perf';
 const log = createNamedLogger(SUBSYSTEM);
@@ -44,6 +45,9 @@ const warnedProbes = new Set<ProbeName>();
 
 let longTaskWindow = { count: 0, max: 0 };
 let lastWindow = { count: 0, max: 0 };
+// Anchor-walk max of the last complete publish window — the Perf line's M in
+// "anchor walk N/M"; the session high-water mark moved to "(peak K)".
+let anchorWindowMax = 0;
 let longTasksSupported = false;
 let badWindows = 0;
 let observer: PerformanceObserver | null = null;
@@ -98,11 +102,14 @@ export function formatPerfLine(): string | null {
     if (p.count === 0) continue;
     parts.push(`${name} p95 ${fmt(p.p95)}ms${p.note ? ` [${p.note}]` : ''}`);
   }
-  parts.push(`anchor walk ${s.anchor.lastVisited}/${s.anchor.maxVisited} nodes${s.anchor.rootMissing ? ` (${s.anchor.rootMissing} missing)` : ''}`);
+  // `||` fallback: before the first publish anchorWindowMax is still 0 and the
+  // open window's value is the only signal.
+  parts.push(`anchor walk ${s.anchor.lastVisited}/${anchorWindowMax || s.anchor.windowMaxVisited} nodes (peak ${s.anchor.maxVisited})${s.anchor.rootMissing ? ` (${s.anchor.rootMissing} missing)` : ''}`);
   return `Perf: ${parts.join('  ')}`;
 }
 
 function publish(): void {
+  anchorWindowMax = takeAnchorWalkWindow();
   lastWindow = longTaskWindow;
   longTaskWindow = { count: 0, max: 0 };
   const problems: string[] = [];
@@ -120,7 +127,7 @@ function publish(): void {
       p.overBudgetWindows += 1;
       if (p.overBudgetWindows === 2 && !warnedProbes.has(name)) {
         warnedProbes.add(name);
-        log.warn('QPM-PERF-002', { probe: name, p95: Math.round(s.p95), budget: BUDGET_MS[name], top: p.note });
+        log.warn('QPM-PERF-002', { probe: name, p95: Math.round(s.p95), budget: BUDGET_MS[name], top: p.note, surface: isDiscordSurface ? 'discord' : 'web' });
       }
       if (p.overBudgetWindows >= 2) problems.push(`${name} p95 ${fmt(s.p95)}ms > ${BUDGET_MS[name]}ms${p.note ? ` [${p.note}]` : ''}`);
     } else {
@@ -171,6 +178,7 @@ export function stopPerfMonitor(): void {
   warnedProbes.clear();
   longTaskWindow = { count: 0, max: 0 };
   lastWindow = { count: 0, max: 0 };
+  anchorWindowMax = 0;
   longTasksSupported = false;
   badWindows = 0;
 }

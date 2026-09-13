@@ -45,7 +45,7 @@ export function setVerboseLogsEnabled(enabled: boolean): void {
  * Not for use by new code — reach for createNamedLogger() instead.
  */
 export function writeShimConsole(prefix: string, args: readonly unknown[]): void {
-  // eslint-disable-next-line no-console
+   
   console.log(`[${prefix}]`, ...args);
 }
 
@@ -170,10 +170,10 @@ function resolveError(
 export function createNamedLogger(name: string): NamedLogger {
   const writeConsole = (message: string, context?: Record<string, unknown>): void => {
     if (context !== undefined) {
-      // eslint-disable-next-line no-console
+       
       console.log(`[${name}]`, message, context);
     } else {
-      // eslint-disable-next-line no-console
+       
       console.log(`[${name}]`, message);
     }
   };

@@ -23,7 +23,7 @@ import {
   getRendererUid,
   getRendererType,
 } from './service/bootReport';
-import { rememberRenderFailure } from './service/healthIntegration';
+import { checkSpriteCtorCapture, rememberRenderFailure } from './service/healthIntegration';
 import { loadTextures, prefetchAtlasData } from './service/loadTextures';
 import { runBackgroundCompressedRehydrate, runPostHydrationMutationPass } from './service/postHydration';
 import { resolvePixiFast, resolveActiveRenderer } from './service/pixiResolve';
@@ -108,6 +108,7 @@ async function start(): Promise<SpriteService> {
   repairPixiCapture({ app: app ?? null, renderer, version: typeof pixiVersion === 'string' ? pixiVersion : null }, 'sprite-boot');
 
   ctxRef.current!.state.ctors = getCtors(app, renderer);
+  checkSpriteCtorCapture(ctxRef.current!.state.ctors);
   ctxRef.current!.state.runtimeTextureHints = Array.isArray(resolved?.runtimeHints)
     ? resolved.runtimeHints.filter(Boolean)
     : [];

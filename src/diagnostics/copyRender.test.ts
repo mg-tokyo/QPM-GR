@@ -50,8 +50,10 @@ function input(overrides: Partial<ReportInput> = {}): ReportInput {
     os: 'Windows 11',
     environmentLine: 'Env: Tampermonkey 5.3  web  up 30m',
     modsLine: null,
+    chainLine: null,
     flagsLine: null,
     perfLine: null,
+    restockLine: null,
     subsystems: [],
     aggregate: 'ok',
     gameStateProblemLines: [],
@@ -82,7 +84,7 @@ describe('renderReport header', () => {
   });
 
   it('prints the perf line when present and opts.perf is on; omits it when off', () => {
-    const perfLine = 'Perf: longtasks 0/15s (max 0ms)  anchor.tick p95 0.9ms  anchor walk 24/38 nodes';
+    const perfLine = 'Perf: longtasks 0/15s (max 0ms)  anchor.tick p95 0.9ms  anchor walk 24/38 nodes (peak 512)';
     const on = renderReport(input({ perfLine }));
     expect(on).toContain(perfLine);
 
@@ -91,6 +93,14 @@ describe('renderReport header', () => {
 
     const absent = renderReport(input({ perfLine: null }));
     expect(absent).not.toContain('Perf:');
+  });
+
+  it('prints the chain line after the mods line under the otherMods option', () => {
+    const chainLine = 'Chain: seq=off  send=lockerGuard>proto  try=lockerGuard>proto';
+    const on = renderReport(input({ modsLine: 'Mods: AriesMod', chainLine }));
+    expect(on).toContain(`\nMods: AriesMod\n${chainLine}\nOverall: ok`);
+    const off = renderReport(input({ chainLine }), { ...DEFAULT_COPY_OPTIONS, otherMods: false });
+    expect(off).not.toContain('Chain:');
   });
 });
 
