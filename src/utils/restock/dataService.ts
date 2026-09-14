@@ -3,6 +3,7 @@
 import { storage } from '../storage';
 import { log } from '../logger';
 import { isDebugGlobalsEnabled } from '../debugGlobals';
+import { supabaseClientInfoHeaders } from '../supabaseClientInfo';
 import { STANDARD_RESTOCK_SHOP_TYPES } from '../../types/shops';
 import { getWeatherGatedShopIds } from '../../store/shopRegistry';
 import { areShopCatalogsLoaded, getItemEligibleShops } from '../../catalogs/shopEligibility';
@@ -189,6 +190,7 @@ export function gmGet(
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, max-age=0',
         Pragma: 'no-cache',
+        ...supabaseClientInfoHeaders(),
         ...extraHeaders,
       },
       timeout: timeoutMs,
@@ -242,6 +244,7 @@ async function webGet(
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, max-age=0',
         Pragma: 'no-cache',
+        ...supabaseClientInfoHeaders(),
         ...extraHeaders,
       },
     });

@@ -7,6 +7,7 @@ import {
   getItemIdVariants,
   type GmXhr,
 } from './restock/dataService';
+import { supabaseClientInfoHeaders } from './supabaseClientInfo';
 
 const EVENTS_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_events';
 const WEATHER_EVENTS_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/weather_events';
@@ -76,6 +77,7 @@ function gmPost(
         apikey: apiKey,
         'Content-Type': 'application/json',
         Prefer: 'count=none',
+        ...supabaseClientInfoHeaders(),
       },
       timeout: timeoutMs,
       onload: (res) => resolve(res.status >= 200 && res.status < 300 ? res.responseText : null),

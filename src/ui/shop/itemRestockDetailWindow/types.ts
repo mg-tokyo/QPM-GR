@@ -34,7 +34,7 @@ export interface OverviewHandle {
   setAccuracyRate: (accuratePct: number, accurateCount: number, totalCount: number) => void;
   setLastSeen: (timestamp: number | null) => void;
   browseBtn: HTMLButtonElement;
-  /** Tears down live subscriptions (pity row); call when the card leaves the DOM. */
+  /** Tears down live subscriptions; call when the card leaves the DOM. */
   dispose: () => void;
 }
 

@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.48",
+    date: "2026-09-14",
+    notes: [
+      "Removed the Bad Luck Protection row from the Shop Item Detail overview card",
+    ],
+  },
+  {
     version: "3.3.47",
     date: "2026-09-14",
     notes: [
