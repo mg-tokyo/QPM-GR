@@ -1,19 +1,30 @@
-import { getPixiCapture } from '../../../core/pixiCapture';
+import { getPixiCapture, getPixiRefs } from '../../../core/pixiCapture';
 import { warnFeature } from './_diagnostics';
 import { DIM_ALPHA, TILE_LABEL_CAPTURE_RE, TILE_LABEL_TEST_RE } from './constants';
-import type { TileNode } from './types';
-import { installVisibleGuard, removeVisibleGuard } from './alphaGuard';
+import type { CachedFilterSets, TileNode } from './types';
+import { installVisibleGuard, removeVisibleGuard, pruneStaleGuards } from './alphaGuard';
 import { getGardenTileData, getTileMutations, getGrowthState, tileMatchesSpecies } from './tileData';
 import { getExcludeMutationsState } from './controller';
 
 /**
- * Access PIXI app via QPM's own capture system
+ * Access PIXI app via QPM's own capture system. Retained for the alphaGuard
+ * ticker attach — every other caller in this feature now uses getPixiStage.
  */
 export function getPixiApp(): any {
   try {
     return getPixiCapture()?.app ?? null;
   } catch (error) {
     warnFeature('QPM-FEATURE-004', { what: 'getPixiApp' }, error);
+    return null;
+  }
+}
+
+/** Liveness-checked stage (structural recovery included) — the only root for stage walks. */
+export function getPixiStage(): any {
+  try {
+    return getPixiRefs()?.stage ?? null;
+  } catch (error) {
+    warnFeature('QPM-FEATURE-004', { what: 'getPixiStage' }, error);
     return null;
   }
 }
@@ -187,6 +198,10 @@ export function applyFiltersToStage(
         installVisibleGuard(node);
         stats.dimmed++;
       }
+    } else {
+      // A dimmed tile that lost its child view has nothing to dim and no
+      // guard to keep (the guard would dim whatever child appears next).
+      removeVisibleGuard(node);
     }
   }
 
@@ -196,6 +211,18 @@ export function applyFiltersToStage(
       applyFiltersToStage(child, speciesKeysToShow, mutationsToShow, eggTypesToShow, growthStatesToShow, stats, depth + 1, maxDepth);
     }
   }
+}
+
+/** One full filter pass over the cached tile list, then guard hygiene. */
+export function applyFiltersToTiles(
+  tileNodes: readonly TileNode[],
+  sets: CachedFilterSets,
+  stats: { visible: number; dimmed: number; withData: number; withoutData: number },
+): void {
+  for (const { node } of tileNodes) {
+    applyFiltersToStage(node, sets.speciesKeysToShow, sets.mutationsToShow, sets.eggTypesToShow, sets.growthStatesToShow, stats, 0, 0);
+  }
+  pruneStaleGuards(tileNodes);
 }
 
 /**

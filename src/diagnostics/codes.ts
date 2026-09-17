@@ -381,7 +381,7 @@ register({
   severity: 'warn',
   title: 'Feature WS send failed',
   description: 'A migrated feature attempted a WS send via sendRoomAction() that returned ok:false. The underlying WS layer also emits a WS-* code with the reason; this entry attributes the failure to the calling feature so its bus row reflects the problem.',
-  devNotes: 'src/features/* — see context.feature for which feature; context.type names the RoomAction; context.reason carries the WS layer reason (no_connection | invalid_payload | throttled | send_failed | locker_blocked).',
+  devNotes: 'src/features/* — see context.feature for which feature; context.type names the RoomAction; context.reason carries the WS layer reason (no_connection | session_not_ready | invalid_payload | throttled | send_failed | locker_blocked).',
   sinceVersion: CURRENT_VERSION,
 });
 

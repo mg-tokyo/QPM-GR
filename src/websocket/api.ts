@@ -16,7 +16,7 @@ import {
   trackCommandRequest,
 } from './commandSequencer';
 import { wsCounters, maybePublishRecovery, startWebsocketHealth, stopWebsocketHealth } from './health';
-import { getSocket } from './sequencerSocket';
+import { describeReadiness } from './readiness';
 import {
   PET_TEAM_ICON_IDS,
   isFiniteNumber,
@@ -82,6 +82,8 @@ export type RoomActionType =
 
 export type WebSocketSendFailureReason =
   | 'no_connection'
+  /** Room exists but the server has not welcomed this socket yet (game 1195 handshake). */
+  | 'session_not_ready'
   | 'invalid_payload'
   | 'throttled'
   | 'send_failed'
@@ -127,7 +129,15 @@ export interface RoomConnection {
   ws?: WebSocket | null;
   socket?: WebSocket | null;
   currentWebSocket?: WebSocket | null;
+  /** Game 1195+: transport-only (socket OPEN). Older bundles have no such method. */
+  isSocketOpen?: () => boolean;
+  /**
+   * Game 1195+: `isSocketOpen() && isCommandSessionReady` — false during the
+   * SocketOpened→Welcome admission window. Pre-1195 it was socket OPEN only,
+   * so never read it for readiness; use `isRoomSessionReady()`.
+   */
   isConnected?: () => boolean;
+  /** False from socket creation until the server's Welcome. */
   isCommandSessionReady?: boolean;
   /**
    * Fires `cb(patches, fullState)` on every room state update. Returns
@@ -177,6 +187,8 @@ export function clearSendPreflight(): void { sendPreflightFn = null; }
 const DEFAULT_SCOPE_PATH = ['Room', 'Quinoa'] as const;
 const DEFAULT_THROTTLE_MS = 100;
 const lastSentAt = new Map<string, number>();
+// One warning per pre-Welcome window; a successful send re-arms it.
+let sessionNotReadyWarned = false;
 
 export function getRoomConnection(): RoomConnection | null {
   return (pageWindow as PageWithRoomConnection).MagicCircle_RoomConnection ?? null;
@@ -186,15 +198,17 @@ export function hasRoomConnection(): boolean {
   return getRoomConnection() !== null;
 }
 
+/** Transport-level only. Not "ready to send" — see `isRoomSessionReady()`. */
 export function isRoomSocketOpen(): boolean {
-  const connection = getRoomConnection();
-  if (!connection) return false;
-  const socket = getSocket(connection);
-  if (!socket) {
-    // Some builds hide the socket field on the room connection; treat as unknown/open.
-    return true;
-  }
-  return socket.readyState === WebSocket.OPEN;
+  return describeReadiness(getRoomConnection()).socketOpen;
+}
+
+/**
+ * Socket OPEN and the server's Welcome has arrived — the game's own send
+ * gate since 1195. Every feature that asks "can I send now?" uses this.
+ */
+export function isRoomSessionReady(): boolean {
+  return describeReadiness(getRoomConnection()).sessionReady;
 }
 
 function getScopePath(): string[] {
@@ -412,7 +426,7 @@ export function onActionSent(listener: ActionSentListener): () => void {
 }
 
 export function startWebsocketDiagnostics(): void {
-  startWebsocketHealth(hasRoomConnection);
+  startWebsocketHealth(hasRoomConnection, isRoomSessionReady);
 }
 
 export function stopWebsocketDiagnostics(): void {
@@ -441,6 +455,12 @@ export function transmitRoomAction(
   type: string,
   payload: Record<string, unknown>,
 ): WebSocketSendResult {
+  // Pre-Welcome the game itself refuses envelopes (trySendMessageNow → false)
+  // and queues flat sends for an unknown later state; neither is a send QPM
+  // made. Refuse up front so the caller sees the real reason.
+  if (connection.isCommandSessionReady === false) {
+    return { ok: false, reason: 'session_not_ready' };
+  }
   const scopePath = getScopePath();
   if (shouldEnvelope(connection, type)) {
     const envelope = buildEnvelope(scopePath, type, payload, newRequestId());
@@ -520,10 +540,19 @@ export function sendRoomAction(
   try {
     const result = transmitRoomAction(connection, actionType, payload);
     if (!result.ok) {
+      if (result.reason === 'session_not_ready') {
+        wsCounters.sessionNotReady++;
+        if (!sessionNotReadyWarned) {
+          sessionNotReadyWarned = true;
+          log.warn('QPM-WS-016', { type: actionType });
+        }
+        return result;
+      }
       wsCounters.noConnections++;
       log.warn('QPM-WS-001', { type: actionType, reason: result.reason });
       return result;
     }
+    sessionNotReadyWarned = false;
     // Notify listeners after successful send
     for (const cb of actionSentListeners) {
       try { cb(actionType, payload); } catch { /* ignore listener errors */ }

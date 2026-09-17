@@ -1,5 +1,7 @@
 import { DIM_ALPHA } from './constants';
 import { getPixiApp } from './pixiStage';
+import { getCaptureGeneration } from '../../../core/pixiCapture';
+import type { TileNode } from './types';
 
 // ── Per-frame alpha guards (PIXI ticker) ────────────────────────────────────
 // The game toggles `visible` on Tile containers when the player walks; on the
@@ -11,6 +13,7 @@ import { getPixiApp } from './pixiStage';
 export const guardedNodes = new Set<any>();
 const lastKnownVisible = new WeakMap<any, boolean>();
 export const guardTickerRef: { cleanup: (() => void) | null } = { cleanup: null };
+let tickerGeneration = -1;
 
 function guardTick(): void {
   for (const node of guardedNodes) {
@@ -32,14 +35,17 @@ function guardTick(): void {
   }
 }
 
-/** Start the guard on the PIXI ticker. Called lazily when the first node is guarded. */
+/** Start (or re-attach after an app rebuild) the guard on the PIXI ticker. */
 export function startGuardTicker(): void {
-  if (guardTickerRef.cleanup) return;
+  const gen = getCaptureGeneration();
+  if (guardTickerRef.cleanup && tickerGeneration === gen) return;
+  guardTickerRef.cleanup?.(); // app replaced: the old closure points at a dead ticker
   const app = getPixiApp();
   if (!app?.ticker) return;
   app.ticker.add(guardTick);
+  tickerGeneration = gen;
   guardTickerRef.cleanup = () => {
-    app.ticker.remove(guardTick);
+    try { app.ticker.remove(guardTick); } catch { /* dead app */ }
     guardTickerRef.cleanup = null;
   };
 }
@@ -64,4 +70,19 @@ export function removeVisibleGuard(node: any): void {
 export function removeAllVisibleGuards(): void {
   guardedNodes.clear();
   stopGuardTicker();
+}
+
+/**
+ * Drop guards whose Tile left the live tile set (destroyed on garden change)
+ * or was destroyed in place. Runs once per apply pass with the cache that
+ * pass just rebuilt — O(guards), bounded by the dimmed-tile count.
+ */
+export function pruneStaleGuards(liveTiles: readonly TileNode[]): void {
+  if (guardedNodes.size === 0) return;
+  const live = new Set<unknown>();
+  for (const t of liveTiles) live.add(t.node);
+  for (const node of guardedNodes) {
+    if (!live.has(node) || node.destroyed === true) guardedNodes.delete(node);
+  }
+  if (guardedNodes.size === 0) stopGuardTicker();
 }

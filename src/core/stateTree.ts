@@ -20,11 +20,12 @@ import { deepEqual } from '../utils/deepEqual';
 import { healthBus } from '../diagnostics/healthBus';
 import { createNamedLogger } from '../diagnostics/logger';
 import { recordProbe, setProbeAttribution } from '../diagnostics/perfMonitor';
+import { formatTopShare, takeCostWindow, type CostWindowTop } from '../diagnostics/costWindow';
 import type { Subsystem } from '../diagnostics/types';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 import { getRoomConnection } from '../websocket/api';
 import { findSlotIdxByOwner, getPlayerIdSync } from './playerContext';
-import { matchesPathPrefix } from './reactive/pathMatcher';
+import { hasMyIdxPlaceholder, matchesPathPrefix } from './reactive/pathMatcher';
 import type { PatchPath } from './reactive/types';
 
 const diagLog = createNamedLogger('stateTree');
@@ -48,6 +49,9 @@ let diagnosticsStarted = false;
 let sourceUnsubscribe: (() => void) | null = null;
 let welcomeUnsubscribe: (() => void) | null = null;
 let activeSource: 'roomPatches' | 'stateAtom' | 'none' = 'none';
+// Previous event's resolved myIdx. A change (null↔N or N↔M) fans out to every
+// `{myIdx}` subscriber even when no patch names the seat cell directly.
+let lastMyIdx: number | null = null;
 
 export interface WelcomeMeta {
   at: number;
@@ -180,15 +184,18 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
   // running every subscriber — safe worst case, matches reactive/manager.ts.
   const havePatchInfo = patches !== undefined && patches.length > 0;
   const snapshot = currentSnapshot;
-  let myIdx: number | null | undefined; // undefined = unresolved this event
-  const myIdxOf = (): number | null => {
-    if (myIdx === undefined) myIdx = resolveMyIdx(snapshot);
-    return myIdx;
-  };
+  const myIdx = resolveMyIdx(snapshot);
+  // Seat transition (null↔N or N↔M): every `{myIdx}` prefix now points at a
+  // different subtree and the patch that filled the seat may sit at the slot
+  // root or a sibling key — bypass prefix gating for those subscribers once.
+  const seatChanged = myIdx !== lastMyIdx;
+  lastMyIdx = myIdx;
+  const myIdxOf = (): number | null => myIdx;
 
   for (const sub of subscribers.values()) {
+    const bypass = seatChanged && sub.statePath !== undefined && hasMyIdxPlaceholder(sub.statePath);
     const s0 = performance.now();
-    runSubscriber(sub, snapshot, patches, havePatchInfo, myIdxOf);
+    runSubscriber(sub, snapshot, patches, havePatchInfo && !bypass, myIdxOf);
     const dt = performance.now() - s0;
     sub.windowMs += dt;
     sub.totalMs += dt;
@@ -254,16 +261,8 @@ function runSubscriber(
 }
 
 /** Costliest subscriber since the last call, as a share of all subscriber time; resets the window. */
-export function takeSubscriberCostWindow(): { label: string; ms: number; totalMs: number } | null {
-  let top: Subscriber | null = null;
-  let total = 0;
-  for (const sub of subscribers.values()) {
-    total += sub.windowMs;
-    if (!top || sub.windowMs > top.windowMs) top = sub;
-  }
-  const out = top && top.windowMs > 0 ? { label: top.label ?? String(top.id), ms: top.windowMs, totalMs: total } : null;
-  for (const sub of subscribers.values()) sub.windowMs = 0;
-  return out;
+export function takeSubscriberCostWindow(): CostWindowTop | null {
+  return takeCostWindow(subscribers.values(), (s) => s.label ?? String(s.id));
 }
 
 // Resolves the local player's slot index from the current snapshot. Mirrors
@@ -381,10 +380,7 @@ async function attachSource(): Promise<void> {
 export async function initStateTree(): Promise<void> {
   if (ready) return;
   startStateTreeDiagnostics();
-  setProbeAttribution('stateTree.event', () => {
-    const top = takeSubscriberCostWindow();
-    return top && top.totalMs > 0 ? `top ${top.label} ${Math.round((100 * top.ms) / top.totalMs)}%` : null;
-  });
+  setProbeAttribution('stateTree.event', () => formatTopShare(takeSubscriberCostWindow()));
   try {
     await attachSource();
     ready = true;
@@ -445,6 +441,7 @@ export function stopStateTree(): void {
   ready = false;
   lastFireTs = 0;
   lastWelcome = null;
+  lastMyIdx = null;
   activeSource = 'none';
   selectorSuppressLog = new WeakSet<Selector<unknown>>();
 }

@@ -214,7 +214,7 @@ export function resolveInventoryAnchor(opts?: AnchorResolveOptions): AnchorResol
   const miss = (reason: AnchorMissReason): AnchorResolveResult => ({ anchor: null, miss: reason, detail });
 
   const refs = getPixiRefs();
-  const cd = getCaptureDiag();
+  const cd = getCaptureDiag(refs);
   detail.capture = refs
     ? { app: !!refs.app, renderer: !!refs.renderer, stage: !!refs.stage, appLive: cd.appLive, gen: cd.generation }
     : { app: cd.appPresent, renderer: false, stage: false, appLive: cd.appLive, gen: cd.generation };
@@ -244,10 +244,12 @@ export function resolveInventoryAnchor(opts?: AnchorResolveOptions): AnchorResol
   const minViewCount = confirmedOpen ? 1 : MIN_OPEN_ITEM_VIEW_COUNT;
 
   // Beta 3668 InventoryModalView.ts:1641 labels the item container 'InventoryContent';
-  // no 'InventoryItems' container exists in any bundle — probing it was a wasted subtree walk.
+  // its scroll host is 'InventoryScrollView'. No 'InventoryItems' container exists in any bundle.
   const contentMatch = findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryContent');
+  const scrollMatch = contentMatch ? null : findLargestNodeByLabel(modalMatch.node, (label) => label === 'InventoryScrollView');
   const candidates: Array<{ match: PixiNodeMatch; source: InventoryAnchor['source'] }> = [];
   if (contentMatch) candidates.push({ match: contentMatch, source: 'InventoryContent' });
+  if (scrollMatch) candidates.push({ match: scrollMatch, source: 'InventoryScrollView' });
 
   const tried: string[] = [];
   for (const candidate of candidates) {

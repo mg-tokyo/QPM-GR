@@ -8,10 +8,10 @@ import { STORAGE_KEY, DIM_ALPHA } from './constants';
 import type { GardenFiltersConfig, CachedFilterSets } from './types';
 import { normalizeMutationFilterKey } from './mutationKeys';
 import { installVisibleGuard, removeVisibleGuard, removeAllVisibleGuards } from './alphaGuard';
-import { getPixiApp, getOrBuildTileNodeCache, applyFiltersToStage, resetFiltersOnStage, setTileDim, tileCache } from './pixiStage';
+import { getPixiStage, getOrBuildTileNodeCache, applyFiltersToStage, applyFiltersToTiles, resetFiltersOnStage, setTileDim, tileCache } from './pixiStage';
 import { diagnoseGardenFilters, testSpeciesFilter } from './diagnostics';
 import { watchNodeIdentity } from './nodeWatch';
-import { startFilterReapplyTriggers } from './reapply';
+import { startFilterReapplyTriggers, stopFilterReapplyTriggers } from './reapply';
 
 let config: GardenFiltersConfig = {
   enabled: false,
@@ -24,6 +24,7 @@ let config: GardenFiltersConfig = {
 
 const listeners = new Set<(config: GardenFiltersConfig) => void>();
 let cleanupInterval: (() => void) | null = null;
+let catalogsReadyUnsub: (() => void) | null = null;
 
 let cachedFilterSets: CachedFilterSets | null = null;
 
@@ -110,11 +111,11 @@ export function applyFilters(): void {
   // Shows tiles WITHOUT the given mutations. Takes priority over species override.
   if (statsHubExcludeMutationsSet !== null) {
     try {
-      const app = getPixiApp();
-      if (!app || !app.stage) return;
+      const stage = getPixiStage();
+      if (!stage) return;
       const emptySet = new Set<string>();
       const stats = { visible: 0, dimmed: 0, withData: 0, withoutData: 0 };
-      const tileNodes = getOrBuildTileNodeCache(app.stage);
+      const tileNodes = getOrBuildTileNodeCache(stage);
       for (const { node } of tileNodes) {
         applyFiltersToStage(node, emptySet, statsHubExcludeMutationsSet, emptySet, emptySet, stats, 0, 0);
       }
@@ -130,11 +131,11 @@ export function applyFilters(): void {
   // Uses the forward map (globalIdx → dirtTileIdx) to match PIXI nodes — avoids reverse-map issues.
   if (statsHubTileKeySet !== null) {
     try {
-      const app = getPixiApp();
-      if (!app || !app.stage) return;
+      const stage = getPixiStage();
+      if (!stage) return;
       const map = getMapSnapshot();
       if (!map) return;
-      const tileNodes = getOrBuildTileNodeCache(app.stage);
+      const tileNodes = getOrBuildTileNodeCache(stage);
       let visible = 0; let dimmed = 0;
       for (const { node, x, y } of tileNodes) {
         const childLabel = node.children?.[0]?.label;
@@ -172,12 +173,12 @@ export function applyFilters(): void {
   // Takes full priority; main config (including enabled, mutations, etc.) is ignored.
   if (statsHubOverride !== null) {
     try {
-      const app = getPixiApp();
-      if (!app || !app.stage) return;
+      const stage = getPixiStage();
+      if (!stage) return;
       const speciesKeysToShow = new Set<string>(statsHubOverride);
       const emptySet = new Set<string>();
       const stats = { visible: 0, dimmed: 0, withData: 0, withoutData: 0 };
-      const tileNodes = getOrBuildTileNodeCache(app.stage);
+      const tileNodes = getOrBuildTileNodeCache(stage);
       for (const { node } of tileNodes) {
         applyFiltersToStage(node, speciesKeysToShow, emptySet, emptySet, emptySet, stats, 0, 0);
       }
@@ -195,19 +196,16 @@ export function applyFilters(): void {
   }
 
   try {
-    const app = getPixiApp();
-    if (!app || !app.stage) {
-      diag.debug('PIXI app/stage not available');
+    const stage = getPixiStage();
+    if (!stage) {
+      diag.debug('PIXI stage not available');
       return;
     }
 
-    const { speciesKeysToShow, mutationsToShow, eggTypesToShow, growthStatesToShow } = getOrBuildFilterSets();
-
+    const sets = getOrBuildFilterSets();
+    const { speciesKeysToShow, mutationsToShow, growthStatesToShow } = sets;
     const stats = { visible: 0, dimmed: 0, withData: 0, withoutData: 0 };
-    const tileNodes = getOrBuildTileNodeCache(app.stage);
-    for (const { node } of tileNodes) {
-      applyFiltersToStage(node, speciesKeysToShow, mutationsToShow, eggTypesToShow, growthStatesToShow, stats, 0, 0);
-    }
+    applyFiltersToTiles(getOrBuildTileNodeCache(stage), sets, stats);
 
     if (stats.visible + stats.dimmed > 0) {
       const filterInfo = [];
@@ -234,14 +232,12 @@ export function applyFilters(): void {
  */
 function resetFilters(): void {
   try {
-    const app = getPixiApp();
-    if (!app || !app.stage) {
-      return;
-    }
+    const stage = getPixiStage();
+    if (!stage) return;
 
     removeAllVisibleGuards();
     tileCache.nodes = null;
-    resetFiltersOnStage(app.stage);
+    resetFiltersOnStage(stage);
     diag.debug('All tiles visible');
   } catch (error) {
     warnFeature('QPM-FEATURE-004', { what: 'resetFilters' }, error);
@@ -307,19 +303,7 @@ function startFilteringPolling(): void {
   // scene hook attaches only after PIXI capture and a missed event would leave
   // a tile wrongly lit until the next event. Full pass: 1.1 ms avg / 1.9 ms
   // max @ 1216 tiles (measured 2026-09-12), so 2000 ms ≈ 0.06 % duty.
-  cleanupInterval = visibleInterval(
-    'garden-filters-poll',
-    () => {
-      // Any override wins — keep it fresh as garden state changes
-      if (statsHubOverride !== null || statsHubTileKeySet !== null || statsHubExcludeMutationsSet !== null) {
-        applyFilters();
-        return;
-      }
-      if (!config.enabled) return;
-      applyFilters();
-    },
-    2000
-  );
+  cleanupInterval = visibleInterval('garden-filters-poll', () => { if (isFilteringActive()) applyFilters(); }, 2000);
 
   diag.debug('Polling started (2000ms reconciliation sweep, visibility-aware)');
 }
@@ -357,9 +341,7 @@ export function initializeGardenFilters(): void {
 
   // When catalogs arrive, invalidate cached filter sets so getAllPlantSpecies()
   // picks up new species for the UI.
-  onCatalogsReady(() => {
-    cachedFilterSets = null;
-  });
+  if (!catalogsReadyUnsub) catalogsReadyUnsub = onCatalogsReady(() => { cachedFilterSets = null; });
 
   // Expose diagnostic commands — always available, not gated by debug globals
   shareGlobal('QPM_GARDEN_DIAG', diagnoseGardenFilters);
@@ -372,6 +354,18 @@ export function initializeGardenFilters(): void {
     eggs: config.eggTypes.length,
     growthStates: config.growthStates.length,
   });
+}
+
+/**
+ * Pagehide teardown (main/shutdown.ts): stops the reactive triggers, the
+ * reconciliation sweep (which also drops guards + overrides) and the
+ * catalogs-ready hook. Idempotent; initializeGardenFilters() may run again.
+ */
+export function disposeGardenFilters(): void {
+  stopFilterReapplyTriggers();
+  stopFilteringPolling();
+  catalogsReadyUnsub?.();
+  catalogsReadyUnsub = null;
 }
 
 /**

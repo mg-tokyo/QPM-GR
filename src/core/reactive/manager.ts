@@ -16,11 +16,12 @@
 
 import { storage } from '../../utils/storage';
 import { recordProbe, setProbeAttribution } from '../../diagnostics/perfMonitor';
+import { formatTopShare, takeCostWindow, type CostWindowTop } from '../../diagnostics/costWindow';
 import { findSlotIdxByOwner, getPlayerIdSync } from '../playerContext';
 import { subscribeToPatches } from '../stateTree';
 import type { PatchOp } from '../stateTree';
 import type { QuinoaStateSnapshot } from '../../types/gameAtoms';
-import { matchesPathPrefix } from './pathMatcher';
+import { hasMyIdxPlaceholder, matchesPathPrefix } from './pathMatcher';
 import { classifyByLabel } from './tierClassifier';
 import type {
   PatchPath,
@@ -76,6 +77,8 @@ export class ReactiveSubscriptionManager {
   private settlingFramesRemaining = 0;
   private flushScheduled = false;
   private nextFlushTriggers: Set<'state' | 'input' | 'safety'> = new Set();
+  // Previous event's resolved myIdx; a change fans out to `{myIdx}` entries.
+  private lastMyIdx: number | null = null;
 
   // Stats
   private stateEventCount = 0;
@@ -93,10 +96,7 @@ export class ReactiveSubscriptionManager {
     this.stateEventUnsub = subscribeToPatches((patches, newState) => {
       this.onStateEvent(newState, patches);
     });
-    setProbeAttribution('reactive.flush', () => {
-      const top = this.takeEntryCostWindow();
-      return top && top.totalMs > 0 ? `top ${top.label} ${Math.round((100 * top.ms) / top.totalMs)}%` : null;
-    });
+    setProbeAttribution('reactive.flush', () => formatTopShare(this.takeEntryCostWindow()));
     this.lastStatsSampleTs = performance.now();
   }
 
@@ -110,6 +110,7 @@ export class ReactiveSubscriptionManager {
     this.entries.clear();
     this.flushScheduled = false;
     this.nextFlushTriggers.clear();
+    this.lastMyIdx = null;
   }
 
   subscribe(atom: unknown, opts: ReactiveSubscribeOptions): () => void {
@@ -179,18 +180,8 @@ export class ReactiveSubscriptionManager {
   }
 
   /** Costliest entry since the last call, as a share of all entry time; resets the window. */
-  takeEntryCostWindow(): { label: string; ms: number; totalMs: number } | null {
-    let top: Entry | null = null;
-    let total = 0;
-    for (const e of this.entries.values()) {
-      total += e.windowMs;
-      if (!top || e.windowMs > top.windowMs) top = e;
-    }
-    const out = top && top.windowMs > 0
-      ? { label: top.debugLabel ?? 'unlabeled', ms: top.windowMs, totalMs: total }
-      : null;
-    for (const e of this.entries.values()) e.windowMs = 0;
-    return out;
+  takeEntryCostWindow(): CostWindowTop | null {
+    return takeCostWindow(this.entries.values(), (e) => e.debugLabel ?? 'unlabeled');
   }
 
   /** Per-entry lifetime cost — the "who is expensive inside reactive.flush" console view. */
@@ -220,6 +211,16 @@ export class ReactiveSubscriptionManager {
     // against subscription prefixes. Entries without a statePath fire on
     // every state event (conservative fallback).
     const myIdx = this.resolveMyIdx(state);
+    // Seat transition: fan out to every `{myIdx}` entry — the fill patch may
+    // sit at the slot root, an ancestor of the subscription. Selector-level
+    // ref-check inside flush() suppresses spurious callbacks.
+    const seatChanged = myIdx !== this.lastMyIdx;
+    this.lastMyIdx = myIdx;
+    if (seatChanged) {
+      for (const e of this.entries.values()) {
+        if ((e.tier === 'state' || e.tier === 'composite') && e.statePath !== undefined && hasMyIdxPlaceholder(e.statePath)) e.dirty = true;
+      }
+    }
     for (const patch of patches) {
       for (const e of this.entries.values()) {
         if (e.tier !== 'state' && e.tier !== 'composite') continue;

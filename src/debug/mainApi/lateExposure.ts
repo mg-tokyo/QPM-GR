@@ -1,4 +1,4 @@
-import { shareGlobal } from '../../core/pageContext';
+import { pageWindow, shareGlobal } from '../../core/pageContext';
 import { log } from '../../utils/logger';
 import { getStatsSnapshot } from '../../store/stats';
 import {
@@ -190,7 +190,7 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     };
   };
 
-  const globalTarget = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  const globalTarget = pageWindow;
   (globalTarget as any).__QPM_INTERNAL__ = {
     ...(globalTarget as any).__QPM_INTERNAL__,
     getGardenSnapshot,

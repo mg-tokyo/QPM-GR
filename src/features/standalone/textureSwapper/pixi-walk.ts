@@ -1,5 +1,5 @@
 import { pageWindow } from '../../../core/pageContext';
-import { getPixiCapture } from '../../../core/pixiCapture';
+import { getPixiCapture, getPixiRefs } from '../../../core/pixiCapture';
 import { getMapSnapshot, type MapSnapshot } from '../../garden/bridge';
 import { ctx, MAX_WALK_DEPTH } from './types';
 
@@ -14,6 +14,15 @@ import { ctx, MAX_WALK_DEPTH } from './types';
 export function getPixiApp(): any {
   try {
     return getPixiCapture()?.app ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Liveness-checked stage (structural recovery included). */
+export function getPixiStage(): any {
+  try {
+    return getPixiRefs()?.stage ?? null;
   } catch {
     return null;
   }
@@ -58,9 +67,9 @@ const TILE_LABEL_RE = /^Tile\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)$/;
  * `userSlotIdx` so only the current player's tiles are included.
  */
 export function buildPlayerTileMap(mySlotIdx: number): Map<string, string> {
-  const app = getPixiApp();
+  const stage = getPixiStage();
   const map = getMapSnapshot();
-  if (!app?.stage || !map?.cols) return new Map();
+  if (!stage || !map?.cols) return new Map();
 
   const result = new Map<string, string>();
 
@@ -86,7 +95,7 @@ export function buildPlayerTileMap(mySlotIdx: number): Map<string, string> {
     }
   }
 
-  scan(app.stage, 0);
+  scan(stage, 0);
   return result;
 }
 
@@ -96,9 +105,9 @@ export function buildPlayerTileMap(mySlotIdx: number): Map<string, string> {
  * coordinate key `"x,y"`.
  */
 export function buildPlayerBoardwalkTileMap(mySlotIdx: number): Map<string, string> {
-  const app = getPixiApp();
+  const stage = getPixiStage();
   const map = getMapSnapshot();
-  if (!app?.stage || !map?.cols) return new Map();
+  if (!stage || !map?.cols) return new Map();
 
   const result = new Map<string, string>();
 
@@ -124,7 +133,7 @@ export function buildPlayerBoardwalkTileMap(mySlotIdx: number): Map<string, stri
     }
   }
 
-  scan(app.stage, 0);
+  scan(stage, 0);
   return result;
 }
 

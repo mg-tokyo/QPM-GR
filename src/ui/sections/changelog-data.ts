@@ -2,6 +2,19 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.49",
+    date: "2026-09-17",
+    notes: [
+      "Fixed QPM actions being silently dropped in the first seconds after connecting or reconnecting since game build 1195: the game now refuses sends until the server welcomes the connection, so QPM waits for that instead of treating an open socket as ready",
+      "Improved Buy All and restock alerts during a reconnect: they now stop with 'Room connection not ready yet' instead of sending purchases the game would discard",
+      "Improved the websocket status in Diagnostics: it shows 'Socket open, waiting for Welcome' while reconnecting and recovers on its own, with a new QPM-WS-016 warning when an action is refused in that window",
+      "Fixed inventory, pets and pet teams sometimes not updating after you take or change a garden seat until something else changed",
+      "Fixed Garden Filters leaving tiles dimmed after QPM shuts down, and removed a duplicate scene scan on every filter re-apply",
+      "Fixed Texture Swapper and Garden Filters holding on to a dead game renderer after the game rebuilt it mid session, and Bulk Favorite now also finds the inventory when the game only exposes its scroll view",
+      "Improved the Diagnostics Performance line on Firefox: timer noise below 1 ms no longer shows up as cost",
+    ],
+  },
+  {
     version: "3.3.48",
     date: "2026-09-14",
     notes: [

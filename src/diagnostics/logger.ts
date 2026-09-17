@@ -110,10 +110,14 @@ function fanOut(error: QpmError, prefix: string): void {
       : def.severity === 'warn' ? 'degraded'
       : undefined;
     if (status) {
+      // Include a fresh message so the bus row doesn't display a stale prior
+      // publishOk() message alongside the new degraded status. healthBus.publish
+      // preserves prior message fields when a publish omits `message`.
       healthBus.publish({
         subsystem: error.subsystem,
         category: def.category,
         status,
+        message: `${def.title} (${error.code})`,
         lastError: error,
       });
     }

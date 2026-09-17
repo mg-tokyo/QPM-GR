@@ -1,9 +1,4 @@
 {
-  "src/audio/catalog.ts": {
-    "qpm/polling-needs-justification": {
-      "count": 1
-    }
-  },
   "src/catalogs/catalogLoader/enrichment.ts": {
     "no-restricted-globals": {
       "count": 1
@@ -14,19 +9,9 @@
       "count": 1
     }
   },
-  "src/core/gameState/index.ts": {
-    "qpm/polling-needs-justification": {
-      "count": 1
-    }
-  },
   "src/core/pageContext.ts": {
     "@typescript-eslint/ban-ts-comment": {
       "count": 2
-    }
-  },
-  "src/core/pixiScene.ts": {
-    "qpm/polling-needs-justification": {
-      "count": 1
     }
   },
   "src/core/reactive/manager.ts": {
@@ -59,11 +44,6 @@
   },
   "src/diagnostics/diagnosticsWindow.ts": {
     "no-restricted-properties": {
-      "count": 1
-    }
-  },
-  "src/diagnostics/perfMonitor.ts": {
-    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -122,16 +102,6 @@
     }
   },
   "src/features/garden/data/cropOptimization.ts": {
-    "qpm/no-literal-domain-lists": {
-      "count": 1
-    }
-  },
-  "src/features/garden/filters/controller.ts": {
-    "qpm/polling-needs-justification": {
-      "count": 1
-    }
-  },
-  "src/features/garden/filters/diagnostics.ts": {
     "qpm/no-literal-domain-lists": {
       "count": 1
     }
@@ -1920,11 +1890,6 @@
   "src/utils/versionChecker.ts": {
     "qpm/polling-needs-justification": {
       "count": 1
-    }
-  },
-  "src/websocket/health.ts": {
-    "qpm/polling-needs-justification": {
-      "count": 2
     }
   },
   "src/websocket/roomConnectionEvents.ts": {

@@ -6,6 +6,7 @@ import { stopPanelHotkey } from '../features/input/panelHotkey';
 import { stopAntiAfk } from '../features/standalone/antiAfk';
 import { stopActivityLogEnhancer } from '../features/activity/activityLogNativeEnhancer';
 import { stopAbilityTriggerStore } from '../store/abilityLogs';
+import { disposeGardenFilters } from '../features/garden/filters';
 import { stopNativeFeedIntercept } from '../features/pets/nativeFeedIntercept';
 import { stopPetTeamsStore } from '../store/petTeams';
 import { stopPetActivityStore } from '../store/petActivity';
@@ -35,6 +36,7 @@ import { stopNativeSendObserver } from '../websocket/nativeSendObserver';
 import { stopWebsocketDiagnostics } from '../websocket/api';
 import { stopCommandSequencer } from '../websocket/commandSequencer';
 import { stopPerfMonitor } from '../diagnostics/perfMonitor';
+import { stopPixiSceneDiagnostics } from '../core/pixiScene';
 import { stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
 import { stopJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { stopGameState } from '../core/gameState';
@@ -101,6 +103,7 @@ export function installGlobalHandlers(): void {
     stopAntiAfk();
     stopActivityLogEnhancer();
     stopAbilityTriggerStore();
+    try { disposeGardenFilters(); } catch { /* best effort */ }
     timerManager.destroy();
     stopNativeFeedIntercept();
     stopPetTeamsSync();
@@ -132,6 +135,7 @@ export function installGlobalHandlers(): void {
     // the chain sound regardless).
     stopCommandSequencer();
     stopPerfMonitor();
+    stopPixiSceneDiagnostics();
     stopWebsocketDiagnostics();
     stopCatalogsDiagnostics();
     try { stopGameState(); } catch { /* best effort */ }

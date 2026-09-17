@@ -15,7 +15,7 @@ import {
   extractVariantInfoFromSpriteNode,
   extractPlantContextFromSprite,
 } from './matching';
-import { walkSpriteTree, getPixiApp, isTextureRenderable } from './pixi-walk';
+import { walkSpriteTree, getPixiStage, isTextureRenderable } from './pixi-walk';
 import { restoreSpriteSnapshot } from './layerB-overlay';
 import { buildVariantTextureForStage } from './layerB-variants';
 import {
@@ -63,9 +63,9 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
 
   log(`applyAllLayerB: ${ruleList.length} active rules`);
 
-  const app = getPixiApp();
-  if (!app?.stage) {
-    log('applyAllLayerB: no PIXI app/stage found');
+  const stage = getPixiStage();
+  if (!stage) {
+    log('applyAllLayerB: no PIXI stage found');
     return;
   }
 
@@ -100,7 +100,7 @@ export function applyAllLayerB(rules: TextureOverrideRule[]): void {
     slotIndexMemo,
   };
 
-  walkSpriteTree(app.stage, (sprite) => {
+  walkSpriteTree(stage, (sprite) => {
     // Skip our own per-sprite tint overlays — they share the parent sprite's
     // texture and would re-match the same rule on every pass, spawning more
     // overlays inside themselves until MAX_WALK_DEPTH. See marker setup in

@@ -316,10 +316,12 @@ function rewrite(payload: unknown): number | null {
   return seq;
 }
 
-// CS-3: sendMessage queues while disconnected and flushes on socket open
-// BEFORE Welcome. Rewriting there burns a number the server can't accept;
-// skip and let it land as legacy — the server refuses envelopes on that
-// path already, and our subsequent envelopes stay in sync.
+// CS-3: an envelope reaching a slot wrapper before Welcome must not burn a
+// number. Pre-1195 sendMessage flushed its queue on socket open (before
+// Welcome); since 1195 both slots gate on isConnected() (socket OPEN &&
+// isCommandSessionReady) and the queue flushes after Welcome, so the queued
+// payload re-enters the wrappers and is rewritten then. Kept for older
+// bundles and for a foreign wrapper that calls the chokepoint directly.
 function skipPreSession(room: SequencerConnection, payload: unknown): boolean {
   if (!isQuinoaCommandEnvelope(payload) || room.isCommandSessionReady !== false) return false;
   stats.skippedPreSession++;

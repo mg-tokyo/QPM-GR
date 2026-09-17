@@ -122,6 +122,9 @@ export function startCatalogPoll(): void {
   };
   tryResolve();
   if (ready) return;
+  // polling-justified: the game's audio bridge module exposes no ready event,
+  // and the audiosprite URLs appear in resource timing only after the
+  // useQuinoaAudio effect runs. Self-terminating: stops on resolve or HARD_DEADLINE_MS.
   stopPoll = visibleInterval('qpm.audio.catalog.poll', tryResolve, POLL_MS);
   deadlineTimer = setTimeout(() => {
     deadlineTimer = null;

@@ -11,7 +11,7 @@ export const GAMESTATE_CODES: readonly ErrorCodeDefinition[] = [
     category: 'core',
     severity: 'info',
     title: 'Seat topology transition',
-    description: 'The player\'s myUserSlotIdx crossed the null↔number boundary. The reactive seat watcher signals the topology reason "identity:seat" so the resolver re-walks {myIdx}-dependent keys within one userSlots patch batch.',
+    description: 'The player\'s myUserSlotIdx crossed the null↔number boundary. The reactive seat watcher signals the topology reason "identity:seat" so the resolver re-walks {myIdx}-dependent keys within one userSlots patch batch. stateTree and the reactive manager bypass patch-prefix gating for {myIdx} subscribers on the same event, and an ancestor patch (slot replace) matches descendants.',
     devNotes: 'src/core/gameState/seatWatcher.ts — informational; correlate rebind spikes with seat transitions. context.phase === "attach" means subscribeToPatches threw during install (escalated to warn at the call site).',
     sinceVersion: V,
     notifyUser: false,

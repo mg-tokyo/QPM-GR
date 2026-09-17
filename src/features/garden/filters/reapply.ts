@@ -1,31 +1,30 @@
 import { getGardenSnapshot, onGardenSnapshot } from '../bridge';
 import { onAnyPixiNodeAdded } from '../../../core/pixiSceneEvents';
+import { coalesce } from '../../../utils/scheduling/debounce';
 import { TILE_LABEL_TEST_RE } from './constants';
 import { applyFilters, isFilteringActive } from './controller';
-import { getPixiApp, getOrBuildTileNodeCache } from './pixiStage';
+import { tileCache } from './pixiStage';
 import { warnFeature } from './_diagnostics';
 
 // Reactive re-application triggers. Two event sources cover everything the
-// old 500 ms poll caught:
+// 2000 ms reconciliation sweep would otherwise catch late:
 //  - onGardenSnapshot: tile data changed (mutation gained, growth, replant).
 //  - onAnyPixiNodeAdded under a Tile parent: the game's DEFERRED child-view
 //    rebuild (TileObjectContainerView syncChildView) creates the view only
 //    when the tile scrolls on-screen — no data event accompanies it.
-// Re-apply is debounced; a burst of addChilds costs one full pass (~1.1 ms).
+// A burst of addChilds costs one full pass (~1.1 ms) COALESCE_MS after the first.
 
-const DEBOUNCE_MS = 100;
+const COALESCE_MS = 100;
 let cleanups: Array<() => void> = [];
-let debounceTimer: number | null = null;
 let warnedNoTileNodes = false;
 
-// Shape self-check: the `Tile (x, y)` label regex is the feature's only node
-// identifier — a silent rename in a rebundle would turn filtering into a no-op.
-// Warn once per session when the garden has tile data but zero labels match.
+// Shape self-check: `Tile (x, y)` is the feature's only node identifier — a
+// silent rename in a rebundle would turn filtering into a no-op. Reads the
+// cache the apply pass just rebuilt; never walks the stage itself.
 function checkSceneShape(): void {
   if (warnedNoTileNodes) return;
-  const app = getPixiApp();
-  if (!app?.stage) return;
-  if (getOrBuildTileNodeCache(app.stage).length > 0) return;
+  const nodes = tileCache.nodes;
+  if (!nodes || nodes.length > 0) return; // null = no stage this pass
   const snap = getGardenSnapshot();
   const tiles = snap?.tileObjects ? Object.keys(snap.tileObjects).length : 0;
   if (tiles > 0) {
@@ -39,16 +38,11 @@ export function shouldReapplyForAddedNode(child: { parent?: { label?: unknown } 
   return typeof parentLabel === 'string' && TILE_LABEL_TEST_RE.test(parentLabel);
 }
 
-function scheduleApply(): void {
-  if (debounceTimer !== null) return;
-  debounceTimer = window.setTimeout(() => {
-    debounceTimer = null;
-    if (isFilteringActive()) {
-      applyFilters();
-      checkSceneShape();
-    }
-  }, DEBOUNCE_MS);
-}
+const scheduleApply = coalesce(() => {
+  if (!isFilteringActive()) return;
+  applyFilters();
+  checkSceneShape();
+}, COALESCE_MS);
 
 export function startFilterReapplyTriggers(): void {
   if (cleanups.length > 0) return; // idempotent
@@ -67,8 +61,5 @@ export function stopFilterReapplyTriggers(): void {
     try { c(); } catch { /* ignore */ }
   }
   cleanups = [];
-  if (debounceTimer !== null) {
-    window.clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
+  scheduleApply.cancel();
 }

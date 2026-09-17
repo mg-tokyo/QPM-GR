@@ -11,7 +11,7 @@ import {
   createContainer,
   type PixiCtors,
 } from '../../../core/pixiScene';
-import { isRoomSocketOpen } from '../../../websocket/api';
+import { isRoomSessionReady } from '../../../websocket/api';
 import { sendPurchase, applyInventoryCapToQuantity } from '../../../ui/shop/restockAlerts/purchaseActions';
 import { BUY_SEND_DELAY_MS } from '../../../ui/shop/restockAlerts/types';
 import { CATEGORY_TO_SHOP_TYPE } from './types';
@@ -343,7 +343,7 @@ async function executePurchaseLoop(
   updateText: (text: string) => void,
 ): Promise<void> {
   for (let i = 0; i < quantity; i++) {
-    if (!isRoomSocketOpen()) {
+    if (!isRoomSessionReady()) {
       updateText('Offline');
       return;
     }

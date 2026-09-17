@@ -2,10 +2,9 @@
 // Shared PIXI scene graph access, traversal, and manipulation utilities.
 // Consolidates patterns from gardenFilters, bulkFavorite, and universalProbe.
 
-import { getPixiCapture } from './pixiCapture';
+import { getPixiCapture, getPixiRefs, onPixiCaptureChange } from './pixiCapture';
 import { healthBus } from '../diagnostics/healthBus';
 import type { Subsystem } from '../diagnostics/types';
-import { visibleInterval } from '../utils/scheduling/timerManager';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,12 +60,31 @@ function isObject(value: unknown): value is Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 // Row 6.23 — register the pixiScene subsystem on the health bus so PIXI-runtime
-// readiness surfaces in Diagnostics. Starts as `starting`, polls the shared
-// capture until `getPixiRuntime().ready`, publishes `ok` with the runtime shape
-// and stops polling. Idempotent. Uses visibleInterval so a hidden tab doesn't
-// waste ticks on readiness checks.
+// readiness surfaces in Diagnostics. Starts as `starting`, subscribes to capture
+// changes and publishes `ok` the first time getPixiRuntime().ready flips true.
+// Idempotent.
 const PIXI_SUBSYSTEM: Subsystem = 'pixiScene';
 let pixiBusRegistered = false;
+let stopReadyListener: (() => void) | null = null;
+
+function publishPixiReady(): boolean {
+  const rt = getPixiRuntime();
+  if (!rt.ready) return false;
+  healthBus.publish({
+    subsystem: PIXI_SUBSYSTEM,
+    category: 'core',
+    status: 'ok',
+    message: 'PIXI runtime ready',
+    metrics: {
+      hasApp: rt.app ? 1 : 0,
+      hasRenderer: rt.renderer ? 1 : 0,
+      hasStage: rt.stage ? 1 : 0,
+      hasCanvas: rt.canvas ? 1 : 0,
+    },
+  });
+  return true;
+}
+
 export function startPixiSceneDiagnostics(): void {
   if (pixiBusRegistered) return;
   pixiBusRegistered = true;
@@ -75,41 +93,34 @@ export function startPixiSceneDiagnostics(): void {
     status: 'starting',
     message: 'Awaiting PIXI capture',
   });
-  const publishIfReady = (): boolean => {
-    const rt = getPixiRuntime();
-    if (!rt.ready) return false;
-    healthBus.publish({
-      subsystem: PIXI_SUBSYSTEM,
-      category: 'core',
-      status: 'ok',
-      message: 'PIXI runtime ready',
-      metrics: {
-        hasApp: rt.app ? 1 : 0,
-        hasRenderer: rt.renderer ? 1 : 0,
-        hasStage: rt.stage ? 1 : 0,
-        hasCanvas: rt.canvas ? 1 : 0,
-      },
-    });
-    return true;
-  };
-  if (publishIfReady()) return;
-  const stop = visibleInterval('qpm-pixi-scene-ready', () => {
-    if (publishIfReady()) stop();
-  }, 500);
+  if (publishPixiReady()) return;
+  // Every late-resolution path (vendor hook, canvas/fiber fallback, service
+  // read) ends in repairPixiCapture → onPixiCaptureChange.
+  stopReadyListener = onPixiCaptureChange(() => {
+    if (!publishPixiReady()) return;
+    stopReadyListener?.();
+    stopReadyListener = null;
+  });
 }
 
-/** Get the captured PIXI app, renderer, stage, and canvas. */
+export function stopPixiSceneDiagnostics(): void {
+  stopReadyListener?.();
+  stopReadyListener = null;
+  pixiBusRegistered = false;
+}
+
+/**
+ * Get the captured PIXI app, renderer, stage, and canvas via the liveness
+ * path (structural stage recovery included). `ready` no longer requires a
+ * live app — a structural stage is walkable without one.
+ */
 export function getPixiRuntime(): PixiRuntime {
-  const captured = getPixiCapture();
-
-  const app = captured?.app ?? null;
-  const renderer =
-    captured?.renderer
-      ?? (isObject(app?.renderer) ? app.renderer as Record<string, unknown> : null);
-  const stage = isObject(app?.stage) ? app.stage as Record<string, unknown> : null;
+  const refs = getPixiRefs();
+  const app = refs?.app ?? getPixiCapture()?.app ?? null;
+  const renderer = refs?.renderer ?? null;
+  const stage = refs?.stage ?? null;
   const canvas = resolveCanvas(renderer);
-
-  return { app, renderer, stage, canvas, ready: !!(app && renderer && stage && canvas) };
+  return { app, renderer, stage, canvas, ready: !!(renderer && stage && canvas) };
 }
 
 /** Resolve the game canvas element from multiple sources. */

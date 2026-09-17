@@ -51,6 +51,28 @@ export type {
 let prefetchPromise: Promise<PrefetchedAtlas | null> | null = null;
 let contextRestoreReloadPromise: Promise<void> | null = null;
 
+// Game 1202 has private PIXI (no window.PIXI), so getCtors must reflect the
+// game's classes off a textured stage node. On heavy boot ticks (max 426 ms
+// longtask observed) resolvePixiFast returns before the game populates the
+// stage, and getCtors throws "No PIXI constructors found" — QPM-SPRITE-001.
+// Retry only that specific race; any other failure propagates immediately.
+async function resolveCtorsWithBootRetry(app: unknown, renderer: unknown): Promise<ReturnType<typeof getCtors>> {
+  const BUDGET_MS = 5000;
+  const POLL_MS = 100;
+  const startedAt = performance.now();
+  let lastErr: unknown = null;
+  for (;;) {
+    try { return getCtors(app, renderer); }
+    catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/No PIXI constructors found/.test(msg)) throw err;
+    }
+    if (performance.now() - startedAt >= BUDGET_MS) throw lastErr;
+    await delay(POLL_MS);
+  }
+}
+
 async function start(): Promise<SpriteService> {
   const runtimeOrigin = getRuntimeWindow().location?.origin || DEFAULT_CFG.origin;
 
@@ -107,7 +129,7 @@ async function start(): Promise<SpriteService> {
   // for direct consumers even when every hook path lost the race.
   repairPixiCapture({ app: app ?? null, renderer, version: typeof pixiVersion === 'string' ? pixiVersion : null }, 'sprite-boot');
 
-  ctxRef.current!.state.ctors = getCtors(app, renderer);
+  ctxRef.current!.state.ctors = await resolveCtorsWithBootRetry(app, renderer);
   checkSpriteCtorCapture(ctxRef.current!.state.ctors);
   ctxRef.current!.state.runtimeTextureHints = Array.isArray(resolved?.runtimeHints)
     ? resolved.runtimeHints.filter(Boolean)

@@ -1,6 +1,7 @@
 export type { GardenFiltersConfig } from './types';
 export {
   initializeGardenFilters,
+  disposeGardenFilters,
   getGardenFiltersConfig,
   updateGardenFiltersConfig,
   subscribeToGardenFiltersConfig,

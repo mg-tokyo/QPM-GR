@@ -12,7 +12,7 @@
 // level. Idempotent.
 
 import { log, warnFeature } from '../types';
-import { walkSpriteTree, getPixiApp } from '../pixi-walk';
+import { walkSpriteTree, getPixiStage } from '../pixi-walk';
 import { uninstallPetOverlayTicker } from '../rivePetOverlay';
 import { clearCapturedFilterCtors } from '../riveFilters';
 import {
@@ -134,11 +134,11 @@ export function captureFromScene(): void {
   // installed — the game has TWO sibling Rive classes (RiveSprite + SharedRiveSprite),
   // and the first call captures whichever appeared first; later calls pick up
   // the other once it materializes (e.g. a pet spawned after decor).
-  const app = getPixiApp();
-  if (!app?.stage) return;
+  const stage = getPixiStage();
+  if (!stage) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let target: any = null;
-  walkSpriteTree(app.stage, (sprite) => {
+  walkSpriteTree(stage, (sprite) => {
     if (!isRiveSprite(sprite)) return;
     // Stamp the brand on every Rive sprite the walker sees — covers sprites
     // whose class was already captured but the instance is fresh.

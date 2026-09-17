@@ -4,7 +4,7 @@
 import { formatCoins } from '../../../utils/formatters';
 import { warnFeature } from './_diagnostics';
 import { getItemIdVariants } from '../../../utils/restock/dataService';
-import { isRoomSocketOpen } from '../../../websocket/api';
+import { isRoomSessionReady, isRoomSocketOpen } from '../../../websocket/api';
 import { getShopStockState } from '../../../store/shopStock';
 import { isWeatherShopType } from '../../../types/shops';
 import { findCatalogIdCaseInsensitive, getToolMaxInventoryQuantity, isItemCatalogLoaded } from '../../../catalogs/shopEligibility';
@@ -453,6 +453,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     hasCoinsBaseline: alertState.hasCoinsBaseline,
     currentCoinsCount: alertState.currentCoinsCount,
     roomSocketOpen: isRoomSocketOpen(),
+    roomSessionReady: isRoomSessionReady(),
   });
 
   setAlertBusy(active, true);

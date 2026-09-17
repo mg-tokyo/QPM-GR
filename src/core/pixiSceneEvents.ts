@@ -8,17 +8,13 @@
 // notifies subscribers the moment a node is added or removed. Idempotent —
 // safe to call ensurePatched() from multiple modules; only patches once.
 
-import { getPixiCapture } from './pixiCapture';
+import { getPixiRefs } from './pixiCapture';
 
 interface PixiNode {
   label?: unknown;
   children?: PixiNode[];
   destroyed?: unknown;
   parent?: unknown;
-}
-
-interface PixiCapture {
-  app?: { stage?: PixiNode };
 }
 
 type NodeListener = (node: PixiNode) => void;
@@ -52,8 +48,7 @@ function dispatch(
 }
 
 function getStage(): PixiNode | null {
-  const app = getPixiCapture()?.app as PixiCapture['app'] | null;
-  return app?.stage ?? null;
+  return (getPixiRefs()?.stage as PixiNode | undefined) ?? null;
 }
 
 /**

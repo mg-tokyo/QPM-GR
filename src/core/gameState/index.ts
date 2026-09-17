@@ -120,6 +120,9 @@ export function initGameState(): void {
   disposers.push(onStateTreeReady(() => { refreshIdentity(); signalTopology('stateTree:ready'); }));
   disposers.push(onStateTreeWelcome(() => { refreshIdentity(); signalTopology('stateTree:welcome'); }));
   disposers.push(onJotaiCapture(() => { refreshIdentity(); signalTopology('jotai:capture'); }));
+  // polling-justified: the captured Jotai cache is a bare Map with no
+  // registration hook (jotaiBridge/cache.ts); atoms the game registers late
+  // are visible only as a size change. 30 s cadence, one topology signal per growth.
   disposers.push(visibleInterval('gameState:cacheGrowth', () => {
     const size = runtime?.atoms.cacheSize() ?? 0;
     if (size !== lastCacheSize) { lastCacheSize = size; signalTopology('atoms:cacheGrowth'); }

@@ -12,6 +12,7 @@ import {
   type RestockShopType,
 } from './types';
 import {
+  isRoomSessionReady,
   isRoomSocketOpen,
   sendRoomAction,
   type WebSocketSendResult,
@@ -34,7 +35,7 @@ import { describeConfirmationSourceGaps } from './sourceGaps';
 // WS send helpers
 // ---------------------------------------------------------------------------
 
-type PurchaseSendFailureReason = WebSocketSendResult['reason'] | 'socket_not_open' | 'server_rejected';
+type PurchaseSendFailureReason = WebSocketSendResult['reason'] | 'server_rejected';
 
 /** Standard shops carry one item type; weather shops mix types, so they rely on the hints from the shop entry. */
 const SHOP_TO_ITEM_TYPE: Record<string, string> = {
@@ -81,9 +82,9 @@ export interface PurchaseBatchOptions {
 
 export function explainSendFailure(reason: PurchaseSendFailureReason | null): string {
   switch (reason) {
-    case 'socket_not_open': return 'Room socket not open yet';
     case 'server_rejected': return 'Shop rejected the purchase (sold out or not enough coins)';
     case 'no_connection':   return 'No room connection';
+    case 'session_not_ready': return 'Room connection not ready yet (waiting for the server\'s Welcome)';
     case 'invalid_payload': return 'Invalid purchase payload';
     case 'throttled':       return 'Purchase request throttled';
     case 'send_failed':     return 'Failed to send purchase';
@@ -119,6 +120,7 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
     includeToolShack: ownershipBaseline.includeToolShack,
     baselineInventoryStacks: ownershipBaseline.inventoryKeyItemQuantities.size,
     roomSocketOpen: isRoomSocketOpen(),
+    roomSessionReady: isRoomSessionReady(),
   });
 
   const sender: PurchaseSender = opts?.send ?? sendPurchase;
@@ -129,9 +131,9 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
   let serverRejectionCode: string | null = null;
   const awaitResults: Array<() => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>> = [];
   for (let i = 0; i < requested; i++) {
-    if (!isRoomSocketOpen()) {
-      firstFailureReason = 'socket_not_open';
-      debugLog('Buy-all send loop halted: room socket not open', { key: model.key, requested, sent, index: i });
+    if (!isRoomSessionReady()) {
+      firstFailureReason = isRoomSocketOpen() ? 'session_not_ready' : 'no_connection';
+      debugLog('Buy-all send loop halted: room not ready to send', { key: model.key, requested, sent, index: i, reason: firstFailureReason });
       break;
     }
     if (serverRejectionCode !== null) {

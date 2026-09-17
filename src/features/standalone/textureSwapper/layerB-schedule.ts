@@ -4,7 +4,7 @@ import {
   LAYER_B_REFRESH_DELAYS_MS,
 } from './types';
 import type { TextureOverrideRule } from './types';
-import { getPixiApp } from './pixi-walk';
+import { getPixiApp, getPixiStage } from './pixi-walk';
 import { applyAllLayerB, revertAllLayerB } from './layerB-apply';
 import { buildLayerBApplyToken } from './layerB-variants';
 import { revertAllRiveOverlays } from './riveAdapter';
@@ -113,16 +113,16 @@ let stageHookCleanup: (() => void) | null = null;
 
 export function initStageChildAddedHook(): () => void {
   if (stageHookCleanup) return stageHookCleanup;
-  const app = getPixiApp();
-  if (!app?.stage) return () => {};
+  const stage = getPixiStage();
+  if (!stage) return () => {};
   const onChildAdded = (): void => {
     if (ctx.suppressChildAdded) return;
     ctx.layerBStructureDirty = true;
     refreshLayerBNow();
   };
-  app.stage.on?.('childAdded', onChildAdded);
+  stage.on?.('childAdded', onChildAdded);
   stageHookCleanup = () => {
-    app.stage.off?.('childAdded', onChildAdded);
+    stage.off?.('childAdded', onChildAdded);
     stageHookCleanup = null;
   };
   return stageHookCleanup;

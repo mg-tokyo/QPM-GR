@@ -164,6 +164,9 @@ export function startPerfMonitor(): void {
       observer.observe({ entryTypes: ['longtask'] });
     }
   } catch { observer = null; longTasksSupported = false; }
+  // polling-justified: a fixed 15 s aggregation window, not a state read —
+  // probes push samples through recordProbe(); this timer only closes the
+  // window and publishes it. There is no event that means "window elapsed".
   stopPublish = visibleInterval('qpm-perf-monitor', publish, PUBLISH_MS);
 }
 

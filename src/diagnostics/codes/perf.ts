@@ -23,7 +23,7 @@ export const PERF_CODES: readonly ErrorCodeDefinition[] = [
     severity: 'warn',
     title: 'QPM probe over budget',
     description: 'A QPM per-frame probe (anchor tick, state-tree fan-out, reactive flush) exceeded its p95 budget for two consecutive windows.',
-    devNotes: 'src/diagnostics/perfMonitor.ts BUDGET_MS — the probe name is in context.probe.',
+    devNotes: 'src/diagnostics/perfMonitor.ts BUDGET_MS — context.probe names the probe, context.top the costliest subscriber/entry share for that window (null below 1 ms total), context.surface discord|web.',
     sinceVersion: V,
   },
 ];

@@ -15,6 +15,26 @@ class GameLike {
   sendOpenMessage(message: unknown, isNoisy: boolean): void { void message; void isNoisy; }
 }
 
+// Shape of game 1195 (live RoomConnection-DwpMMPWm.js, 2026-09-17): the open
+// handler writes SocketOpened on the raw socket and both slots gate on
+// isConnected() = isSocketOpen() && isCommandSessionReady.
+class Game1195Like {
+  isCommandSessionReady = false;
+  currentWebSocket: { readyState: number; send(data: string): void } | null = null;
+  onWebSocketOpen(socket: { send(data: string): void }): void {
+    socket.send(JSON.stringify({ type: 'SocketOpened' }));
+  }
+  isSocketOpen(): boolean { return this.currentWebSocket?.readyState === 1; }
+  isConnected(): boolean { return this.isSocketOpen() && this.isCommandSessionReady; }
+  sendMessage(message: unknown): void {
+    if (this.isConnected()) this.sendOpenMessage(message, false);
+  }
+  trySendMessageNow(message: unknown): boolean {
+    return this.isConnected() ? (this.sendOpenMessage(message, false), true) : false;
+  }
+  sendOpenMessage(message: unknown, isNoisy: boolean): void { void message; void isNoisy; }
+}
+
 class TwoShared {
   sendMessage(m: unknown): void { this.log(m); this.write(m); }
   trySendMessageNow(m: unknown): boolean { this.log(m); this.write(m); return true; }
@@ -38,6 +58,10 @@ class LoopsBack {
 describe('discoverSendChokepoint', () => {
   it('finds the one argument-bearing method both slot methods call, ignoring zero-arg calls', () => {
     expect(discoverSendChokepoint(GameLike.prototype)).toBe('sendOpenMessage');
+  });
+
+  it('still finds sendOpenMessage on the game 1195 shape (SocketOpened bypasses the slots)', () => {
+    expect(discoverSendChokepoint(Game1195Like.prototype)).toBe('sendOpenMessage');
   });
 
   it('refuses to guess between two shared callees', () => {

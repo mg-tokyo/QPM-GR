@@ -4,7 +4,7 @@ import { getGardenSnapshot, getMapSnapshot } from '../bridge';
 import { getAllPlantSpecies as getCatalogPlantSpecies, getPlantSpecies } from '../../../catalogs/gameCatalogs';
 import { pageWindow, isIsolatedContext } from '../../../core/pageContext';
 import { SPECIES_TO_VIEW } from './speciesView';
-import { getPixiApp, buildTileNodeCache, getOrBuildTileNodeCache } from './pixiStage';
+import { getPixiApp, getPixiStage, buildTileNodeCache, getOrBuildTileNodeCache } from './pixiStage';
 import { getGardenTileData, tileMatchesSpecies } from './tileData';
 import { DIM_ALPHA } from './constants';
 
@@ -36,6 +36,8 @@ export function isNodeAttached(node: any, stage: any): boolean {
 /**
  * Full diagnostic dump of garden filters pipeline.
  * Reports the state of every dependency so we can see exactly what's broken.
+ * `targetTileDetails` is [] when no species filter is active — the detail
+ * rows are scoped to what the user is filtering on.
  */
 export function diagnoseGardenFilters(): Record<string, unknown> {
   const diag: Record<string, unknown> = {};
@@ -82,8 +84,10 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
     try { return !!(pageWindow as any).__QPM_PIXI_HOOKS_ACTIVE__; } catch { return 'access-error'; }
   })();
 
-  // 5. PIXI app from getPixiApp()
+  // 5. PIXI app from getPixiApp() — presence-only line; stage walks below
+  // route through getPixiStage() so structural recovery + liveness apply.
   const app = getPixiApp();
+  const stage = getPixiStage();
   diag.getPixiApp = app ? {
     hasStage: !!app.stage,
     stageChildren: app.stage?.children?.length ?? 'no-stage',
@@ -91,12 +95,12 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
   } : 'null';
 
   // 6. Stage tile traversal + attachment audit
-  if (app?.stage) {
-    const tileNodes = getOrBuildTileNodeCache(app.stage);
+  if (stage) {
+    const tileNodes = getOrBuildTileNodeCache(stage);
     let attachedCount = 0;
     let detachedCount = 0;
     for (const t of tileNodes) {
-      if (isNodeAttached(t.node, app.stage)) { attachedCount++; } else { detachedCount++; }
+      if (isNodeAttached(t.node, stage)) { attachedCount++; } else { detachedCount++; }
     }
     diag.tileNodes = {
       count: tileNodes.length,
@@ -110,17 +114,17 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
         childCount: t.node?.children?.length ?? 0,
         firstChildLabel: t.node?.children?.[0]?.label ?? 'none',
         alpha: t.node?.alpha,
-        attached: isNodeAttached(t.node, app.stage),
+        attached: isNodeAttached(t.node, stage),
       })),
     };
   } else {
-    diag.tileNodes = 'no-app-or-stage';
+    diag.tileNodes = 'no-stage';
   }
 
   // Dim-integrity probe: detects the occlusion-corruption class (derived
   // groupAlpha diverging from the authored child alpha).
-  if (app?.stage) {
-    const nodes = getOrBuildTileNodeCache(app.stage);
+  if (stage) {
+    const nodes = getOrBuildTileNodeCache(stage);
     const rows: Array<Record<string, unknown>> = [];
     for (const { node } of nodes) {
       const child = node.children?.[0];
@@ -182,10 +186,12 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
   const catalogKeys = getCatalogPlantSpecies();
   const allKeys = new Set([...Object.keys(SPECIES_TO_VIEW), ...catalogKeys]);
   const livePixiLabels = new Set<string>();
-  // Also collect per-label tile details for target species
-  const targetSpecies = new Set(['FourLeafClover', 'PurpleDaisy', 'Clover', 'Daisy', 'Snowdrop', 'SnowdropDouble']);
+  // Detail rows for the species the user is filtering on (config + stats-hub
+  // override): those are the tiles a "still lit" field report is about.
+  const ctrl = getControllerDiagnostics();
+  const targetSpecies = new Set<string>([...ctrl.config.cropSpecies, ...(ctrl.statsHubOverride ?? [])]);
   const targetTileDetails: Array<Record<string, unknown>> = [];
-  if (app?.stage) {
+  if (stage) {
     const walkLabels = (node: any, depth: number) => {
       if (!node || depth > 10) return;
       if (node.label && /^Tile \(\d+, \d+\)$/.test(node.label)) {
@@ -213,7 +219,7 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
                 tileDataSpecies: tileData?.species ?? 'no-tile-data',
                 slotSpecies: getSlotSpeciesList(tileData),
                 tileDataObjectType: tileData?.objectType ?? 'unknown',
-                attached: isNodeAttached(node, app.stage),
+                attached: isNodeAttached(node, stage),
                 hasParent: !!node.parent,
                 parentLabel: node.parent?.label ?? 'none',
               });
@@ -226,7 +232,7 @@ export function diagnoseGardenFilters(): Record<string, unknown> {
         for (const c of node.children) walkLabels(c, depth + 1);
       }
     };
-    walkLabels(app.stage, 0);
+    walkLabels(stage, 0);
   }
   const speciesAudit: Array<{
     key: string; staticLabel: string | null; catalogPlantName: string | null;

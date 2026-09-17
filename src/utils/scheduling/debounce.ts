@@ -69,3 +69,25 @@ export function debounceCancelable<T extends (...args: any[]) => any>(
 
   return debounced;
 }
+
+// Coalesce a burst into ONE call `wait` ms after the FIRST call of the burst
+// (deferred-leading). Unlike debounce, later calls never push the timer, so
+// latency stays <= wait under a continuous stream. cancel() drops a pending
+// call — invoke it from every stop/teardown path.
+export function coalesce(fn: () => void, wait: number): (() => void) & { cancel: () => void } {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const scheduled = () => {
+    if (timeout !== null) return;
+    timeout = setTimeout(() => {
+      timeout = null;
+      fn();
+    }, wait);
+  };
+  scheduled.cancel = () => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+  return scheduled;
+}
