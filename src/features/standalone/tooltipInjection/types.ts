@@ -104,7 +104,8 @@ export const OBJECT_CARD_LABEL = 'GardenInfoObjectCard';
 // (PixiTooltip.show → GlobalRenderLayers.stageUiRoot). Scanning it instead
 // of the stage keeps the per-frame tooltip lookup at O(tens) of nodes.
 export const STAGE_UI_ROOT_LABEL = 'StageUiRoot';
-// Direct stage child that owns GardenInfoCardSystem (the world lives under 'Camera').
+// Stage layer that owns GardenInfoCardSystem (the world lives under 'Camera'). Both
+// layers sit under 'GameContent' since game 1361 — resolve via findStageLayer().
 export const STAGE_UI_LAYER_LABEL = 'UI';
 
 /** Root DOM id for the QPM lock badge pinned to the object card's top-right. */

@@ -408,9 +408,6 @@
     },
     "qpm/no-hardcoded-colors": {
       "count": 5
-    },
-    "qpm/no-inline-ui-strings": {
-      "count": 1
     }
   },
   "src/ui/bloblingCustomiser/window.ts": {
@@ -1782,17 +1779,6 @@
   },
   "src/ui/stats/statsHubWindow/tileHelpers.ts": {
     "no-restricted-imports": {
-      "count": 1
-    }
-  },
-  "src/ui/stats/statsOverviewSection.ts": {
-    "qpm/no-emoji-in-ui": {
-      "count": 40
-    },
-    "qpm/no-hardcoded-colors": {
-      "count": 7
-    },
-    "qpm/no-literal-domain-lists": {
       "count": 1
     }
   },

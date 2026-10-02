@@ -37,9 +37,13 @@ export const PET_TEAM_ICON_IDS = new Set([
 ]);
 
 /** V16 unified shop purchase payload. itemType values: 'Seed'|'Egg'|'Tool'|'Decor'. */
+// v1361 QuinoaCanvas schema: viewMode picklist ['list','grid'] (required);
+// quantity optional integer >= 1, no max. The game omits it for a single unit.
 export type PurchaseShopItemPayload = {
   shop: string;
+  viewMode: 'list' | 'grid';
   item: { itemType: string } & Record<string, unknown>;
+  quantity?: number;
 };
 
 export function isNonEmptyString(value: unknown): value is string {
@@ -48,4 +52,11 @@ export function isNonEmptyString(value: unknown): value is string {
 
 export function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+export function isValidPurchaseShopItem(p: PurchaseShopItemPayload): boolean {
+  return isNonEmptyString(p.shop)
+    && (p.viewMode === 'list' || p.viewMode === 'grid')
+    && !!p.item && isNonEmptyString(p.item.itemType)
+    && (p.quantity === undefined || (Number.isInteger(p.quantity) && p.quantity >= 1));
 }

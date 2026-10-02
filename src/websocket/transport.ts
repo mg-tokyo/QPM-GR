@@ -3,12 +3,15 @@
 // should use. Signals, strongest first:
 //   1. what the GAME was observed sending for that type (this session, via the
 //      sequencer's chokepoint wrapper), or a server verdict (`not_ackable`);
-//   2. the same, persisted from earlier sessions (qpm.ws.transport.v1);
+//   2. the same, persisted from earlier sessions on the SAME game build
+//      (qpm.ws.transport.v1, stamped `{ v: build, types }`);
 //   3. LEGACY_ROOM_ACTION_TYPES as the cold-start prior — unknown types default
 //      to envelope because that is the only direction the server can correct.
 
+import { getCapturedBuildId } from '../diagnostics/gameVersionCapture';
 import { createNamedLogger } from '../diagnostics/logger';
 import { storage } from '../utils/storage';
+import { isRecord } from '../utils/typeGuards';
 import { LEGACY_ROOM_ACTION_TYPES, isLegacyRoomActionType } from './envelope';
 
 const log = createNamedLogger('websocket');
@@ -27,9 +30,15 @@ interface Observation {
   flips: number;
 }
 
+interface PersistedTransports {
+  v: string;
+  types: Record<string, Transport>;
+}
+
 const observed = new Map<string, Observation>();
 const warned = new Set<string>();
-let loaded = false;
+/** Build the persisted entry was loaded against; null until the build id resolves. */
+let loadedBuild: string | null = null;
 let qpmSendDepth = 0;
 
 /** Marks sends issued by QPM so the chokepoint doesn't record them as the game's. */
@@ -50,21 +59,38 @@ function allowlistTransport(type: string): Transport {
   return isLegacyRoomActionType(type) ? 'legacy' : 'envelope';
 }
 
-function ensureLoaded(): void {
-  if (loaded) return;
-  loaded = true;
-  const saved = storage.get<Record<string, unknown>>(TRANSPORT_STORAGE_KEY, {});
-  if (!saved || typeof saved !== 'object') return;
-  for (const [type, transport] of Object.entries(saved)) {
-    if (transport === 'legacy' || transport === 'envelope') {
-      observed.set(type, { transport, source: 'persisted', count: 0, lastAt: 0, flips: 0 });
-    }
+/** Types persisted on `build`; null for another build or the pre-stamp flat map. */
+function parsePersisted(saved: unknown, build: string): Record<string, Transport> | null {
+  if (!isRecord(saved) || saved.v !== build || !isRecord(saved.types)) return null;
+  const types: Record<string, Transport> = {};
+  for (const [type, transport] of Object.entries(saved.types)) {
+    if (transport === 'legacy' || transport === 'envelope') types[type] = transport;
   }
+  return types;
+}
+
+// The game moves types between transports across builds, so another build's
+// observations are dropped. Until the build id resolves, this session runs on
+// the allowlist + its own observations and the next call retries the load.
+function ensureLoaded(): void {
+  if (loadedBuild !== null) return;
+  const build = getCapturedBuildId();
+  if (build === null) return;
+  loadedBuild = build;
+  const saved = storage.get<unknown>(TRANSPORT_STORAGE_KEY, null);
+  const persisted = parsePersisted(saved, build);
+  const recordedBeforeLoad = observed.size > 0;
+  for (const [type, transport] of Object.entries(persisted ?? {})) {
+    if (!observed.has(type)) observed.set(type, { transport, source: 'persisted', count: 0, lastAt: 0, flips: 0 });
+  }
+  if ((saved !== null && persisted === null) || recordedBeforeLoad) persist();
 }
 
 function persist(): void {
-  const out: Record<string, Transport> = {};
-  for (const [type, obs] of observed) out[type] = obs.transport;
+  if (loadedBuild === null) return;
+  const types: Record<string, Transport> = {};
+  for (const [type, obs] of observed) types[type] = obs.transport;
+  const out: PersistedTransports = { v: loadedBuild, types };
   storage.set(TRANSPORT_STORAGE_KEY, out);
 }
 
@@ -151,7 +177,6 @@ export function transportAudit(): { rows: TransportAuditRow[]; mismatches: strin
 export function resetTransportObservations(): void {
   observed.clear();
   warned.clear();
-  loaded = true;
   storage.remove(TRANSPORT_STORAGE_KEY);
 }
 

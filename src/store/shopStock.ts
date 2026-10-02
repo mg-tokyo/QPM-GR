@@ -24,6 +24,7 @@ import {
   type ShopStockCategoryState,
   type ShopStockState,
 } from './shopStockParsers';
+import { extractMyDataCustomRestocks, type CustomRestockMap } from './shopPurchaseCycle';
 import { canonicalItemId } from '../utils/restock/dataService';
 import {
   getKnownShopIds,
@@ -50,6 +51,7 @@ const listeners = new Set<(state: ShopStockState) => void>();
 let shopsSnapshot: ShopsAtomSnapshot | null = null;
 let myDataPurchasesSnapshot: ShopPurchasesAtomSnapshot | null = null;
 let customInventories: CustomInventoryMap = null;
+let customRestocks: CustomRestockMap = null;
 let quinoaDataShopsSnapshot: ShopsAtomSnapshot | null = null;
 let cachedState: ShopStockState = createEmptyState();
 let lastNotifySignature: string | null = null;
@@ -158,6 +160,10 @@ function resolveWeatherShopCatalogPrices(items: ShopStockItem[]): void {
 interface CategoryMemo {
   inventory: unknown;
   customInventory: unknown;
+  customRestock: unknown;
+  // A restock can repeat the same inventory; purchases only count within one cycle.
+  // Undefined (legacy shape, counts) and null (no stock) must stay distinct.
+  restockId: unknown;
   state: ShopStockCategoryState;
 }
 const categoryMemo = new Map<ShopCategory, CategoryMemo>();
@@ -218,9 +224,11 @@ function rebuildState(): void {
     const atomKey = getAtomKeyForCategory(category);
     const snapshot = effectiveShops?.[atomKey] ?? null;
     const customInventory = customInventories?.[atomKey] ?? null;
+    const customRestock = customRestocks?.[atomKey] ?? null;
     const inventory = snapshot?.inventory ?? null;
+    const restockId = snapshot?.restockId;
     const memo = categoryMemo.get(category);
-    if (memo && purchasesSame && deepEqual(inventory, memo.inventory) && deepEqual(customInventory, memo.customInventory)) {
+    if (memo && purchasesSame && restockId === memo.restockId && deepEqual(inventory, memo.inventory) && deepEqual(customInventory, memo.customInventory) && deepEqual(customRestock, memo.customRestock)) {
       const prev = memo.state;
       const state: ShopStockCategoryState = {
         ...prev,
@@ -234,11 +242,11 @@ function rebuildState(): void {
       memo.state = state;
       continue;
     }
-    const built = buildCategoryState(category, snapshot, effectivePurchases, customInventory);
+    const built = buildCategoryState(category, snapshot, effectivePurchases, customInventory, customRestock);
     // Weather-gated shop items have no price fields in raw atom data — resolve from game catalogs.
     if (weatherGated.has(category)) resolveWeatherShopCatalogPrices(built.items);
     categories[category] = built;
-    categoryMemo.set(category, { inventory, customInventory, state: built });
+    categoryMemo.set(category, { inventory, customInventory, customRestock, restockId, state: built });
   }
   cachedState = { updatedAt: now, categories };
   // notifyState runs the general onShopStock listeners (processShopStock among
@@ -263,7 +271,9 @@ export async function startShopStockStore(): Promise<void> {
     }
 
     try {
-      myDataPurchasesSnapshot = extractMyDataShopPurchases(await readRegistryAtomValue('myData'));
+      const myData = await readRegistryAtomValue('myData');
+      myDataPurchasesSnapshot = extractMyDataShopPurchases(myData);
+      customRestocks = extractMyDataCustomRestocks(myData);
     } catch (error) {
       diag.warn('QPM-STORE-002', { atom: 'myData', phase: 'initial-shop-purchases' }, error);
       myDataPurchasesSnapshot = null;
@@ -283,6 +293,7 @@ export async function startShopStockStore(): Promise<void> {
     try {
       const unsub = await subscribeAtomValue('myData', (value) => {
         myDataPurchasesSnapshot = extractMyDataShopPurchases(value);
+        customRestocks = extractMyDataCustomRestocks(value);
         rebuildState();
       });
       if (unsub) myDataPurchasesUnsubscribe = unsub;
@@ -353,6 +364,7 @@ export function stopShopStockStore(): void {
   shopsSnapshot = null;
   myDataPurchasesSnapshot = null;
   customInventories = null;
+  customRestocks = null;
   quinoaDataShopsSnapshot = null;
   cachedState = createEmptyState();
   shopFirstPublished = false;
@@ -379,9 +391,15 @@ export function forceRefreshShopStock(): void {
   } catch {}
 
   try {
-    const freshPurchases = extractMyDataShopPurchases(readAtomValueSync('myData'));
+    const freshMyData = readAtomValueSync('myData');
+    const freshPurchases = extractMyDataShopPurchases(freshMyData);
     if (freshPurchases !== myDataPurchasesSnapshot) {
       myDataPurchasesSnapshot = freshPurchases;
+      changed = true;
+    }
+    const freshRestocks = extractMyDataCustomRestocks(freshMyData);
+    if (!deepEqual(freshRestocks, customRestocks)) {
+      customRestocks = freshRestocks;
       changed = true;
     }
   } catch {}

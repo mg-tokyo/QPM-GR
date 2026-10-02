@@ -280,6 +280,34 @@ export function findByLabel(root: unknown, matcher: LabelMatcher): PixiNode | nu
   return found;
 }
 
+// Game 1361 nests the stage layers (`UI`, `StageUiRoot`, `Camera`) under `GameContent`;
+// older builds had them as direct stage children. Searching two levels covers both.
+const STAGE_LAYER_DEPTH = 2;
+
+/** A top-level stage layer by label — never descends into the layers themselves. */
+export function findStageLayer(stage: unknown, label: string): PixiNode | null {
+  let found: PixiNode | null = null;
+  walkScene(stage, (node, depth): boolean | void => {
+    if (depth > 0 && getLabel(node) === label) {
+      found = node;
+      return true;
+    }
+  }, { maxDepth: STAGE_LAYER_DEPTH });
+  return found;
+}
+
+/** True while `layer` is still mounted within STAGE_LAYER_DEPTH of `stage`. */
+export function isStageLayerAttached(layer: unknown, stage: unknown): boolean {
+  if (!isObject(layer) || layer.destroyed === true) return false;
+  let parent: unknown = layer.parent;
+  for (let hops = 0; hops < STAGE_LAYER_DEPTH && isObject(parent); hops++) {
+    if (parent === stage) return true;
+    if (parent.destroyed === true) return false;
+    parent = parent.parent;
+  }
+  return false;
+}
+
 /** Find all nodes matching a label criterion. */
 export function findAllByLabel(
   root: unknown,

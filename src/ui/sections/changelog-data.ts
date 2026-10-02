@@ -2,6 +2,26 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.50",
+    date: "2026-10-02",
+    notes: [
+      "Added NPC Dialogue (Config tab): Talk to a garden NPC to hear your tracked restocks, the weather forecast, your best unpreserved crop, pity progress and recent ability procs, Talk again within a few seconds for more lines, with an optional mode that speaks through Arie's Mod Companion",
+      "Fixed sprites in QPM windows rendering blank or as pieces of the sprite sheet after game build 1361",
+      "Fixed restock alerts never firing after game build 1361: items bought in an earlier restock no longer read as sold out in the new one",
+      "Fixed QPM restock purchases being refused by the server: purchases now include the shop view mode the game started requiring",
+      "Improved Buy All: it buys the whole amount in one purchase like the game does, capped by stock, balance and stack room, and says why when it stops (sold out, not enough balance, max stack size)",
+      "Improved auto-store after a restock purchase: QPM only moves items into a storage that will accept them, and the alert says when an item was kept in inventory and why",
+      "Fixed capitalised duplicate shops such as 'Seed' or 'Dawn' appearing as extra weather shops after the game update",
+      "Fixed crop tooltips and Bulk Favorite scanning the whole game scene after game build 1361 moved its UI layers, which could cause lag",
+      "Fixed the Blobling Customiser showing no cosmetics after game build 1361 and putting items you already own in the Buy & Equip cart",
+      "Improved Blobling Customiser prices: each price shows its own currency icon (coins, Magic Dust or credits) and cart totals are split per currency instead of added together",
+      "Fixed coin finder abilities, including the weather variants, showing a blank coins/hr in the Ability Tracker",
+      "Improved the Ability Tracker: weather-dependent abilities are greyed out with 'Not <weather>' while their weather is inactive and left out of totals, and Turtle Timer only counts them while their weather is active",
+      "Improved pet ability numbers across QPM: every value now comes live from game data, and windows show 'Ability data still loading…' until it arrives instead of outdated built-in values",
+      "Fixed some QPM actions being sent in the previous game build's format after a game update",
+    ],
+  },
+  {
     version: "3.3.49",
     date: "2026-09-17",
     notes: [

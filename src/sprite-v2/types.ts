@@ -195,6 +195,9 @@ export interface AtlasData {
   frames: Record<string, AtlasFrameData>;
   meta: {
     image: string;
+    /** Game ≥1361: 1:1 page; `image` is then a half-size page. */
+    fullSizeImage?: string;
+    size?: { w: number; h: number };
     related_multi_packs?: string[];
     [key: string]: any;
   };

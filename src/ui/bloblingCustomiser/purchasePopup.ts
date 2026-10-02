@@ -2,17 +2,17 @@ import { t } from '../../i18n';
 import { notify } from '../../core/notifications';
 import { claimCosmetic, getCosmeticCdnUrl } from '../../features/bloblingCustomiser/cosmeticApi';
 import {
-  markOwned, equipFullOutfit, getSession, readCurrentOutfit,
+  markOwned, equipFullOutfit, getSession, readCurrentOutfit, sumByCurrency,
   SLOT_TYPES, SLOT_CONFIG,
   type CartItem, type CosmeticColor,
 } from '../../features/bloblingCustomiser';
 import { createButton } from '../components/button';
+import { buyAndEquipLabel, createPriceLabel, createTotalsLabel } from './priceLabels';
 
 export function showPurchasePopup(items: CartItem[], onComplete: () => void): void {
   if (!items.length) return;
 
   const isSingle = items.length === 1;
-  const total = items.reduce((sum, item) => sum + item.entry.price, 0);
 
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
@@ -62,7 +62,7 @@ export function showPurchasePopup(items: CartItem[], onComplete: () => void): vo
 
     const priceStatus = document.createElement('div');
     priceStatus.style.cssText = 'font-size:var(--qpm-font-body);color:var(--qpm-gold);text-align:right;';
-    priceStatus.textContent = `\u{1F35E} ${item.entry.price.toLocaleString()}`;
+    priceStatus.appendChild(createPriceLabel(item.entry, { size: 14 }));
     row.appendChild(priceStatus);
     statusEls.set(item.entry.filename, priceStatus);
 
@@ -77,9 +77,8 @@ export function showPurchasePopup(items: CartItem[], onComplete: () => void): vo
     totalLabel.style.color = 'var(--qpm-text-muted)';
     totalLabel.textContent = t('feature.bloblingCustomiser.cartTotal');
     totalRow.appendChild(totalLabel);
-    const totalValue = document.createElement('span');
+    const totalValue = createTotalsLabel(sumByCurrency(items), { size: 14 });
     totalValue.style.color = 'var(--qpm-gold)';
-    totalValue.textContent = `\u{1F35E} ${total.toLocaleString()}`;
     totalRow.appendChild(totalValue);
     popup.appendChild(totalRow);
   }
@@ -98,9 +97,7 @@ export function showPurchasePopup(items: CartItem[], onComplete: () => void): vo
   buttonRow.appendChild(cancelBtn);
 
   let buyMode: 'execute' | 'close' = 'execute';
-  const buyLabel = isSingle
-    ? `${t('feature.bloblingCustomiser.buy')} · \u{1F35E} ${total.toLocaleString()}`
-    : `${t('feature.bloblingCustomiser.buyAndEquip')} · \u{1F35E} ${total.toLocaleString()}`;
+  const buyLabel = isSingle ? t('feature.bloblingCustomiser.buy') : buyAndEquipLabel(items.length);
   const buyBtn = createButton(buyLabel, {
     variant: 'tonal',
     onClick: () => {
@@ -165,7 +162,7 @@ export function showPurchasePopup(items: CartItem[], onComplete: () => void): vo
       errorArea.textContent = failed.map(f =>
         t('feature.bloblingCustomiser.purchaseFailed', { name: f.item.entry.displayName }),
       ).join('. ');
-      buyBtn.textContent = 'Close';
+      buyBtn.textContent = t('common.close');
       buyBtn.disabled = false;
       buyBtn.style.opacity = '1';
       buyMode = 'close';
@@ -184,7 +181,7 @@ export function showPurchasePopup(items: CartItem[], onComplete: () => void): vo
           level: 'success',
           message: succeeded.length === 1
             ? t('feature.bloblingCustomiser.purchaseSuccess', { name: succeeded[0]!.entry.displayName })
-            : `Purchased ${succeeded.length} cosmetics`,
+            : t('feature.bloblingCustomiser.purchasedCount', { count: String(succeeded.length) }),
         });
       }
       close();

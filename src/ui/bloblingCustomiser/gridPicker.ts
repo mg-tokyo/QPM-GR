@@ -1,6 +1,7 @@
 import { SLOT_CONFIG, type SlotType, type SessionState } from '../../features/bloblingCustomiser/types';
 import { getCosmeticCdnUrl } from '../../features/bloblingCustomiser/cosmeticApi';
 import { t } from '../../i18n';
+import { createCurrencyAmount } from '../components/currencyAmount';
 import { mountCustomsDropZone } from './customsDropZone';
 import { mountCustomsBadge } from './customsBadge';
 import { getTrimToShape, setTrimToShape, onStateChange as onCustomSkinsChange } from '../../features/bloblingCustomiser/customSkins';
@@ -182,8 +183,7 @@ export function createGridPicker(
         } else if (entry.price > 0) {
           const price = document.createElement('div');
           price.style.cssText = 'position:absolute;bottom:2px;right:3px;font-size:var(--qpm-font-caption);color:var(--qpm-gold);font-weight:var(--qpm-weight-semibold);text-shadow:0 1px 2px rgba(0,0,0,0.8);display:inline-flex;align-items:center;gap:2px;';
-          const priceTxt = entry.price >= 1000 ? `${Math.round(entry.price / 1000)}k` : String(entry.price);
-          price.textContent = `\u{1F35E} ${priceTxt}`;
+          price.appendChild(createCurrencyAmount(entry.currency, entry.price, { size: 10, compact: true }));
           cell.appendChild(price);
         }
 

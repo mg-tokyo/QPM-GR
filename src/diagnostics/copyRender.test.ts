@@ -54,6 +54,7 @@ function input(overrides: Partial<ReportInput> = {}): ReportInput {
     flagsLine: null,
     perfLine: null,
     restockLine: null,
+    npcDialogueLine: null,
     subsystems: [],
     aggregate: 'ok',
     gameStateProblemLines: [],
@@ -101,6 +102,13 @@ describe('renderReport header', () => {
     expect(on).toContain(`\nMods: AriesMod\n${chainLine}\nOverall: ok`);
     const off = renderReport(input({ chainLine }), { ...DEFAULT_COPY_OPTIONS, otherMods: false });
     expect(off).not.toContain('Chain:');
+  });
+
+  it('threads the npcDialogueLine through — including the Companion inject suffix', () => {
+    const line = 'NpcDialogue: state=installed companion=t last=weather inject=on last=weather ago=45000ms skipped=aries-recent';
+    const out = renderReport(input({ npcDialogueLine: line }));
+    expect(out).toContain(line);
+    expect(out).toContain(`\n${line}\nOverall: ok`);
   });
 });
 

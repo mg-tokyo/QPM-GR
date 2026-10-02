@@ -1,4 +1,5 @@
 import { getPixiRefs, getCaptureDiag } from '../../../core/pixiCapture';
+import { findStageLayer } from '../../../core/pixiScene';
 import { STAGE_UI_LAYER_LABEL } from '../tooltipInjection/types';
 import {
   MIN_INVENTORY_WIDTH,
@@ -97,17 +98,11 @@ function findLargestNodeByLabel(
   return best;
 }
 
-// InventoryModal lives under the direct stage child 'UI'; the world under
-// 'Camera' is 4–10× larger and this scan runs on every DOM-mutation debounce.
+// InventoryModal lives under the 'UI' stage layer; the world under 'Camera' is
+// 4–10× larger and this scan runs on every DOM-mutation debounce.
 // The stage itself is only the fallback for a renamed layer.
 function inventoryScanRoot(stage: PixiDisplayObject): PixiDisplayObject {
-  const kids = stage.children;
-  if (Array.isArray(kids)) {
-    for (const child of kids) {
-      if (child && typeof child === 'object' && child.label === STAGE_UI_LAYER_LABEL) return child;
-    }
-  }
-  return stage;
+  return (findStageLayer(stage, STAGE_UI_LAYER_LABEL) as PixiDisplayObject | null) ?? stage;
 }
 
 function boundsIntersect(a: PixiBounds, b: PixiBounds): boolean {

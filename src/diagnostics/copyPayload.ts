@@ -70,6 +70,42 @@ function renderRestockLine(): string | null {
   } catch { return null; }
 }
 
+export interface NpcDialoguePayload {
+  readonly state: 'absent' | 'installed' | 'displaced' | 'passthrough';
+  readonly companion: boolean;
+  readonly lastLine: string | null;
+  readonly inject: {
+    readonly enabled: boolean;
+    readonly lastLine: string | null;
+    readonly lastInjectAt: number | null;
+    readonly lastSkipReason: 'not-running' | 'aries-recent' | 'modal-open' | 'no-line' | 'say-threw' | null;
+  };
+}
+
+let npcDialoguePayloadSource: (() => NpcDialoguePayload | null) | null = null;
+export function setNpcDialoguePayloadSource(source: (() => NpcDialoguePayload | null) | null): void {
+  npcDialoguePayloadSource = source;
+}
+
+// Silent when the interceptor is installed AND the Companion opt-in is off — otherwise surface state and inject stats.
+function renderNpcDialogueLine(): string | null {
+  if (!npcDialoguePayloadSource) return null;
+  try {
+    const p = npcDialoguePayloadSource();
+    if (!p) return null;
+    const injectOn = p.inject.enabled === true;
+    if (p.state === 'installed' && !injectOn) return null;
+    const base = `NpcDialogue: state=${p.state} companion=${p.companion ? 't' : 'f'} last=${p.lastLine ?? 'none'}`;
+    if (!injectOn) return base;
+    let suffix = ' inject=on';
+    if (p.inject.lastLine !== null && p.inject.lastInjectAt !== null) {
+      suffix += ` last=${p.inject.lastLine} ago=${Math.max(0, Date.now() - p.inject.lastInjectAt)}ms`;
+    }
+    if (p.inject.lastSkipReason !== null) suffix += ` skipped=${p.inject.lastSkipReason}`;
+    return base + suffix;
+  } catch { return null; }
+}
+
 function renderIdentityLine(): string | null {
   if (!gameStateIdentitySource) return null;
   try {
@@ -136,6 +172,7 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
     flagsLine: safe(() => formatFlagsLine(readNonDefaultFlags()), null),
     perfLine: safe(() => formatPerfLine(), null),
     restockLine: safe(() => renderRestockLine(), null),
+    npcDialogueLine: safe(() => renderNpcDialogueLine(), null),
     subsystems: healthBus.readAll(),
     aggregate: healthBus.aggregate(),
     gameStateProblemLines: renderGameStateProblemLines(),

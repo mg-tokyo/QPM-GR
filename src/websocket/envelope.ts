@@ -12,7 +12,7 @@ export const QUINOA_COMMAND_TYPE = 'QuinoaCommand';
 export const QUINOA_COMMAND_RESULT_TYPE = 'QuinoaCommandResult';
 
 /**
- * Quinoa-scope types the live client (v1040) still sends OUTSIDE the
+ * Quinoa-scope types the live client (v1361) still sends OUTSIDE the
  * envelope. Wrapping any of these returns `not_ackable` and burns a sequence
  * number. Everything not listed here defaults to the envelope, which fails
  * safe as the game migrates its last stragglers.
@@ -28,9 +28,14 @@ export const LEGACY_ROOM_ACTION_TYPES: ReadonlySet<string> = new Set([
   'Ping',
   'CheckWeatherStatus',
   'CheckFriendBonus',
-  'SetSelectedItem',
   'QuinoaTutorialSkipped',
   'ThrowSnowball',
+  // v1361 flat `Ji` sends (RoomConnection `Mm`): allPlayerAtoms, installWorldSystems
+  'NpcVisitFarewellSeen',
+  'NpcVisitFarewellReady',
+  'SkipNpcVisitArrival',
+  'TramArrival',
+  'TramBoarding',
 ]);
 
 export function isLegacyRoomActionType(type: string): boolean {

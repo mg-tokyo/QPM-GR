@@ -362,6 +362,44 @@ export function getConfigGroup(): HubGroupDef {
     },
   };
 
+  const npcDialogueCard: ExpandableCardConfig = {
+    key: 'npc-dialogue',
+    label: t('feature.npcDialogue.settingTitle'),
+    description: t('feature.npcDialogue.settingCaption'),
+    // eslint-disable-next-line qpm/no-emoji-in-ui -- CardConfig.icon renders via renderIcon; kind:'emoji' is the fallback path used by every emoji tile card in this file (shopEnhancerCard, resetToursCard).
+    icon: { kind: 'emoji', value: '💬' },
+    tier: 'expandable',
+    tile: {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- TileMeta.icon renders via textContent (src/ui/panel/tileGrid.ts:146); no sprite path exists for tile icons yet — matches every other tile in this file.
+      icon: '💬',
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- TileMeta.color is a per-feature rgba tint applied at render time (src/ui/panel/tileGrid.ts:127-129); no design token for tile tints exists — matches the established pattern for expandable tiles.
+      color: 'rgba(143, 130, 255, 0.28)',
+      defaultStatus: '—',
+    },
+    renderSummary: (el) => {
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- Tile summary muted-text alpha; matches every renderSummary in this file.
+      el.style.cssText = 'font-size:12px;color:rgba(224,224,224,0.45);margin-top:2px;';
+      import('../../../features/npcDialogue').then(({ getNpcDialogueSettings }) => {
+        el.textContent = getNpcDialogueSettings().enabled ? t('common.enabled') : t('common.disabled');
+      }).catch(() => { /* silent */ });
+    },
+    renderExpanded: (container) => {
+      import('../../sections/npcDialogueSection').then(({ createNpcDialogueSection }) => {
+        container.appendChild(createNpcDialogueSection());
+      }).catch((e) => windowLog.warn('QPM-UI-002', { what: 'lazy:npcDialogue' }, e));
+    },
+    detachWindowId: 'config-npc-dialogue',
+    onDetach: () => {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- Window title emoji matches the tile icon and the pattern used by every other detached expandable in this file (controller / shopKeybinds / panelShortcut).
+      toggleWindow('config-npc-dialogue', `💬 ${t('feature.npcDialogue.settingTitle')}`, (root) => {
+        root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+        import('../../sections/npcDialogueSection').then(({ createNpcDialogueSection }) => {
+          root.appendChild(createNpcDialogueSection());
+        }).catch((e) => windowLog.warn('QPM-UI-002', { what: 'lazy:npcDialogueDetach' }, e));
+      }, '520px', '70vh');
+    },
+  };
+
   const panelShortcutCard: ExpandableCardConfig = {
     key: 'panel-shortcut',
     label: t('hub.config.panelShortcut.label'),
@@ -485,6 +523,6 @@ export function getConfigGroup(): HubGroupDef {
     id: 'config',
     label: t('hub.config.label'),
     icon: { kind: 'emoji', value: '⚙️' },
-    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, getDiagnosticsCard(), resetToursCard],
+    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, npcDialogueCard, getDiagnosticsCard(), resetToursCard],
   };
 }

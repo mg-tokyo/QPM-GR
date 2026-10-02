@@ -15,6 +15,8 @@ export interface RuntimeCosmeticEntry {
   displayName: string;
   availability: string;
   price: number;
+  /** Game ≥1361 prices cosmetics per tier in a named currency, e.g. 'coins', 'magicDust', 'credits'. */
+  currency?: string;
 }
 
 export type RuntimeCosmeticCatalog = RuntimeCosmeticEntry[];
@@ -44,17 +46,29 @@ const PRICE_TIERS: Record<string, number> = {
   D: 25, C: 65, B: 330, A: 1170, AA: 10000,
 };
 
-function isValidEntry(entry: unknown): entry is RuntimeCosmeticEntry {
-  if (!entry || typeof entry !== 'object') return false;
+// Default (free) cosmetics carry no price/cost field; they normalize to price 0.
+function toValidEntry(entry: unknown): RuntimeCosmeticEntry | null {
+  if (!entry || typeof entry !== 'object') return null;
   const e = entry as Record<string, unknown>;
-  return (
-    typeof e.id === 'string' &&
-    typeof e.type === 'string' &&
-    typeof e.filename === 'string' &&
-    typeof e.displayName === 'string' &&
-    typeof e.availability === 'string' &&
-    typeof e.price === 'number'
-  );
+  if (
+    typeof e.id !== 'string' ||
+    typeof e.type !== 'string' ||
+    typeof e.filename !== 'string' ||
+    typeof e.displayName !== 'string' ||
+    typeof e.availability !== 'string'
+  ) {
+    return null;
+  }
+  const out: RuntimeCosmeticEntry = {
+    id: e.id,
+    type: e.type,
+    filename: e.filename,
+    displayName: e.displayName,
+    availability: e.availability,
+    price: typeof e.price === 'number' && Number.isFinite(e.price) ? e.price : 0,
+  };
+  if (typeof e.currency === 'string') out.currency = e.currency;
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +177,59 @@ function buildPriceResolver(bundleText: string, arrayStart: number): (ref: strin
   };
 }
 
+interface CostTier {
+  amount: number;
+  currency: string | null;
+}
+
+/**
+ * Game ≥1361 entries use `cost:<var>.<Tier>` against a tier table declared before
+ * the array, e.g. `y={CoinsD:{currency:v.Coins,amount:1e3},…}`, where `v` is a string
+ * enum (`e.Coins=\`coins\``). Returns null for refs the table doesn't define.
+ */
+function buildCostResolver(bundleText: string, arrayStart: number): (ref: string) => CostTier | null {
+  const searchArea = bundleText.substring(Math.max(0, arrayStart - 4000), arrayStart);
+  const tableRe = /([A-Za-z_$][\w$]*)=\{((?:[A-Za-z_$][\w$]*:\{[^{}]*\bamount:[^{}]*\},?)+)\}/g;
+  let table: RegExpExecArray | null = null;
+  for (let m = tableRe.exec(searchArea); m; m = tableRe.exec(searchArea)) table = m;
+
+  const tiers = new Map<string, CostTier>();
+  if (table) {
+    const varName = table[1] ?? '';
+    for (const tier of (table[2] ?? '').matchAll(/([A-Za-z_$][\w$]*):\{([^{}]*)\}/g)) {
+      const body = tier[2] ?? '';
+      const amount = Number(body.match(/\bamount:([^,}]+)/)?.[1]?.trim());
+      if (!Number.isFinite(amount)) continue;
+      const currencyRef = body.match(/\bcurrency:([^,}]+)/)?.[1]?.trim() ?? null;
+      tiers.set(`${varName}.${tier[1]}`, { amount, currency: resolveCurrency(searchArea, currencyRef) });
+    }
+  }
+  return (ref: string): CostTier | null => tiers.get(ref) ?? null;
+}
+
+function resolveCurrency(searchArea: string, ref: string | null): string | null {
+  if (!ref) return null;
+  const literal = ref.match(/^[`'"]([^`'"]*)[`'"]$/);
+  if (literal) return literal[1] ?? null;
+  const member = ref.split('.').pop() ?? '';
+  if (!/^[A-Za-z_$][\w$]*$/.test(member)) return null;
+  const enumValue = searchArea.match(new RegExp(`\\.${member.replace(/\$/g, '\\$')}=[\`'"]([^\`'"]*)[\`'"]`));
+  return enumValue?.[1] ?? member;
+}
+
+function normalizeCostRefs(source: string, resolver: (ref: string) => CostTier | null): string {
+  return source.replace(
+    /"cost"\s*:\s*([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)/g,
+    (_m, ref: string) => {
+      const tier = resolver(ref);
+      if (!tier) return '"price":0';
+      return tier.currency
+        ? `"price":${tier.amount},"currency":${JSON.stringify(tier.currency)}`
+        : `"price":${tier.amount}`;
+    },
+  );
+}
+
 function quoteUnquotedKeys(source: string): string {
   return source.replace(/([,{\[]\s*)([A-Za-z_$][\w$]*)(\s*:)/g, '$1"$2"$3');
 }
@@ -190,6 +257,7 @@ function normalizeJsLiterals(source: string): string {
 function toStrictJson(
   literal: string,
   resolver: (ref: string) => number,
+  costResolver: (ref: string) => CostTier | null,
 ): string | null {
   let s = literal.trim();
   if (!s.startsWith('[') || !s.endsWith(']')) return null;
@@ -197,6 +265,7 @@ function toStrictJson(
   s = convertBacktickStrings(s);
   s = quoteUnquotedKeys(s);
   s = normalizePriceRefs(s, resolver);
+  s = normalizeCostRefs(s, costResolver);
   s = normalizeJsLiterals(s);
 
   return s;
@@ -213,15 +282,15 @@ async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
       if (!arrayLiteral) continue;
 
       const arrayStartInBundle = text.indexOf(arrayLiteral);
-      const resolver = buildPriceResolver(text, arrayStartInBundle >= 0 ? arrayStartInBundle : idx);
-      const json = toStrictJson(arrayLiteral, resolver);
+      const arrayStart = arrayStartInBundle >= 0 ? arrayStartInBundle : idx;
+      const json = toStrictJson(arrayLiteral, buildPriceResolver(text, arrayStart), buildCostResolver(text, arrayStart));
       if (!json) continue;
 
       try {
-        const parsed = JSON.parse(json);
+        const parsed: unknown = JSON.parse(json);
         if (!Array.isArray(parsed) || parsed.length < 10) continue;
 
-        const entries = parsed.filter(isValidEntry);
+        const entries = parsed.map(toValidEntry).filter((e): e is RuntimeCosmeticEntry => e !== null);
         if (entries.length >= 10) {
           log.debug('cosmeticCatalog: extracted cosmetics from bundle', { count: entries.length });
           return { catalog: entries, triedNewChunks };

@@ -13,6 +13,7 @@ import { PERF_CODES } from './codes/perf';
 import { WEBSOCKET_CODES } from './codes/websocket';
 import { GAMESTATE_CODES } from './codes/gameState';
 import { SPRITE_CODES } from './codes/sprite';
+import { NPC_DIALOGUE_CODES } from './codes/npcDialogue';
 
 const CURRENT_VERSION = '3.2.29';
 
@@ -743,3 +744,4 @@ for (const def of WEBSOCKET_CODES) register(def);
 for (const def of PERF_CODES) register(def);
 for (const def of GAMESTATE_CODES) register(def);
 for (const def of SPRITE_CODES) register(def);
+for (const def of NPC_DIALOGUE_CODES) register(def);

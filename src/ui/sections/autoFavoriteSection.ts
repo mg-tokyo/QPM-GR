@@ -6,7 +6,7 @@ import { t } from '../../i18n';
 import { getAutoFavoriteConfig, updateAutoFavoriteConfig, subscribeToAutoFavoriteConfig } from '../../features/standalone/autoFavorite';
 import { getAbilityColor } from '../../utils/rendering/petCardRenderer';
 import { renderPetSpeciesIcon } from '../../utils/rendering/petCardRenderer';
-import { areCatalogsReady, getAllPetSpecies } from '../../catalogs/gameCatalogs';
+import { areCatalogsReady, arePetAbilitiesCaptured, getAllPetSpecies } from '../../catalogs/gameCatalogs';
 import { getAllPlantSpecies, getMutationCatalog } from '../../catalogs/gameCatalogs';
 import { getCropSpriteWithMutations, getCropSpriteCanvas } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
@@ -333,6 +333,12 @@ export async function createAutoFavoriteSection(): Promise<HTMLElement> {
     abilityCheckboxContainer.appendChild(checkbox);
   });
 
+  if (!arePetAbilitiesCaptured()) {
+    const loading = document.createElement('div');
+    loading.textContent = t('common.abilityDataLoading');
+    loading.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);';
+    abilityFilterContent.appendChild(loading);
+  }
   abilityFilterContent.appendChild(abilityCheckboxContainer);
   advancedContent.appendChild(abilityFilter.wrapper);
 

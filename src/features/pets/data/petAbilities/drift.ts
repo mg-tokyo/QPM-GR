@@ -1,5 +1,5 @@
 import { getAbilityDef, getAllAbilities, arePetAbilitiesCaptured, areCatalogsReady } from '../../../../catalogs/gameCatalogs';
-import { ABILITY_DEFINITIONS } from './definitions';
+import { ABILITY_METADATA } from './definitions';
 import { canResolveParameterKey } from './catalogAdapter';
 import { isHighValueAbility, isLowValueAbility } from './classification';
 import { classifySizeBoostAbility, FLAT_SIZE_KEYS, PERCENT_SIZE_KEYS } from './sizeBoost';
@@ -7,8 +7,8 @@ import { classifySizeBoostAbility, FLAT_SIZE_KEYS, PERCENT_SIZE_KEYS } from './s
 const KNOWN_TRIGGERS = new Set(['continuous', 'hatchEgg', 'sellAllCrops', 'sellPet', 'harvest', 'playerActivated']);
 
 export interface AbilityCatalogDrift {
-  catalogOnly: string[];
-  hardcodedOnly: string[];
+  catalogOnly: string[];     // catalog ids QPM's alias metadata does not list (informational)
+  hardcodedOnly: string[];   // metadata ids the catalog lacks: partial capture, stale bundle or rename
   unknownParamKeys: string[];
   unknownTriggers: string[];
   unclassified: string[];
@@ -119,7 +119,7 @@ export function getCropSizeBoostDrift(): CropSizeBoostDrift {
 
 export function getAbilityCatalogDrift(): AbilityCatalogDrift {
   const catalogIds = getAllAbilities();
-  const hardcoded = new Set(ABILITY_DEFINITIONS.map((d) => d.id));
+  const hardcoded = new Set(ABILITY_METADATA.map((d) => d.id));
   const catalogSet = new Set(catalogIds);
   const unknownParamKeys = new Set<string>();
   const unknownTriggers = new Set<string>();

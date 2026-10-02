@@ -123,3 +123,9 @@ export function getCapturedGameVersion(): string | null {
   if (captured === null) captured = attemptCleanCapture();
   return captured ?? lastResortCapture();
 }
+
+/** The parsed `/version/{build}` segment only — null while unknown or unparsed. */
+export function getCapturedBuildId(): string | null {
+  const version = getCapturedGameVersion();
+  return version !== null && !version.startsWith('(unparsed:') ? version : null;
+}

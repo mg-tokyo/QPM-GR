@@ -1,4 +1,5 @@
 import { getAbilityDefinition } from '../data/petAbilities';
+import { isRequiredWeatherActive } from '../abilityWeatherGate';
 import {
   GROWTH_ABILITY_PATTERNS,
   RESTORE_PCT_BY_LEVEL,
@@ -22,7 +23,7 @@ export function resolveGrowthAbility(rawAbility: string, normalizedAbility: stri
   if (!matchedKind) return null;
 
   const def = getAbilityDefinition(rawAbility);
-  if (!def) return null;
+  if (!def || !isRequiredWeatherActive(def.requiredWeather ?? null)) return null;
 
   const baseProbability = def.baseProbability ?? 0;
   const effectMinutesPerProc = def.effectValuePerProc ?? 0;

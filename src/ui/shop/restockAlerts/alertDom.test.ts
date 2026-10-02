@@ -233,3 +233,28 @@ describe('armAlertPurchaseWatcher — cooperates with pending (T5)', () => {
     expect(alertState.activeAlerts.has('seed:CarrotSeed')).toBe(false);
   });
 });
+
+describe('removeAlert — pending purchases', () => {
+  it('clears a pending that is still awaiting purchase confirmation', async () => {
+    const { removeAlert } = await loadAlertDom();
+    const { pendingOwnershipConfirmations } = await loadAlertState();
+    pendingOwnershipConfirmations.set('seed:CarrotSeed', makePending('seed:CarrotSeed'));
+
+    removeAlert('seed:CarrotSeed');
+    expect(mockClearPendingCalls).toEqual(['seed:CarrotSeed']);
+  });
+
+  it('leaves a confirmed pending that only awaits its auto-store verdict', async () => {
+    const { removeAlert } = await loadAlertDom();
+    const { pendingOwnershipConfirmations } = await loadAlertState();
+    pendingOwnershipConfirmations.set('seed:CarrotSeed', {
+      ...makePending('seed:CarrotSeed'),
+      confirmed: 1,
+      autoStoreInFlight: true,
+      deferredCompletionSuffix: '',
+    });
+
+    removeAlert('seed:CarrotSeed');
+    expect(mockClearPendingCalls).toEqual([]);
+  });
+});

@@ -108,7 +108,10 @@ export function getAllEligibleShopIds(): Set<string> {
 
 let eligibleMemo: { refs: Array<Record<string, unknown> | null>; byShop: Map<string, string[]> } | null = null;
 
-/** Every catalog item whose blueprint lists `shopId` in `eligibleShops`. Memoised per catalog identity. */
+/**
+ * Every catalog item whose blueprint lists `shopId` in `eligibleShops`. Memoised per catalog identity.
+ * Case-insensitive: bundle-text-healed dexes carry the ShopType member name (`Dawn`), live shops the value (`dawn`).
+ */
 export function getShopEligibleItemIds(shopId: string): string[] {
   const refs = SHOP_CATALOG_KINDS.map(getKindCatalog);
   if (!eligibleMemo || refs.some((ref, i) => ref !== eligibleMemo!.refs[i])) {
@@ -117,12 +120,13 @@ export function getShopEligibleItemIds(shopId: string): string[] {
   const cached = eligibleMemo.byShop.get(shopId);
   if (cached) return cached;
   const out: string[] = [];
+  const wanted = shopId.toLowerCase();
   SHOP_CATALOG_KINDS.forEach((kind, i) => {
     const catalog = refs[i];
     if (!catalog) return;
     for (const [id, raw] of Object.entries(catalog)) {
       const entry = toShopFacingEntry(kind, raw);
-      if (entry && readStringArray(entry.eligibleShops).includes(shopId)) out.push(id);
+      if (entry && readStringArray(entry.eligibleShops).some((s) => s.toLowerCase() === wanted)) out.push(id);
     }
   });
   eligibleMemo.byShop.set(shopId, out);

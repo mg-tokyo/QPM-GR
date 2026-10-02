@@ -1,13 +1,13 @@
 // Wire-facing purchase helpers for the restock-alert flow: PurchaseShopItem and
-// PutItemInStorage senders plus the batch loop, split out so headless callers can
+// PutItemInStorage senders plus the batched buy, split out so headless callers can
 // drive a purchase without pulling in the alert-card handler.
 
 import {
   BUY_ACTION_THROTTLE_MS,
-  BUY_SEND_DELAY_MS,
   type AlertModel,
   type BuyAllResult,
   type PendingOwnershipConfirmation,
+  type PurchaseCommandAwait,
   type PurchaseOutcome,
   type RestockShopType,
 } from './types';
@@ -17,6 +17,11 @@ import {
   sendRoomAction,
   type WebSocketSendResult,
 } from '../../../websocket/api';
+import type { PurchaseShopItemPayload } from '../../../websocket/validation';
+import { isGameStateReady, readSync } from '../../../core/gameState';
+import { getShopStockItemByKey } from '../../../store/shopStock';
+import { getItemCatalogPricing } from '../../../catalogs/shopEligibility';
+import { t } from '../../../i18n';
 import {
   armReactiveConfirmation,
   captureOwnershipBaseline,
@@ -24,12 +29,14 @@ import {
   hasOwnershipSource,
   processPendingOwnershipConfirmations,
   scheduleMaxConfirmationTimeout,
-  sleep,
   waitForOwnershipBaselines,
 } from './ownershipTracker';
 import { pendingOwnershipConfirmations } from './alertState';
-import { applyInventoryCapToQuantity, resolveAutoStoreTarget } from './purchaseActions';
+import { applyInventoryCapToQuantity } from './purchaseActions';
+import { resolveAutoStoreTarget } from './autoStore';
 import { describeConfirmationSourceGaps } from './sourceGaps';
+import { resolveShopViewMode } from './shopViewMode';
+import { affordableUnits, clampPurchaseQuantity, type PurchaseLimit, type PurchaseLimits } from './purchaseQuantity';
 
 // ---------------------------------------------------------------------------
 // WS send helpers
@@ -63,17 +70,33 @@ function buildShopItemTarget(
   }
 }
 
-export function sendPurchase(shopType: RestockShopType, itemId: string, itemTypeHint?: string, idField?: string): WebSocketSendResult {
-  const item = buildShopItemTarget(shopType, itemId, itemTypeHint, idField);
-  return sendRoomAction('PurchaseShopItem', { shop: shopType, item } as unknown as Record<string, unknown>, { throttleMs: BUY_ACTION_THROTTLE_MS });
+export function buildPurchasePayload(
+  shopType: RestockShopType,
+  itemId: string,
+  quantity: number,
+  itemTypeHint?: string,
+  idField?: string,
+): PurchaseShopItemPayload {
+  return {
+    shop: shopType,
+    viewMode: resolveShopViewMode(shopType),
+    item: buildShopItemTarget(shopType, itemId, itemTypeHint, idField),
+    ...(quantity === 1 ? {} : { quantity }),
+  };
 }
 
-/** Replaces the wire call inside sendPurchaseBatch. Return sync or async; either is awaited. */
+export function sendPurchase(shopType: RestockShopType, itemId: string, itemTypeHint?: string, idField?: string, quantity = 1): WebSocketSendResult {
+  const payload = buildPurchasePayload(shopType, itemId, quantity, itemTypeHint, idField);
+  return sendRoomAction('PurchaseShopItem', payload as unknown as Record<string, unknown>, { throttleMs: BUY_ACTION_THROTTLE_MS });
+}
+
+/** Replaces the wire call inside sendPurchaseBatch; must forward `quantity`. Return sync or async; either is awaited. */
 export type PurchaseSender = (
   shopType: RestockShopType,
   itemId: string,
-  itemTypeHint?: string,
-  idField?: string,
+  itemTypeHint: string | undefined,
+  idField: string | undefined,
+  quantity: number,
 ) => WebSocketSendResult | Promise<WebSocketSendResult>;
 
 export interface PurchaseBatchOptions {
@@ -92,24 +115,62 @@ export function explainSendFailure(reason: PurchaseSendFailureReason | null): st
   }
 }
 
-export function sendItemToStorage(itemId: string, storageId: string, quantity: number | null): boolean {
+function explainPurchaseLimit(limit: PurchaseLimit | null): string {
+  switch (limit) {
+    case 'stock':   return t('feature.restockAlert.soldOut');
+    case 'balance': return t('feature.restockAlert.notEnoughBalance');
+    case 'stack':   return t('feature.restockAlert.maxStack');
+    default:        return explainSendFailure(null);
+  }
+}
+
+function readBalance(dustPriced: boolean): number | null {
+  if (!isGameStateReady()) return null;
+  return dustPriced ? readSync('magicDustBalance') : readSync('coinsBalance');
+}
+
+/**
+ * Game: price is `dustPrice ?? coinPrice` and the balance is the matching currency.
+ * Standard-shop stock entries carry no price (v1361), so the blueprint supplies it.
+ */
+function resolvePurchaseLimits(model: AlertModel, requested: number): PurchaseLimits {
+  const stock = getShopStockItemByKey(model.key);
+  const catalog = getItemCatalogPricing(model.itemId);
+  const dustPrice = stock?.priceMagicDust ?? catalog?.dustPrice ?? null;
+  const unitPrice = dustPrice ?? stock?.priceCoins ?? catalog?.coinPrice ?? model.priceCoins;
+  return {
+    remainingStock: stock?.remaining ?? null,
+    affordable: affordableUnits(readBalance(dustPrice != null), unitPrice),
+    stackRoom: applyInventoryCapToQuantity(model.shopType, model.itemId, model.key, requested, model.itemType),
+  };
+}
+
+/** `ok` only means the move left the socket; the server's verdict comes via `awaitResult`. */
+export function sendItemToStorage(itemId: string, storageId: string, quantity: number | null): WebSocketSendResult {
   const payload: Record<string, unknown> = { itemId, storageId };
   if (quantity != null && quantity > 0) payload.quantity = quantity;
-  return sendRoomAction('PutItemInStorage', payload, { throttleMs: BUY_ACTION_THROTTLE_MS }).ok;
+  return sendRoomAction('PutItemInStorage', payload, { throttleMs: BUY_ACTION_THROTTLE_MS });
 }
 
 // ---------------------------------------------------------------------------
 // Buy-all workflow
 // ---------------------------------------------------------------------------
 
+/** One `PurchaseShopItem` carrying `quantity`, like the game's Buy All; `sent` counts units. */
 export async function sendPurchaseBatch(model: AlertModel, quantity: number, opts?: PurchaseBatchOptions): Promise<BuyAllResult> {
   const requested = Math.max(1, Math.floor(quantity));
   await waitForOwnershipBaselines(model.shopType);
   const ownershipBaseline = captureOwnershipBaseline(model.key, model.shopType);
+  const limits = resolvePurchaseLimits(model, requested);
+  const { quantity: units, limitedBy } = clampPurchaseQuantity(requested, limits);
+  const confirmationAvailable = hasOwnershipSource(ownershipBaseline);
   debugLog('Buy-all starting', {
     key: model.key,
     label: model.label,
     requested,
+    units,
+    limitedBy,
+    ...limits,
     shopType: model.shopType,
     itemId: model.itemId,
     stockCycleId: model.stockCycleId,
@@ -123,60 +184,30 @@ export async function sendPurchaseBatch(model: AlertModel, quantity: number, opt
     roomSessionReady: isRoomSessionReady(),
   });
 
+  const fail = (error: string, detail: Record<string, unknown>): BuyAllResult => {
+    debugLog('Buy-all failed before the purchase was sent', { key: model.key, requested, units, ...detail });
+    return { sent: 0, baseline: null, confirmationAvailable, error, hasEnvelope: false };
+  };
+  if (units <= 0) return fail(explainPurchaseLimit(limitedBy), { limitedBy });
+  if (!isRoomSessionReady()) {
+    const reason: PurchaseSendFailureReason = isRoomSocketOpen() ? 'session_not_ready' : 'no_connection';
+    return fail(explainSendFailure(reason), { reason });
+  }
+
   const sender: PurchaseSender = opts?.send ?? sendPurchase;
-  let sent = 0;
-  let firstFailureReason: PurchaseSendFailureReason | null = null;
-  // Halts *future* iterations only; caller uses awaitResults for per-send
-  // rejection surface (see armReactiveConfirmation, Signal C).
-  let serverRejectionCode: string | null = null;
-  const awaitResults: Array<() => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>> = [];
-  for (let i = 0; i < requested; i++) {
-    if (!isRoomSessionReady()) {
-      firstFailureReason = isRoomSocketOpen() ? 'session_not_ready' : 'no_connection';
-      debugLog('Buy-all send loop halted: room not ready to send', { key: model.key, requested, sent, index: i, reason: firstFailureReason });
-      break;
-    }
-    if (serverRejectionCode !== null) {
-      firstFailureReason = 'server_rejected';
-      debugLog('Buy-all send loop halted: server rejected an earlier purchase', { key: model.key, requested, sent, index: i, code: serverRejectionCode });
-      break;
-    }
-    const result = await sender(model.shopType, model.itemId, model.itemType, model.idField);
-    if (!result.ok) {
-      firstFailureReason = result.reason ?? null;
-      debugLog('Buy-all send failed', { key: model.key, requested, sent, index: i, reason: firstFailureReason });
-      break;
-    }
-    if (result.awaitResult) {
-      const awaitFn = result.awaitResult;
-      awaitResults.push(awaitFn);
-      awaitFn().then((r) => {
-        if (!r.ok && !r.resentAsLegacy && r.code !== 'handler_error') {
-          serverRejectionCode = typeof r.code === 'string' ? r.code : 'rejected';
-        }
-      }).catch(() => { /* timeout — outcome unknown; ownership confirmation decides */ });
-    }
-    sent += 1;
-    if (i === 0 || i === requested - 1 || i % 5 === 0) {
-      debugLog('Buy-all send succeeded', { key: model.key, index: i, sent, requested });
-    }
-    if (i < requested - 1) await sleep(BUY_SEND_DELAY_MS);
-  }
+  const result = await sender(model.shopType, model.itemId, model.itemType, model.idField, units);
+  if (!result.ok) return fail(explainSendFailure(result.reason ?? null), { reason: result.reason ?? null });
 
-  if (sent <= 0) {
-    debugLog('Buy-all failed before any sends completed', { key: model.key, requested, sent, failureReason: firstFailureReason, confirmationAvailable: hasOwnershipSource(ownershipBaseline) });
-    return { sent: 0, baseline: null, confirmationAvailable: hasOwnershipSource(ownershipBaseline), error: explainSendFailure(firstFailureReason), hasEnvelope: false };
-  }
-
+  const awaitResults: PurchaseCommandAwait[] = result.awaitResult ? [{ units, awaitResult: result.awaitResult }] : [];
   const response: BuyAllResult = {
-    sent,
+    sent: units,
     baseline: ownershipBaseline,
-    confirmationAvailable: hasOwnershipSource(ownershipBaseline),
+    confirmationAvailable,
     error: null,
     hasEnvelope: awaitResults.length > 0,
     ...(awaitResults.length > 0 ? { awaitResults } : {}),
   };
-  debugLog('Buy-all send loop completed', { key: model.key, requested, sent, confirmationAvailable: response.confirmationAvailable, envelopeReplies: awaitResults.length });
+  debugLog('Buy-all sent', { key: model.key, requested, units, confirmationAvailable, envelopeReply: awaitResults.length > 0 });
   return response;
 }
 
@@ -200,7 +231,7 @@ export interface PurchaseRequest {
 }
 
 /**
- * Send N `PurchaseShopItem`s, then resolve when ownership growth matches sent count,
+ * Send one `PurchaseShopItem` for up to N units, then resolve when ownership growth matches the units sent,
  * a failure is reported, or `OWNERSHIP_MAX_CONFIRMATION_MS` elapses. Refuses when
  * an alert-card purchase for the same key is already pending.
  */

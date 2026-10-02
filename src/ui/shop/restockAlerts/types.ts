@@ -1,10 +1,18 @@
 // src/ui/shopRestockAlerts/types.ts
 // Type definitions and constants for the Shop Restock Alerts system.
 
+// RestockShopType canonical definition now lives in src/store/restockTracked;
+// re-exported (type-only, erased at runtime) so this file stays free of runtime
+// imports and existing UI-side test mocks keep working.
+import type { RestockShopType } from '../../../store/restockTracked';
+export type { RestockShopType };
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
+// Duplicated as a plain string in src/store/restockTracked.ts (canonical owner).
+// Kept here as a local const so this file has no runtime imports — see comment above.
 export const TRACKED_KEY            = 'qpm.restock.tracked';
 export const DISMISSED_CYCLES_KEY   = 'qpm.restock.dismissedCycles.v1';
 export const TRACKED_UPDATED_EVENT  = 'qpm:restock-tracked-updated';
@@ -39,9 +47,6 @@ export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan', 'reple
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-/** Standard singular types, the 'weather' event pseudo-type, or any weather-gated shop id (dawn, snow, thunder, runtime-discovered). */
-export type RestockShopType = 'seed' | 'egg' | 'decor' | 'tool' | 'weather' | (string & {});
 
 export interface AlertModel {
   key: string;
@@ -78,13 +83,20 @@ export interface ActiveAlert {
   pendingConfirmation: boolean;
 }
 
+/** One sent PurchaseShopItem command; `units` is its quantity. A server refusal voids every unit. */
+export interface PurchaseCommandAwait {
+  units: number;
+  awaitResult: () => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>;
+}
+
 export interface BuyAllResult {
+  /** Units sent (the command's quantity), not commands. */
   sent: number;
   baseline: OwnershipBaseline | null;
   confirmationAvailable: boolean;
   error: string | null;
-  /** Envelope-transport only. One entry per sent request; empty under legacy. */
-  awaitResults?: Array<() => Promise<import('../../../websocket/envelope').QuinoaCommandResultMessage>>;
+  /** Envelope-transport only. One entry per sent command; empty under legacy. */
+  awaitResults?: PurchaseCommandAwait[];
   /** True when at least one send returned an envelope await (Signal C is available); false under legacy transport. */
   hasEnvelope?: boolean;
 }
@@ -102,6 +114,8 @@ export interface PurchaseOutcome {
   sent: number;
   confirmed: number;
   storedIn: string | null;
+  /** Set when a storage move was requested but did not happen. */
+  storeNote?: string;
   error: string | null;
   timedOut: boolean;
 }
@@ -145,7 +159,12 @@ export interface PendingOwnershipConfirmation {
   autoStoreFinalMoveRequested: boolean;
   autoStoreStorageId: string | null;
   autoStoreLabel: string | null;
+  /** True only once the server (or the storage count) confirms the move — never on send alone. */
   storedInTargetStorage: boolean;
+  /** Why a requested auto-store did not happen (storage stack at cap, server refusal). */
+  autoStoreSkipReason?: string | null;
+  /** Completion suffix held while the auto-store move awaits its verdict; see finishDeferredCompletion. */
+  deferredCompletionSuffix?: string | null;
   /** Signal A baseline — server-acked purchases counter at arm time. Null when discovery couldn't locate shopPurchases. */
   shopPurchasesBaseline: number | null;
   /** Signal A late-arm flag: true once the pending has captured a non-null shopPurchases baseline from `getShopStockItemByKey`. Delta comparisons are gated on this flag. */

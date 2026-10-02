@@ -1,6 +1,8 @@
 import { pageWindow } from '../../../core/pageContext';
 import { type GardenSnapshot, onGardenSnapshot } from '../../garden/bridge';
 import { type ActivePetInfo, onActivePetInfos, startPetInfoStore } from '../../../store/pets';
+import { getWeatherSnapshot, onWeatherSnapshot } from '../../../store/weatherHub';
+import { onPetAbilitiesCaptured } from '../../../catalogs/gameCatalogs';
 import { debugEggDetection } from './debug';
 import { loadManualOverrides } from './overrides';
 import { recompute } from './recompute';
@@ -11,8 +13,11 @@ import type { DebugEggDetectionOptions, TurtleTimerConfig, TurtleTimerState } fr
 let initialized = false;
 let gardenUnsubscribe: (() => void) | null = null;
 let petUnsubscribe: (() => void) | null = null;
+let weatherUnsubscribe: (() => void) | null = null;
+let abilityDataUnsubscribe: (() => void) | null = null;
 let lastTurtleGardenFingerprint = '';
 let lastTurtlePetFingerprint = '';
+let lastWeatherKind = '';
 
 // Cheap fingerprint over the pet fields recompute actually reads. Bucketing
 // strength / xp / targetScale prevents 1 Hz strength rolls from firing recompute
@@ -137,6 +142,20 @@ export function initializeTurtleTimer(initialConfig?: TurtleTimerConfig): void {
     recompute();
   });
 
+  // Weather-gated growth boosts count only while their weather is active.
+  lastWeatherKind = getWeatherSnapshot().kind;
+  weatherUnsubscribe = onWeatherSnapshot((snapshot) => {
+    if (snapshot.kind === lastWeatherKind) return;
+    lastWeatherKind = snapshot.kind;
+    recompute();
+  }, false);
+
+  // Growth boosts resolve only from the abilities catalog. The listener also fires
+  // synchronously when already captured; the recompute below covers that case.
+  let subscribed = false;
+  abilityDataUnsubscribe = onPetAbilitiesCaptured(() => { if (subscribed) recompute(); });
+  subscribed = true;
+
   recompute();
   diag.debug('Turtle timer ready');
   publishOk('Started', {
@@ -153,9 +172,14 @@ export function disposeTurtleTimer(): void {
   gardenUnsubscribe = null;
   petUnsubscribe?.();
   petUnsubscribe = null;
+  weatherUnsubscribe?.();
+  weatherUnsubscribe = null;
+  abilityDataUnsubscribe?.();
+  abilityDataUnsubscribe = null;
   initialized = false;
   lastTurtleGardenFingerprint = '';
   lastTurtlePetFingerprint = '';
+  lastWeatherKind = '';
   resetState();
 }
 

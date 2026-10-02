@@ -1,7 +1,9 @@
 import { SLOT_CONFIG, type SlotType, type CosmeticCatalogEntry } from '../../features/bloblingCustomiser/types';
+import { t } from '../../i18n';
+import { createPriceLabel } from './priceLabels';
 
 export interface CarouselHandle {
-  showTooltip(text: string, priceText?: string): void;
+  showTooltip(text: string, price?: HTMLElement): void;
   hideTooltip(): void;
   destroy(): void;
 }
@@ -36,14 +38,13 @@ export function renderCarouselArrows(
   tooltip.style.cssText = 'position:absolute;top:var(--qpm-space-6);left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);padding:var(--qpm-space-3) var(--qpm-space-6);border-radius:var(--qpm-radius-lg);font-size:var(--qpm-font-body);color:var(--qpm-text);white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s;z-index:10;';
   previewArea.appendChild(tooltip);
 
-  function showTooltip(text: string, priceText?: string): void {
+  function showTooltip(text: string, price?: HTMLElement): void {
     tooltip.textContent = '';
     tooltip.appendChild(document.createTextNode(text));
-    if (priceText) {
+    if (price) {
       tooltip.appendChild(document.createTextNode(' · '));
-      const price = document.createElement('span');
       price.style.color = 'var(--qpm-gold)';
-      price.textContent = priceText;
+      price.style.verticalAlign = 'middle';
       tooltip.appendChild(price);
     }
     tooltip.style.opacity = '1';
@@ -57,9 +58,11 @@ export function renderCarouselArrows(
     if (tooltipTimer) { clearTimeout(tooltipTimer); tooltipTimer = null; }
   }
 
-  function formatPrice(entry: CosmeticCatalogEntry, owned: boolean): string {
-    if (owned) return 'Owned';
-    return entry.price > 0 ? `\u{1F35E} ${entry.price.toLocaleString()}` : 'Free';
+  function formatPrice(entry: CosmeticCatalogEntry, owned: boolean): HTMLElement {
+    if (!owned) return createPriceLabel(entry, { size: 14 });
+    const label = document.createElement('span');
+    label.textContent = t('feature.bloblingCustomiser.owned');
+    return label;
   }
 
   for (const cfg of SLOT_CONFIG) {

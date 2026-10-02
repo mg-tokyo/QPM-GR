@@ -1,17 +1,22 @@
 import {
   getAbilityDef,
   getAllAbilities,
-  areCatalogsReady,
 } from '../../../../catalogs/gameCatalogs';
 import {
-  ABILITY_DEFINITIONS,
+  ABILITY_METADATA,
   type AbilityCategory,
   type AbilityDefinition,
+  type AbilityMetadata,
   type CatalogParameterMetadata,
 } from './definitions';
 import { FLAT_SIZE_KEYS, PERCENT_SIZE_KEYS } from './sizeBoost';
 
-const abilityLookup = new Map<string, AbilityDefinition>();
+interface MetadataLookup {
+  byId: Map<string, AbilityMetadata>;
+  byAlias: Map<string, AbilityMetadata>;
+}
+
+let metadataLookup: MetadataLookup | null = null;
 
 export const WEATHER_PREFIX_ENTRIES = [
   { prefix: 'snowy', weather: 'snow' },
@@ -36,30 +41,22 @@ let catalogLookupCache: CatalogLookupCache | null = null;
 export const normalizeKey = (value: string): string => value.trim().toLowerCase();
 export const normalizeCompactKey = (value: string): string => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
-function addLookupKeys(map: Map<string, AbilityDefinition>, key: string, definition: AbilityDefinition): void {
-  const normalized = normalizeKey(key);
-  const compact = normalizeCompactKey(key);
-
-  if (normalized.length > 0) {
-    map.set(normalized, definition);
-  }
-  if (compact.length > 0) {
-    map.set(compact, definition);
-  }
-}
-
-function buildHardcodedLookup(): void {
-  for (const definition of ABILITY_DEFINITIONS) {
-    addLookupKeys(abilityLookup, definition.id, definition);
-    addLookupKeys(abilityLookup, definition.name, definition);
-    if (Array.isArray(definition.aliases)) {
-      for (const alias of definition.aliases) {
-        addLookupKeys(abilityLookup, alias, definition);
-      }
+function getMetadataLookup(): MetadataLookup {
+  if (metadataLookup) return metadataLookup;
+  const byId = new Map<string, AbilityMetadata>();
+  const byAlias = new Map<string, AbilityMetadata>();
+  for (const entry of ABILITY_METADATA) {
+    byId.set(entry.id, entry);
+    for (const alias of entry.aliases) {
+      const normalized = normalizeKey(alias);
+      const compact = normalizeCompactKey(alias);
+      if (normalized.length > 0) byAlias.set(normalized, entry);
+      if (compact.length > 0) byAlias.set(compact, entry);
     }
   }
+  metadataLookup = { byId, byAlias };
+  return metadataLookup;
 }
-buildHardcodedLookup();
 
 function resolveWeatherFromPrefix(prefix: string): AbilityDefinition['requiredWeather'] | null {
   const normalized = normalizeCompactKey(prefix);
@@ -187,13 +184,16 @@ interface SpecificRule {
   // percentage buffs get treated as coin-per-hour projections.
   coinUnitWhenContinuous?: boolean;
   coinsCategoryWhenContinuous?: boolean;
+  // Effect of one proc at STR 100: the param itself, or the mean of the game's
+  // uniform 1..param roll (coin finders: server-side payout, tooltip `1 - max`).
+  perProc?: 'value' | 'uniformMean';
 }
 
 const SPECIFIC_RULES: readonly SpecificRule[] = [
-  { match: /^plant.*Growth.*Minutes$/i,     category: 'plantGrowth', effectUnit: 'minutes', effectLabel: 'Growth time reduction', effectSuffix: 'm' },
-  { match: /^egg.*Growth.*Minutes$/i,       category: 'eggGrowth',   effectUnit: 'minutes', effectLabel: 'Hatch time reduction',  effectSuffix: 'm' },
-  { match: /^bonusXp$/,                     category: 'xp',          effectUnit: 'xp',      effectLabel: 'Bonus XP',              effectSuffix: '' },
-  { match: /^baseMaxCoinsFindable$/,        category: 'coins',       effectUnit: 'coins',   effectLabel: 'Coin range',            effectSuffix: '' },
+  { match: /^plant.*Growth.*Minutes$/i,     category: 'plantGrowth', effectUnit: 'minutes', effectLabel: 'Growth time reduction', effectSuffix: 'm', perProc: 'value' },
+  { match: /^egg.*Growth.*Minutes$/i,       category: 'eggGrowth',   effectUnit: 'minutes', effectLabel: 'Hatch time reduction',  effectSuffix: 'm', perProc: 'value' },
+  { match: /^bonusXp$/,                     category: 'xp',          effectUnit: 'xp',      effectLabel: 'Bonus XP',              effectSuffix: '',  perProc: 'value' },
+  { match: /^baseMaxCoinsFindable$/,        category: 'coins',       effectUnit: 'coins',   effectLabel: 'Coin range',            effectSuffix: '',  perProc: 'uniformMean' },
   { match: /^scaleIncreasePercentage$/,     category: 'misc',        effectUnit: 'coins',   effectLabel: 'Scale increase',        effectSuffix: '%' },
   // v1118 flat-Size shape: {sizeIncrease: N}. Bare integer, no unit suffix — the game renders
   // it as "+N Size" via its own Size icon.
@@ -239,7 +239,6 @@ export function canResolveParameterKey(key: string): boolean {
 }
 
 export function resolveCatalogParameterMetadata(
-  abilityId: string,
   trigger: AbilityDefinition['trigger'],
   baseParameters: Record<string, unknown>,
 ): CatalogParameterMetadata {
@@ -252,6 +251,7 @@ export function resolveCatalogParameterMetadata(
     let effectUnit: CatalogParameterMetadata['effectUnit'];
     let effectSuffix: string | undefined;
     let effectLabel: string | undefined;
+    let perProc: SpecificRule['perProc'];
 
     for (const rule of SPECIFIC_RULES) {
       if (!rule.match.test(key)) continue;
@@ -259,6 +259,7 @@ export function resolveCatalogParameterMetadata(
       effectUnit = rule.effectUnit ?? effectUnit;
       effectSuffix = rule.effectSuffix ?? effectSuffix;
       effectLabel = rule.effectLabel ?? effectLabel;
+      perProc = rule.perProc;
       if (rule.coinUnitWhenContinuous && trigger === 'continuous' && !effectUnit) effectUnit = 'coins';
       if (rule.coinsCategoryWhenContinuous && trigger === 'continuous' && !category) category = 'coins';
       break;
@@ -285,9 +286,12 @@ export function resolveCatalogParameterMetadata(
       strengthScalesEffect = true;
     }
 
+    const effectValuePerProc = perProc === 'value' ? value : perProc === 'uniformMean' ? value / 2 : undefined;
+
     return {
       category,
       effectBaseValue: value,
+      ...(effectValuePerProc !== undefined ? { effectValuePerProc } : {}),
       ...(effectUnit ? { effectUnit } : {}),
       ...(effectSuffix != null ? { effectSuffix } : {}),
       ...(effectLabel ? { effectLabel } : {}),
@@ -296,7 +300,9 @@ export function resolveCatalogParameterMetadata(
     };
   }
 
-  if (abilityId.endsWith('Granter')) {
+  // Granters (RainDance included) carry only `grantedMutations`; valued in coins from the garden.
+  const granted = baseParameters['grantedMutations'];
+  if (Array.isArray(granted) && granted.length > 0) {
     return { category: 'misc', effectUnit: 'coins' };
   }
 
@@ -304,8 +310,6 @@ export function resolveCatalogParameterMetadata(
 }
 
 function buildCatalogLookupCache(): CatalogLookupCache | null {
-  if (!areCatalogsReady()) return null;
-
   const abilityIds = getAllAbilities();
   if (abilityIds.length === 0) return null;
 
@@ -327,11 +331,15 @@ function buildCatalogLookupCache(): CatalogLookupCache | null {
     }
   };
 
+  // Ids before names: the name "Egg Growth Boost II" (EggGrowthBoostII_NEW) compacts
+  // to the id of EggGrowthBoostII, and the first key registered wins.
   for (const abilityId of abilityIds) {
     addCatalogKey(abilityId, abilityId);
-    const entry = getAbilityDef(abilityId);
-    if (entry && typeof entry.name === 'string' && entry.name.trim().length > 0) {
-      addCatalogKey(entry.name, abilityId);
+  }
+  for (const abilityId of abilityIds) {
+    const name = getAbilityDef(abilityId)?.name;
+    if (typeof name === 'string' && name.trim().length > 0) {
+      addCatalogKey(name, abilityId);
     }
   }
 
@@ -347,18 +355,21 @@ function buildDefinitionFromCatalog(abilityId: string, raw: string): AbilityDefi
   const baseParameters = catalogEntry.baseParameters && typeof catalogEntry.baseParameters === 'object'
     ? catalogEntry.baseParameters
     : {};
-  const parameterMetadata = resolveCatalogParameterMetadata(abilityId, trigger, baseParameters);
+  const parameterMetadata = resolveCatalogParameterMetadata(trigger, baseParameters);
   const requiredWeather = normalizeCatalogRequiredWeather(baseParameters['requiredWeather']);
+  const metadata = getMetadataLookup().byId.get(abilityId);
   const definition: AbilityDefinition = {
     id: abilityId,
     name: typeof catalogEntry.name === 'string' && catalogEntry.name.trim().length > 0 ? catalogEntry.name : abilityId,
     category: parameterMetadata.category,
     trigger,
     rollPeriodMinutes: 1,
-    notes: 'Auto-discovered from game catalog',
+    ...(metadata && metadata.aliases.length > 0 ? { aliases: metadata.aliases } : {}),
+    ...(metadata?.notes ? { notes: metadata.notes } : {}),
     ...(parameterMetadata.effectUnit ? { effectUnit: parameterMetadata.effectUnit } : {}),
     ...(parameterMetadata.effectLabel ? { effectLabel: parameterMetadata.effectLabel } : {}),
     ...(parameterMetadata.effectBaseValue != null ? { effectBaseValue: parameterMetadata.effectBaseValue } : {}),
+    ...(parameterMetadata.effectValuePerProc != null ? { effectValuePerProc: parameterMetadata.effectValuePerProc } : {}),
     ...(parameterMetadata.effectSuffix != null ? { effectSuffix: parameterMetadata.effectSuffix } : {}),
     ...(parameterMetadata.effectMode ? { effectMode: parameterMetadata.effectMode } : {}),
     ...(parameterMetadata.strengthScalesEffect !== undefined ? { strengthScalesEffect: parameterMetadata.strengthScalesEffect } : {}),
@@ -372,80 +383,29 @@ function buildDefinitionFromCatalog(abilityId: string, raw: string): AbilityDefi
   return attachWeatherConstraint(raw, definition);
 }
 
-function mergeDefinitionWithCatalog(
-  baseDefinition: AbilityDefinition,
-  catalogDefinition: AbilityDefinition,
-  raw: string,
-): AbilityDefinition {
-  return attachWeatherConstraint(raw, {
-    ...baseDefinition,
-    ...catalogDefinition,
-    ...(baseDefinition.aliases ? { aliases: baseDefinition.aliases } : {}),
-    ...(baseDefinition.notes ? { notes: baseDefinition.notes } : catalogDefinition.notes ? { notes: catalogDefinition.notes } : {}),
-  });
-}
-
+// Catalog absent (abilities not captured) ⇒ null: callers surface loading/unknown.
 export function getAbilityDefinition(raw: string | null | undefined): AbilityDefinition | null {
-  if (!raw) {
-    return null;
-  }
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
 
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return null;
-  }
+  const cache = buildCatalogLookupCache();
+  if (!cache) return null;
 
-  const lookupCandidates = buildLookupCandidates(trimmed);
-
-  let hardcoded: AbilityDefinition | null = null;
-  for (const key of lookupCandidates) {
-    hardcoded = abilityLookup.get(key) ?? null;
-    if (hardcoded) break;
+  const { byAlias } = getMetadataLookup();
+  for (const key of buildLookupCandidates(trimmed)) {
+    const abilityId = cache.byKey.get(key) ?? byAlias.get(key)?.id;
+    if (!abilityId) continue;
+    const definition = buildDefinitionFromCatalog(abilityId, trimmed);
+    if (definition) return definition;
   }
-
-  let catalogDefinition: AbilityDefinition | null = null;
-  if (areCatalogsReady()) {
-    const cache = buildCatalogLookupCache();
-    if (cache) {
-      for (const key of lookupCandidates) {
-        const abilityId = cache.byKey.get(key);
-        if (!abilityId) continue;
-        catalogDefinition = buildDefinitionFromCatalog(abilityId, trimmed);
-        if (catalogDefinition) break;
-      }
-    }
-  }
-
-  if (hardcoded && catalogDefinition) {
-    return mergeDefinitionWithCatalog(hardcoded, catalogDefinition, trimmed);
-  }
-  if (hardcoded) {
-    return attachWeatherConstraint(trimmed, hardcoded);
-  }
-  if (catalogDefinition) {
-    return catalogDefinition;
-  }
-
   return null;
 }
 
 export function getAllAbilityDefinitions(): AbilityDefinition[] {
-  const definitions = ABILITY_DEFINITIONS.map((definition) => {
-    const catalogDefinition = buildDefinitionFromCatalog(definition.id, definition.id);
-    return catalogDefinition ? mergeDefinitionWithCatalog(definition, catalogDefinition, definition.id) : definition;
-  });
-
-  if (areCatalogsReady()) {
-    const catalogAbilityIds = getAllAbilities();
-    const existingIds = new Set(ABILITY_DEFINITIONS.map(d => normalizeKey(d.id)));
-
-    for (const abilityId of catalogAbilityIds) {
-      if (!existingIds.has(normalizeKey(abilityId))) {
-        const definition = buildDefinitionFromCatalog(abilityId, abilityId);
-        if (definition) definitions.push(definition);
-      }
-    }
+  const definitions: AbilityDefinition[] = [];
+  for (const abilityId of getAllAbilities()) {
+    const definition = buildDefinitionFromCatalog(abilityId, abilityId);
+    if (definition) definitions.push(definition);
   }
-
   return definitions;
 }

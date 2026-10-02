@@ -112,6 +112,9 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   (QPM_DEBUG_API as any).getMapSnapshot = getMapSnapshot;
   (QPM_DEBUG_API as any).isGardenBridgeReady = isGardenBridgeReady;
 
+  const { getNpcDialogueDiagnostics, restartCompanionInjector } = await import('../../features/npcDialogue');
+  (QPM_DEBUG_API as any).npcDialogue = { diagnostics: getNpcDialogueDiagnostics, restartInjector: restartCompanionInjector };
+
   // Also expose to __QPM_INTERNAL__ for legacy/diagnostic access
   const { getGardenFiltersConfig, updateGardenFiltersConfig, applyGardenFiltersNow } = await import('../../features/garden/filters');
   const { getJotaiSubscriptionStats, debugReactiveRouting } = await import('../../core/jotaiBridge');

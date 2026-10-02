@@ -175,6 +175,7 @@ export interface CosmeticCatalogEntry {
   displayName: string;
   availability: string;
   price: number;
+  currency?: string;            // e.g., "coins", "magicDust", "credits" (game ≥1361)
   [key: string]: unknown;
 }
 

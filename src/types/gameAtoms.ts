@@ -56,6 +56,8 @@ export interface ShopCategorySnapshot {
   nextRestockAt?: number | null;
   restockIntervalMs?: number | null;
   secondsUntilRestock?: number | null;
+  restockId?: string | null;          // e.g., "egg:1989892" — identifies the stock cycle
+  startedAtMs?: number;
   [key: string]: unknown;
 }
 
@@ -70,15 +72,22 @@ export interface ShopsAtomSnapshot {
   [key: string]: ShopCategorySnapshot | undefined;
 }
 
+/** Purchases persist across restocks; they only count while `restockId` matches the shop's. */
+export interface ShopPurchaseBucket {
+  purchases?: Record<string, number>;
+  restockId?: string | null;
+  startedAtMs?: number | null;
+}
+
 export interface ShopPurchasesAtomSnapshot {
-  seed?: { purchases?: Record<string, number> } | null;
-  egg?: { purchases?: Record<string, number> } | null;
-  tool?: { purchases?: Record<string, number> } | null;
-  decor?: { purchases?: Record<string, number> } | null;
-  dawn?: { purchases?: Record<string, number> } | null;
-  snow?: { purchases?: Record<string, number> } | null;
-  thunder?: { purchases?: Record<string, number> } | null;
-  [key: string]: { purchases?: Record<string, number> } | null | undefined;
+  seed?: ShopPurchaseBucket | null;
+  egg?: ShopPurchaseBucket | null;
+  tool?: ShopPurchaseBucket | null;
+  decor?: ShopPurchaseBucket | null;
+  dawn?: ShopPurchaseBucket | null;
+  snow?: ShopPurchaseBucket | null;
+  thunder?: ShopPurchaseBucket | null;
+  [key: string]: ShopPurchaseBucket | null | undefined;
 }
 
 // ─── State-tree snapshot types ────────────────────────────────────────────
@@ -169,5 +178,15 @@ export interface QuinoaStateSnapshot {
     data: QuinoaData;
     child?: unknown;
   } | null;
+  [key: string]: unknown;
+}
+
+// Client-only NPC bubble entry (npcAtoms.ts:142-159 in the game source). `tags` is NPC-only.
+export interface NpcChatBubble {
+  seq: number;
+  playerId: string;
+  message: string;
+  timestamp: number;
+  tags?: Record<number, unknown>;
   [key: string]: unknown;
 }

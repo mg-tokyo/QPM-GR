@@ -24,11 +24,11 @@ describe('UI key ladders across game builds', () => {
     expect(rung.project!(null)).toBeNull();
     expect(rung.project!({ slotId: 3 })).toBeNull();
   });
-  it('selectedItemId ladder: 1202 index+displayedIds custom source first (primary), legacy writable atom second (fallback for pre-1202)', () => {
+  it('selectedItemId ladder: 1361 read-only mySelectedItemIdAtom first (primary), 1202 index+displayedIds custom source second', () => {
     const sources = UI_KEYS.selectedItemId.sources;
     expect(sources).toHaveLength(2);
-    expect(sources[0]!.kind).toBe('custom');
-    expect(sources[1]!.kind).toBe('atom');
+    expect(sources[0]!.kind).toBe('atom');
+    expect(sources[1]!.kind).toBe('custom');
 
     const customs = customRungs('selectedItemId');
     expect(customs).toHaveLength(1);
@@ -40,7 +40,7 @@ describe('UI key ladders across game builds', () => {
     const atoms = atomRungs('selectedItemId');
     expect(atoms).toHaveLength(1);
     expect(atoms[0]!.label.test('mySelectedItemIdAtom')).toBe(true);
-    expect(atoms[0]!.writable).toBe(true);
+    expect(atoms[0]!.writable).toBeFalsy();
     expect(atoms[0]!.project!('CropCleanser')).toBe('CropCleanser');
     expect(atoms[0]!.project!(null)).toBeNull();
     expect(atoms[0]!.project!(3)).toBeNull();

@@ -177,3 +177,29 @@ describe('shopRegistry — catalog-driven weather-shop set (T1)', () => {
     expect([...mod.getWeatherGatedShopIds()].sort()).toEqual(['dawn', 'futureShop']);
   });
 });
+
+describe('shopRegistry — ShopType member-name variants are not shops', () => {
+  it('drops persisted case variants of standard aliases at load and of live shop keys on ingest', async () => {
+    mockStorage.set('qpm.shopRegistry.discovered.v1', ['Seed', 'Egg', 'Dawn', 'Apology', 'futureShop']);
+    const mod = await loadModule();
+    await mod.startShopRegistry();
+    await flushMicrotasks();
+
+    expect([...mod.getWeatherGatedShopIds()].sort()).toEqual(['Apology', 'Dawn', 'futureShop']);
+    subscribeAtomCallback?.({ shops: { seed: {}, egg: {}, dawn: {}, apology: {}, futureShop: {} } });
+
+    expect([...mod.getWeatherGatedShopIds()].sort()).toEqual(['apology', 'dawn', 'futureShop']);
+    expect(mockStorage.get('qpm.shopRegistry.discovered.v1')).toEqual(['futureShop', 'dawn', 'apology']);
+  });
+
+  it('skips catalog eligibility ids that are case variants once live shop keys are known', async () => {
+    mockEligibleShopIds = new Set(['Dawn', 'Seed']);
+    const mod = await loadModule();
+    await mod.startShopRegistry();
+    await flushMicrotasks();
+    subscribeAtomCallback?.({ shops: { seed: {}, dawn: {} } });
+    onCatalogsReadyCallbacks[0]?.();
+
+    expect([...mod.getWeatherGatedShopIds()]).toEqual(['dawn']);
+  });
+});

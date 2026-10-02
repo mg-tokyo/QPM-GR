@@ -11,6 +11,7 @@
 import { pageWindow } from '../../../core/pageContext';
 import { getPixiRefs, getCaptureGeneration, getCaptureDiag } from '../../../core/pixiCapture';
 import { onPixiNodeAdded, onPixiNodeRemoved } from '../../../core/pixiSceneEvents';
+import { findStageLayer, isStageLayerAttached } from '../../../core/pixiScene';
 import { GARDEN_INFO_CARD_LABEL, PIXI_TOOLTIP_LABEL, OBJECT_CARD_LABEL, STAGE_UI_ROOT_LABEL, STAGE_UI_LAYER_LABEL } from './types';
 
 // ---------------------------------------------------------------------------
@@ -201,23 +202,15 @@ const NO_TOOLTIPS: readonly PixiNode[] = [];
 type ScopedRootName = 'stageUiRoot' | 'uiLayer';
 const missingRoots = new Set<ScopedRootName>();
 
-function directChild(stage: PixiNode, label: string): PixiNode | null {
-  const kids = stage.children;
-  if (!Array.isArray(kids)) return null;
-  for (let i = 0; i < kids.length; i++) {
-    const c = kids[i];
-    if (c && typeof c === 'object' && typeof c.label === 'string' && c.label === label) return c;
-  }
-  return null;
-}
-
 function noteRootMissing(what: ScopedRootName, missing: boolean): void {
   if (missing) missingRoots.add(what); else missingRoots.delete(what);
   walkStats.rootMissing = missingRoots.size === 0 ? null : Array.from(missingRoots).join('+');
 }
 
 function scopedRoot(stage: PixiNode, cached: PixiNode | null, label: string, what: ScopedRootName): PixiNode | null {
-  const root = cached && cached.parent === stage && cached.destroyed !== true ? cached : directChild(stage, label);
+  const root = cached && isStageLayerAttached(cached, stage)
+    ? cached
+    : findStageLayer(stage, label) as PixiNode | null;
   noteRootMissing(what, root === null);
   return root;
 }

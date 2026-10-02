@@ -58,6 +58,22 @@ export async function getRoomApiBase(): Promise<string | null> {
   }
 }
 
+// v1361 returns plain filenames, which the game loads straight into ownedAvatarCosmeticsAtom
+// (installPlayerSystems `reconcileCheckoutOwnership`); `{cosmeticFilename}` rows are the older shape.
+export function parseOwnedCosmetics(data: unknown): Set<string> | null {
+  if (!Array.isArray(data)) return null;
+  const filenames = new Set<string>();
+  for (const item of data) {
+    if (typeof item === 'string') {
+      filenames.add(item);
+    } else if (item && typeof item === 'object') {
+      const name = (item as Record<string, unknown>).cosmeticFilename;
+      if (typeof name === 'string') filenames.add(name);
+    }
+  }
+  return filenames;
+}
+
 export async function fetchCosmeticOwnership(): Promise<void> {
   if (cosmeticOwnership.set) return;
   if (cosmeticOwnershipFetchInFlight) return cosmeticOwnershipFetchInFlight;
@@ -75,13 +91,10 @@ export async function fetchCosmeticOwnership(): Promise<void> {
       }
 
       const data: unknown = await res.json();
-      if (!Array.isArray(data)) return;
-
-      const filenames = new Set<string>();
-      for (const item of data) {
-        if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).cosmeticFilename === 'string') {
-          filenames.add((item as Record<string, unknown>).cosmeticFilename as string);
-        }
+      const filenames = parseOwnedCosmetics(data);
+      if (!filenames) return;
+      if (Array.isArray(data) && data.length > 0 && filenames.size === 0) {
+        console.warn('[QPM] cosmeticOwnership /me/cosmetics: unrecognised entry shape', data[0]);
       }
 
       cosmeticOwnership.set = filenames;

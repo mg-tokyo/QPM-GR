@@ -14,6 +14,7 @@ import { stopPetTeamsSync } from '../store/petTeamsSync';
 import { stopPetsWindow } from '../ui/pets/petsWindow';
 import { stopInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOverlay';
 import { stopInventoryCapacity } from '../features/economy/inventoryCapacity';
+import { stopNpcDialogue } from '../features/npcDialogue';
 import { stopStorageValueOverlay } from '../ui/economy/storageValueOverlay';
 import { stopStorageValue } from '../features/economy/storageValue';
 import { stopSeedSiloStore } from '../store/seedSilo';
@@ -110,6 +111,7 @@ export function installGlobalHandlers(): void {
     stopPetTeamsStore();
     stopPetActivityStore();
     stopPetsWindow();
+    stopNpcDialogue();
     stopInventoryCapacityOverlay();
     stopInventoryCapacity();
     stopStorageValueOverlay();

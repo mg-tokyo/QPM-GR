@@ -18,6 +18,7 @@ import {
 import { logTileAsyncFailed, logTileImportFailed, makeDepGuard } from './tileHealth';
 import { throttle } from '../../utils/scheduling/scheduling';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
+import { onPetAbilitiesCaptured } from '../../utils/game/catalogHelpers';
 
 const RECENT_PROC_CACHE_MS = 15_000;
 
@@ -140,12 +141,14 @@ export function startPetDerivedStatuses(getStatusEl: GetStatusEl, addLiveCleanup
       cachedRecentXpAt = 0;
       render();
     });
+    const unsubAbilityData = onPetAbilitiesCaptured(render);
     render();
     addLiveCleanup(version, () => {
       unsubPets();
       unsubTeams();
       unsubAbility();
       unsubXp();
+      unsubAbilityData();
     });
   }).catch((err) => logTileImportFailed('pet-derived', err));
 }

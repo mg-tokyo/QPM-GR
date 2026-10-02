@@ -1,5 +1,5 @@
 // src/ui/shopRestockAlerts/purchaseActions.ts
-// Inventory cap logic, auto-store, coins confirm modal, and the alert-card Buy handler.
+// Inventory cap logic, coins confirm modal, and the alert-card Buy handler.
 
 import { formatCoins } from '../../../utils/formatters';
 import { warnFeature } from './_diagnostics';
@@ -13,13 +13,9 @@ import {
   COINS_CONFIRM_MODAL_ID,
   TOOL_STACK_LIMIT,
   TOOL_LIMITED_IDS,
-  SEED_SILO_WS_STORAGE_ID,
-  DECOR_SHED_WS_STORAGE_ID,
-  TOOL_SHACK_WS_STORAGE_ID,
   type RestockShopType,
   type AlertModel,
   type ActiveAlert,
-  type OwnershipBaseline,
   type PendingCompletionInfo,
   type PendingOwnershipConfirmation,
   type PendingPresenter,
@@ -44,7 +40,8 @@ import {
 } from './ownershipTracker';
 import { removeAlert, setAlertBusy, setAlertPendingConfirmation } from './alertDom';
 import { clearDismissedCycle, markDismissedCycle, processShopStock } from './stockProcessor';
-import { sendItemToStorage, sendPurchaseBatch } from './purchasePipeline';
+import { sendPurchaseBatch } from './purchasePipeline';
+import { resolveAutoStoreTarget } from './autoStore';
 import { describeConfirmationSourceGaps } from './sourceGaps';
 export { sendPurchase, explainSendFailure, sendItemToStorage } from './purchasePipeline';
 
@@ -134,144 +131,6 @@ export function applyInventoryCapToQuantity(
 
 export function shouldLockDismissForPurchaseCompletion(key: string): boolean {
   return getToolInventoryLimitFromKey(key) == null;
-}
-
-// ---------------------------------------------------------------------------
-// Auto-store
-// ---------------------------------------------------------------------------
-
-export function resolveAutoStoreTarget(
-  shopType: RestockShopType,
-  key: string,
-): { storageId: string; label: string } | null {
-  if (shopType === 'seed') {
-    const existingCount = alertState.seedSiloKeyCounts.get(key) ?? 0;
-    if (existingCount <= 0) {
-      debugLog('Auto-store target skipped for seed', { key, hasSeedSiloBaseline: alertState.hasSeedSiloBaseline, existingSeedCountInSilo: existingCount });
-      return null;
-    }
-    debugLog('Auto-store target resolved', { key, shopType, storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo', existingSeedCountInSilo: existingCount });
-    return { storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo' };
-  }
-  if (shopType === 'decor') {
-    const existingCount = alertState.decorShedKeyCounts.get(key) ?? 0;
-    if (existingCount <= 0) {
-      debugLog('Auto-store target skipped for decor', { key, hasDecorShedBaseline: alertState.hasDecorShedBaseline, existingDecorCountInShed: existingCount });
-      return null;
-    }
-    debugLog('Auto-store target resolved', { key, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
-    return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
-  }
-  if (shopType === 'tool') {
-    const existingCount = alertState.toolShackKeyCounts.get(key) ?? 0;
-    if (existingCount <= 0) {
-      debugLog('Auto-store target skipped for tool', { key, hasToolShackBaseline: alertState.hasToolShackBaseline, existingToolCountInShack: existingCount });
-      return null;
-    }
-    debugLog('Auto-store target resolved', { key, shopType, storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack', existingToolCountInShack: existingCount });
-    return { storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack' };
-  }
-  if (isWeatherShopType(shopType)) {
-    const resolvedKey = resolveOwnershipKey(key);
-    if (resolvedKey.startsWith('seed:')) {
-      const existingCount = alertState.seedSiloKeyCounts.get(resolvedKey) ?? 0;
-      if (existingCount <= 0) {
-        debugLog('Auto-store target skipped for weather-shop seed', { key, resolvedKey, existingSeedCountInSilo: existingCount });
-        return null;
-      }
-      debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo', existingSeedCountInSilo: existingCount });
-      return { storageId: SEED_SILO_WS_STORAGE_ID, label: 'Seed Silo' };
-    }
-    if (resolvedKey.startsWith('decor:')) {
-      const existingCount = alertState.decorShedKeyCounts.get(resolvedKey) ?? 0;
-      if (existingCount <= 0) {
-        debugLog('Auto-store target skipped for weather-shop decor', { key, resolvedKey, existingDecorCountInShed: existingCount });
-        return null;
-      }
-      debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed', existingDecorCountInShed: existingCount });
-      return { storageId: DECOR_SHED_WS_STORAGE_ID, label: 'Decor Shed' };
-    }
-    if (resolvedKey.startsWith('tool:')) {
-      const existingCount = alertState.toolShackKeyCounts.get(resolvedKey) ?? 0;
-      if (existingCount <= 0) {
-        debugLog('Auto-store target skipped for weather-shop tool', { key, resolvedKey, existingToolCountInShack: existingCount });
-        return null;
-      }
-      debugLog('Auto-store target resolved', { key, resolvedKey, shopType, storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack', existingToolCountInShack: existingCount });
-      return { storageId: TOOL_SHACK_WS_STORAGE_ID, label: 'Tool Shack' };
-    }
-    debugLog('Auto-store target not applicable for weather-shop item type', { key, resolvedKey });
-    return null;
-  }
-  debugLog('Auto-store target not applicable for shop type', { key, shopType });
-  return null;
-}
-
-export function pickAutoStoreStackForKey(
-  key: string,
-  baseline: OwnershipBaseline,
-): { itemId: string; quantity: number; gained: number } | null {
-  // Stacks are keyed by item type (`tool:x`); weather-shop alert keys (`amber:x`) must resolve first.
-  const current = alertState.inventoryKeyItemQuantities.get(resolveOwnershipKey(key));
-  if (!current || current.size === 0) return null;
-
-  let best: { itemId: string; quantity: number; gained: number } | null = null;
-  for (const [itemId, currentQty] of current.entries()) {
-    const baselineQty = baseline.inventoryKeyItemQuantities.get(itemId) ?? 0;
-    const gained = Math.max(0, currentQty - baselineQty);
-    const candidate = { itemId, quantity: currentQty, gained };
-    if (!best) { best = candidate; continue; }
-    if (candidate.gained > best.gained) { best = candidate; continue; }
-    if (candidate.gained === best.gained && candidate.quantity > best.quantity) best = candidate;
-  }
-  return best;
-}
-
-export function maybeAutoStoreConfirmedDelta(
-  pending: PendingOwnershipConfirmation,
-  confirmed: number,
-): void {
-  if (pending.autoStoreInFlight) {
-    debugLog('Auto-store skipped (already in flight)', { key: pending.key, confirmed });
-    return;
-  }
-  if (!pending.autoStoreStorageId) {
-    debugLog('Auto-store skipped (no target storage)', { key: pending.key, confirmed, shopType: pending.shopType });
-    return;
-  }
-  if (confirmed < pending.expectedIncrease) {
-    debugLog('Auto-store deferred until full confirmation', { key: pending.key, confirmed, expectedIncrease: pending.expectedIncrease });
-    return;
-  }
-  if (pending.autoStoreFinalMoveRequested) return;
-
-  const targetStack = pickAutoStoreStackForKey(pending.key, pending.baseline);
-  if (!targetStack) {
-    debugLog('Auto-store skipped (no inventory stack found for key)', { key: pending.key, confirmed, expectedIncrease: pending.expectedIncrease });
-    return;
-  }
-
-  debugLog('Auto-store attempting single full-stack move', {
-    key: pending.key,
-    confirmed,
-    expectedIncrease: pending.expectedIncrease,
-    storageId: pending.autoStoreStorageId,
-    storageLabel: pending.autoStoreLabel,
-    itemId: targetStack.itemId,
-    currentStackQuantity: targetStack.quantity,
-    gainedInStack: targetStack.gained,
-  });
-
-  pending.autoStoreInFlight = true;
-  pending.autoStoreFinalMoveRequested = true;
-  try {
-    const moved = sendItemToStorage(targetStack.itemId, pending.autoStoreStorageId, null);
-    pending.storedInTargetStorage = moved;
-    debugLog('Auto-store single move result', { key: pending.key, itemId: targetStack.itemId, moved, storageId: pending.autoStoreStorageId });
-  } finally {
-    pending.autoStoreInFlight = false;
-    debugLog('Auto-store final pass finished', { key: pending.key, confirmed, autoStoreFinalMoveRequested: pending.autoStoreFinalMoveRequested, storedInTargetStorage: pending.storedInTargetStorage });
-  }
 }
 
 // ---------------------------------------------------------------------------

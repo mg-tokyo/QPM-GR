@@ -21,6 +21,7 @@ import {
   PET_TEAM_ICON_IDS,
   isFiniteNumber,
   isNonEmptyString,
+  isValidPurchaseShopItem,
   type MovePetTeamPayload,
   type PickupPetPayload,
   type PlacePetPayload,
@@ -257,10 +258,8 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       const hasQuantity = p.quantity == null || (isFiniteNumber(p.quantity) && p.quantity > 0);
       return isNonEmptyString(p.itemId) && isNonEmptyString(p.storageId) && hasIndex && hasQuantity;
     }
-    case 'PurchaseShopItem': {
-      const p = payload as unknown as PurchaseShopItemPayload;
-      return isNonEmptyString(p.shop) && !!p.item && isNonEmptyString(p.item.itemType);
-    }
+    case 'PurchaseShopItem':
+      return isValidPurchaseShopItem(payload as unknown as PurchaseShopItemPayload);
     case 'SwapPet': {
       const p = payload as SwapPayload;
       return isNonEmptyString(p.petSlotId) && isNonEmptyString(p.petInventoryId);

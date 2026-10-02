@@ -45,10 +45,35 @@ function isStandardShopAlias(id: string): boolean {
   return STANDARD_SET.has(id) || STANDARD_RESTOCK_SHOP_TYPES.has(id);
 }
 
+/** Keys of the latest `quinoaData.shops` — the game's real shop ids. */
+let liveShopKeys: ReadonlySet<string> = new Set();
+
+// Bundle-text-healed dexes carry ShopType member names (`Dawn`, `Seed`) where the
+// game keys shops by value (`dawn`, `seed`); a case variant is never a new shop.
+function isCaseVariantOfKnownShop(id: string): boolean {
+  const lower = id.toLowerCase();
+  if (lower !== id && isStandardShopAlias(lower)) return true;
+  for (const key of liveShopKeys) {
+    if (key !== id && key.toLowerCase() === lower) return true;
+  }
+  return false;
+}
+
 function loadPersistedDiscovered(): Set<string> {
   const raw = storage.get<unknown>(STORAGE_KEY, null);
   if (!Array.isArray(raw)) return new Set();
-  return new Set(raw.filter((v): v is string => typeof v === 'string' && !isStandardShopAlias(v)));
+  return new Set(raw.filter((v): v is string =>
+    typeof v === 'string' && !isStandardShopAlias(v) && !isCaseVariantOfKnownShop(v)));
+}
+
+function pruneCaseVariants(): boolean {
+  let pruned = false;
+  for (const id of [...discoveredIds]) {
+    if (!isCaseVariantOfKnownShop(id)) continue;
+    discoveredIds.delete(id);
+    pruned = true;
+  }
+  return pruned;
 }
 
 function loadPersistedWeather(): Record<string, DetailedWeather> {
@@ -117,16 +142,17 @@ function ingestShopsSnapshot(value: unknown): void {
   if (!value || typeof value !== 'object') return;
   const shops = (value as Record<string, unknown>).shops;
   if (!shops || typeof shops !== 'object') return;
-  let added = false;
+  liveShopKeys = new Set(Object.keys(shops));
+  let changed = pruneCaseVariants();
   for (const id of Object.keys(shops)) {
     if (isStandardShopAlias(id)) continue;
     if (catalogWeatherShopSet.has(id)) continue;
     if (discoveredIds.has(id)) continue;
     discoveredIds.add(id);
-    added = true;
+    changed = true;
     notifyDiscovered(id);
   }
-  if (added) persistDiscovered();
+  if (changed) persistDiscovered();
   observeShopWeather(shops as Record<string, unknown>);
 }
 
@@ -138,7 +164,7 @@ function reseedFromCatalogs(): void {
   const nextSet = new Set<string>();
   let addedToDiscovered = false;
   for (const id of getAllEligibleShopIds()) {
-    if (isStandardShopAlias(id)) continue;
+    if (isStandardShopAlias(id) || isCaseVariantOfKnownShop(id)) continue;
     nextSet.add(id);
     if (discoveredIds.has(id)) continue;
     discoveredIds.add(id);

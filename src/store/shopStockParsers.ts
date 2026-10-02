@@ -7,7 +7,16 @@ import type {
 } from '../types/gameAtoms';
 import { type ShopCategory, type StandardShopId } from '../types/shops';
 import { getKnownShopIds, isStandardShop } from './shopRegistry';
-import { discoverShopPurchasesRoot } from './shopPurchasesDiscovery';
+import {
+  getPurchaseCount,
+  getShopCycle,
+  isBucketAheadOfCycle,
+  resolveStockSnapshot,
+  type CustomRestock,
+  type ShopCycle,
+} from './shopPurchaseCycle';
+
+export { getPurchaseCount, getShopCycle, extractMyDataShopPurchases, type ShopCycle } from './shopPurchaseCycle';
 
 // Constants & type aliases (exported for use in shopStock.ts)
 
@@ -32,7 +41,8 @@ export function getShopPurchaseKeys(): readonly string[] {
   return getKnownShopIds().map(getAtomKeyForCategory);
 }
 
-export type CustomInventoryMap = Record<string, { items: ShopInventoryEntry[] } | null> | null;
+/** `myUserSlot.customRestockInventories`: per-shop snapshots shaped like a `shops` entry. */
+export type CustomInventoryMap = Record<string, ShopCategorySnapshot | null> | null;
 
 // Public type definitions
 
@@ -238,62 +248,6 @@ export function extractPrice(entry: ShopInventoryEntry): { coins: number | null;
   return { coins, credits, magicDust };
 }
 
-export function getPurchaseCount(
-  category: ShopCategory,
-  rawId: string,
-  purchases: ShopPurchasesAtomSnapshot | null,
-): number {
-  const key = getAtomKeyForCategory(category);
-  const bucket = purchases?.[key]?.purchases;
-  if (!bucket || typeof bucket !== 'object') {
-    return 0;
-  }
-
-  const parseCount = (value: unknown): number | null => {
-    if (value == null) return null;
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : null;
-  };
-
-  const normalizeId = (value: string): string => value.trim().toLowerCase();
-  const id = rawId.trim();
-  const candidates = new Set<string>();
-  if (id.length > 0) {
-    candidates.add(id);
-    // Some tool IDs are observed with inconsistent trailing "s" across atoms.
-    if (id.endsWith('s') && id.length > 1) {
-      candidates.add(id.slice(0, -1));
-    } else {
-      candidates.add(`${id}s`);
-    }
-  }
-
-  for (const candidate of candidates) {
-    const direct = parseCount(bucket[candidate]);
-    if (direct != null) {
-      return direct;
-    }
-  }
-
-  const numericKey = Number(rawId);
-  if (Number.isFinite(numericKey) && bucket[numericKey] != null && Number.isFinite(Number(bucket[numericKey]))) {
-    return Number(bucket[numericKey]);
-  }
-
-  if (candidates.size > 0) {
-    const normalizedCandidates = new Set<string>(Array.from(candidates).map(normalizeId));
-    for (const [bucketKey, bucketValue] of Object.entries(bucket)) {
-      if (!normalizedCandidates.has(normalizeId(bucketKey))) continue;
-      const parsed = parseCount(bucketValue);
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-  }
-
-  return 0;
-}
-
 function computeRemaining(initialStock: number | null, purchased: number, canSpawn: boolean): number | null {
   if (initialStock == null) {
     return 0;
@@ -313,50 +267,6 @@ export function extractCustomInventories(slotValue: unknown): CustomInventoryMap
   return custom as CustomInventoryMap;
 }
 
-function toPurchaseRecord(raw: unknown): Record<string, number> | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const parsed: Record<string, number> = {};
-  let hasAny = false;
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) continue;
-    parsed[key] = numeric;
-    hasAny = true;
-  }
-  return hasAny ? parsed : null;
-}
-
-function normalizePurchaseBucket(raw: unknown): { purchases?: Record<string, number> } | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const row = raw as Record<string, unknown>;
-  const nested = toPurchaseRecord(row.purchases);
-  if (nested) {
-    return { purchases: nested };
-  }
-  const direct = toPurchaseRecord(row);
-  if (direct) {
-    return { purchases: direct };
-  }
-  return null;
-}
-
-export function extractMyDataShopPurchases(value: unknown): ShopPurchasesAtomSnapshot | null {
-  // Discovered by shape (see shopPurchasesDiscovery.ts) — no hardcoded field name.
-  const root = discoverShopPurchasesRoot(value);
-  if (!root) return null;
-
-  const snapshot: ShopPurchasesAtomSnapshot = {};
-  let hasAnyBucket = false;
-  for (const key of getShopPurchaseKeys()) {
-    const bucket = normalizePurchaseBucket(root[key]);
-    snapshot[key] = bucket;
-    if (bucket?.purchases && Object.keys(bucket.purchases).length > 0) {
-      hasAnyBucket = true;
-    }
-  }
-  return hasAnyBucket ? snapshot : null;
-}
-
 export function hasPurchaseBucket(
   snapshot: ShopPurchasesAtomSnapshot | null,
   key: string,
@@ -372,6 +282,7 @@ export function normalizeEntry(
   entry: ShopInventoryEntry,
   purchases: ShopPurchasesAtomSnapshot | null,
   orderIndex: number,
+  cycle?: ShopCycle | null,
 ): ShopStockItem | null {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -390,7 +301,10 @@ export function normalizeEntry(
   // NOTE: canSpawnHere was removed from the game in Nov 2025 update
   // Treat all items as spawnable (default true for backward compatibility)
   const canSpawn = entry.canSpawnHere !== false;
-  const purchased = getPurchaseCount(category, String(id), purchases);
+  // The game counts an ahead bucket as the whole initial stock bought (`rn` → null → sold out).
+  const purchased = isBucketAheadOfCycle(purchases?.[getAtomKeyForCategory(category)], cycle)
+    ? initialStock ?? 0
+    : getPurchaseCount(category, String(id), purchases, cycle);
   let remaining = computeRemaining(initialStock, purchased, canSpawn);
 
   if (currentStock != null) {
@@ -428,21 +342,29 @@ export function normalizeEntry(
   };
 }
 
-// Category normalization (pure — customInventory is passed explicitly)
+// The game reads `.inventory` (v1361); `.items` was QPM's older reading of custom inventories,
+// kept until a live custom restock confirms the shape.
+function readStockInventory(stock: ShopCategorySnapshot | null): ShopInventoryEntry[] {
+  const inventory = stock?.inventory ?? stock?.items;
+  return Array.isArray(inventory) ? (inventory as ShopInventoryEntry[]) : [];
+}
 
+// Category normalization (pure — customInventory is passed explicitly). Timers and `raw` stay on
+// the global snapshot; items and the purchase cycle come from the snapshot the shop sells from.
 export function buildCategoryState(
   category: ShopCategory,
   snapshot: ShopCategorySnapshot | null,
   purchases: ShopPurchasesAtomSnapshot | null,
-  customInventory: { items: ShopInventoryEntry[] } | null,
+  customInventory: ShopCategorySnapshot | null,
+  customRestock: CustomRestock | null,
 ): ShopStockCategoryState {
   const now = Date.now();
-  const inventory: ShopInventoryEntry[] = Array.isArray(customInventory?.items)
-    ? (customInventory!.items as ShopInventoryEntry[])
-    : Array.isArray(snapshot?.inventory) ? snapshot!.inventory : [];
+  const stock = resolveStockSnapshot(getAtomKeyForCategory(category), snapshot, customRestock, customInventory);
+  const inventory = readStockInventory(stock);
+  const cycle = getShopCycle(stock);
   const items: ShopStockItem[] = [];
   inventory.forEach((entry, index) => {
-    const normalized = normalizeEntry(category, entry, purchases, index);
+    const normalized = normalizeEntry(category, entry, purchases, index, cycle);
     if (normalized) {
       items.push(normalized);
     }

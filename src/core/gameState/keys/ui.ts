@@ -3,7 +3,7 @@ import { atomSource, customSource, defineKey } from '../define';
 import { isRecord } from '../../../utils/typeGuards';
 import { isQuinoaEngine } from '../../../utils/quinoaEngine';
 import { findAtomsByLabel, getCachedStore, subscribeAtom } from '../../jotaiBridge';
-import type { GridPosition } from '../../../types/gameAtoms';
+import type { GridPosition, NpcChatBubble } from '../../../types/gameAtoms';
 
 const KNOWN_MODALS = new Set([
   'seedShop', 'eggShop', 'toolShop', 'inventory', 'leaderboard', 'journal', 'decorShop', 'stats', 'petHutch',
@@ -46,8 +46,9 @@ export const UI_KEYS = {
   }),
   selectedItemId: defineKey<string | null>({
     policy: 'client', tier: 'client', defaultValue: null,
-    doc: 'Selected inventory item id (tool id for tools). 1202+ (primary): derived from displayedInventoryItemIdsAtom[myValidatedSelectedItemIndexAtom] (read-only — game exposes only the parts). Pre-1202 (fallback): mySelectedItemIdAtom (writable).',
+    doc: 'Selected inventory item id (tool id for tools). 1361+ (primary): mySelectedItemIdAtom, derived from heldItem.itemId (read-only). 1202-era (fallback): displayedInventoryItemIdsAtom[myValidatedSelectedItemIndexAtom].',
     sources: [
+      atomSource(/^mySelectedItemIdAtom$/, 'client', { project: (v) => (typeof v === 'string' ? v : null) }),
       customSource<string | null>({
         id: 'selectedItemId:index+displayedIds',
         available: () => {
@@ -69,7 +70,6 @@ export const UI_KEYS = {
           return () => { try { off1(); } catch { /* ignore */ } try { off2(); } catch { /* ignore */ } };
         },
       }),
-      atomSource(/^mySelectedItemIdAtom$/, 'client', { writable: true, project: (v) => (typeof v === 'string' ? v : null) }),
     ],
   }),
   selectedSlotId: defineKey<number | null>({
@@ -103,5 +103,13 @@ export const UI_KEYS = {
   quinoaEngine: defineKey<unknown>({
     policy: 'client', tier: 'dynamic', doc: 'Game engine handle (quinoaEngineAtom; quinoaDevEngineAtom since game 1152). Systems: boot.{seat,world}Scope (1152) or page.{playerViews,rendererScope}.systemRegistry (1202+).',
     sources: [atomSource(/^quinoa(?:Dev)?EngineAtom$/, 'client', { structure: isQuinoaEngine, prefer: (l) => l === 'quinoaEngineAtom' })],
+  }),
+  npcChatBubbles: defineKey<Record<string, NpcChatBubble>>({
+    policy: 'client', tier: 'client', doc: 'NPC chat bubbles by NPC playerId. Client-only, never networked. Talk replaces the whole map; NPC Visits (1361+) write `NPC_<name>#<forUserId>` keys, often spreading existing entries back (keepOthers / single-entry delete); a modal clears it.',
+    sources: [atomSource(/^npcChatBubblesAtom$/, 'client', { writable: true, structure: (v) => isRecord(v) })],
+  }),
+  adjacentNpcId: defineKey<string | null>({
+    policy: 'client', tier: 'client', defaultValue: null, doc: 'NPC the player can Talk to right now (standing on or beside it), or null',
+    sources: [atomSource(/^adjacentNpcIdAtom$/, 'client', { project: (v) => (typeof v === 'string' ? v : v === null ? null : undefined) })],
   }),
 };

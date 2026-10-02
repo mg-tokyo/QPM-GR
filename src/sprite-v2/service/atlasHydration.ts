@@ -5,6 +5,7 @@ import { rememberBaseTex } from '../utils';
 import { buildAtlasTextures } from '../atlas';
 import type { Ktx2DecoderPool } from '../ktx2';
 import { delay } from '../../utils/scheduling/scheduling';
+import { spriteLog } from '../diagnostics';
 import { MAX_MISSING_SAMPLE, TARGET_COMPRESSED_COVERAGE } from './constants';
 import type { HydratePassResult, RuntimeTextureIndex, TextureSourceName } from './types';
 import { computeHydrationStatus } from './hydrationEvents';
@@ -281,6 +282,58 @@ function rgbaToCanvas(width: number, height: number, rgba: Uint8ClampedArray): H
   return canvas;
 }
 
+async function decodeAtlasImage(base: string, imagePath: string, decoder: Ktx2DecoderPool): Promise<HTMLCanvasElement> {
+  const blob = await getBlob(joinPath(base, imagePath));
+  const decoded = await decoder.decode(await blob.arrayBuffer(), imagePath);
+  return rgbaToCanvas(decoded.width, decoded.height, decoded.rgba);
+}
+
+// Frames are in `meta.size` coordinates. Since game 1361 `meta.image` is a half-size
+// page (the game sets resolution 0.5) and `meta.fullSizeImage` is the 1:1 page.
+async function decodeSheetCanvas(
+  base: string,
+  atlasPath: string,
+  data: any,
+  decoder: Ktx2DecoderPool,
+): Promise<HTMLCanvasElement> {
+  const fullSize = data?.meta?.fullSizeImage;
+  let canvas: HTMLCanvasElement | null = null;
+  if (typeof fullSize === 'string' && fullSize) {
+    const fullPath = relPath(atlasPath, fullSize);
+    try {
+      canvas = await decodeAtlasImage(base, fullPath, decoder);
+    } catch (error) {
+      spriteLog('warn', 'ktx2-fullsize-decode-failed', 'Full-size atlas page failed; using meta.image', {
+        atlasPath,
+        imagePath: fullPath,
+        error: String((error as Error)?.message ?? error),
+      });
+    }
+  }
+  canvas ??= await decodeAtlasImage(base, relPath(atlasPath, data?.meta?.image || ''), decoder);
+  return normalizeToSheetSize(canvas, data, atlasPath);
+}
+
+/** Scale a page that doesn't match `meta.size` so frame rects still land on the right pixels. */
+function normalizeToSheetSize(canvas: HTMLCanvasElement, data: any, atlasPath: string): HTMLCanvasElement {
+  const w = Number(data?.meta?.size?.w);
+  const h = Number(data?.meta?.size?.h);
+  if (!(w > 0 && h > 0) || (canvas.width === w && canvas.height === h)) return canvas;
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const ctx2d = out.getContext('2d');
+  if (!ctx2d) return canvas;
+  ctx2d.imageSmoothingEnabled = true;
+  ctx2d.drawImage(canvas, 0, 0, w, h);
+  spriteLog('warn', 'atlas-geometry-normalized', 'Atlas page size differs from meta.size; scaled to sheet size', {
+    atlasPath,
+    decoded: { w: canvas.width, h: canvas.height },
+    sheet: { w, h },
+  }, { onceKey: `atlas-geometry-normalized:${atlasPath}` });
+  return out;
+}
+
 export async function loadCompressedAtlasViaDecoder(
   base: string,
   atlasPath: string,
@@ -300,12 +353,7 @@ export async function loadCompressedAtlasViaDecoder(
     };
   }
 
-  const imagePath = relPath(atlasPath, data?.meta?.image || '');
-  const blob = await getBlob(joinPath(base, imagePath));
-  const bytes = await blob.arrayBuffer();
-  const decoded = await decoder.decode(bytes, imagePath);
-
-  const canvas = rgbaToCanvas(decoded.width, decoded.height, decoded.rgba);
+  const canvas = await decodeSheetCanvas(base, atlasPath, data, decoder);
   const baseTex = state.ctors!.Texture.from(canvas);
   buildAtlasTextures(data, baseTex, state.tex, state.atlasBases, state.ctors!);
 

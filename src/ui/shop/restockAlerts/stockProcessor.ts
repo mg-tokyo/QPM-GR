@@ -1,17 +1,13 @@
 // src/ui/shopRestockAlerts/stockProcessor.ts
 // Stock-change processing: tracked set, dismiss cycle management, and processShopStock.
 
-import { storage } from '../../../utils/storage';
-import { canonicalItemId, getItemIdVariants } from '../../../utils/restock/dataService';
+import { canonicalItemId } from '../../../utils/restock/dataService';
 import type { ShopStockCategoryState, ShopStockItem, ShopStockState } from '../../../store/shopStock';
 import { getShopEntryIdentity } from '../../../store/shopStockParsers';
 import { isWeatherGatedShop } from '../../../store/shopRegistry';
+import { isTrackedItem, loadTrackedSet, type RestockShopType } from '../../../store/restockTracked';
 import { getItemCatalogName } from '../../../catalogs/shopEligibility';
 import { isWeatherShopType, type ShopCategory } from '../../../types/shops';
-import {
-  TRACKED_KEY,
-  type RestockShopType,
-} from './types';
 import {
   dismissedCyclesByKey,
   dismissedInStockKeys,
@@ -68,48 +64,6 @@ export function isDismissedForCycle(key: string, cycleId: string | null): boolea
   const normalized = key.trim().toLowerCase();
   if (!normalized) return false;
   return dismissedCyclesByKey.get(normalized) === cycleId;
-}
-
-// ---------------------------------------------------------------------------
-// Tracked set
-// ---------------------------------------------------------------------------
-
-export function loadTrackedSet(): Set<string> {
-  const saved = storage.get<string[] | null>(TRACKED_KEY, null);
-  return new Set(Array.isArray(saved) ? saved : []);
-}
-
-export function isTrackedItem(tracked: Set<string>, shopType: RestockShopType, itemId: string): boolean {
-  const variants = getItemIdVariants(shopType, itemId);
-  for (const variant of variants) {
-    if (tracked.has(`${shopType}:${variant}`)) return true;
-  }
-  const canonical = canonicalItemId(shopType, itemId);
-  if (tracked.has(`${shopType}:${canonical}`)) return true;
-  const lowerTracked = new Set<string>();
-  for (const key of tracked) {
-    lowerTracked.add(key.toLowerCase());
-  }
-  for (const variant of variants) {
-    if (lowerTracked.has(`${shopType}:${variant}`.toLowerCase())) return true;
-  }
-  if (lowerTracked.has(`${shopType}:${canonical}`.toLowerCase())) return true;
-
-  // Weather shops carry items from all categories — if an item is tracked under
-  // its underlying type (e.g. seed:DawnCelestial), it should alert from there too.
-  if (isWeatherShopType(shopType)) {
-    for (const prefix of ['seed', 'egg', 'tool', 'decor'] as const) {
-      const crossCanonical = canonicalItemId(prefix, itemId);
-      if (tracked.has(`${prefix}:${crossCanonical}`)) return true;
-      if (lowerTracked.has(`${prefix}:${crossCanonical}`.toLowerCase())) return true;
-      for (const v of getItemIdVariants(prefix, itemId)) {
-        if (tracked.has(`${prefix}:${v}`)) return true;
-        if (lowerTracked.has(`${prefix}:${v}`.toLowerCase())) return true;
-      }
-    }
-  }
-
-  return false;
 }
 
 // ---------------------------------------------------------------------------

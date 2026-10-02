@@ -19,7 +19,7 @@ import { calculateFeedsPerLevel } from '../../../features/pets/data/petHungerDep
 import { throttle } from '../../../utils/scheduling/scheduling';
 import { getWeatherSnapshot } from '../../../store/weatherHub';
 import type { DetailedWeather } from '../../../utils/game/weatherDetection';
-import { getAbilityName } from '../../../utils/game/catalogHelpers';
+import { arePetAbilitiesCaptured, getAbilityName, onPetAbilitiesCaptured } from '../../../utils/game/catalogHelpers';
 import { onCatalogsReady } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
 import { renderNearMaxSection, type NearMaxState } from './nearMaxSection';
@@ -549,7 +549,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   let lastCardSig: string | null = null;
 
   const buildCardSignature = (pets: ActivePetInfo[]): string => {
-    const parts: string[] = [String(pets.length), String(potionCount), String(Math.round(totalTeamXpPerHour))];
+    const parts: string[] = [String(pets.length), String(potionCount), String(Math.round(totalTeamXpPerHour)), String(arePetAbilitiesCaptured())];
     for (const pet of pets) {
       const petKey = pet.petId ?? pet.slotId ?? `slot:${pet.slotIndex}`;
       const strBucket = pet.strength != null ? Math.floor(pet.strength / 5) : 'x';
@@ -572,6 +572,12 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
     if (latestPets.length === 0) {
       petCardsContainer.appendChild(createEmptyState(t('feature.xpTracker.noActivePets')));
       return;
+    }
+    if (!arePetAbilitiesCaptured()) {
+      const loading = document.createElement('div');
+      loading.textContent = t('common.abilityDataLoading');
+      loading.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);';
+      petCardsContainer.appendChild(loading);
     }
     for (const pet of latestPets) {
       petCardsContainer.appendChild(createPetCard(pet, totalTeamXpPerHour, potionCount, hoverGuard));
@@ -616,6 +622,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
     renderNearMaxSection(nearMaxContainer, nearMaxState, latestPets, totalTeamXpPerHour);
   });
   cleanups.push(unsubCatalogs);
+  cleanups.push(onPetAbilitiesCaptured(() => { if (latestPets.length) updateDisplay(); }));
 
   // Clean up near-max status timer
   cleanups.push(() => {

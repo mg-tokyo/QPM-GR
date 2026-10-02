@@ -8,8 +8,10 @@ import {
   type CosmeticCatalogEntry,
 } from './types';
 import type { WebSocketSendResult } from '../../websocket/api';
+import { sumByCurrency, type CurrencyTotal } from './cartTotals';
 
-export type { SlotType, CosmeticColor, SessionState, CartItem, CosmeticCatalogEntry };
+export type { SlotType, CosmeticColor, SessionState, CartItem, CosmeticCatalogEntry, CurrencyTotal };
+export { sumByCurrency };
 export { SLOT_TYPES, SLOT_CONFIG, AVATAR_SLOT_INDEX, COLORS, COLOR_HEX };
 
 let session: SessionState | null = null;
@@ -153,8 +155,8 @@ export function getCart(): CartItem[] {
   return items;
 }
 
-export function getCartTotal(): number {
-  return getCart().reduce((sum, item) => sum + item.entry.price, 0);
+export function getCartTotals(): CurrencyTotal[] {
+  return sumByCurrency(getCart());
 }
 
 export function markOwned(filename: string): void {

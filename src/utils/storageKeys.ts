@@ -307,6 +307,11 @@ export const QPM_STORAGE_KEYS = [
   // Audio subsystem (per-feature volume overrides)
   'qpm.audio.prefs.v1',
 
+  // NPC Dialogue (Talk-triggered QPM lines)
+  'qpm.npcDialogue.enabled.v1',
+  'qpm.npcDialogue.lines.v1',
+  'qpm.npcDialogue.companionInject.v1',
+
   // WebSocket QuinoaCommand envelope + wire sequencer kill switches
   'qpm.ws.envelope.enabled',
   'qpm.ws.sequencer.enabled',

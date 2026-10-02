@@ -1,12 +1,14 @@
 import { t } from '../../i18n';
 import {
-  getSession, getCart, getCartTotal, getCurrentEntry,
+  getSession, getCart, getCartTotals, getCurrentEntry,
   equipOwnedSlots, resetToEquipped, SLOT_CONFIG,
 } from '../../features/bloblingCustomiser';
 import { startInWorldPreview } from '../../features/bloblingCustomiser/avatarPreview';
 import { getCosmeticCdnUrl } from '../../features/bloblingCustomiser/cosmeticApi';
 import { showPurchasePopup } from './purchasePopup';
+import { buyAndEquipLabel, createTotalsLabel } from './priceLabels';
 import { createButton, type ButtonOptions } from '../components/button';
+import { createCurrencyAmount } from '../components/currencyAmount';
 
 export interface OutfitPanelHandle {
   refresh(): void;
@@ -92,7 +94,7 @@ export function renderOutfitPanel(container: HTMLElement): OutfitPanelHandle {
           status.textContent = '✓';
         } else if (entry.price > 0) {
           status.style.color = 'var(--qpm-gold)';
-          status.textContent = `\u{1F35E} ${entry.price.toLocaleString()}`;
+          status.appendChild(createCurrencyAmount(entry.currency, entry.price));
         }
       }
       row.appendChild(status);
@@ -107,9 +109,8 @@ export function renderOutfitPanel(container: HTMLElement): OutfitPanelHandle {
       totalLabel.style.color = 'var(--qpm-text-muted)';
       totalLabel.textContent = t('feature.bloblingCustomiser.cartTotal');
       totalRow.appendChild(totalLabel);
-      const totalValue = document.createElement('span');
+      const totalValue = createTotalsLabel(getCartTotals(), { size: 14 });
       totalValue.style.color = 'var(--qpm-gold)';
-      totalValue.textContent = `\u{1F35E} ${getCartTotal().toLocaleString()}`;
       totalRow.appendChild(totalValue);
       outfitSection.appendChild(totalRow);
     }
@@ -176,7 +177,7 @@ export function renderOutfitPanel(container: HTMLElement): OutfitPanelHandle {
 
     if (cart.length > 0) {
       const buyAllBtn = makeFullWidthButton(
-        `\u{1F6D2} ${t('feature.bloblingCustomiser.buyAndEquip')} · \u{1F35E} ${getCartTotal().toLocaleString()}`,
+        `\u{1F6D2} ${buyAndEquipLabel(cart.length)}`,
         'primary',
         () => {
           showPurchasePopup(cart, () => refresh());

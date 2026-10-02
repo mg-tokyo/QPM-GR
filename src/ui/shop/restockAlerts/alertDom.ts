@@ -193,7 +193,12 @@ export function removeAlert(key: string): void {
   // Unconditional and ahead of the alert-existence guard: a headless
   // purchaseAndConfirm() has no alert card, and this clear is what settles its
   // promise (with `error: 'purchase cleared'`) when the alert goes away.
-  clearPendingOwnershipConfirmation(key);
+  // Exception: a pending whose purchase is already confirmed and only awaits
+  // its auto-store verdict (bounded by the result timeout) settles itself via
+  // finishDeferredCompletion — clearing it here would misreport the purchase.
+  if (pendingOwnershipConfirmations.get(key)?.deferredCompletionSuffix == null) {
+    clearPendingOwnershipConfirmation(key);
+  }
   stopLoop(key);
   const watcher = alertPurchaseWatchers.get(key);
   if (watcher) {

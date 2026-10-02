@@ -4,8 +4,10 @@ import type {
   OwnershipBaseline,
   PendingOwnershipConfirmation,
   PendingPresenter,
+  PurchaseOutcome,
 } from './types';
 import type { ShopStockItem } from '../../../store/shopStock';
+import type { QuinoaCommandResultMessage } from '../../../websocket/envelope';
 
 let pendingOwnershipConfirmations: Map<string, PendingOwnershipConfirmation>;
 let activeAlerts: Map<string, unknown>;
@@ -20,6 +22,7 @@ let shopStockChangeCallbacks: Map<string, Array<(item: ShopStockItem | null) => 
 let mockShouldLockDismiss: (key: string) => boolean;
 let mockHasReachedCap: () => { reached: boolean; owned: number; limit: number };
 let mockAutoStoreCalls: Array<{ key: string; confirmed: number }>;
+let mockAutoStoreImpl: (p: PendingOwnershipConfirmation) => void;
 let mockMarkDismissedCycle: (key: string, cycleId: string | null) => void;
 let mockRemoveAlert: (key: string) => void;
 
@@ -47,8 +50,12 @@ vi.mock('./alertDom', () => ({
 vi.mock('./purchaseActions', () => ({
   hasReachedToolInventoryCap: () => mockHasReachedCap(),
   shouldLockDismissForPurchaseCompletion: (key: string) => mockShouldLockDismiss(key),
-  maybeAutoStoreConfirmedDelta: async (p: PendingOwnershipConfirmation, confirmed: number) => {
+}));
+
+vi.mock('./autoStore', () => ({
+  maybeAutoStoreConfirmedDelta: (p: PendingOwnershipConfirmation, confirmed: number) => {
     mockAutoStoreCalls.push({ key: p.key, confirmed });
+    mockAutoStoreImpl(p);
   },
 }));
 
@@ -214,6 +221,7 @@ beforeEach(() => {
   mockShouldLockDismiss = () => false;
   mockHasReachedCap = () => ({ reached: false, owned: 0, limit: 0 });
   mockAutoStoreCalls = [];
+  mockAutoStoreImpl = () => { /* no-op */ };
   mockMarkDismissedCycle = () => { /* no-op */ };
   mockRemoveAlert = () => { /* no-op */ };
   vi.resetModules();
@@ -310,5 +318,126 @@ describe('armReactiveConfirmation — late-arm (T4)', () => {
     expect(dismissedInStockKeys.has(pending.key)).toBe(true);
     expect(markedDismissed).toEqual([['seed:CarrotSeed', 'cycle-A']]);
     expect(removedKeys).toEqual(['seed:CarrotSeed']);
+  });
+});
+
+describe('completion waits for the auto-store verdict', () => {
+  function armToolPending(mod: typeof import('./ownershipTracker')) {
+    const presenter = makePresenter();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('tool:ReplenishPotion', presenter, {
+      shopType: 'tool',
+      itemId: 'ReplenishPotion',
+      autoStoreStorageId: 'ToolShack',
+      autoStoreLabel: 'Tool Shack',
+      settle: (o) => { outcomes.push(o); },
+    });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mockShopStockByKey.set(pending.key, makeItem({ category: 'tool', id: 'ReplenishPotion', purchased: 0 }));
+    mod.armReactiveConfirmation(pending);
+    return { pending, presenter, outcomes };
+  }
+
+  it('holds completion while the move is in flight, then reports the confirmed store', async () => {
+    const mod = await loadModule();
+    mockAutoStoreImpl = (p) => { p.autoStoreInFlight = true; };
+    const { pending, presenter, outcomes } = armToolPending(mod);
+
+    fireCallback(pending.key, makeItem({ category: 'tool', id: 'ReplenishPotion', purchased: 1 }));
+    expect(presenter.showCompletionCalls).toBe(0);
+    expect(outcomes).toEqual([]);
+    expect(pendingOwnershipConfirmations.has(pending.key)).toBe(true);
+
+    pending.autoStoreInFlight = false;
+    pending.storedInTargetStorage = true;
+    mod.finishDeferredCompletion(pending);
+    expect(presenter.showCompletionCalls).toBe(1);
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]?.storedIn).toBe('ToolShack');
+    expect(outcomes[0]?.storeNote).toBeUndefined();
+    expect(pendingOwnershipConfirmations.has(pending.key)).toBe(false);
+  });
+
+  it('reports a skipped store as storeNote, never as storedIn', async () => {
+    const mod = await loadModule();
+    mockAutoStoreImpl = (p) => { p.autoStoreSkipReason = 'Tool Shack already holds 99/99'; };
+    const { pending, outcomes } = armToolPending(mod);
+
+    fireCallback(pending.key, makeItem({ category: 'tool', id: 'ReplenishPotion', purchased: 1 }));
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]?.storedIn).toBeNull();
+    expect(outcomes[0]?.storeNote).toBe('Tool Shack already holds 99/99');
+  });
+
+  it('ignores a late verdict once the pending has already been cleared', async () => {
+    const mod = await loadModule();
+    mockAutoStoreImpl = (p) => { p.autoStoreInFlight = true; };
+    const { pending, presenter } = armToolPending(mod);
+    fireCallback(pending.key, makeItem({ category: 'tool', id: 'ReplenishPotion', purchased: 1 }));
+
+    mod.clearPendingOwnershipConfirmation(pending.key);
+    pending.autoStoreInFlight = false;
+    mod.finishDeferredCompletion(pending);
+    expect(presenter.showCompletionCalls).toBe(0);
+  });
+});
+
+describe('Signal C — refused sends', () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => { resolve = r; });
+    return { promise, resolve };
+  }
+  const reply = (ok: boolean, code?: string): QuinoaCommandResultMessage =>
+    ({ type: 'QuinoaCommandResult', requestId: 'r', ok, ...(code ? { code } : {}) } as QuinoaCommandResultMessage);
+  const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
+  it('completes the confirmed units (and runs auto-store) when part of a batch is refused', async () => {
+    const mod = await loadModule();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('seed:CarrotSeed', null, { expectedIncrease: 3, sent: 3, settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mockShopStockByKey.set(pending.key, makeItem({ purchased: 0 }));
+    const replies = [deferred<QuinoaCommandResultMessage>(), deferred<QuinoaCommandResultMessage>(), deferred<QuinoaCommandResultMessage>()];
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: replies.map((d) => ({ units: 1, awaitResult: () => d.promise })) });
+
+    mockShopStockByKey.set(pending.key, makeItem({ purchased: 2 }));
+    fireCallback(pending.key, makeItem({ purchased: 2 }));
+    expect(outcomes).toEqual([]);
+
+    replies[0]!.resolve(reply(true));
+    replies[1]!.resolve(reply(true));
+    replies[2]!.resolve(reply(false, 'rejected'));
+    await flush();
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ sent: 3, confirmed: 2, error: null });
+    expect(mockAutoStoreCalls).toEqual([{ key: 'seed:CarrotSeed', confirmed: 2 }]);
+    expect(pendingOwnershipConfirmations.has(pending.key)).toBe(false);
+  });
+
+  it('fails the pending when every send is refused', async () => {
+    const mod = await loadModule();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('seed:CarrotSeed', null, { expectedIncrease: 1, sent: 1, settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [{ units: 1, awaitResult: async () => reply(false, 'rejected') }] });
+    await flush();
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)' });
+    expect(mockAutoStoreCalls).toEqual([]);
+  });
+
+  it('a refused quantity batch voids all of its units at once', async () => {
+    const mod = await loadModule();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('seed:CarrotSeed', null, { expectedIncrease: 5, sent: 5, settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [{ units: 5, awaitResult: async () => reply(false, 'rejected') }] });
+    await flush();
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ sent: 5, confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)' });
   });
 });

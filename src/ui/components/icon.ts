@@ -47,7 +47,7 @@ function createSpriteImg(url: string, size: number): HTMLImageElement {
   img.src = url;
   img.style.cssText =
     `width:${size}px;height:${size}px;` +
-    'object-fit:contain;image-rendering:pixelated;' +
+    'object-fit:contain;' +
     'vertical-align:middle;flex-shrink:0;';
   img.draggable = false;
   return img;

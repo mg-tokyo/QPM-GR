@@ -11,8 +11,8 @@ import { analyzeCropMutationPotential } from '../garden/cropMutationAnalytics';
 import { isDebugGlobalsEnabled } from '../../utils/debugGlobals';
 import { isRecord } from '../../utils/typeGuards';
 import { getAbilityDef } from '../../catalogs/gameCatalogs';
-import { getWeatherSnapshot } from '../../store/weatherHub';
 import { getAbilityDefinition } from './data/petAbilities';
+import { isRequiredWeatherActive } from './abilityWeatherGate';
 import { classifySizeBoostAbility, type SizeBoostShape } from './data/petAbilities/sizeBoost';
 import { getFriendBonusMultiplier } from '../../store/friendBonus';
 const MIN_SCALE = 1;
@@ -118,15 +118,6 @@ function normalizeWeatherRequirement(value: unknown): 'sunny' | 'rain' | 'snow' 
   if (normalized === 'amber' || normalized === 'ambermoon') return 'amber';
   if (normalized === 'thunderstorm' || normalized === 'thunder') return 'thunderstorm';
   return null;
-}
-
-function getCurrentWeatherKind(): 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'unknown' {
-  return getWeatherSnapshot().kind;
-}
-
-function isRequiredWeatherActive(requirement: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null): boolean {
-  if (!requirement) return true;
-  return getCurrentWeatherKind() === requirement;
 }
 
 function formatRequiredWeatherLabel(requirement: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null): string {

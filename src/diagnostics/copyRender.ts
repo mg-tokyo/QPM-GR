@@ -42,6 +42,7 @@ export interface ReportInput {
   readonly flagsLine: string | null;
   readonly perfLine: string | null;
   readonly restockLine: string | null;
+  readonly npcDialogueLine: string | null;
   readonly subsystems: readonly SubsystemHealth[];
   readonly aggregate: 'ok' | 'degraded' | 'failed';
   readonly gameStateProblemLines: readonly string[];
@@ -224,6 +225,7 @@ export function renderReport(input: ReportInput, opts: CopyPayloadOptions = DEFA
   if (opts.flags && input.flagsLine) headerLines.push(input.flagsLine);
   if (opts.perf && input.perfLine) headerLines.push(input.perfLine);
   if (input.restockLine) headerLines.push(input.restockLine);
+  if (input.npcDialogueLine) headerLines.push(input.npcDialogueLine);
 
   if (opts.aggregate) {
     headerLines.push(`Overall: ${input.aggregate}  (${okCount} ok / ${degradedCount} degraded / ${failedCount} failed)`);

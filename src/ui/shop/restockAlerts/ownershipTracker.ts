@@ -51,11 +51,11 @@ import {
 
 // Forward imports (circular — safe in esbuild IIFE)
 import { updateAlertQuantity, removeAlert } from './alertDom';
-import { hasReachedToolInventoryCap, shouldLockDismissForPurchaseCompletion, maybeAutoStoreConfirmedDelta } from './purchaseActions';
+import { hasReachedToolInventoryCap, shouldLockDismissForPurchaseCompletion } from './purchaseActions';
+import { maybeAutoStoreConfirmedDelta } from './autoStore';
 import { processShopStock, markDismissedCycle } from './stockProcessor';
 import { getShopStockState, getShopStockItemByKey, onShopStockItemChange, type ShopStockItem } from '../../../store/shopStock';
-import type { CycleFingerprint } from './types';
-import type { QuinoaCommandResultMessage } from '../../../websocket/envelope';
+import type { CycleFingerprint, PurchaseCommandAwait } from './types';
 
 // ---------------------------------------------------------------------------
 // Debug helpers
@@ -269,7 +269,7 @@ function cycleRolled(prev: CycleFingerprint | null, next: CycleFingerprint | nul
  */
 export function armReactiveConfirmation(
   pending: PendingOwnershipConfirmation,
-  options: { rejectionAwaits?: Array<() => Promise<QuinoaCommandResultMessage>> } = {},
+  options: { rejectionAwaits?: PurchaseCommandAwait[] } = {},
 ): void {
   for (const teardown of pending.cleanups) {
     try { teardown(); } catch { /* ignore */ }
@@ -295,13 +295,7 @@ export function armReactiveConfirmation(
       debugLog('Pending late-armed on first item appearance', { key, purchasedAtBaseline: item.purchased });
       return;
     }
-    if (item && latest.shopPurchasesBaseline != null) {
-      const delta = Math.max(0, item.purchased - latest.shopPurchasesBaseline);
-      if (delta >= latest.expectedIncrease) {
-        completeFromShopPurchases(latest, delta);
-        return;
-      }
-    }
+    if (completeIfShopPurchasesReached(latest, item)) return;
     const nextFp = fingerprintCycle(item);
     if (cycleRolled(latest.cycleArmFp, nextFp)) {
       debugLog('Pending failed: shop cycle rolled', { key, armFp: latest.cycleArmFp, nextFp });
@@ -310,20 +304,24 @@ export function armReactiveConfirmation(
   });
   pending.cleanups.push(cycleUnsub);
 
-  if (options.rejectionAwaits && options.rejectionAwaits.length > 0) {
-    let rejected = false;
-    for (const awaitResult of options.rejectionAwaits) {
-      awaitResult().then((r) => {
-        if (rejected) return;
-        if (r.ok || r.resentAsLegacy || r.code === 'handler_error') return;
-        rejected = true;
-        const latest = pendingOwnershipConfirmations.get(key);
-        if (!latest) return;
-        const code = typeof r.code === 'string' ? r.code : 'rejected';
-        debugLog('Pending failed: envelope reject', { key, code });
+  // Signal C: a refused command (sold out, not enough coins) never executed, so
+  // all of its units leave the expected growth. Units from other commands that
+  // did land still complete — and auto-store — normally.
+  for (const { units, awaitResult } of options.rejectionAwaits ?? []) {
+    awaitResult().then((r) => {
+      if (r.ok || r.resentAsLegacy || r.code === 'handler_error') return;
+      if (pendingOwnershipConfirmations.get(key) !== pending) return;
+      pending.expectedIncrease = Math.max(0, pending.expectedIncrease - units);
+      debugLog('Pending send refused by server', { key, code: r.code, expectedIncrease: pending.expectedIncrease, confirmed: pending.confirmed });
+      if (pending.expectedIncrease === 0) {
         failPendingAndDismissForCycle(key, 'Shop rejected the purchase (sold out or not enough coins)');
-      }).catch(() => { /* timeout = unknown outcome; other signals decide */ });
-    }
+      } else if (pending.confirmed >= pending.expectedIncrease) {
+        void maybeAutoStoreConfirmedDelta(pending, pending.confirmed);
+        completePending(pending, '');
+      } else if (!completeIfShopPurchasesReached(pending, getShopStockItemByKey(key))) {
+        processPendingOwnershipConfirmations();
+      }
+    }).catch(() => { /* timeout = unknown outcome; other signals decide */ });
   }
 }
 
@@ -359,30 +357,60 @@ export function failPendingAndDismissForCycle(key: string, reason: string): void
   removeAlert(key);
 }
 
+/** Signal A: the server's purchase counter has grown by the expected amount. */
+function completeIfShopPurchasesReached(pending: PendingOwnershipConfirmation, item: ShopStockItem | null): boolean {
+  if (!item || pending.shopPurchasesBaseline == null) return false;
+  const delta = Math.max(0, item.purchased - pending.shopPurchasesBaseline);
+  if (delta < pending.expectedIncrease) return false;
+  completeFromShopPurchases(pending, delta);
+  return true;
+}
+
 function completeFromShopPurchases(pending: PendingOwnershipConfirmation, delta: number): void {
   const confirmed = Math.min(pending.expectedIncrease, delta);
   if (confirmed <= pending.confirmed) return;
   pending.confirmed = confirmed;
   void maybeAutoStoreConfirmedDelta(pending, confirmed);
-  const completed = pending.confirmed >= pending.expectedIncrease;
-  if (!completed) {
+  if (pending.confirmed < pending.expectedIncrease) {
     pending.presenter?.showProgress(confirmed, pending.sent);
     return;
   }
+  debugLog('Pending completed via shopPurchases delta', { key: pending.key, confirmed: pending.confirmed, baseline: pending.shopPurchasesBaseline });
+  completePending(pending, '');
+}
+
+/** Settle a fully confirmed pending. Held back while its auto-store move awaits the server's verdict. */
+function completePending(pending: PendingOwnershipConfirmation, completionSuffix: string): void {
+  if (pending.autoStoreInFlight) {
+    pending.deferredCompletionSuffix = completionSuffix;
+    // The purchase itself is confirmed; only the storage move is outstanding.
+    if (pending.maxTimeoutTimerId != null) window.clearTimeout(pending.maxTimeoutTimerId);
+    pending.maxTimeoutTimerId = null;
+    debugLog('Completion deferred until auto-store verdict', { key: pending.key, storageId: pending.autoStoreStorageId });
+    return;
+  }
+  pending.deferredCompletionSuffix = null;
+  const storeNote = !pending.storedInTargetStorage && pending.autoStoreSkipReason ? pending.autoStoreSkipReason : null;
   const storedNote = pending.storedInTargetStorage && pending.autoStoreLabel
     ? ` + moved to ${pending.autoStoreLabel}`
-    : '';
+    : (storeNote ? ` (kept in inventory: ${storeNote})` : '');
   const lockDismissForCycle = shouldLockDismissForPurchaseCompletion(pending.key);
-  debugLog('Pending completed via shopPurchases delta', {
+  debugLog('Ownership confirmation completed; scheduling alert removal', {
     key: pending.key,
     confirmed: pending.confirmed,
     expectedIncrease: pending.expectedIncrease,
-    baseline: pending.shopPurchasesBaseline,
+    storedInTargetStorage: pending.storedInTargetStorage,
+    autoStoreLabel: pending.autoStoreLabel,
+    storeNote,
+    stockCycleId: pending.stockCycleId,
+    lockDismissForCycle,
+    completionSuffix,
+    headless: pending.presenter === null,
   });
   pending.presenter?.showCompletion({
     confirmed: pending.confirmed,
     storedNote,
-    completionSuffix: '',
+    completionSuffix,
     lockDismissForCycle,
     stockCycleId: pending.stockCycleId,
   });
@@ -390,6 +418,7 @@ function completeFromShopPurchases(pending: PendingOwnershipConfirmation, delta:
     sent: pending.sent,
     confirmed: pending.confirmed,
     storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
+    ...(storeNote ? { storeNote } : {}),
     error: null,
     timedOut: false,
   };
@@ -397,6 +426,13 @@ function completeFromShopPurchases(pending: PendingOwnershipConfirmation, delta:
   pending.settle = null;
   settle?.(outcome);
   clearPendingOwnershipConfirmation(pending.key);
+}
+
+/** Auto-store verdict arrived: finish a completion that was held back for it, if this pending is still live. */
+export function finishDeferredCompletion(pending: PendingOwnershipConfirmation): void {
+  if (pending.deferredCompletionSuffix == null) return;
+  if (pendingOwnershipConfirmations.get(pending.key) !== pending) return;
+  completePending(pending, pending.deferredCompletionSuffix);
 }
 
 export function clearPendingOwnershipConfirmation(key: string): void {
@@ -535,44 +571,7 @@ export function processPendingOwnershipConfirmations(): void {
 
     const completed = pending.confirmed >= pending.expectedIncrease || completedByToolCap;
     if (completed) {
-      const storedNote = pending.storedInTargetStorage && pending.autoStoreLabel
-        ? ` + moved to ${pending.autoStoreLabel}`
-        : '';
-      const completionSuffix = completedByToolCap
-        ? ` (inventory full ${capState.owned}/${capState.limit})`
-        : '';
-      const lockDismissForCycle = shouldLockDismissForPurchaseCompletion(key);
-      debugLog('Ownership confirmation completed; scheduling alert removal', {
-        key,
-        confirmed: pending.confirmed,
-        expectedIncrease: pending.expectedIncrease,
-        storedInTargetStorage: pending.storedInTargetStorage,
-        autoStoreLabel: pending.autoStoreLabel,
-        stockCycleId: pending.stockCycleId,
-        lockDismissForCycle,
-        completedByToolCap,
-        capOwned: capState.owned,
-        capLimit: capState.limit,
-        headless: pending.presenter === null,
-      });
-      pending.presenter?.showCompletion({
-        confirmed: pending.confirmed,
-        storedNote,
-        completionSuffix,
-        lockDismissForCycle,
-        stockCycleId: pending.stockCycleId,
-      });
-      const outcome: PurchaseOutcome = {
-        sent: pending.sent,
-        confirmed: pending.confirmed,
-        storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
-        error: null,
-        timedOut: false,
-      };
-      const settle = pending.settle;
-      pending.settle = null;
-      settle?.(outcome);
-      clearPendingOwnershipConfirmation(key);
+      completePending(pending, completedByToolCap ? ` (inventory full ${capState.owned}/${capState.limit})` : '');
       continue;
     }
 

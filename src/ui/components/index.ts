@@ -5,6 +5,7 @@ export { createSpinner } from './spinner';
 export { createEmptyState, type EmptyStateOptions } from './emptyState';
 export { createProgressBar, type ProgressBarOptions } from './progressBar';
 export { renderIcon, type IconOptions } from './icon';
+export { createCurrencyAmount, type CurrencyAmountOptions } from './currencyAmount';
 export { createMutationBadge, type MutationBadgeOptions } from './mutationBadge';
 export { createRarityBadge } from './rarityBadge';
 

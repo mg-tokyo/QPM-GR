@@ -61,7 +61,6 @@ Ordered by string count (smallest → largest). Each invocation of `/language` p
 | 15 | Controller Section | `sections/controllerSection.ts` | ~20 | done | done | done | pending |
 | 16 | Guide Section | `sections/guideSection.ts` | ~20 | done | done | done | pending |
 | 17 | Stats Header Section | `sections/statsHeaderSection.ts` | ~20 | done | done | done | pending |
-| 18 | Stats Overview Section | `sections/statsOverviewSection.ts` | ~15 | done | done | done | pending |
 | 19 | Stats Section | `sections/statsSection.ts` | ~10 | done | done | done | pending |
 | 20 | Dashboard Modules | `sections/dashboardModules.ts` | ~15 | done | done | done | pending |
 | 21 | Trackers Section | `sections/trackersSection.ts` | ~10 | done | done | done | pending |

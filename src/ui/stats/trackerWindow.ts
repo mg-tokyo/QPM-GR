@@ -11,6 +11,9 @@ import {
   type AbilityValuationContext,
 } from '../../features/pets/abilityValuation';
 import { onGardenSnapshot } from '../../features/garden/bridge';
+import { getInactiveWeatherLabel } from '../../features/pets/abilityWeatherGate';
+import { getWeatherSnapshot, onWeatherSnapshot } from '../../store/weatherHub';
+import { arePetAbilitiesCaptured, onPetAbilitiesCaptured } from '../../utils/game/catalogHelpers';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { t } from '../../i18n';
 
@@ -109,6 +112,8 @@ interface ActiveAbility {
   procsPerHour: number;
   coinsPerHour: number | null;
   suppressRateDisplay?: boolean;
+  /** Set while the ability's required weather is inactive: row greyed, excluded from totals. */
+  inactiveWeather: string | null;
 }
 
 const SUPPRESS_RATE_ABILITY_IDS = new Set(['ProduceMutationBoost', 'ProduceMutationBoostII']);
@@ -134,7 +139,7 @@ function resolvePetAbilities(pet: ActivePetInfo, gardenCtx?: AbilityValuationCon
         } catch { /* ignore if garden not ready */ }
       }
     }
-    result.push({ def, raw, procsPerHour: stats.procsPerHour, coinsPerHour, suppressRateDisplay: SUPPRESS_RATE_ABILITY_IDS.has(def.id) });
+    result.push({ def, raw, procsPerHour: stats.procsPerHour, coinsPerHour, suppressRateDisplay: SUPPRESS_RATE_ABILITY_IDS.has(def.id), inactiveWeather: getInactiveWeatherLabel(def) });
   }
   return result;
 }
@@ -187,6 +192,13 @@ function buildAbilityRow(
   name.textContent = ability.def.name;
   name.style.cssText = 'flex:1;font-size:12px;color:var(--qpm-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   row.appendChild(name);
+  if (ability.inactiveWeather) {
+    const weatherTag = document.createElement('span');
+    weatherTag.textContent = ability.inactiveWeather;
+    weatherTag.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);flex-shrink:0;white-space:nowrap;';
+    row.appendChild(weatherTag);
+    row.style.opacity = '0.55';
+  }
 
   // Fixed-width stat columns — widths match the card column header for alignment.
   const procsChip = document.createElement('span');
@@ -489,7 +501,7 @@ function getTotals(pets: ActivePetInfo[], gardenCtx?: AbilityValuationContext): 
     if (!abilities.length) continue;
     petCount++;
     for (const a of abilities) {
-      if (!a.suppressRateDisplay) {
+      if (!a.suppressRateDisplay && !a.inactiveWeather) {
         procsPerHour += a.procsPerHour;
         coinsPerHour += a.coinsPerHour ?? 0;
       }
@@ -569,7 +581,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   let lastRenderSig: string | null = null;
 
   const buildRenderSignature = (pets: ActivePetInfo[]): string => {
-    const parts: string[] = [String(pets.length)];
+    const parts: string[] = [String(pets.length), getWeatherSnapshot().kind, String(arePetAbilitiesCaptured())];
     for (const pet of pets) {
       const petKey = getCardPetKey(pet);
       const abilities = (pet.abilities ?? []).join(',');
@@ -632,7 +644,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
     if (!hasCards) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding:24px;text-align:center;color:var(--qpm-text-muted);font-size:12px;';
-      empty.textContent = t('feature.abilityTracker.noAbilities');
+      empty.textContent = arePetAbilitiesCaptured() ? t('feature.abilityTracker.noAbilities') : t('common.abilityDataLoading');
       cardsContainer.appendChild(empty);
     }
 
@@ -650,6 +662,8 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   const throttledHistoryRender = throttle(() => { render(); }, 400);
   const unsubHistory = onAbilityHistoryUpdate(() => { throttledHistoryRender(); });
   cleanups.push(unsubHistory);
+  cleanups.push(onWeatherSnapshot(() => { throttledHistoryRender(); }, false));
+  cleanups.push(onPetAbilitiesCaptured(() => { throttledHistoryRender(); }));
 
   const throttledGardenRender = throttle(() => { render(); }, 2000);
   const unsubGarden = onGardenSnapshot(() => { throttledGardenRender(); });
