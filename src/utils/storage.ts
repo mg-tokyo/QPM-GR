@@ -6,9 +6,11 @@ import {
   isMirrorAvailable,
   mirrorGet,
   mirrorHas,
+  mirrorIsDeleted,
   mirrorKeys,
   mirrorRemove,
   mirrorSet,
+  pruneMirrorDeletions,
   setMirrorFailureHandler,
 } from './storageMirror';
 export { QPM_STORAGE_KEYS, SHOP_ENHANCER_MODE_KEY, SHOP_ENHANCER_MODES, type ShopEnhancerMode } from './storageKeys';
@@ -290,6 +292,8 @@ export function initializeStorage(): Promise<void> {
       if (runtime === 'modern-gm') await hydrateFromModernGm();
       migrateLocalMirrors();
       for (const key of ORPHANED_KEYS) storage.remove(key);
+      // Modern GM has no sync read to confirm the old value is gone, so its markers stay.
+      pruneMirrorDeletions((key) => runtime === 'modern-gm' || (runtime === 'legacy-gm' ? readGmRaw(key) : readLocalRaw(key)) != null);
     } catch {}
     // Reads issued before hydration cached fallbacks for keys hydration just populated;
     // clear so the next get() re-reads from the freshly-hydrated mirror.
@@ -363,6 +367,11 @@ export const storage: Storage = {
     // Mirror first: it is written synchronously, so it is fresher than GM values a
     // script manager baked in at page load. GM is the durable fallback; a leftover
     // localStorage copy only matters for reads issued before the mirror hydrated.
+    // A removal marker also beats GM, which may still serve the removed value.
+    if (mirrorIsDeleted(key)) {
+      readCache.set(key, READ_CACHE_MISSING);
+      return fallback;
+    }
     let raw = mirrorRead(key);
     if (raw == null) raw = readGmRaw(key);
     if (raw == null) raw = readLocalRaw(key);

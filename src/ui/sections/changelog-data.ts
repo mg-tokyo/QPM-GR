@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.51",
+    date: "2026-10-03",
+    notes: [
+      "Added a 3D camera, on by default: scroll past max zoom to tilt the garden into a 3D view and keep scrolling for first person, right-drag to look around, Shift + right-click for mouse look in first person, and scroll out to return",
+      "Added 3D camera settings in the Config tab: turn it off, first person, camera-relative movement (W walks away from the camera), invert vertical look, look sensitivity and detail distance",
+      "Added weather to the 3D view: rain and frost fall in front of you and thunderstorms strike with standing lightning bolts",
+      "Added your held item to the first-person view, and tile area indicators are drawn in proper perspective while the camera is tilted",
+      "Improved QPM performance on Firefox with Tampermonkey, most noticeably in the 3D camera",
+    ],
+  },
+  {
     version: "3.3.50",
     date: "2026-10-02",
     notes: [

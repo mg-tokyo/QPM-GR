@@ -312,6 +312,15 @@ export const QPM_STORAGE_KEYS = [
   'qpm.npcDialogue.lines.v1',
   'qpm.npcDialogue.companionInject.v1',
 
+  // 3D camera
+  'qpm.camera3d.enabled.v1',
+  'qpm.camera3d.firstPerson.v1',
+  'qpm.camera3d.camMove.v1',
+  'qpm.camera3d.invertY.v1',
+  'qpm.camera3d.sensitivity.v1',
+  'qpm.camera3d.detail.v1',
+  'qpm.camera3d.hints.v1',
+
   // WebSocket QuinoaCommand envelope + wire sequencer kill switches
   'qpm.ws.envelope.enabled',
   'qpm.ws.sequencer.enabled',

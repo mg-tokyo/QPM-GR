@@ -46,6 +46,12 @@ export interface TourStep {
    * 'dismiss' = advance only via Next button (default).
    */
   readonly advanceOn?: TourAdvanceMode;
+
+  /**
+   * Advance on an outside event: subscribed when the step shows, returns its unsubscribe. `advance` may be called
+   * synchronously or repeatedly; only the first call counts. The Next button is hidden on these steps.
+   */
+  readonly advanceWhen?: (advance: () => void) => () => void;
 }
 
 /** A complete tour definition — pure data, no behavior */

@@ -110,6 +110,11 @@ describe('renderReport header', () => {
     expect(out).toContain(line);
     expect(out).toContain(`\n${line}\nOverall: ok`);
   });
+
+  it('threads the camera3dLine through after the NPC dialogue line', () => {
+    const out = renderReport(input({ npcDialogueLine: 'NpcDialogue: x', camera3dLine: '3D: on live=0 s=0.00 fp=0 detail=M caps=ok fails=0' }));
+    expect(out.indexOf('3D: on live=0')).toBeGreaterThan(out.indexOf('NpcDialogue: x'));
+  });
 });
 
 describe('renderReport errors', () => {

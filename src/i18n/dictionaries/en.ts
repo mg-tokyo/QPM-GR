@@ -2173,6 +2173,22 @@ const en: Dictionary = {
   'feature.npcDialogue.lineLabel.inventoryFull': 'Inventory nearly full (Companion only)',
   'feature.npcDialogue.companionInject.label': "Also speak through the Companion (Arie's Mod)",
   'feature.npcDialogue.companionInject.caption': "Uses an undocumented Companion surface — may stop working after an Arie's Mod update.",
+  'feature.camera3d.title': '3D camera',
+  'feature.camera3d.caption': 'Scroll past max zoom to tilt the garden into a 3D view.',
+  'feature.camera3d.summaryOn': 'On · scroll past max zoom',
+  'feature.camera3d.enable': 'Enable 3D camera',
+  'feature.camera3d.firstPerson': 'First person at the end of the zoom',
+  'feature.camera3d.camMove': 'Camera-relative movement',
+  'feature.camera3d.invertY': 'Invert vertical look',
+  'feature.camera3d.sensitivity': 'Look sensitivity',
+  'feature.camera3d.detail': 'Detail distance',
+  'feature.camera3d.detail.near': 'Near',
+  'feature.camera3d.detail.medium': 'Medium',
+  'feature.camera3d.detail.far': 'Far',
+  'feature.camera3d.help': 'Right-drag to look around · Shift + right-click for mouse look in first person · scroll out to return.',
+  'feature.camera3d.hint.detent': 'Keep scrolling to switch to the 3D view. Turn it off in QPM → Config → 3D camera.',
+  'feature.camera3d.hint.firstEntry': '3D view: right-drag to look around, scroll out to go back.',
+  'feature.camera3d.hint.lockError': 'Mouse look is not available here. Right-drag to look around instead.',
 };
 
 export default en;

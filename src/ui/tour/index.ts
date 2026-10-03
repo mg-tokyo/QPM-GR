@@ -1,6 +1,7 @@
 // src/ui/tour/index.ts
 // Public API for the tour system.
 
+import { getCamera3dRuntime, getCamera3dView, onCamera3dViewChange, type Camera3dView } from '../../features/camera3d';
 import { getWindow } from '../core/modalWindow';
 import { check, replayTour, teardown, isActive } from './engine';
 import { registerTour, hasTour, getAllTours, hasHelp, getAllDiscoveryWindowIds } from './registry';
@@ -40,6 +41,7 @@ export async function initTourSystem(): Promise<void> {
     { xpTrackerTour },
     { turtleTimerTour },
     { battleshipTour },
+    { camera3dTour },
   ] = await Promise.all([
     import('./tours/welcome'),
     import('./tours/panel/shell'),
@@ -55,6 +57,7 @@ export async function initTourSystem(): Promise<void> {
     import('./tours/trackers/xpTracker'),
     import('./tours/trackers/turtleTimer'),
     import('./tours/garden/battleship'),
+    import('./tours/garden/camera3d'),
   ]);
 
   registerTour(welcomeTour);
@@ -71,6 +74,7 @@ export async function initTourSystem(): Promise<void> {
   registerTour(xpTrackerTour);
   registerTour(turtleTimerTour);
   registerTour(battleshipTour);
+  registerTour(camera3dTour);
 
   migrateLegacyTutorial(welcomeTour.version);
 
@@ -113,6 +117,23 @@ export async function initTourSystem(): Promise<void> {
   regHelp(cropBoostHelp);
   regHelp(xpTrackerHelp);
   regHelp(turtleTimerHelp);
+}
+
+/**
+ * Offers the 3D camera tour the first time 3D is ready this session. Mouse devices only: looking around is a
+ * right-drag. Returns the disposer.
+ */
+export function watchCamera3dTour(): () => void {
+  if (typeof window.matchMedia !== 'function' || !window.matchMedia('(any-pointer: fine)').matches) return () => {};
+  const start = (v: Camera3dView): boolean => {
+    const canvas = getCamera3dRuntime()?.caps.scene.renderer.canvas;
+    if (!v.ready || !canvas) return false;
+    check('camera3d', canvas);
+    return true;
+  };
+  if (start(getCamera3dView())) return () => {};
+  const off = onCamera3dViewChange((v) => { if (start(v)) off(); });
+  return off;
 }
 
 /**

@@ -356,6 +356,7 @@ export function updateOverlayStep(params: UpdateStepParams): void {
   const newNext = overlay.nextBtn.cloneNode(true) as HTMLElement;
   overlay.nextBtn.replaceWith(newNext);
   overlay.nextBtn = newNext;
+  newNext.style.display = step.advanceWhen ? 'none' : '';
   newNext.addEventListener('click', (e) => { e.stopPropagation(); onNext(); });
 }
 

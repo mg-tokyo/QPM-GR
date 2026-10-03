@@ -15,9 +15,12 @@ interface MirrorRow {
   key: string;
   raw: string;
   savedAt: number;
+  // A removal: the script manager may still serve the old value until it re-bakes.
+  deleted?: true;
 }
 
 const cache = new Map<string, string>();
+const deleted = new Set<string>();
 let available = false;
 let hydrated = false;
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -79,7 +82,9 @@ export async function hydrateMirror(): Promise<boolean> {
       req.onerror = () => reject(req.error);
     });
     for (const row of rows) {
-      if (typeof row?.key === 'string' && typeof row.raw === 'string') cache.set(row.key, row.raw);
+      if (typeof row?.key !== 'string') continue;
+      if (row.deleted === true) deleted.add(row.key);
+      else if (typeof row.raw === 'string') cache.set(row.key, row.raw);
     }
     available = true;
   } catch {
@@ -100,8 +105,13 @@ export function mirrorGet(key: string): string | null {
   return cache.get(key) ?? null;
 }
 
+/** True when the mirror holds the key's current state, a removal included. */
 export function mirrorHas(key: string): boolean {
-  return cache.has(key);
+  return cache.has(key) || deleted.has(key);
+}
+
+export function mirrorIsDeleted(key: string): boolean {
+  return deleted.has(key);
 }
 
 export function mirrorKeys(): string[] {
@@ -110,12 +120,23 @@ export function mirrorKeys(): string[] {
 
 export function mirrorSet(key: string, raw: string): void {
   cache.set(key, raw);
+  deleted.delete(key);
   enqueue(key, (store) => { store.put({ key, raw, savedAt: Date.now() } satisfies MirrorRow); });
 }
 
 export function mirrorRemove(key: string): void {
   cache.delete(key);
-  enqueue(key, (store) => { store.delete(key); });
+  deleted.add(key);
+  enqueue(key, (store) => { store.put({ key, raw: '', savedAt: Date.now(), deleted: true } satisfies MirrorRow); });
+}
+
+/** Drops removal markers once `isStale` says nothing durable still serves the old value. */
+export function pruneMirrorDeletions(isStale: (key: string) => boolean): void {
+  for (const key of Array.from(deleted)) {
+    if (isStale(key)) continue;
+    deleted.delete(key);
+    enqueue(key, (store) => { store.delete(key); });
+  }
 }
 
 /** Resolves once every queued write has settled — for tests and pre-unload flushes. */

@@ -43,6 +43,7 @@ import { startStorageValueOverlay } from '../ui/economy/storageValueOverlay';
 import { startInventoryCapacity } from '../features/economy/inventoryCapacity';
 import { startInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOverlay';
 import { startNpcDialogue } from '../features/npcDialogue';
+import { startCamera3d } from '../features/camera3d';
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from '../features/standalone/textureSwapper';
 import { exposeAriesBridge } from '../integrations/ariesBridge';
 import { startNativeCardViewDiagnostics } from '../integrations/nativeCardView';
@@ -195,6 +196,7 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   startInventoryCapacity();
   startInventoryCapacityOverlay();
   startNpcDialogue();
+  startCamera3d();
   // RiveEngine: started in init(), right after initCatalogLoader, to race
   // ahead of the game's first rive.load(). Texture swapper depends on the
   // engine being initialized — it is, by this phase.

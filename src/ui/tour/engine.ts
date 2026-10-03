@@ -35,6 +35,7 @@ interface ActiveTour {
   currentTarget: HTMLElement | null;
   rafId: number | null;
   clickHandler: ((e: Event) => void) | null;
+  stepWatchOff: (() => void) | null;
 }
 
 interface QueuedTour {
@@ -194,6 +195,26 @@ function markCompleted(): void {
   });
 }
 
+function clearStepWatch(): void {
+  const off = activeTour?.stepWatchOff;
+  if (!activeTour || !off) return;
+  activeTour.stepWatchOff = null;
+  try { off(); } catch (err) { logTourFailure('QPM-TOUR-001', { phase: 'stepWatchOff' }, err); }
+}
+
+/** Shared by Next, click-advance and advanceWhen; a call for a step that is no longer current is ignored. */
+function advancePast(index: number, from: string): void {
+  if (!activeTour || activeTour.currentStepIndex !== index) return;
+  const { definition } = activeTour;
+  writeTourProgress(definition.windowId, { version: definition.version, lastCompletedStep: index, completed: false });
+  showStep(index + 1).catch((err) => {
+    logTourFailure('QPM-TOUR-001', { phase: 'showStep', from, windowId: definition.windowId, stepIndex: index + 1 }, err);
+    teardown().catch((teardownErr) => {
+      logTourFailure('QPM-TOUR-001', { phase: 'teardown', from }, teardownErr);
+    });
+  });
+}
+
 async function showStep(index: number): Promise<void> {
   if (!activeTour) return;
 
@@ -215,6 +236,7 @@ async function showStep(index: number): Promise<void> {
     document.removeEventListener('click', activeTour.clickHandler, true);
     activeTour.clickHandler = null;
   }
+  clearStepWatch();
 
   stopPositionTracking();
 
@@ -242,19 +264,7 @@ async function showStep(index: number): Promise<void> {
       stepIndex: index,
       totalSteps: steps.length,
       isLastStep,
-      onNext: () => {
-        writeTourProgress(definition.windowId, {
-          version: definition.version,
-          lastCompletedStep: index,
-          completed: false,
-        });
-        showStep(index + 1).catch((err) => {
-          logTourFailure('QPM-TOUR-001', { phase: 'showStep', from: 'onNext', windowId: definition.windowId, stepIndex: index + 1 }, err);
-          teardown().catch((teardownErr) => {
-            logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'onNext' }, teardownErr);
-          });
-        });
-      },
+      onNext: () => advancePast(index, 'onNext'),
       onSkip: () => {
         markCompleted();
         teardown().catch((err) => {
@@ -274,22 +284,27 @@ async function showStep(index: number): Promise<void> {
       if (target.contains(e.target as Node)) {
         document.removeEventListener('click', handler, true);
         activeTour!.clickHandler = null;
-
-        writeTourProgress(definition.windowId, {
-          version: definition.version,
-          lastCompletedStep: index,
-          completed: false,
-        });
-        showStep(index + 1).catch((stepErr) => {
-          logTourFailure('QPM-TOUR-001', { phase: 'showStep', from: 'clickAdvance', windowId: definition.windowId, stepIndex: index + 1 }, stepErr);
-          teardown().catch((teardownErr) => {
-            logTourFailure('QPM-TOUR-001', { phase: 'teardown', from: 'clickAdvance' }, teardownErr);
-          });
-        });
+        advancePast(index, 'clickAdvance');
       }
     };
     activeTour.clickHandler = handler;
     document.addEventListener('click', handler, true);
+  }
+
+  if (step.advanceWhen) {
+    const tour = activeTour;
+    let fired = false;
+    // Deferred so a synchronous call (condition already met) lands after stepWatchOff is stored.
+    const advance = (): void => {
+      if (fired || activeTour !== tour) return;
+      fired = true;
+      queueMicrotask(() => { if (activeTour === tour) advancePast(index, 'advanceWhen'); });
+    };
+    try {
+      tour.stepWatchOff = step.advanceWhen(advance);
+    } catch (err) {
+      logTourFailure('QPM-TOUR-001', { phase: 'advanceWhen', windowId: definition.windowId, stepId: step.id }, err);
+    }
   }
 
   startPositionTracking();
@@ -306,6 +321,7 @@ export async function teardown(): Promise<void> {
   if (activeTour.clickHandler) {
     document.removeEventListener('click', activeTour.clickHandler, true);
   }
+  clearStepWatch();
 
   activeTour = null;
   try {
@@ -336,6 +352,7 @@ export async function startTour(definition: TourDefinition, windowBody: HTMLElem
     currentTarget: null,
     rafId: null,
     clickHandler: null,
+    stepWatchOff: null,
   };
 
   try {

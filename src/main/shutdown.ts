@@ -15,6 +15,7 @@ import { stopPetsWindow } from '../ui/pets/petsWindow';
 import { stopInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOverlay';
 import { stopInventoryCapacity } from '../features/economy/inventoryCapacity';
 import { stopNpcDialogue } from '../features/npcDialogue';
+import { stopCamera3d } from '../features/camera3d';
 import { stopStorageValueOverlay } from '../ui/economy/storageValueOverlay';
 import { stopStorageValue } from '../features/economy/storageValue';
 import { stopSeedSiloStore } from '../store/seedSilo';
@@ -73,6 +74,8 @@ export const disposers = {
   // @rive-app/canvas-advanced rive instance the moment a RiveFile constructor
   // runs. Auto-removes itself once both expected runtimes are wrapped.
   canvasRuntimeTrap: null as (() => void) | null,
+  // Waits for the 3D camera to be ready, then offers its tour once.
+  camera3dTour: null as (() => void) | null,
 };
 
 // Global error filter to silence noisy external proxy errors
@@ -111,6 +114,9 @@ export function installGlobalHandlers(): void {
     stopPetTeamsStore();
     stopPetActivityStore();
     stopPetsWindow();
+    try { disposers.camera3dTour?.(); } catch { /* best effort */ }
+    disposers.camera3dTour = null;
+    stopCamera3d();
     stopNpcDialogue();
     stopInventoryCapacityOverlay();
     stopInventoryCapacity();

@@ -393,7 +393,7 @@ async function initialize(): Promise<void> {
   // calls checkTour('panel-shell') and checkTour('panel-home'). If tours aren't
   // registered yet, the lookup silently returns undefined and those tours never
   // fire — not even on later panel opens.
-  const { initTourSystem, checkTour } = await import('../ui/tour');
+  const { initTourSystem, checkTour, watchCamera3dTour } = await import('../ui/tour');
   await initTourSystem();
 
   // Create UI (needs sprites to be ready)
@@ -483,6 +483,7 @@ async function initialize(): Promise<void> {
     if (panel) {
       checkTour('welcome', panel);
     }
+    disposers.camera3dTour = watchCamera3dTour();
   }, 1500);
 
   publishInitOk('Initialized');

@@ -11,14 +11,15 @@ import { isDiscordSurface } from '../utils/environment';
 const SUBSYSTEM: Subsystem = 'perf';
 const log = createNamedLogger(SUBSYSTEM);
 
-export type ProbeName = 'anchor.tick' | 'stateTree.event' | 'reactive.flush';
-const PROBE_NAMES: readonly ProbeName[] = ['anchor.tick', 'stateTree.event', 'reactive.flush'];
+export type ProbeName = 'anchor.tick' | 'stateTree.event' | 'reactive.flush' | 'camera3d.frame';
+const PROBE_NAMES: readonly ProbeName[] = ['anchor.tick', 'stateTree.event', 'reactive.flush', 'camera3d.frame'];
 // p95 budgets (ms) at which QPM's own work becomes a felt stall: anchor.tick
 // runs per rAF (7800X3D 0.1 ms); stateTree.event runs once per server frame and
 // brackets every consumer callback — 4–5 ms on the 7800X3D, 30–39 ms on a
 // Firefox/Tampermonkey isolated world (Xray reads) with no stutter reported, so
 // its line is the long-task threshold; reactive.flush per coalesced microtask.
-const BUDGET_MS: Readonly<Record<ProbeName, number>> = { 'anchor.tick': 2, 'stateTree.event': 50, 'reactive.flush': 8 };
+// camera3d.frame: 3D pre+post per frame while the 3D camera is live (spec §14 gate).
+const BUDGET_MS: Readonly<Record<ProbeName, number>> = { 'anchor.tick': 2, 'stateTree.event': 50, 'reactive.flush': 8, 'camera3d.frame': 3 };
 const RING = 256;
 const MIN_WINDOW_SAMPLES = 10;
 const PUBLISH_MS = 15_000;

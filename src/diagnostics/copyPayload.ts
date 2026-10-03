@@ -87,6 +87,11 @@ export function setNpcDialoguePayloadSource(source: (() => NpcDialoguePayload | 
   npcDialoguePayloadSource = source;
 }
 
+let camera3dLineSource: (() => string | null) | null = null;
+export function setCamera3dLineSource(source: (() => string | null) | null): void {
+  camera3dLineSource = source;
+}
+
 // Silent when the interceptor is installed AND the Companion opt-in is off — otherwise surface state and inject stats.
 function renderNpcDialogueLine(): string | null {
   if (!npcDialoguePayloadSource) return null;
@@ -173,6 +178,7 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
     perfLine: safe(() => formatPerfLine(), null),
     restockLine: safe(() => renderRestockLine(), null),
     npcDialogueLine: safe(() => renderNpcDialogueLine(), null),
+    camera3dLine: safe(() => (camera3dLineSource ? camera3dLineSource() : null), null),
     subsystems: healthBus.readAll(),
     aggregate: healthBus.aggregate(),
     gameStateProblemLines: renderGameStateProblemLines(),

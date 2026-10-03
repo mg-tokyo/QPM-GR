@@ -116,10 +116,19 @@ function validateVersionSync(packageVersion) {
   }
 }
 
+// Tampermonkey on Firefox runs the script inside a scope proxy: every free global reference costs several Proxy trap
+// calls (live 2026-10-03, 3D at the shops: entities 11.0 to 1.7 ms, fences 9.7 to 0.37 ms per frame). Bound once as
+// wrapper parameters, the bundle resolves them lexically. Only built-ins the bundle never assigns.
+const LEXICAL_GLOBALS = [
+  "Math", "performance", "Object", "Array", "Number", "String", "Boolean", "Symbol", "JSON", "Reflect", "Promise",
+  "Map", "WeakMap", "Set", "WeakSet", "Date", "Error", "TypeError", "RegExp", "Float64Array", "Float32Array",
+  "Uint8Array", "Uint16Array", "Uint32Array", "Int32Array", "Infinity", "NaN",
+].join(", ");
+
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         QPM (ALPHA)
 // @namespace    Quinoa
-// @version      3.3.50
+// @version      3.3.51
 // @description  Quality-of-life enhancements for Magic Garden: crop type locking, mutation tracking, value calculator, harvest reminders, journal species checker, and persistent feed statistics.
 // @author       TOKYO.#6464
 // @match        https://1227719606223765687.discordsays.com/*
@@ -152,12 +161,12 @@ const USERSCRIPT_HEADER = `// ==UserScript==
 // @grant        unsafeWindow
 // ==/UserScript==
 
-(function() {
+(function(${LEXICAL_GLOBALS}) {
 
 `;
 
 const USERSCRIPT_FOOTER = `
-})();`;
+})(${LEXICAL_GLOBALS});`;
 
 function buildUserscript() {
   console.log("Building userscript wrapper...");

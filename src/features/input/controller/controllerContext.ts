@@ -39,6 +39,7 @@ import {
   getBounds,
   toCssRect,
 } from '../../../core/pixiScene';
+import { mapWorldBoundsFor3d } from '../../camera3d';
 import { getGardenSnapshot } from '../../garden/bridge';
 import { isRecord } from '../../../utils/typeGuards';
 import { diag, warnFeature } from './_diagnostics';
@@ -467,7 +468,10 @@ export function getPixiInteractives(): Array<{ x: number; y: number }> {
   const out: Array<{ x: number; y: number }> = [];
   walkScene(stage, (node) => {
     if (node['eventMode'] !== 'static' || node['cursor'] !== 'pointer') return;
-    const bounds = getBounds(node);
+    const raw = getBounds(node);
+    if (!raw) return;
+    // In 3D a World node is drawn somewhere else than its 2D bounds; snap to where it is drawn.
+    const bounds = mapWorldBoundsFor3d(node, raw);
     if (!bounds) return;
     const rect = toCssRect(bounds, renderer, canvas!);
     if (!rect) return;
