@@ -1,5 +1,5 @@
 import { project } from '../math/camera';
-import { SCRIM_Z, depthKey, sortYOf, standLine, stickyQuantize, tiebreakOf } from '../math/depth';
+import { SCRIM_Z, bandOf, depthKey, sortYOf, standLine, stickyQuantize, tiebreakOf } from '../math/depth';
 import { cullSlot, nearCamera, recheck, type FrameCtx, type Pass } from '../frame/frame';
 import type { Node3 } from '../types';
 
@@ -168,10 +168,12 @@ export function createEntityPass(deps: EntityDeps): Pass {
     // Tile art bottoms sit 20–113 px south of the tile centre (live 2026-10-03), so a card standing there looks off its
     // tile once turned: tilted, it stands on the centre (its sort y) with that art row on the ground.
     const groundY = isTile ? standLine(standY, sortY, ctx.params.pitch) : standY;
-    // Exact game sort y straight down (s = 0 order); tilted, the row the card stands on (smooth for a walking avatar).
+    // Exact game sort y (and the foremost band of an airborne rider) straight down (s = 0 order); tilted, the row the
+    // card stands on (smooth for a walking avatar), so a building in front hides a flying rider as it does a walker.
     let depthY = sortY;
     if (!ctx.exactKeys) { depthY = stickyQuantize(sticky.get(e), groundY); sticky.set(e, depthY); }
-    const key = placeBillboard(ctx, e, { isTile, standY: groundY, artY: standY, depthY, tiebreak: tiebreakOf(gz), artRow: true }, lp);
+    const tiebreak = tiebreakOf(gz) + (ctx.exactKeys ? bandOf(gz) : 0);
+    const key = placeBillboard(ctx, e, { isTile, standY: groundY, artY: standY, depthY, tiebreak, artRow: true }, lp);
     if (key === null) return null;
     shown++;
     if (e.mask && deps.placeMask) deps.placeMask(ctx, e, lp);

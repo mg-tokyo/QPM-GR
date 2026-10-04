@@ -2,6 +2,14 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.52",
+    date: "2026-10-04",
+    notes: [
+      "Fixed you and your pet turning invisible in the 3D camera while riding a flying mount such as the Phoenix",
+      "Fixed your ridden pet standing next to you in the 3D camera instead of under you: it now stays under you while you ride, no longer fades out when the camera is close, and is hidden in first person like your own body",
+    ],
+  },
+  {
     version: "3.3.51",
     date: "2026-10-03",
     notes: [

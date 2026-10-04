@@ -14,9 +14,23 @@ export const AREA_MARK_Z = DECAL_Z + 0.5 * BAND;
 export const SCRIM_Z = DECAL_Z + BAND;
 export const BUILDING_DECAL_Z = DECAL_Z + 2 * BAND;
 
+// An airborne rider and its mount (Phoenix) sort in the game's foremost band, over every World entity in 2D: zIndex =
+// 9e11 + the usual key, under the world overlay at 1e12 (beta 3651 worldDepthSortKey.ts:15; live 2026-10-04 900062720006).
+export const FOREMOST_Z = 9e11;
+const WORLD_OVERLAY_Z = 1e12;
+
+export const bandOf = (gameZ: number): number => (gameZ >= FOREMOST_Z && gameZ < WORLD_OVERLAY_Z ? FOREMOST_Z : 0);
+
 export function sortYOf(gameZ: number, ownY: number): number {
-  return gameZ >= SORT_Z_SCALE ? Math.floor(gameZ) / SORT_Z_SCALE : ownY;
+  const z = gameZ - bandOf(gameZ);
+  return z >= SORT_Z_SCALE ? Math.floor(z) / SORT_Z_SCALE : ownY;
 }
+
+// WorldDepthLayer, the last digit of a zIndex whose ground row is a whole pixel (avatars and a ridden pet stand on the
+// tile centre; beta 3651 worldDepthSortKey.ts:25-50). A riding avatar sorts on Rider, its mount on Pet.
+export const RIDER_LAYER = 6;
+export const PET_LAYER = 7;
+export const layerOf = (sortY: number): number => Math.round(sortY * SORT_Z_SCALE) % 10;
 
 export function tiebreakOf(gameZ: number): number {
   return gameZ >= SORT_Z_SCALE ? gameZ - Math.floor(gameZ) : 0;

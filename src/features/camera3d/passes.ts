@@ -2,7 +2,7 @@ import { camera3dDiag } from './diagnostics';
 import { createViewportPass } from './engine/viewport';
 import type { Fog, FrameCtx, Pass } from './frame/frame';
 import { createAreaMesh } from './scene/areaMesh';
-import { createBuildingPlacer } from './scene/buildings';
+import { createBuildingPlacer, type PartFade } from './scene/buildings';
 import { createDecor } from './scene/decor';
 import { createEntityPass, type HeldHandler } from './scene/entities';
 import { createFader, gameNodeFade, type Fader } from './scene/fades';
@@ -44,10 +44,18 @@ export function buildPasses(caps: Caps): PassSet {
   const ground = createGroundTracker();
   const lifter = createLifter((n) => layers.isLayerNode(n), ground.isAvatar);
   // Tiles and overlay markers (the top-anchored journal polaroid) stand on their base sprite (a bush, a trellis, a
-  // decor), avatars on their gliding ground point.
+  // decor), avatars on their gliding ground point, a ridden pet on its rider's.
   const standRow = (ctx: FrameCtx, n: Node3, sortY: number, isTile: boolean): number =>
-    (isTile || layers.isOverlayNode(n) ? lifter.standRow(ctx, n, sortY) : ground.groundY(n, sortY));
-  const entities = createEntityPass({ skip, buildings, layers, standRow, afterPlace: lifter.afterPlace, fade: gameNodeFade(fader, false), placeMask, held });
+    (isTile || layers.isOverlayNode(n) ? lifter.standRow(ctx, n, sortY) : ground.groundY(n, sortY, ctx.now));
+  const billboardFade = gameNodeFade(fader, false);
+  // The followed avatar's mount goes with its body: never faded in third person, hidden in first person (its card stands
+  // at the eye; live 2026-10-04 it drew at ×12 in front of the lens while riding).
+  const fade: PartFade = (ctx, n, key, gx, gy) => {
+    if (!ctx.avatar || ground.riderOf(n) !== ctx.avatar) billboardFade(ctx, n, key, gx, gy);
+    else if (ctx.hideSelf) ctx.ov.put('alpha', n, 0);
+    else ctx.ov.drop('alpha', n);
+  };
+  const entities = createEntityPass({ skip, buildings, layers, standRow, afterPlace: lifter.afterPlace, fade, placeMask, held });
   let scan: TileScan | null = null;
   const getScan = (): TileScan => { scan = scanTiles(caps.scene.tileData, scan); return scan; };
   const decor = createDecor(caps, skip, fader, getScan);

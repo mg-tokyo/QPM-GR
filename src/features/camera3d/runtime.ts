@@ -69,7 +69,7 @@ export function createRuntime(caps: Caps, passes: readonly Pass[], tracker: Grou
 
   const ground = (): XY | null => {
     const a = findAvatar();
-    return a ? { x: a.x, y: tracker.groundY(a, sortYOf(ov.gameValue<number>('zIndex', a), a.y)) } : null;
+    return a ? { x: a.x, y: tracker.groundY(a, sortYOf(ov.gameValue<number>('zIndex', a), a.y), performance.now()) } : null;
   };
 
   const blockedReason = (): string | null => {
