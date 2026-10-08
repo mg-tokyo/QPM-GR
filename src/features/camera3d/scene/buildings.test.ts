@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { FakeNode, FakePoint } from '../__test__/fakeNode';
+import type { FrameCtx } from '../frame/frame';
 import type { Caps } from '../types';
-import { createClipper, isWalkIn, standLine } from './buildings';
+import { createBuildingPlacer, createClipper, isWalkIn, standLine } from './buildings';
+import type { PlaceFn } from './entities';
 
 const D = Math.PI / 180;
 
@@ -103,6 +105,92 @@ describe('createClipper', () => {
     clip.drop();
     expect(texOf(n)).toBe(g2);
     expect(second.destroyed).toBe(true);
+  });
+
+  it('drop keeps a texture the game set after the last clip (A V9)', () => {
+    const g = gameTex(40, 100), n = piece(g), clip = createClipper(caps);
+    clip.clip(n.node, 900);
+    const own = texOf(n) as FakeTex;
+    const newer = gameTex(40, 100);
+    n.texture = newer as unknown as FakeNode['texture'];
+    clip.drop();
+    expect(texOf(n)).toBe(newer);
+    expect(own.destroyed).toBe(true);
+  });
+});
+
+describe('createBuildingPlacer: a building card covering the avatar (A V5, seed shop at yaw 90)', () => {
+  // The shop: art x 10239.7–11007.7, sort line 8051.39; the avatar on its mat at (10624, 8320), drawn at screen (50, 50).
+  const SORT_Z = 80513905;
+  function scene(camX: number, camY: number, shopKey: number, avatarKey: number) {
+    const piece = new FakeNode(10239.7, 8480.39).withTexture(768, 858, 1);
+    piece.anchor = new FakePoint(0, 1);
+    const shop = new FakeNode(0, 0, 1, [piece]);
+    // Its roof, attached by a fractional zIndex: drawn at screen x 0–154, y −196…−76 (above the card).
+    const roofPiece = new FakeNode(10239.7, 7353).withTexture(768, 600, 1);
+    roofPiece.anchor = new FakePoint(0, 1);
+    const roof = new FakeNode(0, 0, 1, [roofPiece]);
+    const puts = new Map<unknown, number>();
+    const ov = {
+      gameValue: (_k: string, n: unknown) => (n === shop ? SORT_Z : n === roof ? SORT_Z + 0.5 : 0),
+      put: (k: string, n: unknown, v: number) => { if (k === 'zIndex') puts.set(n, v); },
+      drop: () => undefined, raw: () => true,
+    };
+    const ctx = {
+      ov, exactKeys: false, params: { pitch: 30 * D }, basis: { C: [camX, 900, camY] }, drawn: { push: () => undefined },
+      avatarKey, avatarUpper: { x: 50, y: 50 }, avatarGround: { x: 10624, y: 8320 },
+      caps: { systems: { map: map([[40, 31], [41, 31], [42, 31]]) } },
+    } as unknown as FrameCtx;
+    // The stub stands the card on screen around the avatar's upper body, at the key the caller gives.
+    const place: PlaceFn = (_c, n, _o, lp) => {
+      n.position.set(0, 150); // the card spans screen x 0–154, y −22–150
+      n.scale.set(0.2, 0.2);
+      ov.put('zIndex', n, shopKey);
+      lp.key = shopKey; lp.fx = 10623.7; lp.fy2d = 8480.39; lp.sx = 76.8; lp.sy = 150; lp.mm = 0.2;
+      return shopKey;
+    };
+    return { shop, piece, roof, puts, ctx, place };
+  }
+
+  it('draws the shop under the avatar while its wall is not between the avatar and the camera', () => {
+    // Yaw 90: the camera west of the mat, the card centre 0.3 px nearer than the avatar.
+    const s = scene(9424, 8320, -106237000, -106239999.8);
+    createBuildingPlacer(null).place(s.ctx, [s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBeLessThan(-106239999.8);
+    expect(s.puts.get(s.piece)).toBeLessThan(-106239999.8);
+  });
+  it('keeps the shop over the avatar once its wall stands between them (yaw 180)', () => {
+    const s = scene(10624, 7120, -80513905, -83199999.8);
+    createBuildingPlacer(null).place(s.ctx, [s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBe(-80513905);
+  });
+  it('raises the shop over the avatar when its wall is between them but its centre key says otherwise', () => {
+    const s = scene(10624, 7120, -90000000, -83199999.8);
+    createBuildingPlacer(null).place(s.ctx, [s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBeGreaterThan(-83199999.8);
+  });
+  it('raises it over the whole depth step, so a mount or pet beside the hidden avatar stays under it too', () => {
+    const s = scene(10624, 7120, -90000000, -83199999.8);
+    createBuildingPlacer(null).place(s.ctx, [s.shop.node], s.place);
+    // Same 32 px step, pet layer 7 (tiltedTiebreak 0.7…0.8).
+    expect(s.puts.get(s.shop)).toBeGreaterThan(-83200000 + 0.8);
+  });
+  it('a roof covering the avatar counts as the building covering it, and moves with its base', () => {
+    const s = scene(10624, 7120, -90000000, -83199999.8);
+    const ctx = { ...s.ctx, avatarUpper: { x: 50, y: -100 } } as FrameCtx;
+    createBuildingPlacer(null).place(ctx, [s.roof.node, s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBeGreaterThan(-83199999.8);
+    expect(s.puts.get(s.roof)).toBeGreaterThan(s.puts.get(s.shop)!);
+  });
+  it('leaves the game order alone straight down (s = 0)', () => {
+    const s = scene(9424, 8320, -106237000, -106239999.8);
+    createBuildingPlacer(null).place({ ...s.ctx, exactKeys: true } as FrameCtx, [s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBe(-106237000);
+  });
+  it('leaves a card that does not cover the avatar alone', () => {
+    const s = scene(9424, 8320, -106237000, -106239999.8);
+    createBuildingPlacer(null).place({ ...s.ctx, avatarUpper: { x: 5000, y: 50 } } as FrameCtx, [s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBe(-106237000);
   });
 });
 

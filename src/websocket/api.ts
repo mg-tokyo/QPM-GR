@@ -9,6 +9,7 @@ import {
   type QuinoaCommandResultMessage,
 } from './envelope';
 import { resolveTransport, takeSendToken, withQpmOrigin } from './transport';
+import { toWireCommand } from './wireCommand';
 import {
   cancelCommandRequest,
   isCommandSequencerActive,
@@ -460,9 +461,10 @@ export function transmitRoomAction(
   if (connection.isCommandSessionReady === false) {
     return { ok: false, reason: 'session_not_ready' };
   }
+  const wire = toWireCommand(type, payload);
   const scopePath = getScopePath();
-  if (shouldEnvelope(connection, type)) {
-    const envelope = buildEnvelope(scopePath, type, payload, newRequestId());
+  if (shouldEnvelope(connection, wire.type)) {
+    const envelope = buildEnvelope(scopePath, wire.type, wire.payload, newRequestId());
     const resultPromise = trackCommandRequest(envelope);
     // Most callers never await the result; a timeout must not surface as an
     // unhandled rejection.
@@ -480,7 +482,7 @@ export function transmitRoomAction(
       awaitResult: () => resultPromise,
     };
   }
-  withQpmOrigin(() => connection.sendMessage({ scopePath, type, ...payload }));
+  withQpmOrigin(() => connection.sendMessage({ scopePath, type: wire.type, ...wire.payload }));
   return { ok: true, transport: 'legacy' };
 }
 

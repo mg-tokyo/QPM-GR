@@ -6,7 +6,7 @@ import type { WeatherTuning } from './scene/weather';
 
 export const wait = (ms: number): Promise<void> => new Promise((res) => { setTimeout(res, ms); });
 
-/** Spec §6.8.1 tuning (on, radiusTiles, thinTiles, standScale); returns the current values. */
+/** Spec §6.8.1 tuning (on, radiusTiles, thinTiles, standScale, slabTiles, standTiles); returns the current values. */
 export function weatherTune(t?: Partial<WeatherTuning>): WeatherTuning | null {
   const w = getCamera3dPasses()?.weather;
   if (!w) return null;

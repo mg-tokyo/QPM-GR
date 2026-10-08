@@ -5,16 +5,22 @@ import type { Caps, Node3, TexLike } from '../types';
 import { fadeTarget } from './fades';
 import { baseRowOf } from './tileArt';
 import { bucketCells, claimSlots, nextPhases, phaseOf, stormCells, strikeFrame, type CellHash, type StormCell } from './weatherCells';
-import { gpuPhases } from './weatherPhases';
+import { createPhaseCache, gameRendererPhases } from './weatherPhases';
 
 // Striking plus reserved slots. One phase bucket (1 in 50 cells, ~4 within the radius) strikes at a time (live 10-03),
 // so one World rebuild pre-keys the next ~7 strikes.
 const POOL = 32;
 // Buckets are rebuilt per rolling-cull pass start (every ≥ 2 tiles of target motion): keep slack beyond the radius.
 const MARGIN = 1024;
+// A source whose phases failed (no GPU map, no CPU twin) is built again after this many frames (A W4: never for the session).
+const RETRY_FRAMES = 300;
 
-export interface BoltSource { game: Node3; uniforms: Record<string, unknown>; key: string; hash: CellHash; vs: string }
+/** hash: the CPU phase twin, null when the game's hash expression drifted (the GPU path needs only its function). */
+export interface BoltSource { game: Node3; uniforms: Record<string, unknown>; key: string; hash: CellHash | null; vs: string }
 export interface WeatherBolts {
+  /** Builds the source's strike frames and phases when needed; false while its phases can't be computed (neither the GPU
+   * path nor the CPU twin), so the storm stands in the mesh instead. Called before the mode is chosen: no bolt flicker. */
+  prepare(src: BoltSource, frameNo: number): boolean;
   update(ctx: FrameCtx, src: BoltSource | null, alpha: number, radius: number): void;
   drop(): void;
   destroy(): void;
@@ -29,15 +35,17 @@ function aCellOf(geometry: unknown): Float32Array | null {
 }
 function inView(ctx: FrameCtx, c: StormCell, radius: number): boolean {
   const b = ctx.basis;
-  if (Math.hypot(c.gx - b.C[0], c.gy - b.C[2]) > radius) return false;
+  const dx = c.gx - b.C[0], dz = c.gy - b.C[2];
+  if (dx * dx + dz * dz > radius * radius) return false;
   project(b, c.gx, 0, c.gy, ctx.out);
   const cz = ctx.out[2]!;
   return cz >= ctx.params.near && cz <= ctx.params.far;
 }
 
 /** Spec §6.8.1 storm bolts: the game's strike frames on pooled World sprites, depth-keyed so buildings hide them. */
-export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>): WeatherBolts {
+export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>, report: (issue: 'gpuPhases') => void): WeatherBolts {
   const { scene: s, classes: C } = caps;
+  const phaseMaps = createPhaseCache(gameRendererPhases(caps));
   const pool: Node3[] = [];
   const owners: Array<StormCell | null> = [];
   const strikes: StormCell[] = [], strikeTex: TexLike[] = [], slotOf: number[] = [];
@@ -58,7 +66,7 @@ export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>): WeatherBol
   let cells: StormCell[] = [];
   let buckets: StormCell[][] = [];
   let builtTex: TexLike | null = null, builtGeo: unknown = null, builtKey = '', builtRadius = 0;
-  let attached = false, shown = 0, dropped = 0, phaseMs = 0;
+  let attached = false, phased = false, retryAt = 0, shown = 0, dropped = 0, phaseMs = 0;
   let phaseSource = '-';
 
   const park = (sp: Node3): void => { if (sp.alpha !== 0) { sp.alpha = 0; sp.scale.set(0, 0); } };
@@ -85,12 +93,15 @@ export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>): WeatherBol
     // Phases exactly as the game's GPU computes them (alignment principle); the CPU twin only where that fails.
     const P = num(src.uniforms, 'uPhaseCount');
     const t0 = performance.now();
-    const map = gpuPhases(src.vs, aCell, P);
+    const map = phaseMaps.get(src.vs, aCell, P);
     phaseMs = performance.now() - t0;
-    phaseSource = map ? 'gpu' : 'cpu';
-    cells = stormCells(aCell, fw, fh, foot, (cx, cy) => {
+    if (!map) report('gpuPhases');
+    const hash = src.hash;
+    phased = map !== null || hash !== null;
+    phaseSource = map ? 'gpu' : hash ? 'cpu' : 'none';
+    cells = !phased ? [] : stormCells(aCell, fw, fh, foot, (cx, cy) => {
       const g = map ? map.phases[cy * map.cols + cx] : undefined;
-      return g !== undefined && g !== 255 ? g : phaseOf(src.hash, cx, cy, P);
+      return g !== undefined && g !== 255 ? g : hash ? phaseOf(hash, cx, cy, P) : 0;
     });
     if (pool.length === 0) {
       for (let i = 0; i < POOL; i++) {
@@ -114,13 +125,23 @@ export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>): WeatherBol
     buckets = []; builtRadius = 0;
   }
 
+  const builtFor = (src: BoltSource, tex: TexLike): boolean => tex === builtTex && src.game.geometry === builtGeo && src.key === builtKey;
+
   return {
+    prepare(src, frameNo) {
+      const tex = src.game.texture ?? null;
+      const aCell = aCellOf(src.game.geometry);
+      if (!tex || !aCell) return false;
+      if (!builtFor(src, tex) || (!phased && frameNo >= retryAt)) {
+        build(src, tex, aCell);
+        if (!phased) retryAt = frameNo + RETRY_FRAMES;
+      }
+      return phased;
+    },
     update(ctx, src, alpha, radius) {
       shown = 0;
       const tex = src?.game.texture ?? null;
-      const aCell = src ? aCellOf(src.game.geometry) : null;
-      if (!src || !tex || !aCell) { attach(false); return; }
-      if (tex !== builtTex || src.game.geometry !== builtGeo || src.key !== builtKey) build(src, tex, aCell);
+      if (!src || !tex || !phased || !builtFor(src, tex)) { attach(false); return; }
       attach(true);
       if (alpha <= 0 || frames.length === 0) { owners.fill(null); for (const sp of pool) park(sp); return; }
       const P = num(src.uniforms, 'uPhaseCount');
@@ -160,7 +181,7 @@ export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>): WeatherBol
         const mm = b.fpx / out[2]!;
         sp.position.set(out[0]!, out[1]!);
         sp.scale.set(mm, mm);
-        sp.alpha = alpha * opacity * fadeTarget(null, depthKey(c.gx, c.gy, ctx.dx, ctx.dz, 0), null, null, Math.hypot(c.gx - b.C[0], c.gy - b.C[2]));
+        sp.alpha = alpha * opacity * fadeTarget(null, depthKey(c.gx, c.gy, ctx.dx, ctx.dz, 0), null, null, Math.sqrt((c.gx - b.C[0]) ** 2 + (c.gy - b.C[2]) ** 2));
       }
       // Reserved slots take their key now, on a frame World rebuilds anyway; idle keys never change otherwise.
       for (let i = 0; i < pool.length; i++) {
@@ -180,7 +201,7 @@ export function createWeatherBolts(caps: Caps, skip: WeakSet<Node3>): WeatherBol
       keyDx = NaN; keyDz = NaN;
       for (const f of frames) f.destroy(false);
       frames = []; cells = []; buckets = [];
-      builtTex = null; builtGeo = null; builtKey = ''; builtRadius = 0;
+      builtTex = null; builtGeo = null; builtKey = ''; builtRadius = 0; phased = false; retryAt = 0;
     },
     stats: () => ({ bolts: shown, boltsDropped: dropped, boltCells: cells.length, phaseSource, phaseMs: +phaseMs.toFixed(1) }),
   };

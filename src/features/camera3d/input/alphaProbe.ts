@@ -19,6 +19,8 @@ export interface AlphaProbe {
 }
 
 interface ContextRunner { add(o: { contextChange(): void }): unknown; remove(o: { contextChange(): void }): unknown }
+/** PIXI 8 Texture: `source` has a setter, `frame` is a plain rect, update() recomputes the uvs (live 2026-10-05). */
+type PooledTex = TexLike & { update(): void };
 interface RenderTargets {
   getRenderTarget(t: unknown): unknown;
   getGpuRenderTarget(rt: unknown): { resolveTargetFramebuffer?: WebGLFramebuffer | null } | null | undefined;
@@ -32,27 +34,39 @@ export function createAlphaProbe(r: RendererLike, C: PixiClasses, rtClass: () =>
   const sprites: Node3[] = [];
   for (let i = 0; i < PROBE_W; i++) { const s = new C.Sprite(C.Texture.EMPTY); s.visible = false; root.addChild(s); sprites.push(s); }
   const bytes = new Uint8Array(PROBE_W * 4);
+  // One 1×1 texture per probe sprite, re-pointed per read: a new Texture per texel per read was a hover allocation.
+  const subs: PooledTex[] = [];
   let target: TexLike | null = null;
   let buf: WebGLBuffer | null = null;
   let pending: { sync: WebGLSync; n: number; polls: number; done: (alphas: number[]) => void } | null = null;
+
+  const subFor = (i: number, t: Texel): PooledTex => {
+    let sub = subs[i];
+    if (!sub) {
+      sub = new C.Texture({ source: t.source, frame: new C.Rectangle(t.x, t.y, 1, 1) }) as PooledTex;
+      subs[i] = sub;
+      return sub;
+    }
+    if (sub.source !== t.source) sub.source = t.source;
+    sub.frame.x = t.x;
+    sub.frame.y = t.y;
+    sub.update();
+    return sub;
+  };
 
   const draw = (texels: readonly Texel[], n: number): TexLike | null => {
     const RT = rtClass() as { create?: (o: unknown) => TexLike } | null;
     if (!target && RT?.create) target = RT.create({ width: PROBE_W, height: 1 });
     if (!target) return null;
-    const subs: TexLike[] = [];
     for (let i = 0; i < n; i++) {
-      const s = sprites[i]!, t = texels[i]!;
-      const sub = new C.Texture({ source: t.source, frame: new C.Rectangle(t.x, t.y, 1, 1) });
-      subs.push(sub);
-      (s as unknown as { texture: TexLike }).texture = sub;
+      const s = sprites[i]!;
+      (s as unknown as { texture: TexLike }).texture = subFor(i, texels[i]!);
       s.anchor?.set(0, 0);
       s.position.set(i, 0);
       s.visible = true;
     }
     r.render({ container: root, target, clear: true, clearColor: [0, 0, 0, 0] });
     for (let i = 0; i < n; i++) { const s = sprites[i]!; (s as unknown as { texture: TexLike }).texture = C.Texture.EMPTY; s.visible = false; }
-    for (const t of subs) t.destroy(false);
     return target;
   };
 
@@ -127,6 +141,8 @@ export function createAlphaProbe(r: RendererLike, C: PixiClasses, rtClass: () =>
       buf = null;
       target?.destroy(true);
       target = null;
+      for (const t of subs) t.destroy(false);
+      subs.length = 0;
       root.destroy({ children: true });
     },
   };

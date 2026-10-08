@@ -4,8 +4,6 @@
 export type OverrideKey = 'visible' | 'zIndex' | 'alpha';
 const KEYS: readonly OverrideKey[] = ['visible', 'zIndex', 'alpha'];
 
-interface Shadow { game: unknown }
-
 export interface Overrides {
   /** pin: install the accessor even when the value already matches, so later game writes only reach the shadow. */
   put(key: OverrideKey, node: object, value: unknown, pin?: boolean): void;
@@ -15,8 +13,57 @@ export interface Overrides {
   raw<T>(key: OverrideKey, node: object): T;
   rawSet(key: OverrideKey, node: object, value: unknown): void;
   has(key: OverrideKey, node: object): boolean;
+  /** Drops overrides of destroyed or detached nodes, up to `max` entries visited per call, resuming where the last call
+   * stopped; each entry at most once per call. Returns how many were dropped. */
+  prune(max: number): number;
   count(): number;
   stats(): { writes: number; gameWrites: number; count: number };
+}
+
+interface Proto { get: (this: object) => unknown; set: (this: object, v: unknown) => void }
+interface Counters { gameWrites: number }
+/** Inactive: the accessor stays on the node and passes reads and writes straight to PIXI. */
+interface Entry { game: unknown; active: boolean; p: Proto; o: Counters }
+
+// V8 turns a node slow (dictionary mode) when one key gets a different accessor pair on the same hidden class, and on
+// any delete (Chrome 154, live 2026-10-06): per-node closures plus delete-on-exit left 866 game nodes slow in 2D and
+// kept the old runtime reachable through the transition tree (P20). So every node shares one accessor pair per key,
+// closing over module scope only, and a dropped override stays installed as a pass-through.
+const ENTRIES: Record<OverrideKey, WeakMap<object, Entry>> = { visible: new WeakMap(), zIndex: new WeakMap(), alpha: new WeakMap() };
+const accessor = (entries: WeakMap<object, Entry>): PropertyDescriptor => ({
+  configurable: true,
+  get(this: object): unknown {
+    const e = entries.get(this);
+    if (e === undefined) return undefined;
+    return e.active ? e.game : e.p.get.call(this);
+  },
+  set(this: object, v: unknown): void {
+    const e = entries.get(this);
+    if (e === undefined) return;
+    if (e.active) { e.game = v; e.o.gameWrites++; } else e.p.set.call(this, v);
+  },
+});
+const ACCESSORS: Record<OverrideKey, PropertyDescriptor> = { visible: accessor(ENTRIES.visible), zIndex: accessor(ENTRIES.zIndex), alpha: accessor(ENTRIES.alpha) };
+
+/** Takes the pass-through accessors off every node under `root` when 3D is turned off; those nodes turn slow (any
+ * delete does). Active overrides are left alone. Returns how many were removed. */
+export function removeOverrideAccessors(root: object): number {
+  let removed = 0;
+  const stack: object[] = [root];
+  while (stack.length) {
+    const node = stack.pop()!;
+    for (let i = 0; i < KEYS.length; i++) {
+      const k = KEYS[i]!;
+      const e = ENTRIES[k].get(node);
+      if (e === undefined || e.active) continue;
+      delete (node as Record<string, unknown>)[k];
+      ENTRIES[k].delete(node);
+      removed++;
+    }
+    const kids = (node as { children?: unknown }).children;
+    if (Array.isArray(kids)) for (const c of kids as unknown[]) if (c !== null && typeof c === 'object') stack.push(c);
+  }
+  return removed;
 }
 
 function findAccessor(sample: object, key: string): PropertyDescriptor | null {
@@ -27,59 +74,81 @@ function findAccessor(sample: object, key: string): PropertyDescriptor | null {
   return null;
 }
 
-interface Slot { get: (this: object) => unknown; set: (this: object, v: unknown) => void; map: Map<object, Shadow> }
-
 export function createOverrides(sample: object): Overrides {
-  // One slot per key, read by property: these run several times per billboard per frame (string-keyed Map lookups
-  // here were ~0.2 ms a frame at 700 billboards, live 2026-10-03).
-  const slot = (key: OverrideKey): Slot => {
+  const proto = (key: OverrideKey): Proto => {
     const d = findAccessor(sample, key);
     if (!d) throw new Error(`camera3d: no ${key} accessor on the node prototype`);
-    return { get: d.get as Slot['get'], set: d.set as Slot['set'], map: new Map<object, Shadow>() };
+    return { get: d.get as Proto['get'], set: d.set as Proto['set'] };
   };
-  const slots: Record<OverrideKey, Slot> = { visible: slot('visible'), zIndex: slot('zIndex'), alpha: slot('alpha') };
+  const protos: Record<OverrideKey, Proto> = { visible: proto('visible'), zIndex: proto('zIndex'), alpha: proto('alpha') };
+  // This instance's active entries, read by property: these run several times per billboard per frame (string-keyed
+  // Map lookups here were ~0.2 ms a frame at 700 billboards, live 2026-10-03).
+  const maps: Record<OverrideKey, Map<object, Entry>> = { visible: new Map(), zIndex: new Map(), alpha: new Map() };
+  const counters: Counters = { gameWrites: 0 };
   let writes = 0;
-  let gameWrites = 0;
   const isDestroyed = (node: object): boolean => (node as { destroyed?: unknown }).destroyed === true;
+  // Until exit, a despawned pet or avatar stayed alive in these maps (A R4). Live iterators survive deletes.
+  const iters: Partial<Record<OverrideKey, Iterator<object>>> = {};
+  let pruneKey = 0;
 
-  const drop = (key: OverrideKey, node: object): void => {
-    const s = slots[key];
-    const e = s.map.get(node);
-    if (!e) return;
-    s.map.delete(node);
-    delete (node as Record<string, unknown>)[key];
-    if (!isDestroyed(node) && s.get.call(node) !== e.game) s.set.call(node, e.game);
+  const drop = (key: OverrideKey, node: object): boolean => {
+    const e = maps[key].get(node);
+    if (!e) return false;
+    maps[key].delete(node);
+    if (e.o !== counters) return true;
+    e.active = false;
+    if (!isDestroyed(node) && e.p.get.call(node) !== e.game) e.p.set.call(node, e.game);
+    return true;
   };
 
   return {
     put(key, node, value, pin = false) {
-      const s = slots[key];
-      if (!s.map.has(node)) {
-        const cur = s.get.call(node);
-        if (cur === value && !pin) return;
-        const shadow: Shadow = { game: cur };
-        s.map.set(node, shadow);
-        Object.defineProperty(node, key, {
-          configurable: true,
-          get() { return shadow.game; },
-          set(x: unknown) { shadow.game = x; gameWrites++; },
-        });
+      const m = maps[key];
+      const p = protos[key];
+      if (!m.has(node)) {
+        const cur = p.get.call(node);
+        let e = ENTRIES[key].get(node);
+        if (e === undefined) {
+          if (cur === value && !pin) return;
+          e = { game: cur, active: true, p, o: counters };
+          ENTRIES[key].set(node, e);
+          Object.defineProperty(node, key, ACCESSORS[key]);
+        } else if (!e.active) {
+          if (cur === value && !pin) return;
+          e.game = cur;
+          e.active = true;
+        }
+        e.p = p;
+        e.o = counters;
+        m.set(node, e);
       }
-      if (s.get.call(node) !== value) { s.set.call(node, value); writes++; }
+      if (p.get.call(node) !== value) { p.set.call(node, value); writes++; }
     },
-    drop,
+    drop(key, node) { drop(key, node); },
     dropAll() {
-      for (const key of KEYS) for (const node of [...slots[key].map.keys()]) drop(key, node);
+      for (const key of KEYS) for (const node of maps[key].keys()) drop(key, node);
     },
     gameValue<T>(key: OverrideKey, node: object): T {
-      const s = slots[key];
-      const e = s.map.get(node);
-      return (e ? e.game : s.get.call(node)) as T;
+      const e = maps[key].get(node);
+      return (e ? e.game : protos[key].get.call(node)) as T;
     },
-    raw<T>(key: OverrideKey, node: object): T { return slots[key].get.call(node) as T; },
-    rawSet(key, node, value) { slots[key].set.call(node, value); },
-    has(key, node) { return slots[key].map.has(node); },
-    count() { let n = 0; for (const k of KEYS) n += slots[k].map.size; return n; },
-    stats() { let n = 0; for (const k of KEYS) n += slots[k].map.size; return { writes, gameWrites, count: n }; },
+    raw<T>(key: OverrideKey, node: object): T { return protos[key].get.call(node) as T; },
+    rawSet(key, node, value) { protos[key].set.call(node, value); },
+    has(key, node) { return maps[key].has(node); },
+    prune(max) {
+      let dropped = 0, visited = 0, ends = 0;
+      while (visited < max && ends < KEYS.length) {
+        const key = KEYS[pruneKey]!;
+        const it = (iters[key] ??= maps[key].keys());
+        const r = it.next();
+        if (r.done) { delete iters[key]; pruneKey = (pruneKey + 1) % KEYS.length; ends++; continue; }
+        visited++;
+        const n = r.value as { parent?: unknown };
+        if (isDestroyed(n) || n.parent == null) { drop(key, n); dropped++; }
+      }
+      return dropped;
+    },
+    count() { let n = 0; for (const k of KEYS) n += maps[k].size; return n; },
+    stats() { let n = 0; for (const k of KEYS) n += maps[k].size; return { writes, gameWrites: counters.gameWrites, count: n }; },
   };
 }

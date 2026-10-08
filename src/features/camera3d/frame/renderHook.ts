@@ -1,3 +1,5 @@
+import { RewrapBudget } from './rewrap';
+
 // renderer.render wrapper. Stage renders go to the 3D frame handler; everything else (offscreen targets,
 // generateTexture, our own probes and bakes) passes through. A wrapper that is displaced or uninstalled is retired,
 // not removed (another mod may hold it in its chain), so at most one QPM wrapper is ever active.
@@ -14,6 +16,7 @@ let wrapper: Wrapper | null = null;
 let stageRef: object | null = null;
 let handler: StageHandler | null = null;
 let inStage = false;
+let budget = new RewrapBudget();
 
 const isStage = (t: unknown): boolean =>
   t === stageRef || (typeof t === 'object' && t !== null && (t as { container?: unknown }).container === stageRef);
@@ -40,6 +43,7 @@ export function installRenderHook(renderer: Host, stage: object, onStage: StageH
   original = renderer.render as RenderFn;
   wrapper = makeWrapper(original);
   renderer.render = wrapper;
+  budget = new RewrapBudget();
   return true;
 }
 
@@ -48,10 +52,13 @@ export function getRenderHookState(): 'absent' | 'installed' | 'displaced' {
   return host.render === wrapper ? 'installed' : 'displaced';
 }
 
-/** Another script replaced renderer.render: retire ours wherever it is and wrap whatever is current. */
-export function ensureRenderHook(): 'ok' | 'rewrapped' | 'absent' {
+/** Another script replaced renderer.render: retire ours wherever it is and wrap whatever is current, within the
+ * re-wrap budget ('capped' once, then 'denied': a fight, A R7). */
+export function ensureRenderHook(now: number): 'ok' | 'rewrapped' | 'absent' | 'capped' | 'denied' {
   if (!host || !wrapper || !handler) return 'absent';
   if (host.render === wrapper) return 'ok';
+  const b = budget.take(now);
+  if (b !== 'ok') return b;
   wrapper.__qpmRetired = true;
   hadOwn = Object.prototype.hasOwnProperty.call(host, 'render');
   original = host.render as RenderFn;

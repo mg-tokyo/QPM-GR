@@ -4,18 +4,31 @@ export interface SliderRowOptions {
   max: number;
   step: number;
   value: number;
-  onChange: (value: number) => void;
+  /** Every input tick (live preview). */
+  onChange?: (value: number) => void;
+  /** Once per committed value (pointer release, keyboard step): persist here. */
+  onCommit?: (value: number) => void;
   formatFn?: (value: number) => string;
+  disabled?: boolean;
+  /** Label column in px (default 60); 'auto' sizes it to the label on one line. */
+  labelWidth?: number | 'auto';
 }
 
-export function createSliderRow(opts: SliderRowOptions): HTMLElement {
-  const { label, min, max, step, value, onChange, formatFn } = opts;
+export interface SliderRowControl {
+  root: HTMLElement;
+  setValue: (value: number) => void;
+  setDisabled: (value: boolean) => void;
+}
+
+export function createSliderRowControl(opts: SliderRowOptions): SliderRowControl {
+  const { label, min, max, step, value, onChange, onCommit, formatFn, disabled = false, labelWidth = 60 } = opts;
 
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;align-items:center;gap:8px;';
 
   const labelEl = document.createElement('div');
-  labelEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.5);width:60px;flex-shrink:0;';
+  labelEl.style.cssText = 'font-size:11px;color:rgba(224,224,224,0.5);flex-shrink:0;' +
+    (labelWidth === 'auto' ? 'white-space:nowrap;' : `width:${labelWidth}px;`);
   labelEl.textContent = label;
 
   const range = document.createElement('input');
@@ -34,9 +47,25 @@ export function createSliderRow(opts: SliderRowOptions): HTMLElement {
   range.addEventListener('input', () => {
     const v = parseFloat(range.value);
     numEl.textContent = fmt(v);
-    onChange(v);
+    onChange?.(v);
   });
+  if (onCommit) range.addEventListener('change', () => onCommit(parseFloat(range.value)));
 
   row.append(labelEl, range, numEl);
-  return row;
+
+  const setDisabled = (v: boolean): void => {
+    range.disabled = v;
+    row.style.opacity = v ? '0.5' : '1';
+  };
+  if (disabled) setDisabled(true);
+
+  return {
+    root: row,
+    setValue: (v) => { range.value = String(v); numEl.textContent = fmt(v); },
+    setDisabled,
+  };
+}
+
+export function createSliderRow(opts: SliderRowOptions): HTMLElement {
+  return createSliderRowControl(opts).root;
 }

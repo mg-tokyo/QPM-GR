@@ -61,5 +61,12 @@ export class FakeNode {
   removeChild(c: FakeNode): FakeNode { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); c.parent = null; return c; }
   destroy(): void { this.destroyed = true; }
   updateLocalTransform(): void { this.localTransform.set(this.scale.x, 0, 0, this.scale.y, this.position.x, this.position.y); }
+  /** PIXI Sprite.containsPoint: the texture rectangle around the anchor, in local space. */
+  containsPoint(p: { x: number; y: number }): boolean {
+    if (!this.texture || !this.anchor) return false;
+    const { width: w, height: h } = this.texture.orig;
+    const x0 = -this.anchor.x * w, y0 = -this.anchor.y * h;
+    return p.x >= x0 && p.x < x0 + w && p.y >= y0 && p.y < y0 + h;
+  }
   setFromMatrix(m: FakeMatrix): void { this.lastSet = m.clone(); }
 }

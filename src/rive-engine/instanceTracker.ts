@@ -8,6 +8,7 @@ import { riveLog, generateInstanceId, resolvePrivateField, EventBus } from './he
 
 const instances = new Map<string, RiveInstance>();
 const rawToId = new WeakMap<object, string>();
+let workingSetHooked = false;
 
 // ---------------------------------------------------------------------------
 // Tag inference — verified live 2026-07-15 against gg-preview-pr-3208-app.
@@ -248,6 +249,7 @@ export function initInstanceTracker(eventBus: EventBus): () => void {
 
     riveLog('Batch renderer hooks installed (workingSet)');
     hooked = true;
+    workingSetHooked = true;
 
     let existingCount = 0;
     for (const [key, value] of ws) {
@@ -290,9 +292,13 @@ export function initInstanceTracker(eventBus: EventBus): () => void {
       riveLog('Batch renderer hooks removed');
     }
 
+    workingSetHooked = false;
     instances.clear();
   };
 }
+
+/** False until the tracker has hooked the game's atlas working set: before that the registry stays empty. */
+export const isInstanceTrackerHooked = (): boolean => workingSetHooked;
 
 // ---------------------------------------------------------------------------
 // Queries

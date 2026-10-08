@@ -319,6 +319,10 @@ export const QPM_STORAGE_KEYS = [
   'qpm.camera3d.invertY.v1',
   'qpm.camera3d.sensitivity.v1',
   'qpm.camera3d.detail.v1',
+  'qpm.camera3d.fov.v1',
+  'qpm.camera3d.farAnim.v1',
+  'qpm.camera3d.ground.v1',
+  'qpm.camera3d.weather3d.v1',
   'qpm.camera3d.hints.v1',
 
   // WebSocket QuinoaCommand envelope + wire sequencer kill switches

@@ -25,7 +25,7 @@ import {
   getAllInstances, getInstance, getInstancesBySource, getInstancesByTag,
   addTag, findAvatarInstanceByPlayerId, findAllAvatarInstances,
   debugAvatarParentChains,
-  findInstancesUnderPixiContainer,
+  findInstancesUnderPixiContainer, isInstanceTrackerHooked,
 } from './instanceTracker';
 import {
   setImageOverride as setImageOverrideImpl,
@@ -211,7 +211,7 @@ export async function decodeImage(bytes: Uint8Array): Promise<RiveImage> {
 export {
   getAllInstances, getInstance, getInstancesBySource, getInstancesByTag,
   addTag, findAvatarInstanceByPlayerId, findAllAvatarInstances,
-  findInstancesUnderPixiContainer,
+  findInstancesUnderPixiContainer, isInstanceTrackerHooked,
 };
 
 /**

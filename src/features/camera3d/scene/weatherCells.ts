@@ -1,3 +1,7 @@
+import { depthKeyAlong } from '../math/depth';
+import { patchWeatherFragment, patchWeatherTall, patchWeatherVertex } from './shaders';
+import { extractHashFn } from './weatherPhases';
+
 export type WeatherMode = 'flat' | 'stand' | 'bolts';
 
 // literal-list-justified: render-only weather art classification; an unknown or renamed key stays flat on the floor
@@ -38,13 +42,60 @@ export function strikeFrame(cycleFrame: number, phase: number, phaseCount: numbe
   return pos < frameCount - 1 ? pos : -1;
 }
 
-export interface WeatherBlend { stand: number; flatAlpha: number; boltAlpha: number; overWorld: boolean }
+export interface WeatherBlend { stand: number; flatAlpha: number; boltAlpha: number; overWorld: boolean; slabs: boolean }
 
-/** w = fadeWeight(pitch): 0 at ≥ 80° (every mode draws exactly the 2D pattern), 1 at ≤ 60°. */
-export function weatherBlend(mode: WeatherMode, w: number, overPitch: boolean): WeatherBlend {
-  if (mode === 'stand') return { stand: w, flatAlpha: 1, boltAlpha: 0, overWorld: true };
-  if (mode === 'bolts') return { stand: 0, flatAlpha: 1 - w, boltAlpha: w, overWorld: overPitch };
-  return { stand: 0, flatAlpha: 1, boltAlpha: 0, overWorld: overPitch };
+/** w = the view's tilt (by s): 0 at the 2D match (every mode draws exactly the 2D pattern), 1 fully tilted. Tilted,
+ * standing cards draw as depth slabs in World (P9); flat patterns lie on the ground under every billboard. */
+export function weatherBlend(mode: WeatherMode, w: number, exact: boolean): WeatherBlend {
+  if (mode === 'stand') return { stand: w, flatAlpha: 1, boltAlpha: 0, overWorld: exact, slabs: !exact };
+  if (mode === 'bolts') return { stand: 0, flatAlpha: 1 - w, boltAlpha: w, overWorld: exact, slabs: false };
+  return { stand: 0, flatAlpha: 1, boltAlpha: 0, overWorld: exact, slabs: false };
+}
+
+// P9 depth slabs: one mesh can't sit partly behind a building, so standing weather draws as world-aligned slabs along
+// the view axis, each keyed like an entity at its middle (out of order by at most half a slab). The end slabs are open,
+// so a window that lags the camera (it moves only on frames World rebuilds anyway) never drops a cell.
+export const SLAB_OPEN = 1e30;
+// Over the entities at the slab's middle row (their tiebreaks are layer / 10 + fraction / 10 < 1).
+const SLAB_TIE = 0.999;
+
+export const slabCount = (radiusPx: number, slabPx: number): number => Math.ceil(radiusPx / slabPx) + 3;
+/** The first slab's index: the camera's own along falls in slab 1. */
+export const slabStart = (camAlong: number, slabPx: number): number => Math.floor(camAlong / slabPx) - 1;
+
+export function slabBounds(i: number, k0: number, n: number, slabPx: number, out: { 0: number; 1: number }): void {
+  out[0] = i === 0 ? -SLAB_OPEN : (k0 + i) * slabPx;
+  out[1] = i === n - 1 ? SLAB_OPEN : (k0 + i + 1) * slabPx;
+}
+
+export const slabKey = (i: number, k0: number, slabPx: number): number => depthKeyAlong((k0 + i + 0.5) * slabPx, SLAB_TIE);
+
+export type SlabShift = 'keep' | 'now' | 'forced';
+
+/** structural: World rebuilds this frame anyway (a re-key of every slab is then free). A turned view must re-key now:
+ * the slab ranges are along the old axis. */
+export function slabShift(want: number, have: number, dirChanged: boolean, structural: boolean): SlabShift {
+  if (Number.isNaN(have) || dirChanged) return structural ? 'now' : 'forced';
+  if (want === have) return 'keep';
+  if (structural) return 'now';
+  return Math.abs(want - have) >= 2 ? 'forced' : 'keep';
+}
+
+export type WeatherPatch = 'vertex' | 'fragment' | 'cellHash' | 'hashFn' | 'tall';
+
+/** Which mirror patches the game's weather program defeats. vertex: no 3D weather; fragment: no per-cell fades; cellHash:
+ * no CPU phase fallback; hashFn: no GPU phases; tall: standing cards stay one frame tall. Bolts need one of the two
+ * phase paths (A W3). */
+export function weatherPatchIssues(vs: string, fs: string): WeatherPatch[] {
+  const out: WeatherPatch[] = [];
+  const faded = patchWeatherFragment(fs);
+  const hash = extractHashFn(vs);
+  if (!patchWeatherVertex(vs)) out.push('vertex');
+  if (!faded) out.push('fragment');
+  if (!parseCellHash(vs)) out.push('cellHash');
+  if (!hash) out.push('hashFn');
+  if (!faded || !hash || !patchWeatherTall(faded, hash)) out.push('tall');
+  return out;
 }
 
 export interface StormCell { gx: number; gy: number; phase: number }

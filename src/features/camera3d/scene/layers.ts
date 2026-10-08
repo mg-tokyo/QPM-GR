@@ -3,7 +3,7 @@ import type { FrameCtx } from '../frame/frame';
 import type { Node3 } from '../types';
 import { createAreaMarks, type AreaTileSink } from './areaMarks';
 import type { LayerHandler } from './entities';
-import { placeFlat } from './flat';
+import { createFlatPlacer } from './flat';
 
 // RenderLayers draw their attached nodes at the layer's own slot even when hidden, so one depth key per billboard
 // cannot interleave them. Ground layers (AboveGround, zIndex 0) are detached while 3D is live. Overlay layers
@@ -12,30 +12,57 @@ import { placeFlat } from './flat';
 const OVERLAY_LAYER_Z = 1e9;
 const LAYER_FIRST_Z = -1e9;
 
-function reattach(held: Map<Node3, Node3[]>, L: Node3): void {
-  const list = held.get(L);
-  if (!list) return;
-  held.delete(L);
-  const live = list.filter((nd) => !nd.destroyed && nd.parent && !nd.parentRenderLayer);
-  if (live.length && !L.destroyed) L.attach?.(...live);
-}
+type Detach = (...n: Node3[]) => void;
+interface Guard { orig: Detach; wrap: Detach; own: boolean }
 
 export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerHandler {
-  const held = new Map<Node3, Node3[]>();
-  const overlayHeld = new Map<Node3, Node3[]>();
+  const held = new Map<Node3, Set<Node3>>();
+  const overlayHeld = new Map<Node3, Set<Node3>>();
+  const guards = new Map<Node3, Guard>();
   let layerNodes = new WeakSet<Node3>();
   let overlayNodes = new WeakSet<Node3>();
   let layers: Node3[] | null = null;
   const areas = createAreaMarks(areaSink);
+  const flat = createFlatPlacer(areaSink);
   const drawsSelf = (n: Node3): boolean => !!(n.texture || n.geometry || n.context);
   const isLayerOnly = (n: Node3): boolean => layerNodes.has(n) || (!drawsSelf(n) && n.children.every(isLayerOnly));
 
-  const detach = (into: Map<Node3, Node3[]>, L: Node3, kids: readonly Node3[]): Node3[] => {
+  // While 3D holds a layer's nodes, the game's own detach of one of them must stick: exit re-attaches only the rest.
+  function guard(L: Node3): void {
+    const orig = L.detach;
+    if (guards.has(L) || !orig) return;
+    const wrap: Detach = function (this: unknown, ...n: Node3[]): void {
+      for (const x of n) { held.get(L)?.delete(x); overlayHeld.get(L)?.delete(x); }
+      orig.apply(this, n);
+    };
+    guards.set(L, { orig, wrap, own: Object.prototype.hasOwnProperty.call(L, 'detach') });
+    L.detach = wrap;
+  }
+  function unguard(L: Node3): void {
+    const g = guards.get(L);
+    if (!g) return;
+    guards.delete(L);
+    if (L.detach !== g.wrap) return;
+    if (g.own) L.detach = g.orig;
+    else delete (L as { detach?: Detach }).detach;
+  }
+
+  function reattach(from: Map<Node3, Set<Node3>>, L: Node3): void {
+    const set = from.get(L);
+    if (!set) return;
+    from.delete(L);
+    if (!held.has(L) && !overlayHeld.has(L)) unguard(L);
+    const live = [...set].filter((nd) => !nd.destroyed && nd.parent && !nd.parentRenderLayer);
+    if (live.length && !L.destroyed) L.attach?.(...live);
+  }
+
+  const detach = (into: Map<Node3, Set<Node3>>, L: Node3, kids: readonly Node3[]): Node3[] => {
     const copy = kids.slice();
     L.detach?.(...copy);
-    let list = into.get(L);
-    if (!list) { list = []; into.set(L, list); }
-    list.push(...copy);
+    let set = into.get(L);
+    if (!set) { set = new Set(); into.set(L, set); }
+    for (const nd of copy) set.add(nd);
+    guard(L);
     return copy;
   };
 
@@ -81,11 +108,17 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
     isAreaMark: (n) => areas.isMark(n),
     layAreas: (ctx, owner, lp) => { areas.lay(ctx, owner, lp); },
     finishAreas: (ctx) => { areas.finish(ctx); },
+    // A node we detached from its layer is not detached again by its own destroy, so the guard never sees it go.
+    prune() {
+      for (const m of [held, overlayHeld]) for (const set of m.values()) for (const nd of set) if (nd.destroyed === true) set.delete(nd);
+    },
     stats: () => areas.stats(),
     isOverlayNode: (n) => overlayNodes.has(n) || (!!n.parent && overlayNodes.has(n.parent)),
     placeMarker(ctx, n) {
       const y = n.y; // placeFlat moves the node: key on its 2D ground y
-      if (placeFlat(ctx, n, n.x, y)) ctx.ov.put('zIndex', n, MARKER_Z + y);
+      // No screen cull: a marker's art can reach far from its position (a tap route), and there are few (live
+      // 2026-10-07: 3 on the ground layer).
+      if (flat.place(ctx, n, n.x, y, MARKER_Z, Infinity)) ctx.ov.put('zIndex', n, MARKER_Z + y);
     },
     drop() {
       for (const L of [...held.keys()]) reattach(held, L);
@@ -94,6 +127,7 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
       overlayNodes = new WeakSet();
       layers = null;
       areas.drop();
+      flat.drop();
     },
   };
 }

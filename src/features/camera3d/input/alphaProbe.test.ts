@@ -4,14 +4,17 @@ import type { PixiClasses, RendererLike } from '../types';
 import { createAlphaProbe, PROBE_W, type Texel } from './alphaProbe';
 
 interface Src { style: null; alpha: (x: number, y: number) => number }
+const made = { n: 0, destroyed: 0 };
 class FakeTex {
   source: Src;
   frame: { x: number; y: number; width: number; height: number };
   constructor(o?: { source: Src; frame: FakeTex['frame'] }) {
     this.source = o?.source ?? { style: null, alpha: () => 0 };
     this.frame = o?.frame ?? { x: 0, y: 0, width: 0, height: 0 };
+    made.n++;
   }
-  destroy(): void { /* fake */ }
+  update(): void { /* fake: uvs follow the frame */ }
+  destroy(): void { made.destroyed++; }
 }
 const EMPTY = new FakeTex();
 class FakeSprite extends FakeNode {
@@ -73,6 +76,19 @@ describe('alpha probe', () => {
     const p = createAlphaProbe(r, classes, () => RT);
     expect(round(p.readNow(texels))).toEqual([0, 1, 0.5]);
     expect(log.root!.children.every((s) => !s.visible && s.texture === (EMPTY as never))).toBe(true);
+  });
+
+  it('reuses its texel textures across reads (A PF4), re-pointed at each read\'s source and pixel', () => {
+    const { r, RT } = fakeRenderer();
+    const p = createAlphaProbe(r, classes, () => RT);
+    p.readNow(texels);
+    const before = made.n;
+    const other: Src = { style: null, alpha: (x) => (x === 9 ? 1 : 0) };
+    expect(round(p.readNow([{ source: other as never, x: 9, y: 0 }, { source: src as never, x: 3, y: 4 }, { source: src as never, x: 0, y: 0 }]))).toEqual([1, 1, 0]);
+    expect(made.n).toBe(before);
+    const gone = made.destroyed;
+    p.destroy();
+    expect(made.destroyed - gone).toBeGreaterThanOrEqual(3);
   });
 
   it('async: the result arrives from a later poll once the fence signals, with the pack and framebuffer bindings restored', () => {

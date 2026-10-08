@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ensureRenderHook, getRenderHookState, installRenderHook, uninstallRenderHook } from './renderHook';
+import { REWRAP_MAX } from './rewrap';
 
 function makeRenderer() {
   const calls: unknown[] = [];
@@ -39,7 +40,30 @@ describe('renderHook', () => {
     const ours = r.render;
     r.render = function (this: unknown, ...a: unknown[]) { return ours.apply(this, a); };
     expect(getRenderHookState()).toBe('displaced');
-    expect(ensureRenderHook()).toBe('rewrapped');
+    expect(ensureRenderHook(0)).toBe('rewrapped');
+    r.render({ container: stage });
+    expect(n).toBe(1);
+  });
+
+  it('an adversary that re-wraps on every displacement cannot grow the chain without bound (A R7)', () => {
+    const { r } = makeRenderer();
+    const stage = {};
+    let n = 0;
+    installRenderHook(r, stage, (o) => { n++; return o(); });
+    let depth = 0;
+    const results: string[] = [];
+    for (let i = 0; i < 50; i++) {
+      const inner = r.render;
+      r.render = function (this: unknown, ...a: unknown[]) { return inner.apply(this, a); };
+      depth++;
+      const res = ensureRenderHook(i);
+      results.push(res);
+      if (res === 'rewrapped') depth++;
+    }
+    expect(results.filter((x) => x === 'rewrapped').length).toBe(REWRAP_MAX);
+    expect(results.filter((x) => x === 'capped').length).toBe(1);
+    expect(depth).toBe(50 + REWRAP_MAX);
+    // Still exactly one active QPM handler in the chain.
     r.render({ container: stage });
     expect(n).toBe(1);
   });

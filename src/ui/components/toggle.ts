@@ -10,6 +10,7 @@ interface ToggleResult {
   root: HTMLElement;
   input: HTMLButtonElement;
   setChecked: (value: boolean) => void;
+  setDisabled: (value: boolean) => void;
 }
 
 const SIZES = {
@@ -24,8 +25,8 @@ export function createToggle(options: ToggleOptions = {}): ToggleResult {
     checked = false,
     onChange,
     label,
-    disabled = false,
   } = options;
+  let disabled = options.disabled ?? false;
 
   const dims = SIZES[size];
   let state = checked;
@@ -96,5 +97,12 @@ export function createToggle(options: ToggleOptions = {}): ToggleResult {
     applyState();
   }
 
-  return { root, input: track, setChecked };
+  function setDisabled(value: boolean): void {
+    disabled = value;
+    track.disabled = value;
+    root.style.cursor = value ? 'not-allowed' : 'pointer';
+    root.style.opacity = value ? '0.5' : '1';
+  }
+
+  return { root, input: track, setChecked, setDisabled };
 }

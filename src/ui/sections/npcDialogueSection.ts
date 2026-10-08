@@ -55,8 +55,8 @@ export function createNpcDialogueSection(): HTMLElement {
     label: t('feature.npcDialogue.enable'),
     onChange: (v) => {
       setNpcDialogueEnabled(v);
-      for (const lt of lineToggles) lt.input.disabled = !v;
-      companionToggle.input.disabled = !v;
+      for (const lt of lineToggles) lt.setDisabled(!v);
+      companionToggle.setDisabled(!v);
     },
   }).root);
   root.appendChild(companionToggle.root);

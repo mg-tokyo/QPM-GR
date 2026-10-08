@@ -26,18 +26,19 @@ export function registerDictionary(locale: QpmLocale, dict: Dictionary): void {
   dictionaries.set(locale, dict);
 }
 
+// The glossary rule marks an unchecked translation '[VERIFY] <English>'; users get the English text instead.
+const UNVERIFIED = '[VERIFY]';
+
+function lookup(dict: Dictionary | undefined, key: I18nKey): string | undefined {
+  return dict && key in dict ? dict[key] : undefined;
+}
+
 /** Look up a raw template string from the active locale, falling back to English. */
 function resolve(key: I18nKey, locale: string): string | undefined {
-  const localeDict = dictionaries.get(locale);
-  if (localeDict && key in localeDict) return localeDict[key];
-
-  // Fallback to English
-  if (locale !== 'en') {
-    const enDict = dictionaries.get('en');
-    if (enDict && key in enDict) return enDict[key];
-  }
-
-  return undefined;
+  const value = lookup(dictionaries.get(locale), key);
+  if (locale === 'en') return value;
+  if (value !== undefined && !value.startsWith(UNVERIFIED)) return value;
+  return lookup(dictionaries.get('en'), key) ?? value;
 }
 
 /** True when the key exists in the active locale OR the English fallback. */

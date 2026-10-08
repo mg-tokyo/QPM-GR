@@ -2,6 +2,24 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.53",
+    date: "2026-10-08",
+    notes: [
+      "Fixed moving items into and out of storage after game build 1419: Buy All auto-store and pet hutch swaps in Pet Teams work again",
+      "Added Graphics presets to the 3D camera settings (Low, Medium, High, Ultra or Custom), with rows for pets & players distance, far pet animation, ground sharpness and 3D weather, plus a Reset to defaults button",
+      "Added a Field of view slider to the 3D camera settings",
+      "Added a suggestion to switch to a lighter graphics preset when the 3D camera runs slowly, with a one-click Apply",
+      "Improved 3D camera performance a lot, especially when standing still, turning and walking, with far fewer tiles popping in at the edges",
+      "Improved zooming into 3D: the tilt is smoother, entering and leaving 3D is a short animation, and first person pushes in instead of cutting",
+      "Improved walking in 3D: diagonal movement is smooth, you walk exactly where the camera faces, and following the player no longer jitters",
+      "Fixed the 3D camera dropping back to 2D whenever the inventory, a shop or a confirmation dialog opened: it now stays where it is",
+      "Added a crosshair in first person and made clicks in 3D land on the plant, pet or object under the cursor more reliably",
+      "Improved rain and frost in 3D: they now fall from eye height instead of stopping just above the ground",
+      "Fixed several 3D visual issues: fence walls, tile markers and area indicators up close, players hidden behind shop buildings, and players standing on decor at the wrong height",
+      "Improved 3D camera stability: after repeated errors it pauses itself with a Retry button in its settings instead of breaking the view",
+    ],
+  },
+  {
     version: "3.3.52",
     date: "2026-10-04",
     notes: [

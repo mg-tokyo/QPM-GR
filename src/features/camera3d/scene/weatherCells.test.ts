@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { bucketCells, claimSlots, nextPhases, parseCellHash, phaseOf, stormCells, strikeFrame, weatherBlend, weatherModeOf } from './weatherCells';
+import { depthKey } from '../math/depth';
+import { VIEWMODEL_Z } from './viewmodel';
+import {
+  SLAB_OPEN, bucketCells, claimSlots, nextPhases, parseCellHash, phaseOf, slabBounds, slabCount, slabKey, slabShift, slabStart, stormCells,
+  strikeFrame, weatherBlend, weatherModeOf,
+} from './weatherCells';
 
 // Live game VS excerpt (build 1381, weather-pattern-pass-vertex).
 const LIVE_HASH = 'float hashCell(vec2 cell) {\n  float n =\n    sin(dot(cell, vec2(12.9898, 78.233))) *\n    43758.5453;\n\n  return fract(abs(n));\n}\n';
@@ -50,16 +55,55 @@ describe('weatherBlend', () => {
   // Review Focus 6: straight down every mode must be the exact 2D pattern (s = 0 handoff in any weather).
   it('draws the exact 2D pattern for every mode straight down', () => {
     for (const mode of ['flat', 'stand', 'bolts'] as const) {
-      expect(weatherBlend(mode, 0, true)).toEqual({ stand: 0, flatAlpha: 1, boltAlpha: 0, overWorld: true });
+      expect(weatherBlend(mode, 0, true)).toEqual({ stand: 0, flatAlpha: 1, boltAlpha: 0, overWorld: true, slabs: false });
     }
   });
-  it('stands rain over World and hands the storm to the bolts below 60°', () => {
-    expect(weatherBlend('stand', 1, false)).toEqual({ stand: 1, flatAlpha: 1, boltAlpha: 0, overWorld: true });
-    expect(weatherBlend('bolts', 1, false)).toEqual({ stand: 0, flatAlpha: 0, boltAlpha: 1, overWorld: false });
-    expect(weatherBlend('flat', 1, false)).toEqual({ stand: 0, flatAlpha: 1, boltAlpha: 0, overWorld: false });
+  it('stands rain in depth slabs once tilted, and hands the storm to the bolts', () => {
+    expect(weatherBlend('stand', 1, false)).toEqual({ stand: 1, flatAlpha: 1, boltAlpha: 0, overWorld: false, slabs: true });
+    expect(weatherBlend('bolts', 1, false)).toEqual({ stand: 0, flatAlpha: 0, boltAlpha: 1, overWorld: false, slabs: false });
+    expect(weatherBlend('flat', 1, false)).toEqual({ stand: 0, flatAlpha: 1, boltAlpha: 0, overWorld: false, slabs: false });
   });
   it('cross-fades the storm halfway through the tilt', () => {
-    expect(weatherBlend('bolts', 0.5, false)).toEqual({ stand: 0, flatAlpha: 0.5, boltAlpha: 0.5, overWorld: false });
+    expect(weatherBlend('bolts', 0.5, false)).toEqual({ stand: 0, flatAlpha: 0.5, boltAlpha: 0.5, overWorld: false, slabs: false });
+  });
+});
+
+describe('depth slabs (P9)', () => {
+  const S = 512;
+  it('covers one slab behind the camera to one past the radius, open at both ends', () => {
+    const n = slabCount(4096, S);
+    const k0 = slabStart(10_000, S);
+    const lo: number[] = [], hi: number[] = [];
+    for (let i = 0; i < n; i++) { const b: [number, number] = [0, 0]; slabBounds(i, k0, n, S, b); lo.push(b[0]!); hi.push(b[1]!); }
+    expect(lo[0]).toBe(-SLAB_OPEN);
+    expect(hi[n - 1]).toBe(SLAB_OPEN);
+    // Contiguous: each cell lands in exactly one slab.
+    for (let i = 1; i < n; i++) expect(lo[i]).toBe(hi[i - 1]);
+    // The camera stands in slab 1, so cards just behind it still sort in a slab of their own.
+    expect(lo[1]).toBeLessThanOrEqual(10_000);
+    expect(lo[1]).toBeGreaterThan(10_000 - 2 * S);
+    expect(lo[n - 1]).toBeGreaterThanOrEqual(10_000 + 4096);
+  });
+  it('keys like an entity at the slab middle, nearer slabs drawn later, all under the held item', () => {
+    const k0 = slabStart(10_000, S);
+    const keys = [0, 1, 2, 3].map((i) => slabKey(i, k0, S));
+    for (let i = 1; i < keys.length; i++) expect(keys[i]).toBeLessThan(keys[i - 1]!);
+    expect(Math.max(...keys)).toBeLessThan(VIEWMODEL_Z);
+    // An entity standing anywhere in a slab is out of order with its cells by at most half a slab.
+    const mid = (k0 + 2.5) * S;
+    expect(depthKey(0, -(mid + S / 2 + 1), 0, -1, 0)).toBeLessThan(keys[2]!);
+    expect(depthKey(0, -(mid - S / 2 - 1), 0, -1, 0)).toBeGreaterThan(keys[2]!);
+  });
+  it('moves the window only on a frame that rebuilds anyway, unless it lags two slabs or the view turned', () => {
+    expect(slabShift(5, NaN, false, false)).toBe('forced');
+    expect(slabShift(5, NaN, false, true)).toBe('now');
+    expect(slabShift(5, 5, false, false)).toBe('keep');
+    expect(slabShift(5, 5, false, true)).toBe('keep');
+    expect(slabShift(6, 5, false, false)).toBe('keep');
+    expect(slabShift(6, 5, false, true)).toBe('now');
+    expect(slabShift(7, 5, false, false)).toBe('forced');
+    expect(slabShift(5, 5, true, false)).toBe('forced');
+    expect(slabShift(5, 5, true, true)).toBe('now');
   });
 });
 

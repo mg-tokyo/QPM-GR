@@ -1,9 +1,12 @@
+import { TILE } from '../constants';
 import type { FrameCtx } from '../frame/frame';
 import type { Mat, Node3, XY } from '../types';
 import type { Placement } from './entities';
-import { groundAffine } from './flat';
+import { flatInView, groundAffine, newAffine } from './flat';
 
-const TILE = 256;
+// A mark's reach from its position: one tile sprite at any anchor (corner: 1.41 tiles), with slack for a scaled one.
+const MARK_REACH = 2 * TILE;
+
 type MatCtor = new (...args: unknown[]) => Mat;
 
 /** The game's AreaTileIndicator (celestial plant auras, ward crystal coverage, held-item previews, ridden-pet ability
@@ -19,9 +22,9 @@ export function isAreaGrid(c: Node3, layer: Node3): boolean {
 /** `mid`: the owner's descendants above the container, top-down. */
 interface Area { c: Node3; owner: Node3; mid: Node3[]; laid: number; hidden: boolean }
 
-/** Tilted, takes a tile's quad (w2: the grid's 2D world matrix) to draw it in perspective (areaMesh.ts); false: the
- * tile keeps the sprite path. */
-export interface AreaTileSink { add(ctx: FrameCtx, s: Node3, w2: Mat, alpha: number): boolean }
+/** Tilted, takes a node's quad (w2: its parent's 2D world matrix) to draw it in perspective in band z (default: the area
+ * marks' band) (areaMesh.ts); false: the node keeps the sprite path. */
+export interface AreaTileSink { add(ctx: FrameCtx, s: Node3, w2: Mat, alpha: number, z?: number): boolean }
 
 export interface AreaMarks {
   /** `n` is attached to the ground layer: true when it belongs to an area grid (it then stays on the layer). */
@@ -62,6 +65,7 @@ export function createAreaMarks(sink: AreaTileSink | null = null): AreaMarks {
   let meshed = new WeakSet<Node3>();
   let shown = 0, shownFrame = -1;
   const pt: XY = { x: 0, y: 0 };
+  const aff = newAffine();
 
   const forget = (ctx: FrameCtx | null, a: Area): void => {
     areas.delete(a.c);
@@ -105,16 +109,16 @@ export function createAreaMarks(sink: AreaTileSink | null = null): AreaMarks {
     for (const s of a.c.children) {
       if (!ctx.ov.gameValue<boolean>('visible', s)) continue;
       if (toSink && sink.add(ctx, s, W2, alpha * ctx.ov.raw<number>('alpha', s))) {
-        if (!meshed.has(s)) { meshed.add(s); ctx.ov.put('visible', s, false, true); }
+        if (!meshed.has(s) || !ctx.ov.has('visible', s)) { meshed.add(s); ctx.ov.put('visible', s, false, true); }
         continue;
       }
       if (meshed.has(s)) { meshed.delete(s); ctx.ov.drop('visible', s); }
       if (!counter) { counter = true; ctx.saves.save(a.c); a.c.setFromMatrix(I.invert()); }
       ctx.saves.save(s);
       const g = W2.apply(s.position, pt);
-      const A = groundAffine(ctx, g.x, g.y);
-      // Off-screen past the billboard cull margins (placeFlat's test), or outside the depth range: parked.
-      if (!A || A.sx < -ctx.marginX || A.sx > ctx.W + ctx.marginX || A.sy < -ctx.marginTop || A.sy > ctx.H + 1200) { s.scale.set(0, 0); continue; }
+      const A = groundAffine(ctx, g.x, g.y, aff);
+      // Off screen this frame (placeFlat's test), or outside the depth range: parked.
+      if (!A || !flatInView(ctx, A, MARK_REACH)) { s.scale.set(0, 0); continue; }
       s.updateLocalTransform();
       s.setFromMatrix(S.set(A.a, A.b, A.c, A.d, A.tx, A.ty).append(W2).append(s.localTransform));
       if (shownFrame !== ctx.frameNo) { shownFrame = ctx.frameNo; shown = 0; }

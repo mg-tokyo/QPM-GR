@@ -49,6 +49,21 @@ describe('createLayerHandler: tile-radius area marks', () => {
     expect(layer.renderLayerChildren.length).toBe(3);
   });
 
+  it('does not re-attach a node the game detached while 3D held it, and hands detach back (A V9)', () => {
+    const { world, layer, onLayer } = layerWorld();
+    const tile = world.addChild(new FakeNode(10, 10));
+    const a = onLayer(tile.addChild(new FakeNode()).addChild(new FakeNode().withTexture(16, 16, 0.5)));
+    const b = onLayer(tile.addChild(new FakeNode()).addChild(new FakeNode().withTexture(16, 16, 0.5)));
+    const gameDetach = layer.detach;
+    const h = createLayerHandler();
+    h.adopt(ctxFor(world).ctx);
+    expect(layer.renderLayerChildren).toEqual([]);
+    layer.detach(a);
+    h.drop();
+    expect(layer.renderLayerChildren).toEqual([b]);
+    expect(layer.detach).toBe(gameDetach);
+  });
+
   it('releases the layer slot when nothing is kept', () => {
     const { world, layer, onLayer } = layerWorld();
     onLayer(world.addChild(new FakeNode(10, 10)).addChild(new FakeNode().withTexture(16, 16, 0.5)));

@@ -1,16 +1,23 @@
 import { t } from '../../i18n';
 
+export interface PillTabsOptions {
+  disabled?: boolean;
+}
+
 export function createPillTabs(
   labels: string[],
   activeIndex: number,
   onSelect: (index: number) => void,
+  options: PillTabsOptions = {},
 ): HTMLElement {
+  const disabled = options.disabled ?? false;
   const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;padding:0 2px;';
+  row.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;padding:0 2px;' + (disabled ? 'opacity:0.5;' : '');
 
   for (let i = 0; i < labels.length; i++) {
     const btn = document.createElement('button');
     btn.type = 'button';
+    btn.disabled = disabled;
     const lbl = labels[i]!;
     btn.textContent = t(lbl) || lbl;
     const active = i === activeIndex;
@@ -18,7 +25,7 @@ export function createPillTabs(
       'padding:5px 12px',
       'font-size:11px',
       'border-radius:14px',
-      'cursor:pointer',
+      disabled ? 'cursor:not-allowed' : 'cursor:pointer',
       'border:1px solid',
       'transition:all 0.12s',
       active

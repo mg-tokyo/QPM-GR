@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { cullOf } from '../__test__/cullOf';
 import { FakeMatrix } from '../__test__/fakeMatrix';
 import { FakeNode } from '../__test__/fakeNode';
 import { DrawnTable, FullSaves } from '../frame/drawn';
 import type { FrameCtx } from '../frame/frame';
+import { PersistTable } from '../frame/persist';
 import { makeBasis, project } from '../math/camera';
 import type { Mat, Node3 } from '../types';
 import { createAreaMarks, isAreaGrid } from './areaMarks';
@@ -31,16 +33,18 @@ function ctxAt(pitchDeg: number, world: FakeNode, k = 1.5) {
   const params = { yaw: 0, pitch: (pitchDeg * Math.PI) / 180, dist: fpx / k, fov, lookH: 0, yOff: 0, near: 40, far: 9000 };
   const puts: Array<[string, unknown, unknown]> = [];
   const drops: Array<[string, unknown]> = [];
+  const hidden = new Set<unknown>();
   const ov = {
-    put: (key: string, n: unknown, v: unknown) => { puts.push([key, n, v]); },
-    drop: (key: string, n: unknown) => { drops.push([key, n]); },
+    put: (key: string, n: unknown, v: unknown) => { puts.push([key, n, v]); if (key === 'visible') hidden.add(n); },
+    drop: (key: string, n: unknown) => { drops.push([key, n]); if (key === 'visible') hidden.delete(n); },
+    has: (key: string, n: unknown) => key === 'visible' && hidden.has(n),
     raw: (key: string) => (key === 'alpha' ? 1 : true),
     gameValue: (key: string, n: FakeNode) => (key === 'visible' ? n.visible : 0),
   };
   const ctx = {
     W, H, params, basis: makeBasis(params, 5000, 4000, W, H), out: [0, 0, 0], ov, saves: new FullSaves(), drawn: new DrawnTable(),
-    reCull: false, roll: -1, marginX: W * 0.75, marginTop: H * 0.75, dx: 0, dz: -1, frameNo: 7, exactKeys: false,
-    caps: { scene: { world: world.node }, classes: { Matrix: FakeMatrix } },
+    reCull: false, roll: -1, cull: cullOf(makeBasis(params, 5000, 4000, W, H), params, W, H), dx: 0, dz: -1, frameNo: 7, exactKeys: false,
+    caps: { scene: { world: world.node }, classes: { Matrix: FakeMatrix } }, persist: new PersistTable(false),
   } as unknown as FrameCtx;
   return { ctx, puts, drops };
 }
@@ -131,6 +135,22 @@ describe('createAreaMarks', () => {
     expect(puts.filter(([k, , v]) => k === 'visible' && v === false)).toHaveLength(8);
     expect(area.lastSet).toBeNull();
     expect(area.children.every((s) => s.lastSet === null)).toBe(true);
+  });
+
+  it('a hide pin dropped behind its back (a detached tile pruned, A R4) is put back on the next frame', () => {
+    const layer = new FakeNode();
+    const { world, tile, area } = binderTile(layer);
+    const { ctx, puts } = ctxAt(35, world);
+    const marks = createAreaMarks({ add: () => true });
+    marks.claim(area.children[0]!.node, layer.node, world.node);
+    const lp = newPlacement();
+    placeBillboard(ctx, tile.node, { isTile: true, standY: 3840, depthY: 3840, tiebreak: 0, artRow: true }, lp);
+    marks.lay(ctx, tile.node, lp);
+    ctx.ov.drop('visible', area.children[0]!.node);
+    marks.lay({ ...ctx, frameNo: 8 } as FrameCtx, tile.node, lp);
+    const hides = puts.filter(([k, , v]) => k === 'visible' && v === false);
+    expect(hides).toHaveLength(9);
+    expect(hides[8]![1]).toBe(area.children[0]!.node);
   });
 
   it('straight down (or when the sink declines) it keeps the sprite path and hands the pins back', () => {

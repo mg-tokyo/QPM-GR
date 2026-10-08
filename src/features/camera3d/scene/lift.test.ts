@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeMatrix } from '../__test__/fakeMatrix';
 import { FakeNode } from '../__test__/fakeNode';
 import { makeBasis, project } from '../math/camera';
-import { FullSaves } from '../frame/drawn';
+import { DrawnTable, FullSaves } from '../frame/drawn';
 import type { FrameCtx } from '../frame/frame';
 import { applyLift, createLifter, liftUnits, RESCAN_FRAMES, RESCAN_PER_FRAME, scanEntity } from './lift';
 
@@ -82,7 +82,7 @@ describe('scanEntity / liftUnits', () => {
     const mm = basis.fpx / out[2]!;
     tile.position.set(out[0]!, out[1]!);
     tile.scale.set(mm, mm);
-    const ctx = { basis, out, params: { near: 40 }, dx: 0, dz: -1, saves: new FullSaves(), caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
+    const ctx = { basis, out, params: { near: 40 }, dx: 0, dz: -1, saves: new FullSaves(), drawn: new DrawnTable(), caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
     applyLift(ctx, tile.node, { sx: out[0]!, sy: out[1]!, px: out[0]!, mm, fx: 5000, x2d: 5000, fy2d: 4000, key: 0, gdy: 0 }, units);
     const set = slot.lastSet!;
     expect(set.a).toBeCloseTo(1, 6);
@@ -97,7 +97,7 @@ describe('scanEntity / liftUnits', () => {
       const slot = new FakeNode(0, 150, 1, [leaf()]);
       const tile = tileWith(slot);
       const units = liftUnits(scanEntity(tile.node, M, noLayer), 0, 32);
-      const ctx = { basis, out: [0, 0, 0], params: { near: 40 }, dx: 0, dz: -1, saves: new FullSaves(), caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
+      const ctx = { basis, out: [0, 0, 0], params: { near: 40 }, dx: 0, dz: -1, saves: new FullSaves(), drawn: new DrawnTable(), caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
       applyLift(ctx, tile.node, { sx: 0, sy: 0, px: 0, mm: 1, fx: 5000, x2d: 5000, fy2d: 4000, key: 0, gdy }, units);
       return slot.lastSet!;
     };
@@ -110,6 +110,37 @@ describe('scanEntity / liftUnits', () => {
     project(basis, 5000, 0, 4162, out);
     expect(lifted(0).apply({ x: 0, y: 12 }).y).toBeCloseTo(out[1]! - 4000, 3);
   });
+
+  it('records each lifted unit\'s own screen map for picking (A I6); a unit behind the lens is recorded as not drawn', () => {
+    const basis = makeBasis({ yaw: 0, pitch: (30 * Math.PI) / 180, dist: 1500, fov: (50 * Math.PI) / 180, lookH: 0, yOff: 0, near: 40, far: 9000 }, 5000, 4000, 1000, 600);
+    const slot = new FakeNode(0, 150, 1, [leaf()]);
+    const tile = tileWith(slot);
+    const units = liftUnits(scanEntity(tile.node, M, noLayer), 0, 32);
+    const drawn = new DrawnTable();
+    const ctx = { basis, out: [0, 0, 0], params: { near: 40 }, dx: 0, dz: -1, saves: new FullSaves(), drawn, caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
+    applyLift(ctx, tile.node, { sx: 0, sy: 0, px: 0, mm: 1, fx: 5000, x2d: 5000, fy2d: 4000, key: 0, gdy: -100 }, units);
+    const out = [0, 0, 0];
+    project(basis, 5000, 0, 4062, out);
+    const e = drawn.liftFor(slot.node)!;
+    expect(e.owner).toBe(tile.node);
+    expect([e.x, e.y]).toEqual([5000, 4162]);
+    expect(e.px).toBeCloseTo(out[0]!, 6);
+    expect(e.py).toBeCloseTo(out[1]!, 6);
+    expect(e.mm).toBeCloseTo(basis.fpx / out[2]!, 9);
+    // The map agrees with the transform the unit was drawn with: its art foot (slot-local y 12) lands on (px, py).
+    const drawnFoot = slot.lastSet!.apply({ x: 0, y: 12 });
+    expect(drawnFoot.x + 5000).toBeCloseTo(e.px, 3);
+    expect(drawnFoot.y + 4000).toBeCloseTo(e.py, 3);
+
+    const behind = new DrawnTable();
+    // Looking north from 3840: the unit's ground point (y 4162) is behind the lens.
+    const far = makeBasis({ yaw: 0, pitch: (5 * Math.PI) / 180, dist: 40, fov: (50 * Math.PI) / 180, lookH: 0, yOff: 0, near: 40, far: 9000 }, 5000, 3800, 1000, 600);
+    const ctx2 = { ...ctx, basis: far, drawn: behind, saves: new FullSaves() } as unknown as FrameCtx;
+    applyLift(ctx2, tile.node, { sx: 0, sy: 0, px: 0, mm: 1, fx: 5000, x2d: 5000, fy2d: 4000, key: 0, gdy: 0 }, units);
+    // Scaled to 0 there; through its card map picking would still find it where it would sit unlifted.
+    expect(behind.liftFor(slot.node)?.mm).toBe(0);
+    expect(behind.hasLifts(tile.node)).toBe(true);
+  });
 });
 
 describe('createLifter', () => {
@@ -120,7 +151,7 @@ describe('createLifter', () => {
     const tile = opts.base ? tileWith(new FakeNode().withTexture(400, 400, 0.6), slot) : tileWith(slot);
     const puts: number[] = [];
     const ov = { gameValue: () => gameZ, put: (_k: string, _n: object, v: number) => { puts.push(v); } };
-    const ctx = { basis, out: [0, 0, 0], params: { near: 40 }, dx: 0, dz: -1, exactKeys: pitchDeg >= 80, reCull: true, frameNo: 1, ov, saves: new FullSaves(), caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
+    const ctx = { basis, out: [0, 0, 0], params: { near: 40 }, dx: 0, dz: -1, exactKeys: pitchDeg >= 80, reCull: true, frameNo: 1, ov, saves: new FullSaves(), drawn: new DrawnTable(), caps: { classes: { Matrix: FakeMatrix } } } as unknown as FrameCtx;
     const lifter = createLifter(noLayer, () => !!opts.avatar);
     const standY = lifter.standRow(ctx, tile.node, 4000);
     const out = [0, 0, 0];
@@ -183,5 +214,48 @@ describe('lifter re-scan policy', () => {
     expect(l.standRow(at(2, false), tile.node, 4000)).toBe(4120);
     tile.children[0]!.removeChild(base);
     expect(l.standRow(at(3, false), tile.node, 4000)).toBe(4000);
+  });
+
+  // PIXI 8 (live v1431): visible/alpha setters call _onUpdate (_didContainerChangeTick++), a texture or anchor change
+  // calls onViewUpdate (_didViewChangeTick++). A base sprite carrying both ticks, counting its getter reads.
+  const tickedBase = () => {
+    const base = new FakeNode().withTexture(400, 400, 0.6) as FakeNode & { _didContainerChangeTick: number; _didViewChangeTick: number };
+    base._didContainerChangeTick = 0;
+    base._didViewChangeTick = 0;
+    let reads = 0, tex = base.texture, alpha = 1;
+    Object.defineProperty(base, 'texture', { configurable: true, get: () => { reads++; return tex; }, set: (v: typeof tex) => { tex = v; base._didViewChangeTick++; } });
+    Object.defineProperty(base, 'alpha', { configurable: true, get: () => { reads++; return alpha; }, set: (v: number) => { alpha = v; base._didContainerChangeTick++; } });
+    return { base, tile: tileWith(base), reads: () => reads };
+  };
+
+  it('perf 4: unchanged base ticks skip the base sprite checks; the rescan schedule is unchanged', () => {
+    const { base, tile, reads } = tickedBase();
+    const l = createLifter(noLayer, () => false);
+    expect(l.standRow(at(1), tile.node, 4000)).toBe(4160);
+    l.standRow(at(2, false), tile.node, 4000);
+    const n = reads();
+    for (let f = 3; f < 20; f++) l.standRow(at(f, false), tile.node, 4000);
+    expect(reads()).toBe(n);
+    grow(base);
+    expect(l.standRow(at(2 + RESCAN_FRAMES, false), tile.node, 4000)).toBe(4200);
+  });
+
+  it('perf 4: a texture swap (view tick) or a fade to 0 (container tick) re-scans at once', () => {
+    const swap = tickedBase(), fade = tickedBase();
+    const l = createLifter(noLayer, () => false);
+    for (const t of [swap, fade]) { l.standRow(at(1), t.tile.node, 4000); l.standRow(at(2, false), t.tile.node, 4000); }
+    swap.base.withTexture(400, 300, 0.6);
+    fade.base.alpha = 0;
+    expect(l.standRow(at(3, false), swap.tile.node, 4000)).toBe(4120);
+    expect(l.standRow(at(3, false), fade.tile.node, 4000)).toBe(4000);
+  });
+
+  it('perf 4: scanOf is the stand token: the same scan while valid, a new one once re-scanned', () => {
+    const { base, tile } = tickedBase();
+    const l = createLifter(noLayer, () => false);
+    const first = l.scanOf(at(1), tile.node);
+    expect(l.scanOf(at(2, false), tile.node)).toBe(first);
+    base.withTexture(400, 300, 0.6);
+    expect(l.scanOf(at(3, false), tile.node)).not.toBe(first);
   });
 });

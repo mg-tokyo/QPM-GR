@@ -1,8 +1,14 @@
+import type { Caps, TexLike } from '../types';
+
 export interface HashFn { name: string; src: string }
 export interface PhaseMap { cols: number; rows: number; phases: Uint8Array }
+export interface PhasePoints { pts: Float32Array; cols: number; rows: number }
+/** RGBA bytes of a cols × rows target with each cell's phase in red, or null when the draw failed. */
+export type PhaseRender = (prog: { vs: string; fs: string }, p: PhasePoints, phaseCount: number) => ArrayLike<number> | null;
 
 // The game's per-cell hash: the first `float name(vec2 x) { … }` in its weather VS (live: hashCell).
 const HASH_FN = /float\s+(\w+)\s*\(\s*vec2\s+\w+\s*\)\s*\{[\s\S]*?\n\}/;
+const CLEAR = 255;
 
 export function extractHashFn(vs: string): HashFn | null {
   const m = HASH_FN.exec(vs);
@@ -17,69 +23,71 @@ export function phaseProgram(hash: HashFn): { vs: string; fs: string } {
   };
 }
 
-const cache = new Map<string, PhaseMap | null>();
-
-/** The game's GPU phase bucket per cell (index cy * cols + cx; 255 = not drawn). null when WebGL2 or the program fails;
- * the caller then falls back to the CPU twin. Live 10-03: 11–18 ms, once per grid per session. */
-export function gpuPhases(vs: string, aCell: Float32Array, phaseCount: number): PhaseMap | null {
-  const id = `${phaseCount}:${aCell.length}:${vs}`;
-  if (cache.has(id)) return cache.get(id) ?? null;
-  const map = computePhases(vs, aCell, phaseCount);
-  cache.set(id, map);
-  return map;
-}
-
-function computePhases(vs: string, aCell: Float32Array, phaseCount: number): PhaseMap | null {
-  const hash = extractHashFn(vs);
-  if (!hash || phaseCount <= 0 || phaseCount > 254) return null;
-  const pts: number[] = [];
+/** One point per cell of the game geometry (aCell: 4 vertices × 2 floats per cell). */
+export function phasePoints(aCell: Float32Array): PhasePoints | null {
+  const n = Math.floor(aCell.length / 8);
+  const pts = new Float32Array(n * 2);
   let cols = 0, rows = 0;
-  for (let i = 0; i + 1 < aCell.length; i += 8) {
-    const cx = aCell[i]!, cy = aCell[i + 1]!;
-    pts.push(cx, cy);
+  for (let i = 0; i < n; i++) {
+    const cx = aCell[i * 8]!, cy = aCell[i * 8 + 1]!;
+    pts[i * 2] = cx;
+    pts[i * 2 + 1] = cy;
     cols = Math.max(cols, cx + 1);
     rows = Math.max(rows, cy + 1);
   }
-  if (cols === 0 || rows === 0) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = cols;
-  canvas.height = rows;
-  const gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
-  if (!gl) return null;
-  try {
-    const p = phaseProgram(hash);
-    const compile = (type: number, src: string): WebGLShader | null => {
-      const s = gl.createShader(type);
-      if (!s) return null;
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      return gl.getShaderParameter(s, gl.COMPILE_STATUS) === true ? s : null;
-    };
-    const v = compile(gl.VERTEX_SHADER, p.vs), f = compile(gl.FRAGMENT_SHADER, p.fs);
-    const prog = gl.createProgram();
-    if (!v || !f || !prog) return null;
-    gl.attachShader(prog, v);
-    gl.attachShader(prog, f);
-    gl.linkProgram(prog);
-    if (gl.getProgramParameter(prog, gl.LINK_STATUS) !== true) return null;
-    gl.useProgram(prog);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(prog, 'aCell');
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform2f(gl.getUniformLocation(prog, 'uGrid'), cols, rows);
-    gl.uniform1f(gl.getUniformLocation(prog, 'uPhaseCount'), phaseCount);
-    gl.viewport(0, 0, cols, rows);
-    gl.clearColor(1, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.drawArrays(gl.POINTS, 0, pts.length / 2);
-    const px = new Uint8Array(cols * rows * 4);
-    gl.readPixels(0, 0, cols, rows, gl.RGBA, gl.UNSIGNED_BYTE, px);
-    const phases = new Uint8Array(cols * rows);
-    for (let i = 0; i < phases.length; i++) phases[i] = px[i * 4]!;
-    return { cols, rows, phases };
-  } finally {
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
-  }
+  return cols > 0 && rows > 0 ? { pts, cols, rows } : null;
+}
+
+export interface PhaseCache { get(vs: string, aCell: Float32Array, phaseCount: number): PhaseMap | null }
+
+/** The game's GPU phase bucket per cell (index cy * cols + cx; 255 = not drawn), or null (the caller falls back to the
+ * CPU twin). Only successes are kept: a failure is retried when the next grid is built (A W4). */
+export function createPhaseCache(render: PhaseRender): PhaseCache {
+  const done = new Map<string, PhaseMap>();
+  return {
+    get(vs, aCell, phaseCount) {
+      const id = `${phaseCount}:${aCell.length}:${vs}`;
+      const hit = done.get(id);
+      if (hit) return hit;
+      const hash = extractHashFn(vs);
+      const p = phasePoints(aCell);
+      if (!hash || !p || phaseCount <= 0 || phaseCount >= CLEAR) return null;
+      const px = render(phaseProgram(hash), p, phaseCount);
+      if (!px || px.length < p.cols * p.rows * 4) return null;
+      const phases = new Uint8Array(p.cols * p.rows);
+      let drawn = 0;
+      for (let i = 0; i < phases.length; i++) { phases[i] = px[i * 4]!; if (phases[i] !== CLEAR) drawn++; }
+      if (drawn === 0) return null;
+      const map = { cols: p.cols, rows: p.rows, phases };
+      done.set(id, map);
+      return map;
+    },
+  };
+}
+
+/** Draws the phase points through the game's own renderer (as alphaProbe does): a throwaway WebGL2 context per grid
+ * could evict the game's near the browser's context cap. Live 2026-10-05 (1419): equal to the old context's readback
+ * for all 6060 cells of a 101 × 60 grid, rows in the same order, 9.3 ms with the compile. */
+export function gameRendererPhases(caps: Caps): PhaseRender {
+  const { classes: C, scene: { renderer: r } } = caps;
+  return (prog, p, phaseCount) => {
+    if (r.gl?.isContextLost()) return null;
+    const geometry = new C.Geometry({ attributes: { aCell: { buffer: p.pts, format: 'float32x2' } }, topology: 'point-list' });
+    const uniforms = new C.UniformGroup({ uGrid: { value: new Float32Array([p.cols, p.rows]), type: 'vec2<f32>' }, uPhaseCount: { value: phaseCount, type: 'f32' } });
+    const shader = new C.Shader({ glProgram: new C.GlProgram({ vertex: prog.vs, fragment: prog.fs, name: 'qpm3d-phase' }), resources: { qpm3dPhase: uniforms } });
+    const mesh = new C.Mesh({ geometry, shader, texture: C.Texture.WHITE });
+    let tex: TexLike | null = null;
+    try {
+      tex = r.generateTexture({ target: mesh, frame: new C.Rectangle(0, 0, p.cols, p.rows), resolution: 1, clearColor: [1, 0, 0, 1], antialias: false });
+      const out = r.extract.pixels(tex);
+      return out.width === p.cols && out.height === p.rows ? out.pixels : null;
+    } catch {
+      return null;
+    } finally {
+      tex?.destroy(true);
+      mesh.destroy();
+      shader.destroy(true);
+      geometry.destroy(true);
+    }
+  };
 }

@@ -19,5 +19,15 @@ export class FakeMatrix {
   }
   translate(x: number, y: number): this { this.tx += x; this.ty += y; return this; }
   scale(x: number, y: number): this { return this.set(this.a * x, this.b * y, this.c * x, this.d * y, this.tx * x, this.ty * y); }
-  apply(p: { x: number; y: number }): { x: number; y: number } { return { x: this.a * p.x + this.c * p.y + this.tx, y: this.b * p.x + this.d * p.y + this.ty }; }
+  apply(p: { x: number; y: number }, out: { x: number; y: number } = { x: 0, y: 0 }): { x: number; y: number } {
+    const x = p.x, y = p.y;
+    out.x = this.a * x + this.c * y + this.tx;
+    out.y = this.b * x + this.d * y + this.ty;
+    return out;
+  }
+  applyInverse(p: { x: number; y: number }, out: { x: number; y: number } = { x: 0, y: 0 }): { x: number; y: number } {
+    const q = this.clone().invert().apply(p);
+    out.x = q.x; out.y = q.y;
+    return out;
+  }
 }

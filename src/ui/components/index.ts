@@ -19,8 +19,8 @@ export { createSectionHeader, type SectionHeaderOptions } from './sectionHeader'
 
 // Primitives
 export { createSelect, type SelectOption } from './select';
-export { createPillTabs } from './pillTabs';
-export { createSliderRow, type SliderRowOptions } from './sliderRow';
+export { createPillTabs, type PillTabsOptions } from './pillTabs';
+export { createSliderRow, createSliderRowControl, type SliderRowControl, type SliderRowOptions } from './sliderRow';
 export { createColorPicker } from './colorPicker';
 
 // Helpers

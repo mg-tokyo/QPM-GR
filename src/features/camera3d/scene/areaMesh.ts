@@ -3,21 +3,29 @@ import type { FrameCtx, Pass } from '../frame/frame';
 import { AREA_MARK_Z } from '../math/depth';
 import type { Caps, GeometryLike, Mat, Node3, ShaderLike, UniformGroupLike } from '../types';
 import type { AreaTileSink } from './areaMarks';
+import { CAM_RESOURCE } from './camUniforms';
 import { AREA_FS, AREA_VS } from './shaders';
 
-// One mesh per tile texture source (the game's AreaTileIndicator shares one texture per grid); more sources than this
-// keep the sprite path.
-const MAX_BATCHES = 4;
+// One mesh per (texture source, z band): area grids share one texture per grid; ground markers and building decals
+// (polish Task 11) add a few more. More than this keep their sprite path.
+export const MAX_BATCHES = 12;
 const MIN_QUADS = 32;
 
 type Affine = Pick<Mat, 'a' | 'b' | 'c' | 'd' | 'tx' | 'ty'>;
 interface Rect { x: number; y: number; width: number; height: number }
+type Uvs = { x0: number; y0: number; x1: number; y1: number; x2: number; y2: number; x3: number; y3: number };
 /** The PIXI 8 Texture fields a Sprite's quad comes from (uvs: TL, TR, BR, BL, rotated atlas frames included). */
 export interface QuadTex {
   orig: { width: number; height: number };
   trim?: Rect | null;
-  uvs?: { x0: number; y0: number; x1: number; y1: number; x2: number; y2: number; x3: number; y3: number };
+  uvs?: Uvs;
   source?: object | null;
+}
+/** A cacheAsTexture container's render group: PIXI draws `texture` over `_textureBounds` (live 1411, the tap outlines).
+ * The texture is filled only when PIXI renders the node: blank while `textureNeedsUpdate` (live 1411, after a reload). */
+interface CachedGroup {
+  isCachedAsTexture?: boolean; textureNeedsUpdate?: boolean; texture?: { uvs?: Uvs; source?: object | null } | null;
+  _textureBounds?: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
 const put = (a: Float32Array, i: number, v: number): boolean => {
@@ -33,11 +41,8 @@ function corner(pos: Float32Array, i: number, L: Affine, W2: Affine, lx: number,
   return put(pos, i + 1, W2.b * px + W2.d * py + W2.ty) || cx;
 }
 
-/** Quad `q`: the sprite's drawn rect (trim inside orig, minus the anchor, as PIXI 8 Sprite) at 2D world W2 · L. */
-export function writeTileQuad(L: Affine, W2: Affine, tex: QuadTex, ax: number, ay: number, pos: Float32Array, uv: Float32Array, q: number): boolean {
-  const o = tex.orig, t = tex.trim, u = tex.uvs;
-  const x0 = (t ? t.x : 0) - ax * o.width, x1 = x0 + (t ? t.width : o.width);
-  const y0 = (t ? t.y : 0) - ay * o.height, y1 = y0 + (t ? t.height : o.height);
+/** Quad `q`: local rect (x0, y0)–(x1, y1) at 2D world W2 · L, with the texture uvs (TL, TR, BR, BL). */
+function writeRectQuad(L: Affine, W2: Affine, x0: number, y0: number, x1: number, y1: number, u: Uvs | undefined, pos: Float32Array, uv: Float32Array, q: number): boolean {
   const i = q * 8;
   let ch = corner(pos, i, L, W2, x0, y0);
   ch = corner(pos, i + 2, L, W2, x1, y0) || ch;
@@ -50,6 +55,13 @@ export function writeTileQuad(L: Affine, W2: Affine, tex: QuadTex, ax: number, a
   return ch;
 }
 
+/** Quad `q`: the sprite's drawn rect (trim inside orig, minus the anchor, as PIXI 8 Sprite) at 2D world W2 · L. */
+export function writeTileQuad(L: Affine, W2: Affine, tex: QuadTex, ax: number, ay: number, pos: Float32Array, uv: Float32Array, q: number): boolean {
+  const o = tex.orig, t = tex.trim;
+  const x0 = (t ? t.x : 0) - ax * o.width, y0 = (t ? t.y : 0) - ay * o.height;
+  return writeRectQuad(L, W2, x0, y0, x0 + (t ? t.width : o.width), y0 + (t ? t.height : o.height), tex.uvs, pos, uv, q);
+}
+
 /** Premultiplied tint × alpha on the quad's four corners (PIXI's sprite colour). */
 export function writeQuadColor(tint: number, alpha: number, col: Float32Array, q: number): boolean {
   const r = (((tint >> 16) & 255) / 255) * alpha, g = (((tint >> 8) & 255) / 255) * alpha, b = ((tint & 255) / 255) * alpha;
@@ -60,16 +72,33 @@ export function writeQuadColor(tint: number, alpha: number, col: Float32Array, q
   return ch;
 }
 
+// A sprite's texture object; a Graphics' `texture` is its drawing-API method (live 1411, the tap outlines).
+const spriteTex = (n: Node3): QuadTex | null => (typeof n.texture === 'object' ? (n.texture as unknown as QuadTex | null) : null);
+
+/** What a node draws as one textured quad: a sprite, or a cacheAsTexture container. Null: not a quad. */
+function quadSource(n: Node3): object | null {
+  const tex = spriteTex(n);
+  if (tex) return tex.source && tex.uvs && n.anchor ? tex.source : null;
+  const g = n.renderGroup as unknown as CachedGroup | null | undefined;
+  return g?.isCachedAsTexture && g.textureNeedsUpdate === false && g.texture?.uvs && g.texture.source && g._textureBounds ? g.texture.source : null;
+}
+
+function writeNodeQuad(n: Node3, W2: Affine, pos: Float32Array, uv: Float32Array, q: number): boolean {
+  const tex = spriteTex(n);
+  if (tex && n.anchor) return writeTileQuad(n.localTransform, W2, tex, n.anchor.x, n.anchor.y, pos, uv, q);
+  const g = n.renderGroup as unknown as CachedGroup, b = g._textureBounds!;
+  return writeRectQuad(n.localTransform, W2, b.minX, b.minY, b.maxX, b.maxY, g.texture!.uvs, pos, uv, q);
+}
+
 interface DynGeometry extends GeometryLike { getBuffer(name: string): { update(): void } }
-interface Batch { src: object; mesh: Node3; geom: DynGeometry; shader: ShaderLike; cap: number; pos: Float32Array; uv: Float32Array; col: Float32Array; n: number; used: number; dirty: boolean }
-interface CamUniforms { uCamPos: Float32Array; uCamF: Float32Array; uCamR: Float32Array; uCamU: Float32Array; uFpx: number; uCenter: Float32Array; uNear: number }
+interface Batch { src: object; z: number; mesh: Node3; geom: DynGeometry; shader: ShaderLike; cap: number; pos: Float32Array; uv: Float32Array; col: Float32Array; n: number; used: number; dirty: boolean }
 
 export interface AreaMesh extends Pass, AreaTileSink {}
 
-/** Tilted, the game's area tiles are drawn here in perspective (areaMarks.ts hides the sprites it takes). */
-export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>): AreaMesh {
+/** Tilted, flat game art is drawn here in perspective: area tiles (areaMarks.ts), ground markers and building decals
+ * (flat.ts). The callers hide the nodes they hand over. cam: the shared camera uniform group (camUniforms.ts). */
+export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>, cam: UniformGroupLike): AreaMesh {
   const { scene: s, classes: C } = caps;
-  let CU: UniformGroupLike | null = null;
   let program: unknown = null;
   let batches: Batch[] = [];
   let frame = -1, failed = false, uploads = 0;
@@ -83,26 +112,21 @@ export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>): AreaMesh {
     }) as unknown as DynGeometry;
   };
 
-  function create(src: object): Batch | null {
+  function create(src: object, z: number): Batch | null {
     try {
-      const fv = (len: number, type: string) => ({ value: new Float32Array(len), type });
-      const f1 = (v: number) => ({ value: v, type: 'f32' });
-      CU ??= new C.UniformGroup({
-        uCamPos: fv(3, 'vec3<f32>'), uCamF: fv(3, 'vec3<f32>'), uCamR: fv(3, 'vec3<f32>'), uCamU: fv(3, 'vec3<f32>'), uFpx: f1(1), uCenter: fv(2, 'vec2<f32>'), uNear: f1(40),
-      });
       program ??= new C.GlProgram({ vertex: AREA_VS, fragment: AREA_FS, name: 'qpm3d-area' });
       const cap = MIN_QUADS;
       const pos = new Float32Array(cap * 8), uv = new Float32Array(cap * 8), col = new Float32Array(cap * 16);
       const geom = geometry(cap, pos, uv, col);
       const style = (src as { style?: unknown }).style;
-      const shader = new C.Shader({ glProgram: program, resources: { qpm3dArea: CU, uAreaTexture: src, uAreaSampler: style } });
+      const shader = new C.Shader({ glProgram: program, resources: { [CAM_RESOURCE]: cam, uAreaTexture: src, uAreaSampler: style } });
       const mesh = new C.Mesh({ geometry: geom, shader, texture: C.Texture.WHITE });
       mesh.label = 'qpm3d-area';
       mesh.eventMode = 'none';
-      mesh.zIndex = AREA_MARK_Z;
+      mesh.zIndex = z;
       skip.add(mesh);
       s.world.addChild(mesh);
-      return { src, mesh, geom, shader, cap, pos, uv, col, n: 0, used: 0, dirty: true };
+      return { src, z, mesh, geom, shader, cap, pos, uv, col, n: 0, used: 0, dirty: true };
     } catch (e) {
       failed = true;
       camera3dDiag.diag.info('QPM-CAM3D-008', { error: String(e) });
@@ -120,48 +144,60 @@ export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>): AreaMesh {
     Object.assign(b, { cap, pos, uv, col, geom, dirty: true });
   }
 
+  function free(b: Batch): void {
+    b.mesh.parent?.removeChild(b.mesh);
+    b.mesh.destroy();
+    b.geom.destroy(true);
+    b.shader.destroy(false);
+  }
+
   function release(): void {
-    for (const b of batches) {
-      b.mesh.parent?.removeChild(b.mesh);
-      b.mesh.destroy();
-      b.geom.destroy(true);
-      b.shader.destroy(false);
-    }
+    for (const b of batches) free(b);
     batches = [];
     frame = -1;
   }
 
+  // At the cap, a batch that drew nothing last frame and has nothing yet this frame gives up its slot: a re-cached
+  // marker texture comes from the texture pool, so its source can change during a 3D session.
+  function freeSlot(): boolean {
+    const i = batches.findIndex((x) => x.n === 0 && x.used === 0);
+    if (i < 0) return false;
+    free(batches[i]!);
+    batches.splice(i, 1);
+    return true;
+  }
+
   return {
     name: 'areaMesh',
-    add(ctx, sp, w2, alpha) {
+    add(ctx, n, w2, alpha, z = AREA_MARK_Z) {
       if (failed) return false;
-      const tex = sp.texture as unknown as QuadTex | null | undefined;
-      const src = tex?.source, anc = sp.anchor;
-      if (!tex || !src || !tex.uvs || !anc) return false;
+      const src = quadSource(n);
+      if (!src) return false;
       if (frame !== ctx.frameNo) { frame = ctx.frameNo; for (const x of batches) x.n = 0; }
       let b: Batch | null = null;
-      for (const x of batches) if (x.src === src) { b = x; break; }
+      for (const x of batches) if (x.src === src && x.z === z) { b = x; break; }
       if (!b) {
-        if (batches.length >= MAX_BATCHES) return false;
-        b = create(src);
+        if (batches.length >= MAX_BATCHES && !freeSlot()) return false;
+        b = create(src, z);
         if (!b) return false;
         batches.push(b);
       }
       if (b.n === b.cap) grow(b);
-      sp.updateLocalTransform();
-      if (writeTileQuad(sp.localTransform, w2, tex, anc.x, anc.y, b.pos, b.uv, b.n)) b.dirty = true;
-      if (writeQuadColor(sp.tint ?? 0xffffff, alpha, b.col, b.n)) b.dirty = true;
+      n.updateLocalTransform();
+      if (writeNodeQuad(n, w2, b.pos, b.uv, b.n)) b.dirty = true;
+      if (writeQuadColor(n.tint ?? 0xffffff, alpha, b.col, b.n)) b.dirty = true;
       b.n++;
       return true;
     },
-    // After the entity pass: quads not re-added this frame collapse to a point (no draw), changed buffers upload.
+    // After the passes that feed it: quads not re-added this frame collapse to a point, an empty batch is hidden (no
+    // draw call), changed buffers upload.
     pre(ctx) {
       if (frame !== ctx.frameNo) { frame = ctx.frameNo; for (const x of batches) x.n = 0; }
-      let any = false;
       for (const b of batches) {
         for (let i = b.n * 8; i < b.used * 8; i++) if (b.pos[i] !== 0) { b.pos[i] = 0; b.dirty = true; }
         b.used = b.n;
-        if (b.n > 0) any = true;
+        const show = b.n > 0;
+        if (b.mesh.visible !== show) b.mesh.visible = show;
         if (!b.dirty) continue;
         b.geom.getBuffer('aPosition').update();
         b.geom.getBuffer('aUV').update();
@@ -169,18 +205,12 @@ export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>): AreaMesh {
         b.dirty = false;
         uploads++;
       }
-      if (!any || !CU) return;
-      const u = CU.uniforms as unknown as CamUniforms, bs = ctx.basis;
-      u.uCamPos.set(bs.C); u.uCamF.set(bs.F); u.uCamR.set(bs.R); u.uCamU.set(bs.U);
-      u.uFpx = bs.fpx; u.uCenter[0] = bs.cx0; u.uCenter[1] = bs.cy0; u.uNear = ctx.params.near;
-      CU.update();
     },
     drop: release,
     destroy() {
       release();
       (program as { destroy?(): void } | null)?.destroy?.();
       program = null;
-      CU = null;
     },
     stats: () => ({ quads: batches.reduce((n, b) => n + b.used, 0), batches: batches.length, uploads, failed }),
   };

@@ -56,7 +56,8 @@ export interface Node3 {
   localTransform: Mat;
   updateLocalTransform(): void;
   setFromMatrix(m: Mat): void;
-  renderGroup?: { worldTransform: Mat } | null;
+  /** structureDidChange: a visibility flip or child change since the last render (PIXI rebuilds the instructions). */
+  renderGroup?: { worldTransform: Mat; structureDidChange?: boolean } | null;
   renderLayerChildren?: Node3[];
   parentRenderLayer?: Node3 | null;
   attach?(...n: Node3[]): void;
@@ -68,6 +69,10 @@ export interface Node3 {
   toLocal?(p: XY, from?: unknown, out?: XY): XY;
   toGlobal?(p: XY): XY;
   containsPoint?(p: XY): boolean;
+  getBounds?(skipUpdate?: boolean, out?: unknown): { x: number; y: number; width: number; height: number };
+  /** PIXI's emitter: 'childAdded' / 'childRemoved' fire on a real add, a remove and a destroy (live 2026-10-05, 1419). */
+  on?(event: string, fn: (...a: unknown[]) => void): unknown;
+  off?(event: string, fn: (...a: unknown[]) => void): unknown;
 }
 
 export interface GraphicsLike extends Node3 {
@@ -110,9 +115,14 @@ export interface PixiClasses {
   Shader: Ctor<ShaderLike>;
   GlProgram: Ctor<unknown>;
   UniformGroup: Ctor<UniformGroupLike>;
+  /** Optional: PIXI's batched mesh geometry ({ positions, uvs, indices }); null draws fence walls as perspective meshes. */
+  MeshGeometry: Ctor<GeometryLike> | null;
 }
 
-export interface TileDataLike { pointsBuf: Float32Array; rects_count: number; tileset: { arr: unknown[] } }
+/** pointsBuf: a plain array live (1419), 14 floats per rect (scene/tileArt.ts RECT). */
+export interface TileDataLike { pointsBuf: number[] | Float32Array; rects_count: number }
+/** A game-layout check: 'unknown' when there is too little to tell (it never blocks). */
+export type DriftVerdict = 'ok' | 'drift' | 'unknown';
 export interface SceneRefs {
   app: Record<string, unknown>;
   renderer: RendererLike;
@@ -123,6 +133,9 @@ export interface SceneRefs {
   weather: Node3;
   tilemap: Node3;
   tileData: TileDataLike;
+  /** The PIXI app's ticker (optional): maxFPS is the game's frame-rate setting, 0 uncapped (live v1431: 30 in 3D on
+   *  Automatic idle; the menu offers 20). */
+  ticker: { readonly maxFPS: number } | null;
 }
 
 export interface ZoomLike {
@@ -130,16 +143,48 @@ export interface ZoomLike {
   readonly effective: number;
   readonly intentTileSize: number;
   overrideTileSize: number | null;
+  /** Live v1419 getter: a cutscene camera or the tram's focus zoom (engine/resume.ts gameTakesCamera). */
+  readonly inputBlocked?: boolean;
 }
-export interface ZoomSystemLike { zoom: ZoomLike; shouldBlockZoom(): boolean }
+/** The gesture fields are optional (live 2026-10-04): set while a touch pinch or Safari gesture runs. */
+export interface ZoomSystemLike { zoom: ZoomLike; shouldBlockZoom(): boolean; initialPinchDistance?: number | null; initialTileSizeOnGesture?: number }
 export interface DirectionalInputLike { keysPressed: string[]; updateDirectionState(): void }
+/** The game's MovementSystem step (live 2026-10-06 v1419): one tile toward `dir` ('up' | 'right' | 'down' | 'left')
+ * from `pos`, unless its own collision check (mount mode, conditional regions) refuses; true when it stepped. */
+export interface MovementLike { movePlayer(dir: string, pos: XY): boolean }
 export interface MovementMapLike { cols: number; rows: number; collisionTiles: Set<number> }
+/** The game's AvatarView, the fields the ground tracker reads (live 2026-10-05, v1419). Natural y = tile centre − rest −
+ * lift, gliding source → target; the container adds the riding nudge and the peek lift. */
+export interface AvatarViewLike {
+  container: unknown;
+  gridPosition: XY | null;
+  naturalContainerY: number;
+  lastTileData?: unknown;
+  isAirborneMount?: boolean;
+  currentRidingNudgePixels?: number;
+  positionSmoothing: { readonly isInterpolating: boolean; goalSourceWorldY: number; lastGoalWorldY: number };
+  buildingDataProvider?: { getBuildingAt(p: XY): unknown };
+}
+export interface AvatarSystemLike { views: Map<unknown, unknown> }
 export interface EngineSystems {
   zoomSys: ZoomSystemLike;
   directionalInput: DirectionalInputLike;
+  /** The movement system's step (optional): without it WASD keeps the quarter-turn snap (spec D5). */
+  mover: MovementLike | null;
   movementFallback: { isTapInBounds(x: number, y: number): boolean };
   map: MovementMapLike;
   petSystem: { preDraw(...a: unknown[]): unknown };
+  /** The game's FPS policy (optional): keeps the active frame rate while 3D input never reaches the canvas. */
+  activity: { notifyActivity(): void } | null;
+  /** The world tap router (optional): which claim a 2D global point would hand a tap to (null: tap-to-move), and
+   * whether it drops a tap there (HUD or dead zone). */
+  tapRouter: { resolveClaimAt(globalPoint: XY): unknown; isWorldPointerSuppressed?(globalPoint: XY, pointerType?: string): boolean } | null;
+  /** The avatar system (optional): each avatar's ground vs its height (decor, building, saddle). Without it avatars
+   * fall back to the learned rest offset. */
+  avatar: AvatarSystemLike | null;
+  /** The engine's frame clock (optional; live 2026-10-06 v1419: the frame's own timestamp, set before its render).
+   * Without it the walk follower times by the render call, which jitters a few ms per frame. */
+  clock: { readonly lastFrameTimeMs: number } | null;
 }
 
 export interface Caps { scene: SceneRefs; classes: PixiClasses; systems: EngineSystems }
