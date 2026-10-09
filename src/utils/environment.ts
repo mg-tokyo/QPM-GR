@@ -26,3 +26,22 @@ function hasModernGmStorage(): boolean {
 
 /** True when any storage-capable GM APIs are available. */
 export const hasGmApis: boolean = hasLegacyGmStorage() || hasModernGmStorage();
+
+// The game's Discord activity shell (installDiscordFrameHost) replaces its body with one
+// same-origin <iframe> that loads the game; our @match runs a second QPM in that child.
+// Decidable only once parsed — the shell script runs during parsing.
+export function isGameFrameHost(doc: Document = document): boolean {
+  if (doc.readyState === 'loading') return false;
+  const body = doc.body;
+  if (!body || body.childElementCount !== 1) return false;
+  const only = body.firstElementChild;
+  // tagName, not instanceof: Firefox Xray wrappers fail cross-realm instanceof.
+  if (!only || only.tagName !== 'IFRAME') return false;
+  const src = only.getAttribute('src');
+  if (!src) return false;
+  try {
+    return new URL(src, doc.baseURI).origin === doc.location?.origin;
+  } catch {
+    return false;
+  }
+}

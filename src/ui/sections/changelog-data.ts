@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.54",
+    date: "2026-10-09",
+    notes: [
+      "Fixed QPM looking broken in the Discord activity: an empty duplicate panel with nothing loaded no longer sits on top of the working one",
+    ],
+  },
+  {
     version: "3.3.53",
     date: "2026-10-08",
     notes: [

@@ -39,7 +39,7 @@ import { stopWebsocketDiagnostics } from '../websocket/api';
 import { stopCommandSequencer } from '../websocket/commandSequencer';
 import { stopPerfMonitor } from '../diagnostics/perfMonitor';
 import { stopPixiSceneDiagnostics } from '../core/pixiScene';
-import { stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
+import { cleanupCatalogLoader, stopCatalogsDiagnostics } from '../catalogs/catalogLoader';
 import { stopJotaiBridgeDiagnostics } from '../core/jotaiBridge';
 import { stopGameState } from '../core/gameState';
 import { stopSpriteV2Diagnostics } from '../sprite-v2/index';
@@ -52,6 +52,7 @@ import { teardownDiagnostics } from '../diagnostics/init';
 import { stopAudio } from '../audio';
 import { stopTDCustomDesigns } from '../features/towerDefense/customDesigns/store';
 import { stopPetOptimizer } from '../features/pets/optimizer';
+import { diag } from './_diagnostics';
 
 // Live holder for one-shot disposers set during init() and consumed at
 // beforeunload. These subsystems return closures instead of exposing named
@@ -91,13 +92,57 @@ const _errorHandler = (event: ErrorEvent): boolean => {
   return true;
 };
 
+let pageHideHandler: ((event: PageTransitionEvent) => void) | null = null;
+let stoodDown = false;
+
+// Everything started before waitForGame() returns, in teardown order (LIFO for
+// the rive/fetch chain). Shared by pagehide and the frame-host stand-down.
+function stopEarlyBoot(): void {
+  stopPerfMonitor();
+  stopPixiSceneDiagnostics();
+  stopWebsocketDiagnostics();
+  stopCatalogsDiagnostics();
+  stopJotaiBridgeDiagnostics();
+  stopSpriteV2Diagnostics();
+  try { stopPetRive(); } catch { /* best effort */ }
+  stopRestockDataDiagnostics();
+  try { disposers.riveControl?.(); } catch { /* best effort */ }
+  disposers.riveControl = null;
+  try { disposers.riveEngine?.(); } catch { /* best effort */ }
+  disposers.riveEngine = null;
+  // Custom skins interceptor tears down before the rive fetch interceptor
+  // since it installed AFTER it (LIFO chain — spec §2.4).
+  try { disposers.customSkins?.(); } catch { /* best effort */ }
+  disposers.customSkins = null;
+  try { disposers.rivFetchInterceptor?.(); } catch { /* best effort */ }
+  disposers.rivFetchInterceptor = null;
+  try { disposers.canvasRuntimeTrap?.(); } catch { /* best effort */ }
+  disposers.canvasRuntimeTrap = null;
+  teardownDiagnostics();
+}
+
+export const isStoodDown = (): boolean => stoodDown;
+
+/** This frame only hosts the game's frame (Discord shell); the QPM there owns the session. */
+export function standDownFrameHost(): void {
+  if (stoodDown) return;
+  stoodDown = true;
+  diag.debug('Frame host (Discord activity shell): QPM runs in the game frame instead');
+  if (pageHideHandler) window.removeEventListener('pagehide', pageHideHandler);
+  pageHideHandler = null;
+  window.removeEventListener('error', _errorHandler, true);
+  cleanupCatalogLoader();
+  timerManager.destroy();
+  stopEarlyBoot();
+}
+
 export function installGlobalHandlers(): void {
   window.addEventListener('error', _errorHandler, true);
   // pagehide, not beforeunload: beforeunload also fires for navigations that
   // never complete (cancelled, or a same-URL load the game aborts), which tore
   // QPM down inside a page that kept running. A bfcache freeze (persisted)
   // keeps the page alive too, so it is not a shutdown either.
-  window.addEventListener('pagehide', (event) => {
+  pageHideHandler = (event) => {
     if (event.persisted) return;
     window.removeEventListener('error', _errorHandler, true);
     stopController();
@@ -142,33 +187,14 @@ export function installGlobalHandlers(): void {
     // Innermost wrapper — unwrap last (outer wrappers' identity guards keep
     // the chain sound regardless).
     stopCommandSequencer();
-    stopPerfMonitor();
-    stopPixiSceneDiagnostics();
-    stopWebsocketDiagnostics();
-    stopCatalogsDiagnostics();
     try { stopGameState(); } catch { /* best effort */ }
-    stopJotaiBridgeDiagnostics();
-    stopSpriteV2Diagnostics();
-    try { stopPetRive(); } catch { /* best effort */ }
-    stopRestockDataDiagnostics();
     stopVersionChecker();
-    try { disposers.riveControl?.(); } catch { /* best effort */ }
-    disposers.riveControl = null;
-    try { disposers.riveEngine?.(); } catch { /* best effort */ }
-    disposers.riveEngine = null;
-    // Custom skins interceptor tears down before the rive fetch interceptor
-    // since it installed AFTER it (LIFO chain — spec §2.4).
-    try { disposers.customSkins?.(); } catch { /* best effort */ }
-    disposers.customSkins = null;
     try { stopBloblingPresets(); } catch { /* best effort */ }
     try { stopGardenPainterPresets(); } catch { /* best effort */ }
-    try { disposers.rivFetchInterceptor?.(); } catch { /* best effort */ }
-    disposers.rivFetchInterceptor = null;
-    try { disposers.canvasRuntimeTrap?.(); } catch { /* best effort */ }
-    disposers.canvasRuntimeTrap = null;
     try { stopAudio(); } catch { /* best effort */ }
     try { stopTDCustomDesigns(); } catch { /* best effort */ }
     try { stopPetOptimizer(); } catch { /* best effort */ }
-    teardownDiagnostics();
-  }, { once: true });
+    stopEarlyBoot();
+  };
+  window.addEventListener('pagehide', pageHideHandler, { once: true });
 }

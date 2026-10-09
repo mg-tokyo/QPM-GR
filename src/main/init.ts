@@ -78,15 +78,17 @@ import { startPerfMonitor } from '../diagnostics/perfMonitor';
 import { exposeLateDebugApis } from '../debug/mainApi';
 import { buildCfg } from './config';
 import { initializeGlobalApis } from './globalApis';
-import { disposers, installGlobalHandlers } from './shutdown';
+import { disposers, installGlobalHandlers, isStoodDown, standDownFrameHost } from './shutdown';
+import { isGameFrameHost } from '../utils/environment';
 import { runFeaturePhases } from './phases';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
-async function waitForGame(): Promise<void> {
+async function waitForGame(): Promise<'game' | 'frame-host'> {
   diag.debug('Waiting for game to load');
 
   await ready;
+  if (isGameFrameHost()) return 'frame-host';
 
   const maxWait = 30000;
   const interval = 150;
@@ -98,20 +100,21 @@ async function waitForGame(): Promise<void> {
       const hudContent = hudRoot.querySelector('canvas, button, [data-tm-main-interface], [data-tm-hud-root], [data-tm-player-id]');
       if (hudContent) {
         diag.debug('Game UI detected');
-        return;
+        return 'game';
       }
     }
 
     const anyCanvas = document.querySelector('#App canvas');
     if (anyCanvas) {
       diag.debug('Game UI detected');
-      return;
+      return 'game';
     }
 
     await sleep(interval);
   }
 
   diag.debug('Game UI not detected within timeout, proceeding anyway');
+  return 'game';
 }
 
 /**
@@ -256,12 +259,16 @@ async function initialize(): Promise<void> {
   };
 
   const spriteInit = initSpriteSystem().then(applyServiceOnBoot).catch((err) => {
+    if (isStoodDown()) return;
     reportSpriteV2InitFailed(err);
     scheduleLateSpriteBoot(applyServiceOnBoot);
   });
 
   // Wait for game to be ready (parallel with sprite init)
-  await waitForGame();
+  if (await waitForGame() === 'frame-host') {
+    standDownFrameHost();
+    return;
+  }
 
   // Kick off Aries co-existence detection — resolves in the background via the
   // shared DOM observer. Timeout well before startShopEnhancer() runs in Phase 8,
@@ -515,6 +522,10 @@ export async function bootstrap(): Promise<void> {
   }
 
   await initializeStorage();
+  if (isGameFrameHost()) {
+    standDownFrameHost();
+    return;
+  }
   startStorageDiagnostics();
   if (isDevModeEnabled()) diag.debug('Dev mode on');
   initGmExportBridge();
