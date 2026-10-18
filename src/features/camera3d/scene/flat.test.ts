@@ -165,6 +165,39 @@ describe('placeFlat: laid every frame, so culled against the screen as it is (pe
     expect(placeFlat(ctx, rug.node, cx, cy, r)).toBe(true);
   });
 
+  it('placeTree: a 1634 ground anchor sends each visible sprite to the sink through the anchor chain, straight down releases', () => {
+    const world = new FakeNode();
+    const group = world.addChild(new FakeNode());
+    const anchor = group.addChild(new FakeNode(6528, 3712));
+    const area = anchor.addChild(new FakeNode()).addChild(new FakeNode());
+    const tile = area.addChild(new FakeNode(-256, -256).withTexture(256, 256, 0));
+    const off = area.addChild(new FakeNode(0, -256).withTexture(256, 256, 0));
+    off.visible = false;
+    const seen: Array<{ n: Node3; w2: number[]; z: number | undefined }> = [];
+    const sink: AreaTileSink = { add: (_c, n, w2, _a, z) => { seen.push({ n, w2: [w2.a, w2.d, w2.tx, w2.ty], z }); return true; } };
+    const flat = createFlatPlacer(sink);
+    const { ctx, ov } = ctxFor(world);
+    expect(flat.placeTree(ctx, anchor.node, MARKER_Z + 10)).toBe(true);
+    expect(seen).toEqual([{ n: tile.node, w2: [1, 1, 6528, 3712], z: MARKER_Z + 10 }]);
+    expect(ov.raw('visible', tile)).toBe(false);
+    expect(anchor.lastSet).toBeNull();
+    const flatCtx = ctxFor(world, { pitch: 90 * D }, true);
+    // The overrides of the tilted frame carry over (one ov per session).
+    (flatCtx.ctx as unknown as { ov: unknown }).ov = ov;
+    expect(flat.placeTree(flatCtx.ctx, anchor.node, MARKER_Z + 10)).toBe(false);
+    expect(ov.raw('visible', tile)).toBe(true);
+  });
+
+  it('placeTree falls back to the affine when the sink declines a sprite', () => {
+    const world = new FakeNode();
+    const anchor = world.addChild(new FakeNode()).addChild(new FakeNode(6528, 3712));
+    const a = anchor.addChild(new FakeNode(0, 0).withTexture(256, 256, 0));
+    const { sink } = recordingSink(false);
+    const { ctx, ov } = ctxFor(world);
+    expect(createFlatPlacer(sink).placeTree(ctx, anchor.node, MARKER_Z)).toBe(false);
+    expect(ov.raw('visible', a)).toBe(true);
+  });
+
   it('a marker (reach Infinity: a tap route can span the map) is never culled by its position', () => {
     const world = new FakeNode();
     const { ctx } = ctxFor(world, { pitch: 90 * D }, true);

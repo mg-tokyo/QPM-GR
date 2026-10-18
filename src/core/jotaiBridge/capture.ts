@@ -1,6 +1,7 @@
 import { exportToPage, pageWindow, readSharedGlobal } from '../pageContext';
 import type { JotaiStore } from './types';
 import {
+  NATIVE_STORE_KEY,
   SHARED_STORE_KEYS,
   STORE_FAILURE_THRESHOLD,
   STORE_GLOBAL_KEY,
@@ -77,10 +78,32 @@ export function noteStoreGetFailure(): void {
 }
 
 /**
- * Try to get an existing store from Aries Mod or other mods
+ * The game-published store. Delegates instead of spreading or tagging so the
+ * game's object is never mutated; `sub` callbacks are exported for Firefox.
+ */
+export function getNativeStore(): JotaiStore | null {
+  try {
+    const native = (pageWindow as any)[NATIVE_STORE_KEY];
+    if (!isValidStore(native) || native.__polyfill) return null;
+    const candidate: JotaiStore = {
+      get: (atom) => native.get(atom),
+      set: (atom, value) => native.set(atom, value),
+      sub: (atom, cb) => native.sub(atom, exportToPage(cb)),
+      __source: 'native',
+    };
+    if (probeStore(candidate)) return candidate;
+    diagLog.debug('Game-published jotai store failed functional probe — skipping');
+  } catch {}
+  return null;
+}
+
+/**
+ * Try to get an existing store: the game's own first, then Aries Mod or other mods
  */
 export function getExistingStore(): JotaiStore | null {
-  // 1) Aries Mod services - highest priority
+  const native = getNativeStore();
+  if (native) return native;
+
   try {
     const ariesStore = (pageWindow as any)?.AriesMod?.services?.jotaiStore;
     if (isValidStore(ariesStore) && !ariesStore.__polyfill) {
@@ -90,7 +113,6 @@ export function getExistingStore(): JotaiStore | null {
     }
   } catch {}
 
-  // 2) Check shared global slots
   for (const key of SHARED_STORE_KEYS) {
     try {
       const candidate = (pageWindow as any)[key];
@@ -101,7 +123,6 @@ export function getExistingStore(): JotaiStore | null {
     } catch {}
   }
 
-  // 3) Check our own shared global
   const shared = readSharedGlobal<JotaiStore>(STORE_GLOBAL_KEY);
   if (isValidStore(shared) && !shared.__polyfill) {
     if (probeStore(shared)) return shared;
@@ -165,7 +186,9 @@ export function findStoreViaFiber(): JotaiStore | null {
 
 /**
  * Capture store via write-once patching
- * Only used as fallback when no existing store is available
+ * Only used as fallback when no existing store is available. Never patch
+ * atom.read: jotai records every later call to that getter as a new
+ * dependency, which crashes the game (dev guidance, release 1604).
  */
 export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore | null> {
   const cache = await waitForAtomCache(timeoutMs);
@@ -173,14 +196,15 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
     return null;
   }
 
+  const lateNative = getNativeStore();
+  if (lateNative) return lateNative;
+
   let capturedGet: ((atom: unknown) => unknown) | null = null;
   let capturedSet: ((atom: unknown, value: unknown) => void | Promise<void>) | null = null;
 
   type PatchedAtom = {
     write?: (get: any, set: any, ...args: any[]) => unknown;
-    read?: (get: any, ...args: any[]) => unknown;
     __origWrite?: (get: any, set: any, ...args: any[]) => unknown;
-    __origRead?: (get: any, ...args: any[]) => unknown;
     __qpmPatched?: boolean;
   } & Record<string, unknown>;
 
@@ -193,10 +217,6 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
           atom.write = atom.__origWrite;
           delete atom.__origWrite;
         }
-        if (atom.__origRead) {
-          atom.read = atom.__origRead;
-          delete atom.__origRead;
-        }
         delete atom.__qpmPatched;
       } catch {}
     }
@@ -207,10 +227,7 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
   const pushCandidate = (value: unknown): void => {
     if (!value || typeof value !== 'object') return;
     const candidate = value as PatchedAtom;
-    // Accept atoms exposing EITHER a write or a read function. Read-only derived
-    // atoms have `.read` but not a real `.write`; hooking read still gives us
-    // the store getter, which is enough for a read-capable polyfill.
-    if (typeof candidate.write === 'function' || typeof candidate.read === 'function') {
+    if (typeof candidate.write === 'function') {
       candidates.add(candidate);
     }
   };
@@ -229,12 +246,6 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
     pushCandidate(atomValue);
   }
 
-  // Reactive capture-complete signal. Prefer the WRITE channel: it gives us
-  // both get and set (full store surface), so the write patch resolves the
-  // promise immediately. The READ channel only signals "ready to fall back"
-  // if the promise is still pending when the timeout fires below — reads fire
-  // orders of magnitude more often than writes and would otherwise pre-empt
-  // a slower but strictly-better write capture.
   let resolveCapture: (() => void) | null = null;
   const capturePromise = new Promise<void>((resolve) => { resolveCapture = resolve; });
   const signalWriteCaptured = (): void => {
@@ -249,37 +260,24 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
     }
 
     try {
-      const origWrite = typeof candidate.write === 'function' ? candidate.write : null;
-      const origRead = typeof candidate.read === 'function' ? candidate.read : null;
-      if (origWrite) candidate.__origWrite = origWrite;
-      if (origRead) candidate.__origRead = origRead;
+      const origWrite = candidate.write;
+      if (typeof origWrite !== 'function') continue;
+      candidate.__origWrite = origWrite;
       candidate.__qpmPatched = true;
 
-      if (origWrite) {
-        // exportToPage is a no-op outside isolated realms; on Firefox+VM it
-        // wraps via exportFunction so the page realm can invoke our closure.
-        // Plain isolated-realm functions assigned onto page objects are not
-        // reliably callable from the page (Xray membrane), which was the
-        // observed cache-read fallback root cause on FF+Violentmonkey isolated.
-        candidate.write = exportToPage(function patchedWrite(get: any, set: any, ...args: any[]) {
-          if (!capturedSet) {
-            capturedGet = get;
-            capturedSet = set;
-            signalWriteCaptured();
-          }
-          return origWrite.call(candidate, get, set, ...args);
-        });
-      }
-      if (origRead) {
-        // Silent-observer read patch: it records the store getter for the
-        // read-only fallback below but never resolves the capture promise —
-        // the write channel is strictly better and gets first refusal until
-        // the outer timeout expires.
-        candidate.read = exportToPage(function patchedRead(get: any, ...args: any[]) {
-          if (!capturedGet) capturedGet = get;
-          return origRead.call(candidate, get, ...args);
-        });
-      }
+      // exportToPage is a no-op outside isolated realms; on Firefox+VM it
+      // wraps via exportFunction so the page realm can invoke our closure.
+      // Plain isolated-realm functions assigned onto page objects are not
+      // reliably callable from the page (Xray membrane), which was the
+      // observed cache-read fallback root cause on FF+Violentmonkey isolated.
+      candidate.write = exportToPage(function patchedWrite(get: any, set: any, ...args: any[]) {
+        if (!capturedSet) {
+          capturedGet = get;
+          capturedSet = set;
+          signalWriteCaptured();
+        }
+        return origWrite.call(candidate, get, set, ...args);
+      });
       patchedAtoms.push(candidate);
     } catch {
       // Some atom objects can be frozen/non-configurable in certain builds.
@@ -300,8 +298,8 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
     return null;
   }
 
-  // Wait reactively: whichever channel (read or write) fires first resolves the
-  // promise; a hard timeout falls back to null. No wait(50) poll.
+  // Wait reactively: the first patched write resolves the promise; a hard
+  // timeout falls back to null. No wait(50) poll.
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   try {
     const timeoutPromise = new Promise<null>((resolve) => {
@@ -313,9 +311,9 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
     restorePatchedAtoms();
   }
 
-  if (!capturedGet) return null;
+  if (!capturedGet || !capturedSet) return null;
   const getFn: (atom: unknown) => unknown = capturedGet;
-  const setFn: ((atom: unknown, value: unknown) => void | Promise<void>) | null = capturedSet;
+  const setFn: (atom: unknown, value: unknown) => void | Promise<void> = capturedSet;
 
   // Use batched polling for subscriptions (shared with cache-read store).
   // Also honors reactive-manager routing when a caller passes a tier hint AND
@@ -327,8 +325,7 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
       return getFn(atom);
     },
     async set(atom: unknown, value: unknown) {
-      if (setFn === null) throw new Error('QPM read-capture store cannot write (no write channel captured). Use Aries Mod for writes.');
-      await (setFn as (a: unknown, v: unknown) => void | Promise<void>)(atom, value);
+      await setFn(atom, value);
     },
     sub(
       atom: unknown,
@@ -350,10 +347,8 @@ export async function captureViaWriteOnce(timeoutMs = 5000): Promise<JotaiStore 
       return batchedSubscriptionManager.subscribe(atom, cb, getValue);
     },
     // Not polyfill: get() delegates to jotai's real store getter, so derived
-    // and lazily-materialised atoms resolve correctly. writeAtomValue still
-    // throws when only the read channel captured, which is the correct
-    // signal to callers (Aries is required for atom writes on this bundle).
-    __source: setFn ? 'write' : 'read',
+    // and lazily-materialised atoms resolve correctly.
+    __source: 'write',
   };
 }
 

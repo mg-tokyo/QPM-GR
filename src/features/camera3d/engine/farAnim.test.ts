@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TILE } from '../constants';
 import type { FrameCtx } from '../frame/frame';
 import { FakeNode } from '../__test__/fakeNode';
+import { isFollowedOrMount } from '../scene/ground';
 import { FAR_PX, NEAR_PX, createFarAnim, isFar, type FarAnimDeps } from './farAnim';
 
 class FakeRive {
@@ -98,6 +99,22 @@ describe('createFarAnim', () => {
     expect(other.s.calls).toEqual(['pause']);
     f.drop();
     expect(foreign.s.isPaused).toBe(true);
+  });
+
+  // Spectator Task 12: the passes' rule (isFollowedOrMount) with another player followed. The followed player and their
+  // mount never freeze, even off the look target (a chase or eyes view); your own avatar is an ordinary figure.
+  it('the followed player is never frozen, wherever they are; your own far avatar is', () => {
+    const sc = scene();
+    const followed = sc.add(20, 0), theirMount = sc.add(20, 1), mine = sc.add(15, 0);
+    sc.mounts.set(theirMount.root, followed.root);
+    const f = createFarAnim({ ...sc.deps, isSelf: isFollowedOrMount({ riderOf: (n) => sc.mounts.get(n as unknown as FakeNode)?.node ?? null }) });
+    f.setMode('off');
+    frame(f, ctxAt(1, followed.root));
+    expect(followed.s.calls).toEqual([]);
+    expect(theirMount.s.calls).toEqual([]);
+    expect(mine.s.calls).toEqual(['pause']);
+    frame(f, ctxAt(2, null, true));
+    expect(followed.s.calls).toEqual(['pause']);
   });
 
   it('re-decides on re-cull frames and every 8th frame only', () => {

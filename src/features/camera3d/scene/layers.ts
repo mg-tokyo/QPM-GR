@@ -22,6 +22,7 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
   let layerNodes = new WeakSet<Node3>();
   let overlayNodes = new WeakSet<Node3>();
   let layers: Node3[] | null = null;
+  let ver = 0;
   const areas = createAreaMarks(areaSink);
   const flat = createFlatPlacer(areaSink);
   const drawsSelf = (n: Node3): boolean => !!(n.texture || n.geometry || n.context);
@@ -80,6 +81,7 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
       // only on full re-culls and rolling-pass starts, or when a known layer left World. New attachments to known layers
       // are caught each frame.
       if (!layers || ctx.reCull || ctx.roll === 0 || layers.some((L) => L.parent !== world)) layers = world.children.filter((c) => !!c.renderLayerChildren);
+      const areaCount = areas.count();
       for (const L of layers) {
         if (ctx.ov.gameValue<number>('zIndex', L) >= OVERLAY_LAYER_Z) { adoptOverlay(ctx, L); continue; }
         const kids = L.renderLayerChildren;
@@ -92,6 +94,7 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
         else ctx.ov.drop('zIndex', L);
         if (!rest) continue;
         const copy = detach(held, L, rest);
+        if (copy.length > 0) ver++;
         for (const nd of copy) layerNodes.add(nd);
         for (const nd of copy) {
           if (nd.parent === world) continue;
@@ -103,7 +106,10 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
           ctx.ov.put('zIndex', a, LAYER_FIRST_Z);
         }
       }
+      // Areas are only forgotten in finish(): a count change here is a new claim, so new marks.
+      if (areas.count() !== areaCount) ver++;
     },
+    version: () => ver,
     isLayerNode: (n) => layerNodes.has(n) || areas.isMark(n),
     isAreaMark: (n) => areas.isMark(n),
     layAreas: (ctx, owner, lp) => { areas.lay(ctx, owner, lp); },
@@ -115,6 +121,10 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
     stats: () => areas.stats(),
     isOverlayNode: (n) => overlayNodes.has(n) || (!!n.parent && overlayNodes.has(n.parent)),
     placeMarker(ctx, n) {
+      // 1634 ground groups hold ~1,250 tile anchors, most of them hidden by the game's own cull.
+      if (!ctx.ov.gameValue<boolean>('visible', n)) return;
+      // A tile's ground anchor (DirtPatch, an AreaIndicator grid): its sprites in perspective, in its group's 2D band.
+      if (!n.texture && n.children.length > 0 && flat.placeTree(ctx, n, MARKER_Z + (n.parent ? ctx.ov.gameValue<number>('zIndex', n.parent) : 0))) return;
       const y = n.y; // placeFlat moves the node: key on its 2D ground y
       // No screen cull: a marker's art can reach far from its position (a tap route), and there are few (live
       // 2026-10-07: 3 on the ground layer).
@@ -126,6 +136,7 @@ export function createLayerHandler(areaSink: AreaTileSink | null = null): LayerH
       layerNodes = new WeakSet();
       overlayNodes = new WeakSet();
       layers = null;
+      ver++;
       areas.drop();
       flat.drop();
     },

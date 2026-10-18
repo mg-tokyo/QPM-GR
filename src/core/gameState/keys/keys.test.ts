@@ -26,6 +26,7 @@ describe('key table', () => {
     expect(sel('eggShop')).toBeNull();
     expect(sel('petSlotInfos')).toEqual({ pet1: { motion: { kind: 'idle' } } });
     expect((sel('players') as unknown[]).length).toBe(1);
+    expect(sel('seatPetSlots')).toEqual([null, [{ id: 'pet1' }]]);
   });
   it('returns undefined (unavailable), not null, when identity is unresolved', () => {
     for (const key of ['coinsBalance', 'inventory', 'hutchPets', 'myData', 'riddenPetId'] as const) {

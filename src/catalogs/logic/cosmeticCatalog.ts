@@ -2,7 +2,9 @@
 // Cosmetic catalog extraction from a code-split bundle chunk.
 // Cosmetics live in index-*.js, NOT the main bundle — so we fetch separately.
 
-import { findAllIndices, extractBalancedArray, convertBacktickStrings } from './bundleParser';
+import {
+  convertBacktickStrings, extractBalancedArray, fetchBundleContaining, findAllIndices, markBundleConsumerDone, registerBundleConsumer,
+} from './bundleParser';
 import { pageWindow } from '../../core/pageContext';
 import { createNamedLogger } from '../../diagnostics/logger';
 
@@ -33,6 +35,7 @@ let cosmeticCatalogInFlight: Promise<CosmeticCatalogLoadResult> | null = null;
 let cosmeticBundleCache: string | null = null;
 // Chunk URLs are content-hashed, so a fetched-and-rejected URL never needs a retry.
 const triedCosmeticUrls = new Set<string>();
+const CURRENCY_CONSUMER = 'cosmetic-currency';
 
 const COSMETIC_ANCHORS = [
   'Bottom_HazmatSuit.png',
@@ -187,7 +190,11 @@ interface CostTier {
  * the array, e.g. `y={CoinsD:{currency:v.Coins,amount:1e3},…}`, where `v` is a string
  * enum (`e.Coins=\`coins\``). Returns null for refs the table doesn't define.
  */
-function buildCostResolver(bundleText: string, arrayStart: number): (ref: string) => CostTier | null {
+function buildCostResolver(
+  bundleText: string,
+  arrayStart: number,
+  foreign: ReadonlyMap<string, string>,
+): (ref: string) => CostTier | null {
   const searchArea = bundleText.substring(Math.max(0, arrayStart - 4000), arrayStart);
   const tableRe = /([A-Za-z_$][\w$]*)=\{((?:[A-Za-z_$][\w$]*:\{[^{}]*\bamount:[^{}]*\},?)+)\}/g;
   let table: RegExpExecArray | null = null;
@@ -201,20 +208,48 @@ function buildCostResolver(bundleText: string, arrayStart: number): (ref: string
       const amount = Number(body.match(/\bamount:([^,}]+)/)?.[1]?.trim());
       if (!Number.isFinite(amount)) continue;
       const currencyRef = body.match(/\bcurrency:([^,}]+)/)?.[1]?.trim() ?? null;
-      tiers.set(`${varName}.${tier[1]}`, { amount, currency: resolveCurrency(searchArea, currencyRef) });
+      tiers.set(`${varName}.${tier[1]}`, { amount, currency: resolveCurrency(searchArea, currencyRef, foreign) });
     }
   }
   return (ref: string): CostTier | null => tiers.get(ref) ?? null;
 }
 
-function resolveCurrency(searchArea: string, ref: string | null): string | null {
+const escapeRe = (s: string): string => s.replace(/\$/g, '\\$');
+const enumMemberRe = (member: string): RegExp => new RegExp(`\\.${escapeRe(member)}=[\`'"]([^\`'"]*)[\`'"]`);
+
+function resolveCurrency(searchArea: string, ref: string | null, foreign: ReadonlyMap<string, string>): string | null {
   if (!ref) return null;
   const literal = ref.match(/^[`'"]([^`'"]*)[`'"]$/);
   if (literal) return literal[1] ?? null;
   const member = ref.split('.').pop() ?? '';
   if (!/^[A-Za-z_$][\w$]*$/.test(member)) return null;
-  const enumValue = searchArea.match(new RegExp(`\\.${member.replace(/\$/g, '\\$')}=[\`'"]([^\`'"]*)[\`'"]`));
-  return enumValue?.[1] ?? member;
+  return searchArea.match(enumMemberRe(member))?.[1] ?? foreign.get(member) ?? member;
+}
+
+/**
+ * By game 1468 the currency enum (`e.MagicDust=\`magicDust\``) is imported from another chunk; read the
+ * members the cosmetic chunk can't resolve from whichever loaded chunk declares them.
+ */
+async function resolveForeignCurrencies(bundleText: string, arrayStart: number): Promise<Map<string, string>> {
+  const searchArea = bundleText.substring(Math.max(0, arrayStart - 4000), arrayStart);
+  const missing = new Set<string>();
+  for (const m of searchArea.matchAll(/\bcurrency:[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)/g)) {
+    if (m[1] && !enumMemberRe(m[1]).test(searchArea)) missing.add(m[1]);
+  }
+  const out = new Map<string, string>();
+  if (missing.size === 0) return out;
+  const marker = new RegExp(`\\.(?:${[...missing].map(escapeRe).join('|')})=[\`'"]`);
+  registerBundleConsumer(CURRENCY_CONSUMER);
+  try {
+    const text = await fetchBundleContaining(marker);
+    for (const member of missing) {
+      const value = text?.match(enumMemberRe(member))?.[1];
+      if (value !== undefined) out.set(member, value);
+    }
+  } finally {
+    markBundleConsumerDone(CURRENCY_CONSUMER);
+  }
+  return out;
 }
 
 function normalizeCostRefs(source: string, resolver: (ref: string) => CostTier | null): string {
@@ -226,6 +261,31 @@ function normalizeCostRefs(source: string, resolver: (ref: string) => CostTier |
       return tier.currency
         ? `"price":${tier.amount},"currency":${JSON.stringify(tier.currency)}`
         : `"price":${tier.amount}`;
+    },
+  );
+}
+
+/**
+ * By game 1468 some entries reference a string hoisted into the same declaration, e.g.
+ * `kt=\`Bottom_ToastShirt.png\`,…,T=[…{id:kt,filename:kt,…}]`. Nearest declaration before the array wins.
+ */
+function buildIdentResolver(bundleText: string, arrayStart: number): Map<string, string> {
+  const searchArea = bundleText.substring(Math.max(0, arrayStart - 4000), arrayStart);
+  const idents = new Map<string, string>();
+  for (const m of searchArea.matchAll(/[,;{(\s]([A-Za-z_$][\w$]*)=(`[^`$\\]*`|'[^'\\]*'|"[^"\\]*")/g)) {
+    if (m[1] && m[2]) idents.set(m[1], m[2].slice(1, -1));
+  }
+  return idents;
+}
+
+// An unresolved reference becomes null so only its entry fails toValidEntry, not the whole JSON.parse.
+function normalizeIdentRefs(source: string, idents: Map<string, string>): string {
+  return source.replace(
+    /("[A-Za-z_$][\w$]*"\s*:\s*)([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)(?=\s*[,}\]])/g,
+    (m, prefix: string, ref: string) => {
+      if (ref === 'true' || ref === 'false' || ref === 'null') return m;
+      const value = idents.get(ref);
+      return `${prefix}${value === undefined ? 'null' : JSON.stringify(value)}`;
     },
   );
 }
@@ -258,6 +318,7 @@ function toStrictJson(
   literal: string,
   resolver: (ref: string) => number,
   costResolver: (ref: string) => CostTier | null,
+  idents: Map<string, string>,
 ): string | null {
   let s = literal.trim();
   if (!s.startsWith('[') || !s.endsWith(']')) return null;
@@ -267,6 +328,7 @@ function toStrictJson(
   s = normalizePriceRefs(s, resolver);
   s = normalizeCostRefs(s, costResolver);
   s = normalizeJsLiterals(s);
+  s = normalizeIdentRefs(s, idents);
 
   return s;
 }
@@ -275,6 +337,8 @@ async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
   const { text, triedNewChunks } = await fetchCosmeticBundle();
   if (!text) return { catalog: null, triedNewChunks };
 
+  // Every anchor usually lands in the same array; resolve its foreign currencies once.
+  const foreignByStart = new Map<number, Map<string, string>>();
   for (const anchor of COSMETIC_ANCHORS) {
     const indices = findAllIndices(text, anchor);
     for (const idx of indices) {
@@ -283,7 +347,14 @@ async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
 
       const arrayStartInBundle = text.indexOf(arrayLiteral);
       const arrayStart = arrayStartInBundle >= 0 ? arrayStartInBundle : idx;
-      const json = toStrictJson(arrayLiteral, buildPriceResolver(text, arrayStart), buildCostResolver(text, arrayStart));
+      let foreign = foreignByStart.get(arrayStart);
+      if (!foreign) {
+        foreign = await resolveForeignCurrencies(text, arrayStart);
+        foreignByStart.set(arrayStart, foreign);
+      }
+      const json = toStrictJson(
+        arrayLiteral, buildPriceResolver(text, arrayStart), buildCostResolver(text, arrayStart, foreign), buildIdentResolver(text, arrayStart),
+      );
       if (!json) continue;
 
       try {

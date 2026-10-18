@@ -23,11 +23,18 @@ function readPrev(get: unknown, self: unknown): Record<string, unknown> | null {
   } catch { return null; }
 }
 
-// v1361's keepOthers writes and single-entry deletes spread existing bubbles back in; the game keys a bubble
-// by timestamp (AvatarSystem redelivers only when timestamp > last), so an equal timestamp is not a new line.
+/** When the line was said: `saidAtMs` by game 1468, `timestamp` on older `npcChatBubblesAtom` entries. */
+export function bubbleSaidAt(entry: unknown): number | null {
+  if (!isRecord(entry)) return null;
+  const at = typeof entry.saidAtMs === 'number' ? entry.saidAtMs : entry.timestamp;
+  return typeof at === 'number' ? at : null;
+}
+
+// Every write spreads the existing bubbles back in and stamps only the line just said, so an unchanged
+// said-at time is not a new line.
 function isAlreadyShown(prev: Record<string, unknown> | null, npcId: string, entry: Record<string, unknown>): boolean {
   const before = prev?.[npcId];
-  return isRecord(before) && before.timestamp === entry.timestamp;
+  return isRecord(before) && bubbleSaidAt(before) === bubbleSaidAt(entry);
 }
 
 function rewritePayload(update: unknown, prev: Record<string, unknown> | null): unknown {
@@ -35,6 +42,8 @@ function rewritePayload(update: unknown, prev: Record<string, unknown> | null): 
   let out: Record<string, unknown> | null = null;
   for (const [npcId, entry] of Object.entries(update)) {
     if (!isRecord(entry) || entry.ariesAuthored === true || entry.qpmAuthored === true || typeof entry.message !== 'string') continue;
+    // Pose-only placeholder: the game says the real line only while the message is still empty.
+    if (entry.message === '') continue;
     if (isAlreadyShown(prev, npcId, entry)) continue;
     let line: BubbleLine | null = null;
     try { line = rewriter(npcId, entry as NpcChatBubble); } catch { line = null; }
@@ -63,6 +72,8 @@ export function installTalkInterceptor(atom: unknown, rewrite: Rewriter): boolea
   rewriter = rewrite;
   passthrough = false;
   if (target === atom && wrapper && atom.write === wrapper) return true;
+  // The room scope was swapped (new npcLines atom): hand the old atom its own write back.
+  if (target && target !== atom && wrapper && original && target.write === wrapper) target.write = original;
   target = atom;
   original = atom.write;
   wrapper = makeWrapper(original);
@@ -70,7 +81,9 @@ export function installTalkInterceptor(atom: unknown, rewrite: Rewriter): boolea
   return true;
 }
 
-export function getInterceptorState(): 'absent' | 'installed' | 'displaced' | 'passthrough' {
+export const isInterceptorTarget = (atom: unknown): boolean => target !== null && target === atom;
+
+export function getInterceptorState():'absent' | 'installed' | 'displaced' | 'passthrough' {
   if (!target || !wrapper) return 'absent';
   if (passthrough) return 'passthrough';
   return target.write === wrapper ? 'installed' : 'displaced';

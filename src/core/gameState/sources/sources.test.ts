@@ -57,6 +57,12 @@ export function createFakeRuntime(): FakeRuntime {
         });
       },
       write: (a, v) => { atoms[(a as { debugLabel: string }).debugLabel] = v; return Promise.resolve(); },
+      writeSync: (a, v) => {
+        const l = (a as { debugLabel: string }).debugLabel;
+        if (!(l in atoms)) return false;
+        atoms[l] = v;
+        return true;
+      },
       cacheSize: () => Object.keys(atoms).length,
     },
     identity: () => identity,
@@ -166,6 +172,60 @@ describe('source handles', () => {
     expect(cu!.available()).toBe(true);
     expect(cu!.readSync()).toEqual({ ok: true, value: 7 });
     expect(cu!.describe()).toBe('custom:const');
+  });
+});
+
+describe('atom source via (scope-held atom)', () => {
+  const viaDef = defineKey<Record<string, unknown>>({
+    policy: 'client',
+    doc: 'lines',
+    sources: [atomSource(/^currentRoomAtom$/, 'client', { via: 'npcLines', writable: true, structure: (v) => typeof v === 'object' && v !== null })],
+  });
+  const innerAtom = (label: string): unknown => ({ debugLabel: label, read: () => undefined });
+
+  it('reads, writes and exposes the atom held in the scope field', () => {
+    const rt = createFakeRuntime();
+    const linesA = innerAtom('linesA');
+    rt.setAtoms({ currentRoomAtom: { npcLines: linesA }, linesA: { npc1: { message: 'hi' } } });
+    const [h] = createHandles('lines', viaDef, rt);
+    expect(h!.readSync()).toEqual({ ok: true, value: { npc1: { message: 'hi' } } });
+    expect(h!.describe()).toBe('atom:currentRoomAtom.npcLines');
+    expect(h!.atomObject?.()).toBe(linesA);
+    expect(h!.writeSync?.({ npc2: { message: 'yo' } })).toBe(true);
+    expect(h!.readSync()).toEqual({ ok: true, value: { npc2: { message: 'yo' } } });
+  });
+
+  it('is unavailable when the scope has no atom in the field', () => {
+    const rt = createFakeRuntime();
+    rt.setAtoms({ currentRoomAtom: { npcLines: 'not an atom' } });
+    const [h] = createHandles('lines', viaDef, rt);
+    expect(h!.readSync()).toEqual({ ok: false, reason: 'currentRoomAtom has no atom at .npcLines' });
+    expect(h!.atomObject?.()).toBeUndefined();
+  });
+
+  it('follows a scope swap: re-subscribes to the new inner atom and drops the old one', async () => {
+    const rt = createFakeRuntime();
+    const linesA = innerAtom('linesA');
+    const linesB = innerAtom('linesB');
+    const atoms: Record<string, unknown> = { currentRoomAtom: { npcLines: linesA }, linesA: { a: 1 }, linesB: { b: 1 } };
+    rt.setAtoms(atoms);
+    const [h] = createHandles('lines', viaDef, rt);
+    const seen: unknown[] = [];
+    const off = h!.subscribe((v) => seen.push(v));
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(seen).toEqual([{ a: 1 }]);
+    atoms.currentRoomAtom = { npcLines: linesB };
+    rt.fireAtom('currentRoomAtom');
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(seen).toEqual([{ a: 1 }, { b: 1 }]);
+    expect(h!.atomObject?.()).toBe(linesB);
+    atoms.linesA = { a: 2 };
+    rt.fireAtom('linesA');
+    expect(seen).toHaveLength(2);
+    off();
+    atoms.linesB = { b: 2 };
+    rt.fireAtom('linesB');
+    expect(seen).toHaveLength(2);
   });
 });
 

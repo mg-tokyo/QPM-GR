@@ -105,8 +105,11 @@ export const UI_KEYS = {
     sources: [atomSource(/^quinoa(?:Dev)?EngineAtom$/, 'client', { structure: isQuinoaEngine, prefer: (l) => l === 'quinoaEngineAtom' })],
   }),
   npcChatBubbles: defineKey<Record<string, NpcChatBubble>>({
-    policy: 'client', tier: 'client', doc: 'NPC chat bubbles by NPC playerId. Client-only, never networked. Talk replaces the whole map; NPC Visits (1361+) write `NPC_<name>#<forUserId>` keys, often spreading existing entries back (keepOthers / single-entry delete); a modal clears it.',
-    sources: [atomSource(/^npcChatBubblesAtom$/, 'client', { writable: true, structure: (v) => isRecord(v) })],
+    policy: 'client', tier: 'client', doc: 'NPC chat bubbles by NPC playerId. Client-only, never networked. By game 1468 the map is the room scope\'s unlabelled `npcLines` atom (`currentRoomAtom` value, swapped with the room); `sayNpcLine` spreads every entry back and stamps a new `saidAtMs` on the one said; pose-only lines carry `message: \'\'`. Older builds: `npcChatBubblesAtom` keyed by `timestamp`; NPC Visits (1361+) write `NPC_<name>#<forUserId>` keys.',
+    sources: [
+      atomSource(/^currentRoomAtom$/, 'client', { via: 'npcLines', writable: true, structure: (v) => isRecord(v) }),
+      atomSource(/^npcChatBubblesAtom$/, 'client', { writable: true, structure: (v) => isRecord(v) }),
+    ],
   }),
   adjacentNpcId: defineKey<string | null>({
     policy: 'client', tier: 'client', defaultValue: null, doc: 'NPC the player can Talk to right now (standing on or beside it), or null',

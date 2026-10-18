@@ -26,6 +26,10 @@ const defs = {
     policy: 'client', doc: 'modal', defaultValue: null,
     sources: [atomSource(/^activeModalAtom$/, 'client', { writable: true })],
   }),
+  readOnly: defineKey<string>({
+    policy: 'client', doc: 'read-only client atom',
+    sources: [atomSource(/^readOnlyAtom$/, 'client')],
+  }),
 };
 
 function setup() {
@@ -109,6 +113,41 @@ describe('Registry', () => {
     await reg.write('modal', 'seedShop');
     expect(reg.readSync('modal')).toBe('seedShop');
     await expect(reg.write('coins', 5)).rejects.toThrow(/not writable/);
+  });
+  it('writeSync lands on a writable client atom rung and reads back', () => {
+    const { rt, reg } = setup();
+    rt.setAtoms({ activeModalAtom: null });
+    signalTopology('init'); flushTopologyNow();
+    expect(reg.writeSync('modal', 'seedShop')).toBe(true);
+    expect(reg.readSync('modal')).toBe('seedShop');
+  });
+  it('writeSync refuses non-client, read-only and unbound keys without throwing', () => {
+    const { rt, reg } = setup();
+    rt.setAtoms({ myCoinsCountAtom: 1, readOnlyAtom: 'a' });
+    signalTopology('init'); flushTopologyNow();
+    expect(reg.writeSync('coins', 5)).toBe(false);
+    expect(reg.writeSync('readOnly', 'b')).toBe(false);
+    expect(reg.readSync('readOnly')).toBe('a');
+    expect(reg.writeSync('modal', 'seedShop')).toBe(false);
+  });
+  it('writeSync reports false when the runtime write does not land', () => {
+    const { rt, reg } = setup();
+    rt.setAtoms({ activeModalAtom: null });
+    signalTopology('init'); flushTopologyNow();
+    rt.atoms.writeSync = () => false;
+    expect(reg.writeSync('modal', 'seedShop')).toBe(false);
+    rt.atoms.writeSync = () => { throw new Error('boom'); };
+    expect(reg.writeSync('modal', 'seedShop')).toBe(false);
+  });
+  it('writeSync honours a simulated loss of the bound rung', () => {
+    const { rt, reg } = setup();
+    rt.setAtoms({ activeModalAtom: null });
+    signalTopology('init'); flushTopologyNow();
+    reg.setSimulatedLoss('modal', 'atom', true);
+    expect(reg.writeSync('modal', 'seedShop')).toBe(false);
+    reg.setSimulatedLoss('modal', 'atom', false);
+    flushTopologyNow();
+    expect(reg.writeSync('modal', 'seedShop')).toBe(true);
   });
   it('suppresses a rung whose subscribe throws and re-walks after the suppression window', async () => {
     const { rt, reg } = setup();

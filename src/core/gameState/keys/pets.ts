@@ -1,3 +1,4 @@
+import { isRecord } from '../../../utils/typeGuards';
 import { atomSource, defineKey, stateSource } from '../define';
 import { selectMyData, selectMySlot } from './selectors';
 
@@ -31,6 +32,20 @@ export const PET_KEYS = {
         project: (v) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined),
         requiresSeat: true,
       }),
+    ],
+  }),
+  // userSlots skips hunger/xp/motion patches; this one keeps them, for another player's hunger (spectator info card).
+  seatPetSlots: defineKey<ReadonlyArray<unknown[] | null>>({
+    policy: 'authoritative', tier: 'state', doc: 'Active pets per seat (userSlots[i].data.petSlots; null for an empty seat), hunger patches included',
+    sources: [
+      stateSource('/child/data/userSlots', (s) => {
+        const slots = s.child?.data?.userSlots;
+        if (!Array.isArray(slots)) return undefined;
+        return slots.map((slot: unknown) => {
+          const data = isRecord(slot) ? slot.data : null;
+          return isRecord(data) && Array.isArray(data.petSlots) ? (data.petSlots as unknown[]) : null;
+        });
+      }, { trustPatches: true }),
     ],
   }),
   riddenPetId: defineKey<string | null>({

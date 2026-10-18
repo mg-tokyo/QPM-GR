@@ -19,6 +19,7 @@ import {
   ensureTalkInterceptor,
   getInterceptorState,
   installTalkInterceptor,
+  isInterceptorTarget,
   uninstallTalkInterceptor,
 } from './talkInterceptor';
 import type { BubbleLine, LineId } from './types';
@@ -147,12 +148,13 @@ export function startNpcDialogue(): void {
     };
   });
   startInjector();
-  // Walking up to an NPC is the moment before a Talk: install if the atom resolved late, re-wrap if another mod displaced us.
+  // Walking up to an NPC is the moment before a Talk: install if the atom resolved late or the room scope
+  // swapped it, re-wrap if another mod displaced us.
   cleanups.push(
     subscribe('adjacentNpcId', (id) => {
       if (id === null) return;
       const state = getInterceptorState();
-      if (state === 'absent') {
+      if (state === 'absent' || !isInterceptorTarget(atomObjectFor('npcChatBubbles'))) {
         const ok = tryInstall();
         if (!ok && !firstInstalled && !installWarned) {
           installWarned = true;

@@ -1,7 +1,6 @@
 import type { ErrorCodeDefinition } from '../types';
 
-// Keep in sync with CURRENT_VERSION in ../codes.ts (local copy avoids a
-// circular import). Ships in 3.3.47 alongside the reactive seat watcher.
+// Ships in 3.3.47 alongside the reactive seat watcher.
 const V = '3.3.47';
 
 export const GAMESTATE_CODES: readonly ErrorCodeDefinition[] = [

@@ -2,6 +2,7 @@
 // ladder fails typecheck-time tests and dev boot.
 import { assertLadderPolicy } from '../define';
 import type { KeyDefinition } from '../types';
+import { CAMERA_KEYS } from './camera';
 import { ECONOMY_KEYS } from './economy';
 import { GARDEN_KEYS } from './garden';
 import { INVENTORY_KEYS } from './inventory';
@@ -12,7 +13,9 @@ import { STORAGE_KEYS } from './storages';
 import { UI_KEYS } from './ui';
 
 export const GAME_STATE_KEYS = {
+  // QPM FULL PRIVATE's apply-transforms.js replaces the next line whole (gameStateKeys:add-overlay-spread): add new tables below it.
   ...PLAYER_KEYS, ...ECONOMY_KEYS, ...INVENTORY_KEYS, ...STORAGE_KEYS, ...PET_KEYS, ...GARDEN_KEYS, ...SHOP_KEYS, ...UI_KEYS,
+  ...CAMERA_KEYS,
 };
 
 export type GameStateKey = keyof typeof GAME_STATE_KEYS;

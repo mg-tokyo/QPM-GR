@@ -192,6 +192,11 @@ describe('createBuildingPlacer: a building card covering the avatar (A V5, seed 
     createBuildingPlacer(null).place({ ...s.ctx, avatarUpper: { x: 5000, y: 50 } } as FrameCtx, [s.shop.node], s.place);
     expect(s.puts.get(s.shop)).toBe(-106237000);
   });
+  it('nothing followed (spectator free cam): no avatar to cover, the card keeps its own key', () => {
+    const s = scene(10624, 7120, -90000000, -83199999.8);
+    createBuildingPlacer(null).place({ ...s.ctx, avatarKey: null, avatarUpper: null, avatarGround: null } as FrameCtx, [s.roof.node, s.shop.node], s.place);
+    expect(s.puts.get(s.shop)).toBe(-90000000);
+  });
 });
 
 describe('standLine (blend)', () => {

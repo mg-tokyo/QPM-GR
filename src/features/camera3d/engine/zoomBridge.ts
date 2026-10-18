@@ -34,7 +34,7 @@ export type Prewarm = () => boolean;
 
 // Every zoom input (wheel, pinch, keyboard/gamepad step) reaches zoom.applyInputZoom (live 2026-10-02). In 3D it
 // moves s and the game's intent never changes, so leaving at s = 0 is pixel-exact. In 2D it feeds the detent.
-export function installZoomBridge(rt: Runtime, prewarm: Prewarm | null = null): ZoomBridge {
+export function installZoomBridge(rt: Runtime, prewarm: Prewarm | null = null, externallyBlocked: () => boolean = () => false): ZoomBridge {
   const sys = rt.caps.systems.zoomSys;
   const z = sys.zoom;
   const host = z as unknown as { applyInputZoom: ApplyFn };
@@ -140,6 +140,8 @@ export function installZoomBridge(rt: Runtime, prewarm: Prewarm | null = null): 
       const before = z.intentTileSize;
       const r = inner.call(this, requested, kind, ctx);
       try {
+        // Another feature owns the camera: no detent, one-time hint or floor prewarm toward an entry that is refused.
+        if (externallyBlocked()) { detent.reset(); warming = false; return r; }
         const changed = z.intentTileSize !== before;
         const clamped = n > 0 && !changed && z.overrideTileSize === null && !sys.shouldBlockZoom();
         const enters = getCamera3dSettings().enabled && detent.input(performance.now(), n, clamped, changed);

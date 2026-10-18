@@ -44,6 +44,7 @@ export interface ReportInput {
   readonly restockLine: string | null;
   readonly npcDialogueLine: string | null;
   readonly camera3dLine?: string | null;
+  readonly spectatorLine?: string | null;
   readonly subsystems: readonly SubsystemHealth[];
   readonly aggregate: 'ok' | 'degraded' | 'failed';
   readonly gameStateProblemLines: readonly string[];
@@ -228,6 +229,7 @@ export function renderReport(input: ReportInput, opts: CopyPayloadOptions = DEFA
   if (input.restockLine) headerLines.push(input.restockLine);
   if (input.npcDialogueLine) headerLines.push(input.npcDialogueLine);
   if (input.camera3dLine) headerLines.push(input.camera3dLine);
+  if (input.spectatorLine) headerLines.push(input.spectatorLine);
 
   if (opts.aggregate) {
     headerLines.push(`Overall: ${input.aggregate}  (${okCount} ok / ${degradedCount} degraded / ${failedCount} failed)`);

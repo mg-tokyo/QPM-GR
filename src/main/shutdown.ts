@@ -16,6 +16,7 @@ import { stopInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOve
 import { stopInventoryCapacity } from '../features/economy/inventoryCapacity';
 import { stopNpcDialogue } from '../features/npcDialogue';
 import { stopCamera3d } from '../features/camera3d';
+import { stopSpectator } from '../features/spectator';
 import { stopStorageValueOverlay } from '../ui/economy/storageValueOverlay';
 import { stopStorageValue } from '../features/economy/storageValue';
 import { stopSeedSiloStore } from '../store/seedSilo';
@@ -161,6 +162,7 @@ export function installGlobalHandlers(): void {
     stopPetsWindow();
     try { disposers.camera3dTour?.(); } catch { /* best effort */ }
     disposers.camera3dTour = null;
+    stopSpectator();
     stopCamera3d();
     stopNpcDialogue();
     stopInventoryCapacityOverlay();

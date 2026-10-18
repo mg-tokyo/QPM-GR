@@ -10,6 +10,8 @@ export const DECAL_Z = -1e12;
 // that tile art in Ground), AboveGround layer markers, the weather scrim (the layer's top, z 30), building decals.
 const BAND = 1e6;
 export const GROUND_DECOR_Z = DECAL_Z - BAND;
+// The moon in the 3D sky: before every World node (the sky ring itself is in Ground).
+export const SKY_Z = DECAL_Z - 2 * BAND;
 export const MARKER_Z = DECAL_Z;
 // The AboveGround layer's own slot while it keeps tile-radius area marks (areaMarks.ts): after the markers, under the
 // scrim, as the game's ground bands (groundMark 10 < weatherScrim 30).
@@ -53,6 +55,19 @@ export function checkDepthKeys(nodes: readonly { x: number; y: number; zIndex: n
   }
   const verdict: DriftVerdict = samples < DEPTH_MIN_SAMPLES ? 'unknown' : ok >= DEPTH_MIN_OK * samples ? 'ok' : 'drift';
   return { samples, ok, verdict };
+}
+
+interface DepthNode { x: number; y: number; zIndex: number; texture?: unknown; children?: readonly DepthNode[] }
+
+/** World's children plus those of its depth-keyed (0, 0) groups: since 1634 tiles sit in depth-strip groups (zIndex a
+ * depth key itself), not in World. The ground-mark groups (z 10, 20) hold tile-positioned anchors at z 0: not sampled. */
+export function depthSamples(worldKids: readonly DepthNode[]): DepthNode[] {
+  const out: DepthNode[] = [];
+  for (const n of worldKids) {
+    out.push(n);
+    if (n.x === 0 && n.y === 0 && !n.texture && n.zIndex >= SORT_Z_SCALE && n.children) for (const c of n.children) out.push(c);
+  }
+  return out;
 }
 
 export function tiebreakOf(gameZ: number): number {

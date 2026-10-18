@@ -26,9 +26,11 @@ const hasDirKey = (keys: readonly string[]): boolean => {
   return false;
 };
 
+/** No key stack (no seat, spectator S §5.1): the game's own step, nothing wrapped. */
 export function installCameraRelativeMovement(rt: Runtime): () => void {
-  const mover = rt.caps.systems.mover;
-  return mover ? installSteering(rt, mover) : installQuarterSnap(rt);
+  const { mover, directionalInput: di } = rt.caps.systems;
+  if (!di) return () => undefined;
+  return mover ? installSteering(rt, mover, di) : installQuarterSnap(rt, di);
 }
 
 type MoveFn = (this: unknown, dir: string, pos: XY) => boolean;
@@ -38,8 +40,7 @@ type WrappedMove = MoveFn & { __qpmRetired?: boolean };
 // (its cadence and 300 ms first-step pause, P17 b) and whether (its own collision check, a mount's mode); QPM only picks
 // the direction, inside the game's movePlayer. The direction state keeps the game's value, so the overlay's input check,
 // camMove off and leaving 3D mid-walk need nothing.
-function installSteering(rt: Runtime, mover: MovementLike): () => void {
-  const di = rt.caps.systems.directionalInput;
+function installSteering(rt: Runtime, mover: MovementLike, di: DirectionalInputLike): () => void {
   const host = mover as unknown as { movePlayer: MoveFn };
   const hadOwn = Object.prototype.hasOwnProperty.call(host, 'movePlayer');
   const orig = host.movePlayer;
@@ -109,8 +110,7 @@ function installSteering(rt: Runtime, mover: MovementLike): () => void {
 
 // Spec D5, the fallback when the movement system has no movePlayer: the game's directionalInput maps the last pressed
 // key to one of four directions; while 3D is live the keys are rotated by the camera yaw snapped to a quarter turn.
-function installQuarterSnap(rt: Runtime): () => void {
-  const di = rt.caps.systems.directionalInput;
+function installQuarterSnap(rt: Runtime, di: DirectionalInputLike): () => void {
   const host = di as unknown as { updateDirectionState: (this: DirectionalInputLike) => void };
   const hadOwn = Object.prototype.hasOwnProperty.call(host, 'updateDirectionState');
   const orig = host.updateDirectionState;

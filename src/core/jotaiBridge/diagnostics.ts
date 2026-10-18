@@ -13,28 +13,28 @@ let lastReportedMode: CaptureMode | null = null;
 
 const captureListeners = new Set<(mode: CaptureMode) => void>();
 
-/** Fires after every capture-mode transition (aries/shared/fiber/write/cache-read/none). */
+/** Fires after every capture-mode transition (native/aries/shared/fiber/write/cache-read/none). */
 export function onJotaiCapture(cb: (mode: CaptureMode) => void): () => void {
   captureListeners.add(cb);
   return () => { captureListeners.delete(cb); };
 }
 
 const MODE_TO_STATUS: Record<CaptureMode, SubsystemHealth['status']> = {
+  native: 'ok',
   aries: 'ok',
   shared: 'ok',
   fiber: 'ok',
   write: 'ok',
-  read: 'ok',
   'cache-read': 'degraded',
   none: 'failed',
 };
 
 const MODE_TO_MESSAGE: Record<CaptureMode, string> = {
+  native: 'Using the game-published store (window.__jotaiStore)',
   aries: 'Captured via Aries Mod store',
   shared: 'Captured via shared global store',
   fiber: 'Captured via React fiber walk',
   write: 'Captured via write-once patch',
-  read: 'Captured via atom.read patch (read-only)',
   'cache-read': 'Read-only cache-read fallback (polyfill)',
   none: 'No store available — polyfill that throws',
 };

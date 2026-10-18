@@ -13,6 +13,12 @@ export interface Overrides {
   raw<T>(key: OverrideKey, node: object): T;
   rawSet(key: OverrideKey, node: object, value: unknown): void;
   has(key: OverrideKey, node: object): boolean;
+  /** The override this instance holds on node (perf Task 13: a replay reads and writes it without the lookup); null: none. */
+  ref(key: OverrideKey, node: object): OvRef | null;
+  /** gameValue through a ref; undefined once dropped here or taken over by another instance. */
+  refGame<T>(ref: OvRef): T | undefined;
+  /** put through a ref; false, writing nothing, once dropped here or taken over by another instance. */
+  refPut(ref: OvRef, node: object, value: unknown): boolean;
   /** Drops overrides of destroyed or detached nodes, up to `max` entries visited per call, resuming where the last call
    * stopped; each entry at most once per call. Returns how many were dropped. */
   prune(max: number): number;
@@ -22,8 +28,10 @@ export interface Overrides {
 
 interface Proto { get: (this: object) => unknown; set: (this: object, v: unknown) => void }
 interface Counters { gameWrites: number }
-/** Inactive: the accessor stays on the node and passes reads and writes straight to PIXI. */
+/** Inactive: the accessor stays on the node and passes reads and writes straight to PIXI. Active with `o` an instance's
+ * counters ⇔ in that instance's map. */
 interface Entry { game: unknown; active: boolean; p: Proto; o: Counters }
+export interface OvRef { readonly _ovRef: never }
 
 // V8 turns a node slow (dictionary mode) when one key gets a different accessor pair on the same hidden class, and on
 // any delete (Chrome 154, live 2026-10-06): per-node closures plus delete-on-exit left 866 game nodes slow in 2D and
@@ -135,6 +143,17 @@ export function createOverrides(sample: object): Overrides {
     raw<T>(key: OverrideKey, node: object): T { return protos[key].get.call(node) as T; },
     rawSet(key, node, value) { protos[key].set.call(node, value); },
     has(key, node) { return maps[key].has(node); },
+    ref: (key, node) => (maps[key].get(node) as unknown as OvRef | undefined) ?? null,
+    refGame<T>(ref: OvRef): T | undefined {
+      const e = ref as unknown as Entry;
+      return e.active && e.o === counters ? (e.game as T) : undefined;
+    },
+    refPut(ref, node, value) {
+      const e = ref as unknown as Entry;
+      if (!e.active || e.o !== counters) return false;
+      if (e.p.get.call(node) !== value) { e.p.set.call(node, value); writes++; }
+      return true;
+    },
     prune(max) {
       let dropped = 0, visited = 0, ends = 0;
       while (visited < max && ends < KEYS.length) {

@@ -1,7 +1,7 @@
 import { readSync } from '../../core/gameState';
 import { getPixiRefs } from '../../core/pixiCapture';
 import { getEngineSystem } from '../../utils/quinoaEngine';
-import { findSceneParts, resolveSystems } from './capabilities';
+import { findSceneParts, readWorldMap, resolveSystems } from './capabilities';
 import { firstAppear } from './debugAppear';
 import { bench, perf, type BenchCamera, type BenchOpts } from './debugPerf';
 import { gpu, simulateWeather, wait, weatherTune } from './debugWeather';
@@ -11,7 +11,7 @@ import {
   injectCamera3dInstallFault, retryCamera3d, setCamera3dSetting, startCamera3d, stopCamera3d,
 } from './index';
 import type { XY } from './math/camera';
-import { checkDepthKeys } from './math/depth';
+import { checkDepthKeys, depthSamples } from './math/depth';
 import { NEAR_PLANE, farPlaneFor, tiltOf, viewForS, type CameraView } from './math/zoomCurve';
 import type { ViewSource, ViewSourceInput } from './runtime';
 import {
@@ -195,14 +195,14 @@ function drift(): Record<string, unknown> {
   const p = findSceneParts(getPixiRefs()?.stage);
   let engine: unknown = null;
   try { engine = readSync('quinoaEngine'); } catch { engine = null; }
-  const sys = resolveSystems(engine);
+  const sys = resolveSystems(engine, readWorldMap());
   const map = Array.isArray(sys) ? null : sys.map;
   const scan = p.tileData ? scanTiles(p.tileData, null) : null;
   return {
     tileLayout: p.tileData ? checkTileLayout(p.tileData.pointsBuf) : 'no tilemap',
-    depthKeys: p.world ? checkDepthKeys(p.world.children) : 'no World',
+    depthKeys: p.world ? checkDepthKeys(depthSamples(p.world.children)) : 'no World',
     skyBand: !scan ? 'no tilemap' : scan.len < 0 ? 'tile textures not loaded' : skyStrip(scan.pb, scan.sky, Infinity) ?? 'drift: no sky rects',
-    map: map ? { cols: map.cols, rows: map.rows, far: Math.round(farPlaneFor(map.cols, map.rows)) } : 'no movement map',
+    map: map ? { cols: map.cols, rows: map.rows, far: Math.round(farPlaneFor(map.cols, map.rows)) } : 'no map',
     caps: getCamera3dStatus().caps,
     blocked: getCamera3dRuntime()?.blockedReason() ?? null,
   };
@@ -214,12 +214,26 @@ const rec: { on: boolean; rows: RecRow[]; off: (() => void) | null } = { on: fal
 const enterManual = (o: Partial<ManualView> = {}): boolean => { Object.assign(manual, o); return getCamera3dRuntime()?.enter(manualSource) ?? false; };
 const setManual = (o: Partial<ManualView>): ManualView => { Object.assign(manual, o); return { ...manual }; };
 const exitManual = (): void => { getCamera3dRuntime()?.exit('debug'); };
+// Spectator Task 12: the manual camera without the avatar requirement, following player `id` (null: none) until exit.
+const freeSource: ViewSource = Object.assign((i: ViewSourceInput) => manualSource(i), { requiresAvatar: false });
+const enterFollowing = (id: string | null, o: Partial<ManualView> = {}): boolean => {
+  const r = getCamera3dRuntime();
+  if (!r) return false;
+  Object.assign(manual, o);
+  // After the entry: a refused one must not leave a follow behind (exit clears it only while live).
+  if (!r.enter(freeSource)) return false;
+  r.setFollow(id);
+  return true;
+};
 const benchCamera: BenchCamera = { enter: enterManual, set: setManual, exit: exitManual, sweep };
 
 export function getCamera3dDebugApi() {
   return {
     state: () => ({ status: getCamera3dStatus(), view: getCamera3dView(), blocked: getCamera3dRuntime()?.blockedReason() ?? null, ground: getCamera3dRuntime()?.ground() ?? null, manual: { ...manual } }),
     enter: enterManual,
+    /** The manual camera as the spectator source runs it: no avatar of yours needed, following `id` or nothing. */
+    follow: enterFollowing,
+    followed: () => getCamera3dRuntime()?.followed()?.label ?? null,
     set: setManual,
     exit: exitManual,
     /** Perf plan Task 0: per-frame cost of whatever is on screen over `ms` (A §1 columns). */
@@ -260,18 +274,16 @@ export function getCamera3dDebugApi() {
       return +(f.keyStep() / D2R).toFixed(3);
     },
     memoryMB: () => getCamera3dPasses()?.floor.memoryMB() ?? 0,
-    /** Tuning only (A/B levers): rolling-pass trigger px, near-bake slack (polish Task 14); margin: the fixed side/top cull
-     * margins past the ring (× W/H); capPx: the travel cap, 0: the old anchor re-cull; ringPx: the near ring re-decided
-     * every moving frame, 0: off ({ margin: 0.75, capPx: 0, ringPx: 0 } is the cull of before perf Task 5); persist: tile
-     * views keep 3D between frames (perf Task 3); still: the still-camera fast paths (perf Task 4); floor: how the near/far
-     * bakes follow the camera (perf Task 6); ahead / aheadMaxDeg: the show-ahead band, 0 off (perf Task 7); farAnim: far
-     * pets and players frozen ('off') or animating (perf Task 8; the next settings change sets it back); lasts until reinstall. */
-    levers(o: { rollPx?: number; margin?: number; capPx?: number; ringPx?: number; ahead?: number; aheadMaxDeg?: number; nearSlack?: number; persist?: boolean; still?: boolean; floor?: FloorMode; farAnim?: FarAnim } = {}) {
+    /** Tuning only (A/B levers, until reinstall): rollPx, nearSlack (polish 14); margin, capPx, ringPx ({0.75, 0, 0} = the cull
+     * before perf 5); persist (perf 3); still (perf 4); floor (perf 6); ahead, aheadMaxDeg (perf 7, 0 off); farAnim (perf 8,
+     * the next settings change sets it back); plan, refs: the entity pass's walk plan and record handles (perf 13). */
+    levers(o: { rollPx?: number; margin?: number; capPx?: number; ringPx?: number; ahead?: number; aheadMaxDeg?: number; nearSlack?: number; persist?: boolean; still?: boolean; floor?: FloorMode; farAnim?: FarAnim; plan?: boolean; refs?: boolean } = {}) {
       const f = getCamera3dRuntime()?.frame, passes = getCamera3dPasses();
       if (!f || !passes) return null;
-      const { floor, farAnim } = passes;
+      const { floor, farAnim, entities } = passes;
       if (o.farAnim) farAnim.setMode(o.farAnim);
-      return { ...f.cullTune(o), nearSlack: floor.nearSlack(o.nearSlack), persist: f.persistTune(o.persist), still: f.stillTune(o.still), floor: floor.bakeMode(o.floor), farAnim: farAnim.mode() };
+      const ent = entities.tune({ ...(o.plan !== undefined ? { plan: o.plan } : {}), ...(o.refs !== undefined ? { refs: o.refs } : {}) });
+      return { ...f.cullTune(o), nearSlack: floor.nearSlack(o.nearSlack), persist: f.persistTune(o.persist), still: f.stillTune(o.still), floor: floor.bakeMode(o.floor), farAnim: farAnim.mode(), ...ent };
     },
     /** Perf Task 6: a level bake against a fresh full bake of its own window, texel by texel (run in 3D). */
     floorParity(which: 'near' | 'far' = 'near') {

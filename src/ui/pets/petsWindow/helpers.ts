@@ -131,6 +131,23 @@ export function isOperaConflict(combo: string): boolean {
   return !hasModifier(combo) && OPERA_GX_CONFLICT_KEYS.has(combo);
 }
 
+let activeRecorders = 0;
+
+/** A keybind recorder is waiting for a key: window-capture key routers registered before it (the spectator camera's)
+ *  let keys through. Not tied to focus: a clicked button takes none on macOS. */
+export const isKeybindRecording = (): boolean => activeRecorders > 0;
+
+/** Marks a recorder active until the returned end runs (idempotent). */
+export function beginKeybindRecording(): () => void {
+  activeRecorders++;
+  let ended = false;
+  return () => {
+    if (ended) return;
+    ended = true;
+    activeRecorders--;
+  };
+}
+
 /**
  * Create a keybind capture button.  Uses a `<button>` instead of `<input>`
  * because Opera GX routes keyboard events through its text-input pipeline
@@ -144,6 +161,11 @@ export function createKeybindButton(
     onClear: () => void;
     readCurrent: () => string;
     width?: string;
+    /** The combo a keydown records (default normalizeKeybind); '' ignores the key. */
+    normalize?: (e: KeyboardEvent) => string;
+    /** False keeps recording: the caller shows why. */
+    accept?: (combo: string) => boolean;
+    onRecording?: (on: boolean) => void;
   },
 ): HTMLButtonElement {
   const kbBtn = document.createElement('button');
@@ -166,6 +188,7 @@ export function createKeybindButton(
     stopCapture?.();
     if (noKeyTimer) { clearTimeout(noKeyTimer); noKeyTimer = null; }
     display();
+    opts.onRecording?.(false);
   }
 
   const onCapturedKey = (e: KeyboardEvent): void => {
@@ -180,7 +203,7 @@ export function createKeybindButton(
       stopRecording();
       return;
     }
-    const combo = normalizeKeybind(e);
+    const combo = (opts.normalize ?? normalizeKeybind)(e);
     if (!combo) return;
 
     // Warn on Opera GX bare-key conflicts (only on Opera/Opera GX)
@@ -194,6 +217,7 @@ export function createKeybindButton(
       }, 2000);
       return;
     }
+    if (opts.accept && !opts.accept(combo)) return;
 
     opts.onSet(combo);
     stopRecording();
@@ -204,11 +228,14 @@ export function createKeybindButton(
     recording = true;
     kbBtn.textContent = t('feature.petsWindow.pressKey');
     kbBtn.style.color = '';
+    opts.onRecording?.(true);
 
     stopCapture?.();
+    const endMark = beginKeybindRecording();
     window.addEventListener('keydown', onCapturedKey, true);
     stopCapture = () => {
       window.removeEventListener('keydown', onCapturedKey, true);
+      endMark();
       stopCapture = null;
     };
 

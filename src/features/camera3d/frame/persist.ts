@@ -47,6 +47,8 @@ export function dualStateWorks(Container: unknown): boolean {
 }
 
 export interface PersistStats { enabled: boolean; held: number; silent: number; gameWrites: number; restores: number }
+/** A node's record (perf Task 13): keepRef(ref) is keep(node) without the lookup. */
+export interface PersistRef { readonly _persistRef: never }
 
 export class PersistTable {
   private readonly recs = new WeakMap<Node3, Rec>();
@@ -100,7 +102,15 @@ export class PersistTable {
   keep(node: Node3): boolean {
     if (!this.on) return false;
     const r = this.recs.get(node);
-    if (r === undefined || r.tick < 0) return false;
+    return r !== undefined && this.keepRef(r as unknown as PersistRef);
+  }
+
+  /** Null: never applied. Records are never replaced, so a ref stays the node's own. */
+  ref(node: Node3): PersistRef | null { return (this.recs.get(node) as unknown as PersistRef | undefined) ?? null; }
+
+  keepRef(ref: PersistRef): boolean {
+    const r = ref as unknown as Rec;
+    if (!this.on || r.tick < 0) return false;
     const nd = r.node;
     if (nd.destroyed || nd._didContainerChangeTick !== r.tick) return false;
     const p = nd._position, s = nd._scale;

@@ -325,6 +325,12 @@ export const QPM_STORAGE_KEYS = [
   'qpm.camera3d.weather3d.v1',
   'qpm.camera3d.hints.v1',
 
+  // Spectator camera
+  'qpm.spectator.settings.v1',
+  'qpm.spectator.waypoints.v1',
+  'qpm.spectator.infoCard.v1',
+  'qpm.spectator.hints.v1',
+
   // WebSocket QuinoaCommand envelope + wire sequencer kill switches
   'qpm.ws.envelope.enabled',
   'qpm.ws.sequencer.enabled',

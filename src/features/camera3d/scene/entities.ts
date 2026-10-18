@@ -1,10 +1,11 @@
 import { TILE } from '../constants';
 import { project } from '../math/camera';
-import { BASE_LAYER, SCRIM_Z, bandOf, depthKeyAlong, layerOf, quantizeAlong, sortYOf, standLine, tiebreakOf, tiltedTiebreak } from '../math/depth';
+import { BASE_LAYER, MARKER_Z, SCRIM_Z, bandOf, depthKeyAlong, layerOf, quantizeAlong, sortYOf, standLine, tiebreakOf, tiltedTiebreak } from '../math/depth';
 import { MOVE_PX, MoveCheck, cullSlot, mayBeSeen, recheck, ringDue, type FrameCtx, type Pass } from '../frame/frame';
 import type { Node3 } from '../types';
 import { ART_REACH, GameCull } from './gameCull';
-import { StillTiles, type TileRec } from './stillTiles';
+import { StillTiles, takeRefs, type TileRec } from './stillTiles';
+import { PLAN_CARD, PLAN_OTHER, PLAN_TILE, WalkPlan } from './walkPlan';
 
 const AVATAR_UPPER = 0.6 * TILE;
 
@@ -33,6 +34,8 @@ export interface LayerHandler {
   finishAreas(ctx: FrameCtx): void;
   /** Forgets destroyed nodes it holds detached from their layers (A R4). */
   prune(): void;
+  /** Changes when adopt() finds new layer nodes or area marks (isLayerNode answers differently). */
+  version?(): number;
   stats(): Record<string, number>;
   drop(): void;
 }
@@ -51,6 +54,7 @@ export interface HeldHandler {
   stats(): Record<string, number | string | boolean>;
 }
 export interface EntityDeps {
+  /** QPM's own World nodes, never visited. Add a node before attaching it to World: the walk plan classifies a child once. */
   skip: WeakSet<Node3>;
   buildings: BuildingPlacer | null;
   layers: LayerHandler | null;
@@ -63,13 +67,19 @@ export interface EntityDeps {
   held: HeldHandler | null;
   /** An avatar's feet above its ground as drawn (bench, saddle, peek lift), from its stand row this frame. */
   feetHeight?: ((node: Node3) => number) | null;
-  /** Your own avatar or its mount (asked after its stand row): drawn moved by ctx.selfShift. */
+  /** The followed avatar (ctx.avatar) or its mount (asked after its stand row): drawn moved by ctx.selfShift. */
   isSelf?: ((ctx: FrameCtx, node: Node3) => boolean) | null;
-  /** A tile's stand-row input as a token (lift.ts scanOf): a new one re-places it. Absent: tiles never replay. */
+  /** A tile's stand-row input as a token (lift.ts standToken): a new one re-places it. Absent: tiles never replay. */
   standKey?: ((ctx: FrameCtx, node: Node3) => unknown) | null;
+  /** standKey(ctx, node) === token, without its lookup (perf Task 13). Absent: compared through standKey. */
+  standStill?: ((ctx: FrameCtx, node: Node3, token: unknown) => boolean) | null;
   /** Mid-fade: a replayed tile still gets its fade. Absent: always faded. */
   isFading?: ((ctx: FrameCtx, node: Node3) => boolean) | null;
 }
+
+/** Debug levers (perf Task 13 A/B): plan, the World walk plan (walkPlan.ts); refs, a replay through its record's handles. */
+export interface EntityTune { plan: boolean; refs: boolean }
+export type EntityPass = Pass & { tune(t?: Partial<EntityTune>): EntityTune };
 
 export const newPlacement = (): Placement => ({ sx: 0, sy: 0, px: 0, mm: 1, fx: 0, x2d: 0, fy2d: 0, key: 0, gdy: 0 });
 
@@ -171,7 +181,13 @@ export const placeBillboard: PlaceFn = (ctx, nd, o, lp) => {
   return key;
 };
 
-export function createEntityPass(deps: EntityDeps): Pass {
+interface ViewTicked { _didViewChangeTick?: unknown }
+const sameView = (e: Node3, r: TileRec): boolean => {
+  const tex = e.texture ?? null;
+  return tex === r.tex && (tex === null || e.anchor?.x === r.ax);
+};
+
+export function createEntityPass(deps: EntityDeps): EntityPass {
   const movers = new MoveCheck();
   const lp = newPlacement();
   // One options record for every billboard: a literal per call was an object per entity per frame (A PF4).
@@ -180,6 +196,11 @@ export function createEntityPass(deps: EntityDeps): Pass {
   const avatarGround = { x: 0, y: 0 };
   const gameCull = new GameCull();
   const still = new StillTiles();
+  const plan = new WalkPlan<TileRec>();
+  const tune: EntityTune = { plan: true, refs: true };
+  // The tile record the last placeEntity replayed or recorded, and its node; a node whose replay through the plan just
+  // failed (placeEntity does not try it twice).
+  let placed: TileRec | null = null, placedNode: Node3 | null = null, tried: Node3 | null = null;
   let selfHidden: Node3 | null = null;
   let shown = 0, replayed = 0;
 
@@ -200,15 +221,24 @@ export function createEntityPass(deps: EntityDeps): Pass {
   // persist tick covers its transform, alpha and visible; per-frame saves (lifts, areas, masks) and fades still run.
   function replay(ctx: FrameCtx, e: Node3, r: TileRec): boolean {
     if (r.frame !== ctx.frameNo - 1 || recheck(ctx, r.slot) || e.label !== r.label || e._onRender) return false;
-    const tex = e.texture ?? null;
-    if (ctx.ov.gameValue<number>('zIndex', e) !== r.gz || tex !== r.tex || (tex !== null && e.anchor?.x !== r.ax)) return false;
-    if (!deps.standKey || deps.standKey(ctx, e) !== r.stand || !ctx.persist.keep(e)) return false;
+    const { ov } = ctx;
+    const prec = tune.refs ? r.prec : null, refs = prec !== null;
+    if (refs) {
+      // Perf Task 13: the same checks without the lookups. A texture or anchor change bumps the view tick (live v1459).
+      if ((r.zr !== null ? ov.refGame<number>(r.zr) ?? ov.gameValue<number>('zIndex', e) : ov.gameValue<number>('zIndex', e)) !== r.gz) return false;
+      if (Number.isNaN(r.vt) ? !sameView(e, r) : (e as ViewTicked)._didViewChangeTick !== r.vt) return false;
+      if (!(deps.standStill ? deps.standStill(ctx, e, r.stand) : deps.standKey?.(ctx, e) === r.stand) || !ctx.persist.keepRef(prec)) return false;
+    } else {
+      if (ov.gameValue<number>('zIndex', e) !== r.gz || !sameView(e, r)) return false;
+      if (!deps.standKey || deps.standKey(ctx, e) !== r.stand || !ctx.persist.keep(e)) return false;
+      if (tune.refs) takeRefs(ctx, e, r);
+    }
     r.frame = ctx.frameNo;
     ctx.drawn.push(e, r.x, r.y, r.sx, r.sy, r.px, r.py, r.mm, true);
     shown++; replayed++;
     if (e.mask && deps.placeMask) deps.placeMask(ctx, e, r.lp);
     // As placeBillboard: afterPlace only raises the key (lifted produce), so a lift gone since must fall back to it.
-    ctx.ov.put('zIndex', e, r.key);
+    if (!refs || r.zr === null || !ov.refPut(r.zr, e, r.key)) ov.put('zIndex', e, r.key);
     deps.afterPlace?.(ctx, e, r.lp, r.standY);
     deps.layers?.layAreas(ctx, e, r.lp);
     if (deps.fade && deps.isFading?.(ctx, e) !== false) deps.fade(ctx, e, r.key, r.lp.fx, r.groundY);
@@ -216,9 +246,9 @@ export function createEntityPass(deps: EntityDeps): Pass {
   }
 
   function placeEntity(ctx: FrameCtx, e: Node3): number | null {
-    if (ctx.camStill) {
+    if (ctx.camStill && e !== tried) {
       const r = still.get(e);
-      if (r !== undefined && replay(ctx, e, r)) return r.key;
+      if (r !== undefined && replay(ctx, e, r)) { placed = r; placedNode = e; return r.key; }
     }
     if (e === ctx.avatar) {
       if (ctx.hideSelf) {
@@ -285,14 +315,20 @@ export function createEntityPass(deps: EntityDeps): Pass {
     if (deps.fade && e !== ctx.avatar) deps.fade(ctx, e, key, lp.fx, groundY + sdy);
     // Recorded on a still frame only: a moving camera never replays, so it pays nothing for the records.
     if (isTile && ctx.camStill && deps.standKey && sdx === 0 && sdy === 0 && !e._onRender) {
-      still.note(ctx, e, drawnAt, gz, deps.standKey(ctx, e), standY, groundY, key, lp);
+      const r = still.note(ctx, e, drawnAt, gz, deps.standKey(ctx, e), standY, groundY, key, lp, tune.refs);
+      if (r !== null) { placed = r; placedNode = e; }
     }
     return key;
   }
 
   /** Returns the depth key the node was drawn at (null: not drawn as a billboard). */
   function visit(ctx: FrameCtx, e: Node3, blds: Node3[]): number | null {
-    if (deps.skip.has(e) || e.renderLayerChildren) return null;
+    return deps.skip.has(e) ? null : visitNode(ctx, e, blds);
+  }
+
+  // visit for a node known not to be a QPM card.
+  function visitNode(ctx: FrameCtx, e: Node3, blds: Node3[]): number | null {
+    if (e.renderLayerChildren) return null;
     if (isScrim(ctx, e)) { placeScrim(ctx, e); return null; }
     if (e.includeInBuild === false) return null; // mask graphics: moved with their owner
     if (e.x === 0 && e.y === 0) {
@@ -307,8 +343,11 @@ export function createEntityPass(deps: EntityDeps): Pass {
         }
         // Children sort inside the group, the group at its own World slot: tilted, that slot is its frontmost child
         // (JournalTags tags, a ridden pet). Straight down the game's slot keeps the 2D order.
-        if (!layerGroup && e.parent === ctx.caps.scene.world) {
-          if (top !== null && !ctx.exactKeys) ctx.ov.put('zIndex', e, top);
+        if (e.parent === ctx.caps.scene.world) {
+          // A ground-mark group (1634: the tile ground marks and decals, z 10 and 20) keeps its 2D band under every
+          // card: tilted, card keys go negative past yaw 90.
+          const k = layerGroup ? MARKER_Z + ctx.ov.gameValue<number>('zIndex', e) : top;
+          if (k !== null && !ctx.exactKeys) ctx.ov.put('zIndex', e, k);
           else ctx.ov.drop('zIndex', e);
         }
         return top;
@@ -324,6 +363,33 @@ export function createEntityPass(deps: EntityDeps): Pass {
     return placeEntity(ctx, e);
   }
 
+  // Perf Task 13: World's children through the walk plan. A card is never visited. On a still camera a tile replayed or
+  // recorded last frame goes straight to its replay: a tile root never becomes a card, scrim, mask or (0,0) group, and
+  // the replay re-checks everything else. A frame whose adopt() found new layer nodes walks every tile through visit.
+  let layerVer = NaN;
+  function walk(ctx: FrameCtx, kids: readonly Node3[]): void {
+    const L = deps.layers, v = L ? L.version?.() ?? NaN : 0;
+    const fast = ctx.camStill && v === layerVer;
+    layerVer = v;
+    for (let i = 0; i < kids.length; i++) {
+      const e = kids[i]!;
+      let k = plan.kindAt(i, e);
+      if (k < 0) { k = deps.skip.has(e) ? PLAN_CARD : PLAN_OTHER; plan.set(i, e, k, null); }
+      if (k === PLAN_CARD) continue;
+      if (k === PLAN_TILE && fast) {
+        const r = plan.rec(i);
+        if (r !== null && replay(ctx, e, r)) continue;
+        tried = e;
+      }
+      placed = null; placedNode = null;
+      visitNode(ctx, e, blds);
+      tried = null;
+      if (placedNode === e) plan.set(i, e, PLAN_TILE, placed);
+      else if (k !== PLAN_OTHER) plan.set(i, e, PLAN_OTHER, null);
+    }
+    plan.end(kids.length);
+  }
+
   return {
     name: 'entities',
     pre(ctx) {
@@ -336,24 +402,33 @@ export function createEntityPass(deps: EntityDeps): Pass {
       deps.layers?.adopt(ctx);
       blds.length = 0;
       try {
-        for (const e of ctx.caps.scene.world.children) visit(ctx, e, blds);
+        const kids = ctx.caps.scene.world.children;
+        if (tune.plan) walk(ctx, kids);
+        else for (const e of kids) visit(ctx, e, blds);
         if (deps.buildings) deps.buildings.place(ctx, blds, placeBillboard);
         else for (const b of blds) ctx.ov.put('visible', b, false);
         deps.layers?.finishAreas(ctx);
         gameCull.end(ctx);
-      } finally { cull = IMMEDIATE; }
+      } finally { cull = IMMEDIATE; tried = null; placed = null; placedNode = null; }
     },
     drop() {
       unhookAll();
       gameCull.drop();
       still.drop();
+      plan.reset();
+      layerVer = NaN;
       blds.length = 0;
       deps.layers?.drop();
       deps.buildings?.drop();
       deps.held?.drop();
       selfHidden = null;
     },
-    destroy() { unhookAll(); gameCull.drop(); },
+    destroy() { unhookAll(); gameCull.drop(); plan.reset(); },
     stats: () => ({ shown, replayed, holds: holds.size, ...gameCull.stats(), ...deps.layers?.stats(), ...deps.held?.stats() }),
+    tune(t) {
+      if (t?.plan !== undefined) { tune.plan = t.plan; plan.reset(); }
+      if (t?.refs !== undefined) tune.refs = t.refs;
+      return { ...tune };
+    },
   };
 }

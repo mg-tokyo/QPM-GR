@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownerOf, resolveMeshGeometry, resolveScene, resolveSystems, sceneNotBuilt } from './capabilities';
+import { ownerOf, resolveMeshGeometry, resolveScene, resolveSystems, sceneNotBuilt, seatMissing, systemsReplaced } from './capabilities';
 
 class Mat { a = 1; b = 0; c = 0; d = 1; tx = 0; ty = 0; }
 class Container {
@@ -84,7 +84,7 @@ describe('capabilities', () => {
 
   it('resolveSystems lists every missing engine system', () => {
     expect(resolveSystems(null)).toEqual(['engine']);
-    expect(systems(zoomOk)).toEqual(['directionalInput', 'worldTapRouter', 'movement', 'pet']);
+    expect(systems(zoomOk)).toEqual(['worldTapRouter', 'map', 'pet']);
   });
 
   it('resolveSystems needs both movement map dimensions (the far plane and the cull box are derived from them)', () => {
@@ -97,15 +97,68 @@ describe('capabilities', () => {
       const r = resolveSystems({ page: { rendererScope: { systemRegistry: registry }, playerViews: { systemRegistry: registry } } });
       return Array.isArray(r) ? r : [];
     };
-    expect(resolve({ cols: 101, rows: 60 })).toEqual([]);
-    expect(resolve({ cols: 101 })).toEqual(['movement']);
+    expect(resolve({ cols: 101, rows: 60, collisionTiles: new Set() })).toEqual([]);
+    expect(resolve({ cols: 101, collisionTiles: new Set() })).toEqual(['map']);
+    // Walk-in buildings read the collision tiles (buildings.ts isWalkIn): a map without them is no map.
+    expect(resolve({ cols: 101, rows: 60 })).toEqual(['map']);
   });
 
   it('resolveSystems checks the zoom fields and the key stack the bridge and movement read', () => {
     expect(systems({ applyInputZoom() { return null; }, effective: 64, intentTileSize: 64 })[0]).toBe('zoom');
     expect(systems({ ...zoomOk, effective: undefined })[0]).toBe('zoom');
-    expect(systems(zoomOk, { updateDirectionState() { /* noop */ } })[0]).toBe('directionalInput');
+    // A drifted key stack is a seat system the game doesn't give: optional, not missing (spectator Task 12).
+    expect(systems(zoomOk, { updateDirectionState() { /* noop */ } })[0]).toBe('worldTapRouter');
     expect(systems(zoomOk, { updateDirectionState() { /* noop */ }, keysPressed: [] })[0]).toBe('worldTapRouter');
+  });
+
+  // Live 2026-10-14 (1497): movement and directionalInput are page.playerViews systems; zoom, worldTapRouter, pet, avatar
+  // and map are rendererScope ones, and the world map key is movement.map itself.
+  describe('seat systems are optional (spectator Task 12, S §5.1)', () => {
+    const worldMap = { cols: 101, rows: 60, collisionTiles: new Set<number>() };
+    // One set of world systems: only the seat varies between calls.
+    const shared = { zoom: { zoom: zoomOk, shouldBlockZoom: () => false }, worldTapRouter: { movementFallback: { isTapInBounds: () => true } }, pet: { preDraw() { /* noop */ } } };
+    const world = (seat: Record<string, unknown>, map: unknown = worldMap) => {
+      const sys: Record<string, unknown> = { ...shared, ...seat };
+      const registry = { getSystem: (n: string) => sys[n] ?? null };
+      return resolveSystems({ page: { rendererScope: { systemRegistry: registry }, playerViews: { systemRegistry: registry } } }, map);
+    };
+
+    it('without a seat: resolves, the map from the world map, no key stack and no step', () => {
+      const r = world({});
+      expect(Array.isArray(r)).toBe(false);
+      if (Array.isArray(r)) return;
+      expect(r.map).toBe(worldMap);
+      expect(r.directionalInput).toBeNull();
+      expect(r.mover).toBeNull();
+      expect(seatMissing(r)).toEqual(['directionalInput']);
+    });
+
+    it('the world map comes first; the movement map stands in without it; neither is missing map', () => {
+      const mvMap = { cols: 50, rows: 40, collisionTiles: new Set<number>() };
+      const di = { updateDirectionState() { /* noop */ }, keysPressed: [] };
+      const both = world({ directionalInput: di, movement: { map: mvMap, movePlayer: () => true } });
+      expect(Array.isArray(both) ? both : both.map).toBe(worldMap);
+      const mvOnly = world({ movement: { map: mvMap } }, null);
+      expect(Array.isArray(mvOnly) ? mvOnly : mvOnly.map).toBe(mvMap);
+      expect(world({}, null)).toEqual(['map']);
+      expect(world({}, { cols: 101 })).toEqual(['map']);
+      if (!Array.isArray(both)) expect(seatMissing(both)).toEqual([]);
+    });
+
+    it('systemsReplaced: a seat system gone for now is not a replacement; a new or different one is', () => {
+      const di = { updateDirectionState() { /* noop */ }, keysPressed: [] };
+      const mover = { map: worldMap, movePlayer: () => true };
+      const seated = world({ directionalInput: di, movement: mover });
+      const seatless = world({});
+      const other = world({ directionalInput: { ...di }, movement: mover });
+      if (Array.isArray(seated) || Array.isArray(seatless) || Array.isArray(other)) throw new Error('unresolved');
+      expect(systemsReplaced(seated, seated)).toBe(false);
+      expect(systemsReplaced(seatless, seated)).toBe(false);
+      expect(systemsReplaced(seated, seatless)).toBe(true);
+      expect(systemsReplaced(other, seated)).toBe(true);
+      expect(systemsReplaced({ ...seated, petSystem: { preDraw() { /* noop */ } } }, seated)).toBe(true);
+      expect(systemsReplaced({ ...seated, map: { ...worldMap } }, seated)).toBe(true);
+    });
   });
 
   it('the FPS policy is optional: resolved from the renderer scope when present, null otherwise (A S4)', () => {
@@ -113,7 +166,7 @@ describe('capabilities', () => {
     const all = (rendererScopeExtra: Record<string, unknown>) => {
       const sys: Record<string, unknown> = {
         zoom: { zoom: zoomOk, shouldBlockZoom: () => false }, directionalInput: { updateDirectionState() { /* noop */ }, keysPressed: [] },
-        worldTapRouter: { movementFallback: { isTapInBounds: () => true } }, movement: { map: { cols: 1, rows: 1 } }, pet: { preDraw() { /* noop */ } },
+        worldTapRouter: { movementFallback: { isTapInBounds: () => true } }, movement: { map: { cols: 1, rows: 1, collisionTiles: new Set() } }, pet: { preDraw() { /* noop */ } },
       };
       const registry = { getSystem: (n: string) => sys[n] ?? null };
       return resolveSystems({ page: { rendererScope: { systemRegistry: registry, ...rendererScopeExtra }, playerViews: { systemRegistry: registry } } });
@@ -130,7 +183,7 @@ describe('capabilities', () => {
     const resolve = (router: Record<string, unknown>) => {
       const sys: Record<string, unknown> = {
         zoom: { zoom: zoomOk, shouldBlockZoom: () => false }, directionalInput: { updateDirectionState() { /* noop */ }, keysPressed: [] },
-        worldTapRouter: router, movement: { map: { cols: 1, rows: 1 } }, pet: { preDraw() { /* noop */ } },
+        worldTapRouter: router, movement: { map: { cols: 1, rows: 1, collisionTiles: new Set() } }, pet: { preDraw() { /* noop */ } },
       };
       const registry = { getSystem: (n: string) => sys[n] ?? null };
       const r = resolveSystems({ page: { rendererScope: { systemRegistry: registry }, playerViews: { systemRegistry: registry } } });
@@ -146,7 +199,7 @@ describe('capabilities', () => {
     const resolve = (avatar: unknown) => {
       const sys: Record<string, unknown> = {
         zoom: { zoom: zoomOk, shouldBlockZoom: () => false }, directionalInput: { updateDirectionState() { /* noop */ }, keysPressed: [] },
-        worldTapRouter: { movementFallback: { isTapInBounds: () => true } }, movement: { map: { cols: 1, rows: 1 } }, pet: { preDraw() { /* noop */ } }, avatar,
+        worldTapRouter: { movementFallback: { isTapInBounds: () => true } }, movement: { map: { cols: 1, rows: 1, collisionTiles: new Set() } }, pet: { preDraw() { /* noop */ } }, avatar,
       };
       const registry = { getSystem: (n: string) => sys[n] ?? null };
       const r = resolveSystems({ page: { rendererScope: { systemRegistry: registry }, playerViews: { systemRegistry: registry } } });

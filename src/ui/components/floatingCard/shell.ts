@@ -34,6 +34,8 @@ interface InternalEntry {
 
 const registry = new Map<string, InternalEntry>();
 const sessionPositions = new Map<string, FloatingCardPosition>();
+// Closed cards opened with retainPosition: still written by persistForKey so the next page opens them in place.
+const retained = new Map<string, { persistKey: string; position: FloatingCardPosition }>();
 let resizeListenerInstalled = false;
 
 function ensureResizeListener(): void {
@@ -114,16 +116,19 @@ function loadAllForKey(persistKey: string): PersistedFloatingCardsState {
 }
 
 /**
- * Persist the positions of currently-open cards under `persistKey`. Closed-card
- * entries are NOT preserved — matching the prior behavior of `card.ts` where
- * destroying a card removed its on-disk entry. In-session reopen restoration is
- * handled separately by `sessionPositions`.
+ * Persist the positions of currently-open cards under `persistKey`, plus closed
+ * cards opened with `retainPosition`. Other closed cards drop out (the pets
+ * card restores every stored entry as an open card). In-session reopen
+ * restoration is handled separately by `sessionPositions`.
  */
 function persistForKey(persistKey: string): void {
   const cards: PersistedFloatingCard[] = [];
   for (const entry of registry.values()) {
     if (entry.persistKey !== persistKey) continue;
     cards.push({ key: entry.key, xPct: entry.position.xPct, yPct: entry.position.yPct });
+  }
+  for (const [key, r] of retained) {
+    if (r.persistKey === persistKey && !registry.has(key)) cards.push({ key, xPct: r.position.xPct, yPct: r.position.yPct });
   }
   storage.set(persistKey, {
     cards,
@@ -263,9 +268,9 @@ export function openFloatingCard(config: FloatingCardConfig): FloatingCardEntry 
 
     card.remove();
     registry.delete(config.key);
+    if (config.retainPosition && persistKey) retained.set(config.key, { persistKey, position: { ...position } });
 
-    // Persist after removal so destroyed card's entry drops out of storage —
-    // mirrors prior behavior in card.ts where storage tracks open cards only.
+    // Persist after removal so the destroyed card's entry drops out of storage, unless it is retained.
     if (persistKey) persistForKey(persistKey);
 
     try { config.onDestroy?.(); } catch { /* ignore */ }
@@ -281,6 +286,7 @@ export function openFloatingCard(config: FloatingCardConfig): FloatingCardEntry 
     destroy,
   };
   registry.set(config.key, internal);
+  retained.delete(config.key);
 
   if (persistKey) persistForKey(persistKey);
 

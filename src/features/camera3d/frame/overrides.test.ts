@@ -172,6 +172,37 @@ describe('overrides', () => {
     expect(n.zIndex).toBe(2);
   });
 
+  it('perf 13 ref: reads the game value and writes ours as gameValue and put do, while this instance holds it', () => {
+    const ov = createOverrides(new Node());
+    const n = new Node();
+    expect(ov.ref('zIndex', n)).toBeNull();
+    ov.put('zIndex', n, 50);
+    const r = ov.ref('zIndex', n)!;
+    n.zIndex = 7;
+    expect(ov.refGame<number>(r)).toBe(7);
+    const writes = ov.stats().writes;
+    expect(ov.refPut(r, n, 50)).toBe(true);
+    expect(ov.stats().writes).toBe(writes);
+    expect(ov.refPut(r, n, 60)).toBe(true);
+    expect([ov.raw<number>('zIndex', n), ov.stats().writes]).toEqual([60, writes + 1]);
+  });
+
+  it('perf 13 ref: dropped (or held by another instance) it reads undefined and writes nothing; re-put revives it', () => {
+    const ov = createOverrides(new Node());
+    const n = new Node();
+    ov.put('zIndex', n, 50);
+    const r = ov.ref('zIndex', n)!;
+    ov.drop('zIndex', n);
+    expect([ov.refGame(r), ov.refPut(r, n, 70), n.zIndex]).toEqual([undefined, false, 0]);
+    ov.put('zIndex', n, 80);
+    expect(ov.refGame<number>(r)).toBe(0);
+    ov.dropAll();
+    const next = createOverrides(new Node());
+    next.put('zIndex', n, 90);
+    expect([ov.refGame(r), ov.refPut(r, n, 1)]).toEqual([undefined, false]);
+    expect(next.ref('zIndex', n)).not.toBeNull();
+  });
+
   it('removeOverrideAccessors takes the pass-throughs off a tree and leaves active overrides (P20)', () => {
     const ov = createOverrides(new Node());
     const [root, a, b, c] = [new Node(), new Node(), new Node(), new Node()];

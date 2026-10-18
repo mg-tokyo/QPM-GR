@@ -15,6 +15,7 @@ import {
 } from './identity';
 import { publishGameStateHealth, startGameStateDiagnostics } from './health';
 import { GAME_STATE_KEYS, validateKeyTable, type GameStateKey, type GameStateValue } from './keys';
+import { CAMERA_KEYS } from './keys/camera';
 import { Registry } from './resolver';
 import { createProductionRuntime, type SourceRuntime } from './runtime';
 import { startSeatWatcher, stopSeatWatcher } from './seatWatcher';
@@ -25,6 +26,8 @@ export type { GameStateKey, GameStateValue } from './keys';
 export type { KeyExplain, SourceKind } from './types';
 export { renderGameStateTable } from './health';
 export type { DivergenceReport } from './divergence';
+/** The game's 2D camera handles (keys/camera.ts), for the spectator startup check. */
+export const CAMERA_KEY_NAMES = Object.keys(CAMERA_KEYS) as readonly GameStateKey[];
 
 const log = createNamedLogger('gameState');
 const CACHE_GROWTH_POLL_MS = 30_000;
@@ -171,6 +174,8 @@ function subscribeOrigin(): string | null {
 export const subscribe = <K extends GameStateKey>(key: K, cb: (v: GameStateValue<K> | null) => void): (() => void) => requireRegistry().subscribe(key, cb, subscribeOrigin());
 export const consumerCosts = (): ReturnType<Registry<typeof GAME_STATE_KEYS>['consumerCosts']> => requireRegistry().consumerCosts();
 export const write = <K extends GameStateKey>(key: K, value: GameStateValue<K>): Promise<void> => requireRegistry().write(key, value);
+/** Per-frame writes to writable client atoms: false (never a throw) when unbound, read-only or the write didn't land. */
+export const writeSync = <K extends GameStateKey>(key: K, value: GameStateValue<K>): boolean => registry?.writeSync(key, value) ?? false;
 export const explain = (key: GameStateKey): KeyExplain => requireRegistry().explain(key);
 export const explainAll = (): KeyExplain[] => requireRegistry().explainAll();
 export const divergence = (): DivergenceReport => runDivergenceAudit(requireRegistry(), { emit: false });

@@ -181,12 +181,14 @@ export interface QuinoaStateSnapshot {
   [key: string]: unknown;
 }
 
-// Client-only NPC bubble entry (npcAtoms.ts:142-159 in the game source). `tags` is NPC-only.
+// Client-only NPC bubble entry. By game 1468 (`sayNpcLine` in the npcSpeech chunk): message, pose, saidAtMs,
+// persistent, lifetimeMs, textScale, emote?. Older `npcChatBubblesAtom` entries: seq, playerId, timestamp.
 export interface NpcChatBubble {
-  seq: number;
-  playerId: string;
   message: string;
-  timestamp: number;
+  saidAtMs?: number;
+  timestamp?: number;
+  seq?: number;
+  playerId?: string;
   tags?: Record<number, unknown>;
   [key: string]: unknown;
 }

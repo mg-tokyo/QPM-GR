@@ -71,7 +71,21 @@ export interface FlatPlacer {
   /** True: the node itself was laid flat (its own zIndex applies). False: hidden, or drawn by the sink. r: the art's
    * reach from (cx, cy) in world px. */
   place(ctx: FrameCtx, node: Node3, cx: number, cy: number, z: number, r: number): boolean;
+  /** Tilted: every visible sprite under container `root` goes to the sink in band z, in perspective (a multi-tile area
+   * grid spans a depth range no single affine can draw). False: straight down, or a sprite the sink declined; lay
+   * `root` with place() instead. */
+  placeTree(ctx: FrameCtx, root: Node3, z: number): boolean;
   drop(): void;
+}
+
+const MAX_TREE_DEPTH = 4;
+
+function gameLeaves(ctx: FrameCtx, n: Node3, depth: number, out: Node3[]): void {
+  for (const c of n.children) {
+    if (!ctx.ov.gameValue<boolean>('visible', c)) continue;
+    if (c.texture) out.push(c);
+    else if (depth < MAX_TREE_DEPTH) gameLeaves(ctx, c, depth + 1, out);
+  }
 }
 
 /** Alpha the node draws with (its own times its ancestors' up to World); 0 when the game hides it or an ancestor. */
@@ -87,9 +101,55 @@ function drawnAlpha(ctx: FrameCtx, node: Node3): number {
 export function createFlatPlacer(sink: AreaTileSink | null): FlatPlacer {
   // Nodes the sink draws: pinned hidden while they stay there (set once, never flipped per frame), as areaMarks.ts.
   let meshed = new WeakSet<Node3>();
+  // Roots whose sprites placeTree pinned, and their sprites (released together).
+  let trees = new WeakMap<Node3, Node3[]>();
   let identity: Mat | null = null;
+  let chainM: Mat | null = null;
+  const leaves: Node3[] = [];
+  const path: Node3[] = [];
+
+  const pin = (ctx: FrameCtx, n: Node3): void => {
+    // The override prune may have dropped the pin of a detached node (A R4): the set alone can't say it is still on.
+    if (!meshed.has(n) || !ctx.ov.has('visible', n)) { meshed.add(n); ctx.ov.put('visible', n, false, true); }
+  };
+  const unpin = (ctx: FrameCtx, n: Node3): void => { if (meshed.has(n)) { meshed.delete(n); ctx.ov.drop('visible', n); } };
+  function release(ctx: FrameCtx, root: Node3): void {
+    const list = trees.get(root);
+    if (!list) return;
+    trees.delete(root);
+    for (const n of list) unpin(ctx, n);
+  }
+
+  // root's 2D local frame times every container down to n's parent: the W2 a sink quad of n is written with.
+  function chainTo(ctx: FrameCtx, root: Node3, n: Node3): Mat {
+    const m = chainM && chainM.constructor === ctx.caps.classes.Matrix ? chainM : (chainM = new (ctx.caps.classes.Matrix as unknown as MatCtor)());
+    path.length = 0;
+    for (let p = n.parent; p && p !== root; p = p.parent) path.push(p);
+    root.updateLocalTransform();
+    m.copyFrom(root.localTransform);
+    for (let i = path.length - 1; i >= 0; i--) { const p = path[i]!; p.updateLocalTransform(); m.append(p.localTransform); }
+    return m;
+  }
 
   return {
+    placeTree(ctx, root, z) {
+      if (!sink || ctx.exactKeys) { release(ctx, root); return false; }
+      leaves.length = 0;
+      gameLeaves(ctx, root, 1, leaves);
+      const prev = trees.get(root);
+      for (const n of leaves) {
+        const alpha = drawnAlpha(ctx, n);
+        if (alpha <= 0) continue;
+        if (!sink.add(ctx, n, chainTo(ctx, root, n), alpha, z)) { release(ctx, root); for (const l of leaves) unpin(ctx, l); return false; }
+        pin(ctx, n);
+      }
+      // A sprite the game hid or moved out since keeps no pin.
+      const same = prev !== undefined && prev.length === leaves.length && prev.every((n, i) => n === leaves[i]);
+      if (prev && !same) for (const n of prev) if (!leaves.includes(n)) unpin(ctx, n);
+      if (!leaves.length) trees.delete(root);
+      else if (!same) trees.set(root, leaves.slice());
+      return true;
+    },
     place(ctx, node, cx, cy, z, r) {
       if (sink && !ctx.exactKeys) {
         const alpha = drawnAlpha(ctx, node);
@@ -98,16 +158,12 @@ export function createFlatPlacer(sink: AreaTileSink | null): FlatPlacer {
         let w2: Mat;
         if (!p || p === ctx.caps.scene.world) w2 = identity ??= new (ctx.caps.classes.Matrix as unknown as MatCtor)();
         else { p.updateLocalTransform(); w2 = p.localTransform; }
-        if (alpha > 0 && sink.add(ctx, node, w2, alpha, z)) {
-          // The override prune may have dropped the pin of a detached node (A R4): the set alone can't say it is still on.
-          if (!meshed.has(node) || !ctx.ov.has('visible', node)) { meshed.add(node); ctx.ov.put('visible', node, false, true); }
-          return false;
-        }
+        if (alpha > 0 && sink.add(ctx, node, w2, alpha, z)) { pin(ctx, node); return false; }
       }
-      if (meshed.has(node)) { meshed.delete(node); ctx.ov.drop('visible', node); }
+      unpin(ctx, node);
       return placeFlat(ctx, node, cx, cy, r);
     },
-    drop() { meshed = new WeakSet(); },
+    drop() { meshed = new WeakSet(); trees = new WeakMap(); },
   };
 }
 

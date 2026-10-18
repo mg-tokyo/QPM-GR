@@ -250,12 +250,35 @@ describe('lifter re-scan policy', () => {
     expect(l.standRow(at(3, false), fade.tile.node, 4000)).toBe(4000);
   });
 
-  it('perf 4: scanOf is the stand token: the same scan while valid, a new one once re-scanned', () => {
+  it('perf 4: standToken is the stand token: the same while valid, a new one once re-scanned', () => {
     const { base, tile } = tickedBase();
     const l = createLifter(noLayer, () => false);
-    const first = l.scanOf(at(1), tile.node);
-    expect(l.scanOf(at(2, false), tile.node)).toBe(first);
+    const first = l.standToken(at(1), tile.node);
+    expect(l.standToken(at(2, false), tile.node)).toBe(first);
     base.withTexture(400, 300, 0.6);
-    expect(l.scanOf(at(3, false), tile.node)).not.toBe(first);
+    expect(l.standToken(at(3, false), tile.node)).not.toBe(first);
+  });
+
+  it('perf 13: standStill answers as comparing standToken would, on the same rescan schedule', () => {
+    const { base, tile } = tickedBase();
+    const l = createLifter(noLayer, () => false);
+    const tok = l.standToken(at(1), tile.node);
+    for (let f = 2; f <= 1 + RESCAN_FRAMES; f++) expect(l.standStill(at(f, false), tile.node, tok)).toBe(true);
+    // Stale: re-scanned (budget allowing) into a new token, which then holds.
+    expect(l.standStill(at(2 + RESCAN_FRAMES, false), tile.node, tok)).toBe(false);
+    const next = l.standToken(at(2 + RESCAN_FRAMES, false), tile.node);
+    expect(next).not.toBe(tok);
+    expect(l.standStill(at(3 + RESCAN_FRAMES, false), tile.node, next)).toBe(true);
+    base.withTexture(400, 300, 0.6);
+    expect(l.standStill(at(4 + RESCAN_FRAMES, false), tile.node, next)).toBe(false);
+    expect(l.standRow(at(4 + RESCAN_FRAMES, false), tile.node, 4000)).toBe(4120);
+  });
+
+  it('perf 13: a token from before reset() is never still', () => {
+    const { tile } = tickedBase();
+    const l = createLifter(noLayer, () => false);
+    const tok = l.standToken(at(1), tile.node);
+    l.reset();
+    expect(l.standStill(at(2, false), tile.node, tok)).toBe(false);
   });
 });

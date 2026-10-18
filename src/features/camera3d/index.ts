@@ -4,7 +4,7 @@ import type { PixiBounds } from '../../core/pixiScene';
 import { setCamera3dLineSource } from '../../diagnostics/copyPayload';
 import { t } from '../../i18n';
 import { startGameTextures } from '../../sprite-v2/gameTextures';
-import { resolveCapabilities, resolveSystems, sceneNotBuilt } from './capabilities';
+import { readWorldMap, resolveCapabilities, resolveSystems, sceneNotBuilt, seatMissing, systemsReplaced } from './capabilities';
 import { camera3dDiag, formatCamera3dLine, type Camera3dStatus } from './diagnostics';
 import { installCameraRelativeMovement } from './engine/movement';
 import { installSlowProbe, type SlowProbe } from './engine/slowProbe';
@@ -52,6 +52,8 @@ let installFault: string | null = null;
 let lastRetry = 0;
 let fails = 0;
 let paused = false;
+// Another feature that owns the camera (the spectator); outlives a runtime reinstall.
+let externalBlock: string | null = null;
 let zoom: ZoomBridge | null = null;
 export const getZoomBridge = (): ZoomBridge | null => zoom;
 let picker: Picker | null = null;
@@ -105,6 +107,7 @@ function install(tx: InstallStack, caps: Caps): void {
   owner = runtime;
   accessorStage = caps.scene.stage;
   runtime.setPlayerId(playerId);
+  if (externalBlock) runtime.block(externalBlock, true);
   tx.add('render', () => {
     if (!installRenderHook(caps.scene.renderer, caps.scene.stage, runtime.onStage)) throw new Error('camera3d: renderer.render is not a function');
   }, uninstallRenderHook);
@@ -114,7 +117,7 @@ function install(tx: InstallStack, caps: Caps): void {
     for (const p of passes.list) if (p.warm?.(runtime.ov, at)) return true;
     return false;
   };
-  const z = tx.add('zoom', () => installZoomBridge(runtime, prewarm), (x) => { x.uninstall(); zoom = null; });
+  const z = tx.add('zoom', () => installZoomBridge(runtime, prewarm, () => externalBlock !== null), (x) => { x.uninstall(); zoom = null; });
   zoom = z;
   const p = tx.add('picker', () => createPicker(runtime, passes.floor, passes.isAreaMark), (x) => { x.destroy(); picker = null; });
   picker = p;
@@ -163,6 +166,7 @@ function tryInstall(): void {
   if (rt || !started || paused || !getCamera3dSettings().enabled) return;
   const tx = new InstallStack(installFault);
   installFault = null;
+  let seat: string[] = [];
   try {
     tx.step = 'caps';
     const r = resolveCapabilities();
@@ -171,6 +175,7 @@ function tryInstall(): void {
       noteCaps(r.ready ? `missing:${r.missing.join(',')}` : 'not-ready', r.ready ? r.missing : null);
       return;
     }
+    seat = seatMissing(r.caps.systems);
     install(tx, r.caps);
   } catch (e) {
     tx.unwind();
@@ -179,7 +184,7 @@ function tryInstall(): void {
     return;
   }
   installed = tx;
-  capsNote = 'ok';
+  capsNote = seat.length ? `ok seat-missing:${seat.join(',')}` : 'ok';
   camera3dDiag.publishOk('ready');
   publishView();
 }
@@ -209,11 +214,8 @@ function revalidateSystems(): void {
   if (!rt || rt.isLive()) return;
   let engine: unknown = null;
   try { engine = readSync('quinoaEngine'); } catch { return; }
-  const now = resolveSystems(engine);
-  if (Array.isArray(now)) return;
-  const was = rt.caps.systems;
-  if (now.zoomSys === was.zoomSys && now.directionalInput === was.directionalInput && now.mover === was.mover && now.movementFallback === was.movementFallback
-    && now.petSystem === was.petSystem && now.activity === was.activity && now.tapRouter === was.tapRouter && now.avatar === was.avatar) return;
+  const now = resolveSystems(engine, readWorldMap());
+  if (Array.isArray(now) || !systemsReplaced(now, rt.caps.systems)) return;
   camera3dDiag.diag.info('QPM-CAM3D-002', { hook: 'systems' });
   teardown('systems');
   tryInstall();
@@ -302,6 +304,15 @@ export function stopCamera3d(): void {
   capsNote = 'not-ready';
   awaitingScene = false;
   warnedNote = '';
+}
+
+/** While set, 3D is left (a live view cuts to 2D) and refused with `reason`; null lifts it. */
+export function setCamera3dExternalBlock(reason: string | null): void {
+  if (reason === externalBlock) return;
+  if (externalBlock) rt?.block(externalBlock, false);
+  externalBlock = reason;
+  if (reason) rt?.block(reason, true);
+  publishView();
 }
 
 export const getCamera3dRuntime = (): Runtime | null => rt;

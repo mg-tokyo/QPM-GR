@@ -224,13 +224,15 @@ export interface FrameCtx {
   hand: number;
   frameNo: number;
   now: number;
+  /** The followed avatar (Runtime.followed): yours under the normal camera; another player's, or null in free cam, under
+   * the spectator. Every avatar* field, the first-person hide and the follow shift mean this one. */
   avatar: Node3 | null;
   avatarKey: number | null;
   avatarUpper: XY | null;
   /** The followed avatar's ground point (2D world px) this frame. */
   avatarGround: XY | null;
-  /** The steady follow point minus the game's ground point (P16 a): your avatar and its mount are drawn moved by it,
-   * times tilt. */
+  /** The steady follow point minus the game's ground point (P16 a): the followed avatar and its mount are drawn moved by
+   * it, times tilt. */
   selfShift: XY;
   readonly out: number[];
 }

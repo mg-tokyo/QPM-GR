@@ -1,7 +1,5 @@
 import type { ErrorCodeDefinition } from '../types';
 
-// Keep in sync with CURRENT_VERSION in ../codes.ts (local copy avoids a
-// circular import).
 const V = '3.3.27';
 
 export const PATCH_STAGE_CODES: readonly ErrorCodeDefinition[] = [

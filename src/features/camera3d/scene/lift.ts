@@ -125,15 +125,18 @@ export function applyLift(ctx: FrameCtx, entity: Node3, lp: Placement, units: re
 }
 
 /** `checked`: the frame the entry was last validated (standRow and afterPlace ask in the same frame); ct, vt: the base
- * sprite's change ticks at its last full check. */
-interface Entry { scan: EntityScan; baseTex: unknown; frame: number; checked: number; units: LiftUnit[] | null; unitsFor: number; ct: unknown; vt: unknown }
+ * sprite's change ticks at its last full check; gen: the lifter generation while it is the node's entry, -1 once
+ * replaced. */
+interface Entry { scan: EntityScan; baseTex: unknown; frame: number; checked: number; units: LiftUnit[] | null; unitsFor: number; ct: unknown; vt: unknown; gen: number }
 interface Ticked { _didContainerChangeTick?: unknown; _didViewChangeTick?: unknown }
 
 export interface Lifter {
   /** Stand row (2D world y): the base sprite's art bottom, else the sort y. */
   standRow(ctx: FrameCtx, node: Node3, sortY: number): number;
-  /** The scan the stand row comes from, validated as standRow does: a new one means the stand row may have moved. */
-  scanOf(ctx: FrameCtx, node: Node3): EntityScan;
+  /** The entry the stand row comes from, validated as standRow does: a new one means the stand row may have moved. */
+  standToken(ctx: FrameCtx, node: Node3): object;
+  /** standToken(ctx, node) === token, without the lookup (perf Task 13). */
+  standStill(ctx: FrameCtx, node: Node3, token: object): boolean;
   afterPlace(ctx: FrameCtx, node: Node3, lp: Placement, standY: number): void;
   /** Forget every cached scan (3D left). */
   reset(): void;
@@ -141,6 +144,7 @@ export interface Lifter {
 
 export function createLifter(isLayerNode: (n: Node3) => boolean, isAvatar: (n: Node3) => boolean): Lifter {
   let cache = new WeakMap<Node3, Entry>();
+  let gen = 0;
   let budgetFrame = -1, budget = 0;
   // PIXI 8 (live v1431): visible and alpha writes bump the base sprite's _didContainerChangeTick, a texture or anchor
   // change its _didViewChangeTick. Both unchanged since the last full check: nothing that check reads changed (perf
@@ -156,8 +160,8 @@ export function createLifter(isLayerNode: (n: Node3) => boolean, isAvatar: (n: N
     return false;
   };
   let lastNode: Node3 | null = null, lastEntry: Entry | null = null;
-  const validated = (ctx: FrameCtx, node: Node3): Entry => {
-    const old = cache.get(node);
+  // old: node's current entry, if any.
+  const validated = (ctx: FrameCtx, node: Node3, old = cache.get(node)): Entry => {
     if (old && old.checked === ctx.frameNo) return old;
     if (old && !baseChanged(old)) {
       old.checked = ctx.frameNo;
@@ -170,8 +174,9 @@ export function createLifter(isLayerNode: (n: Node3) => boolean, isAvatar: (n: N
     const b = scan.baseNode as (Node3 & Ticked) | null;
     const e: Entry = {
       scan, baseTex: b?.texture ?? null, frame: ctx.frameNo, checked: ctx.frameNo, units: null, unitsFor: NaN,
-      ct: b?._didContainerChangeTick ?? NaN, vt: b?._didViewChangeTick ?? NaN,
+      ct: b?._didContainerChangeTick ?? NaN, vt: b?._didViewChangeTick ?? NaN, gen,
     };
+    if (old) old.gen = -1;
     cache.set(node, e);
     return e;
   };
@@ -186,7 +191,15 @@ export function createLifter(isLayerNode: (n: Node3) => boolean, isAvatar: (n: N
       const base = entryFor(ctx, node).scan.base;
       return base === null ? sortY : node.y + base * node.scale.y;
     },
-    scanOf: (ctx, node) => entryFor(ctx, node).scan,
+    standToken: (ctx, node) => entryFor(ctx, node),
+    standStill(ctx, node, token) {
+      const old = token as Entry;
+      // Never replaced and no reset since: still the node's cached entry.
+      if (old.gen !== gen) return false;
+      lastEntry = validated(ctx, node, old);
+      lastNode = node;
+      return lastEntry === old;
+    },
     afterPlace(ctx, node, lp, standY) {
       // An avatar stands on its ground point via the art row; its Rive box has transparent padding under the feet.
       if (isAvatar(node)) return;
@@ -200,6 +213,6 @@ export function createLifter(isLayerNode: (n: Node3) => boolean, isAvatar: (n: N
       // Exact keys near top-down keep the game's 2D order (spec §6.2), so s = 0 matches 2D.
       if (k > lp.key && !ctx.exactKeys) ctx.ov.put('zIndex', node, k);
     },
-    reset() { cache = new WeakMap(); budgetFrame = -1; lastNode = null; lastEntry = null; },
+    reset() { cache = new WeakMap(); gen++; budgetFrame = -1; lastNode = null; lastEntry = null; },
   };
 }

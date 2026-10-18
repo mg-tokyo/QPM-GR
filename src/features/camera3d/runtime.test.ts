@@ -5,7 +5,7 @@ import { PixiNode } from './__test__/fakePixi';
 import type { Pass } from './frame/frame';
 import { installRenderHook, uninstallRenderHook } from './frame/renderHook';
 import { NEAR_PLANE, farPlaneFor, type CameraView } from './math/zoomCurve';
-import { createRuntime, type FailGuard, type Runtime, type ViewSource } from './runtime';
+import { createRuntime, type FailGuard, type Runtime, type ViewSource, type ViewSourceInput } from './runtime';
 import type { GroundTracker } from './scene/ground';
 import type { Caps } from './types';
 
@@ -40,12 +40,15 @@ interface Rig {
   exits: string[];
   renders: number;
   camera: FakeNode;
+  world: GameNode;
   /** One stage render: the original draws (and counts) unless `throwOnce` is set. */
   render(throwOnce?: boolean): unknown;
   guard: FailGuard & { stop: boolean };
 }
 
-function rig(passes: Pass[] = [], classes: Record<string, unknown> = {}): Rig {
+const flatTracker = { isAvatar: () => false, groundY: (_n: unknown, sortY: number) => sortY, riderOf: () => null, feetH: () => 0, eyeH: () => 0, tileOf: () => null } as unknown as GroundTracker;
+
+function rig(passes: Pass[] = [], classes: Record<string, unknown> = {}, tracker: GroundTracker = flatTracker): Rig {
   const camera = new FakeNode();
   const world = new GameNode();
   world.label = 'World';
@@ -57,7 +60,6 @@ function rig(passes: Pass[] = [], classes: Record<string, unknown> = {}): Rig {
   world.children.push(avatar);
   const tilemap = new GameNode();
   const caps = { scene: { renderer: { screen: { width: 800, height: 600 } }, camera, world, ground: null, weather: null, tilemap, stage: camera }, classes, systems: { map: { cols: 101, rows: 60 } } } as unknown as Caps;
-  const tracker = { isAvatar: () => false, groundY: (_n: unknown, sortY: number) => sortY, riderOf: () => null, feetH: () => 0, eyeH: () => 0, tileOf: () => null } as unknown as GroundTracker;
   const fails: Array<[string, string]> = [];
   const guard = { stop: false, fail(phase: string, e: unknown) { fails.push([phase, String((e as Error).message)]); }, paused() { return this.stop; } };
   const rt = createRuntime(caps, passes, tracker, guard);
@@ -65,7 +67,7 @@ function rig(passes: Pass[] = [], classes: Record<string, unknown> = {}): Rig {
   const exits: string[] = [];
   rt.onExit((r) => exits.push(r));
   const r: Rig = {
-    rt, fails, exits, renders: 0, camera, guard,
+    rt, fails, exits, renders: 0, camera, world, guard,
     render(throwOnce = false) {
       let armed = throwOnce;
       return rt.onStage(() => {
@@ -214,6 +216,126 @@ describe('runtime failure routing', () => {
     expect(r.exits).toEqual(['hook-fight']);
     expect(r.rt.blockedReason()).toBe('hook-fight');
     expect(r.rt.enter(fixed)).toBe(false);
+  });
+});
+
+describe('follow/self split (spectator Task 12, S §5.1)', () => {
+  const addAvatar = (r: Rig, id: string): GameNode => {
+    const n = new GameNode();
+    n.label = `AvatarContainer (${id})`;
+    n.parent = r.world;
+    r.world.children.push(n);
+    return n;
+  };
+  /** A rig whose passes and source record what each frame followed. */
+  function watched(tracker?: GroundTracker) {
+    const avatars: unknown[] = [];
+    const grounds: unknown[] = [];
+    const r = rig([pass({ pre(ctx) { avatars.push(ctx.avatar); } })], {}, tracker);
+    const free: ViewSource = Object.assign((i: ViewSourceInput) => { grounds.push(i.ground); return VIEW; }, { requiresAvatar: false });
+    const normal: ViewSource = (i) => { grounds.push(i.ground); return VIEW; };
+    const p1 = r.world.children.find((c) => c.label === 'AvatarContainer (p1)')!;
+    return { r, avatars, grounds, free, normal, p1, p2: addAvatar(r, 'p2') };
+  }
+
+  it('a source that needs no avatar runs without yours and follows nothing until told', () => {
+    const w = watched();
+    w.r.rt.setPlayerId('gone');
+    expect(w.r.rt.blockedReason()).toBe('no-avatar');
+    expect(w.r.rt.blockedReason(w.free)).toBeNull();
+    expect(w.r.rt.enter(w.normal)).toBe(false);
+    expect(w.r.rt.enter(w.free)).toBe(true);
+    w.r.render();
+    expect(w.r.exits).toEqual([]);
+    expect(w.avatars).toEqual([null]);
+    expect(w.grounds).toEqual([null]);
+    expect(w.r.rt.followed()).toBeNull();
+    // While it drives, the runtime's own blocked reason is its source's.
+    expect(w.r.rt.blockedReason()).toBeNull();
+  });
+
+  it('setFollow picks the followed avatar for that source; the normal camera always follows yours', () => {
+    const w = watched();
+    w.r.rt.setFollow('p2');
+    w.r.rt.enter(w.free);
+    w.r.render();
+    expect(w.avatars).toEqual([w.p2]);
+    expect(w.r.rt.followed()).toBe(w.p2);
+    w.r.rt.exit('debug');
+    w.r.rt.setFollow('p2');
+    w.r.rt.enter(w.normal);
+    w.r.render();
+    expect(w.avatars).toEqual([w.p2, w.p1]);
+    expect(w.r.rt.avatar()).toBe(w.p1);
+  });
+
+  it('the followed avatar drives the ground point the source gets (the ground tracker reads it, not yours)', () => {
+    const asked: unknown[] = [];
+    const tracker = { ...flatTracker, groundY: (n: unknown, sortY: number) => { asked.push(n); return sortY; } } as unknown as GroundTracker;
+    const w = watched(tracker);
+    w.p2.x = 900; w.p2.y = 700;
+    w.r.rt.setFollow('p2');
+    w.r.rt.enter(w.free);
+    w.r.render();
+    expect(asked).toEqual([w.p2]);
+    expect(w.grounds[0]).toMatchObject({ x: 900, y: 700 });
+  });
+
+  it('a followed player who leaves gives frames with no avatar, not an exit', () => {
+    const w = watched();
+    w.r.rt.setFollow('p2');
+    w.r.rt.enter(w.free);
+    w.r.render();
+    w.r.world.children.splice(w.r.world.children.indexOf(w.p2), 1);
+    w.p2.parent = null;
+    w.r.render();
+    expect(w.avatars).toEqual([w.p2, null]);
+    expect(w.r.exits).toEqual([]);
+  });
+
+  it('a followed avatar that is gone is looked for again only once World gains or loses a child (no scan per frame)', () => {
+    const w = watched();
+    w.r.rt.setFollow('p3');
+    w.r.rt.enter(w.free);
+    const kids = w.r.world.children;
+    let scans = 0;
+    const find = kids.find.bind(kids);
+    Object.defineProperty(kids, 'find', { value: (...a: Parameters<typeof find>) => { scans++; return find(...a); }, configurable: true });
+    for (let i = 0; i < 5; i++) w.r.render();
+    expect(scans).toBe(1);
+    const p3 = addAvatar(w.r, 'p3');
+    w.r.render();
+    expect(scans).toBe(2);
+    expect(w.avatars[w.avatars.length - 1]).toBe(p3);
+  });
+
+  it('every exit clears the follow: the next entry follows nothing until told again', () => {
+    const w = watched();
+    w.r.rt.setFollow('p2');
+    w.r.rt.enter(w.free);
+    w.r.render();
+    w.r.rt.exit('debug');
+    w.r.rt.enter(w.free);
+    w.r.render();
+    expect(w.avatars).toEqual([w.p2, null]);
+  });
+
+  it('the camera-steered walk offsets your own avatar only', () => {
+    const tracker = { ...flatTracker, tileOf: () => ({ x: 1, y: 1 }) } as unknown as GroundTracker;
+    const w = watched(tracker);
+    let asked = 0;
+    w.r.rt.setSteer({ offsetAt: () => { asked++; return false; } });
+    w.r.rt.setFollow('p2');
+    w.r.rt.enter(w.free);
+    w.r.render();
+    expect(asked).toBe(0);
+    w.r.rt.setFollow('p1');
+    w.r.render();
+    expect(asked).toBe(1);
+    w.r.rt.exit('debug');
+    w.r.rt.enter(w.normal);
+    w.r.render();
+    expect(asked).toBe(2);
   });
 });
 

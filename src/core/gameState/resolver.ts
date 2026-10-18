@@ -192,6 +192,19 @@ export class Registry<Defs extends DefsShape> {
     await writable.write(value);
   }
 
+  /** Client keys only, for per-frame writes: the bound rung skips the availability read (not suppression). Never throws. */
+  writeSync<K extends keyof Defs & string>(key: K, value: ValueOf<Defs, K>): boolean {
+    const s = this.state(key);
+    if (s.def.policy !== 'client') return false;
+    try {
+      const bound = s.boundIndex === null ? undefined : s.handles[s.boundIndex];
+      const boundOk = !!bound?.writeSync && !s.simulatedLoss.has(bound.kind)
+        && !((s.suppressedUntil.get(bound.index) ?? 0) > this.runtime.now());
+      const h = boundOk ? bound : s.handles.find((x) => typeof x.writeSync === 'function' && this.isUsable(s, x));
+      return h?.writeSync ? h.writeSync(value) : false;
+    } catch { return false; }
+  }
+
   /** Resolved atom object of the bound atom rung (or the first atom rung), for read-patch instrumentation. */
   atomObjectFor<K extends keyof Defs & string>(key: K): unknown {
     const s = this.state(key);

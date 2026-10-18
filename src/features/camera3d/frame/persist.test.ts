@@ -281,6 +281,28 @@ describe('PersistTable (perf Task 3: dual state for tile views)', () => {
     expect(a.drawn()).toEqual([100, 200, 1, 1]);
   });
 
+  it('perf 13 keepRef: a node\'s record handle keeps exactly as keep does', () => {
+    const t = new PersistTable(true);
+    const a = new PixiNode(100, 200, 1), b = new PixiNode(300, 400, 1), dead = new PixiNode(5, 6, 1), fresh = new PixiNode(1, 2, 1);
+    expect(t.ref(fresh.node)).toBeNull();
+    frame(t, 1, [[a, 640, 300, 0.5], [b, 700, 300, 0.5], [dead, 650, 300, 0.5]]);
+    const [ra, rb, rd] = [t.ref(a.node)!, t.ref(b.node)!, t.ref(dead.node)!];
+    const updates = a.updates;
+    b.position.set(320, 400);
+    dead.destroy();
+    t.begin(2);
+    expect([t.keepRef(ra), t.keepRef(rb), t.keepRef(rd)]).toEqual([true, false, false]);
+    expect(a.fields()).toEqual([640, 300, 0.5, 0.5]);
+    a.render(); b.render();
+    t.finish();
+    expect([a.updates, a.fields(), a.drawn()]).toEqual([updates, [100, 200, 1, 1], [640, 300, 0.5, 0.5]]);
+    // b was neither kept nor applied: released, so its handle no longer keeps; nor does any while disabled.
+    t.begin(3);
+    expect(t.keepRef(rb)).toBe(false);
+    t.setEnabled(false);
+    expect(t.keepRef(ra)).toBe(false);
+  });
+
   it('turned off live (debug lever): everything held is released first', () => {
     const t = new PersistTable(true);
     const a = new PixiNode(100, 200, 1);

@@ -1,3 +1,4 @@
+import { isOverPixiUi } from '../../../core/pixiUiHit';
 import { camera3dDiag } from '../diagnostics';
 import { RewrapBudget } from '../frame/rewrap';
 import type { Runtime } from '../runtime';
@@ -46,17 +47,7 @@ export function installPointerRemap(rt: Runtime, picker: Picker): () => void {
   const budget = new RewrapBudget();
   const live = (): boolean => rt.isLive() && rt.frame.ctx() !== null;
 
-  // Only "is the top hit outside World" matters here, so World's children are skipped: the full test walked every World
-  // child on each pointer event (live 2026-10-05: 0.19 → 0.016 ms, same answer at 400/400 points).
-  const overUi = (x: number, y: number): boolean => {
-    const wc = world as unknown as { interactiveChildren: boolean };
-    const kids = wc.interactiveChildren;
-    wc.interactiveChildren = false;
-    let h;
-    try { h = events.rootBoundary.hitTest(x, y); } finally { wc.interactiveChildren = kids; }
-    for (let n = h; n; n = n.parent) if (n === world) return false;
-    return !!h;
-  };
+  const overUi = (x: number, y: number): boolean => isOverPixiUi(renderer, world, x, y);
 
   const pickFor = (mode: PickMode, x: number, y: number): PickResult => {
     // Hover settles at most once per frame (spec §14 pick gate); taps pick fresh and synchronously.

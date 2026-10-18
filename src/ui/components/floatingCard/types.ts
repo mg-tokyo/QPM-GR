@@ -27,6 +27,8 @@ export interface FloatingCardConfig {
   maxWidth?: number;
   /** CSS class to apply on the wrapper element. */
   className?: string;
+  /** Keep this card's stored spot after it closes, so it reopens there after a reload (needs persistKey). */
+  retainPosition?: boolean;
   /**
    * Optional list of CSS selectors. mousedown originating from any element matching
    * a selector (including descendants) is ignored by the drag handler. Use this to

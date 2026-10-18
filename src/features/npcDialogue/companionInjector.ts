@@ -9,6 +9,7 @@ import {
   type SelectorState,
 } from './selector';
 import { getNpcDialogueSettings } from './settings';
+import { bubbleSaidAt } from './talkInterceptor';
 import type { LineId, Speaker } from './types';
 
 const DEBOUNCE_MS = 45_000;
@@ -72,8 +73,9 @@ function armDebounce(deps: CompanionInjectorDeps, delayMs: number = DEBOUNCE_MS)
 // Client-tier subscriptions wake on user input only, so an Aries write with no input never re-arms
 // the debounce; the bubble's own timestamp is the reliable "last spoke" signal.
 function msUntilSilent(entry: unknown, nowMs: number): number {
-  if (!isRecord(entry) || typeof entry.timestamp !== 'number') return 0;
-  const age = nowMs - entry.timestamp;
+  const saidAt = bubbleSaidAt(entry);
+  if (saidAt === null) return 0;
+  const age = nowMs - saidAt;
   if (age >= DEBOUNCE_MS) return 0;
   return age < 0 ? DEBOUNCE_MS : DEBOUNCE_MS - age;
 }

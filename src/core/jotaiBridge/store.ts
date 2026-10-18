@@ -1,6 +1,7 @@
 import { pageWindow, shareGlobal } from '../pageContext';
-import type { JotaiStore } from './types';
+import type { CaptureMode, JotaiStore } from './types';
 import {
+  NATIVE_STORE_WAIT_MS,
   STORE_GLOBAL_KEY,
   getStoreRef,
   isCaptureInFlight,
@@ -33,12 +34,21 @@ function shareStoreNonInvasively(store: JotaiStore): void {
     }
   } catch {}
 
-  // Also mirror to common global keys if not set
-  try {
-    if (!(pageWindow as any).__jotaiStore && !store.__polyfill) {
-      (pageWindow as any).__jotaiStore = store;
-    }
-  } catch {}
+  // __jotaiStore is the game's own slot since release 1604 — never write it.
+}
+
+function existingStoreMode(store: JotaiStore): Exclude<CaptureMode, 'none'> {
+  if (store.__source === 'native' || store.__source === 'aries') return store.__source;
+  return 'shared';
+}
+
+function adoptExistingStore(store: JotaiStore): JotaiStore {
+  const mode = existingStoreMode(store);
+  setStoreRef(store);
+  setLastCaptureMode(mode);
+  shareStoreNonInvasively(store);
+  reportJotaiCapture(mode);
+  return store;
 }
 
 /**
@@ -51,32 +61,17 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
     return cached;
   }
 
-  // 1) Check for existing store from Aries Mod or other mods
-  let existing = getExistingStore();
-  if (existing) {
-    setStoreRef(existing);
-    setLastCaptureMode(existing.__source === 'aries' ? 'aries' : 'shared');
-    shareStoreNonInvasively(existing);
-    reportJotaiCapture(existing.__source === 'aries' ? 'aries' : 'shared');
-    return existing;
-  }
+  // 1) The game's published store, or one from Aries Mod / other mods
+  const existing = getExistingStore();
+  if (existing) return adoptExistingStore(existing);
 
-  // 2) If Aries Mod is present but store not ready, wait a bit for it
-  const ariesPresent = !!(pageWindow as any)?.AriesMod;
-  if (ariesPresent) {
-    const maxWait = 3000;
-    const start = Date.now();
-    while (Date.now() - start < maxWait) {
-      await wait(200);
-      existing = getExistingStore();
-      if (existing) {
-        setStoreRef(existing);
-        setLastCaptureMode(existing.__source === 'aries' ? 'aries' : 'shared');
-        shareStoreNonInvasively(existing);
-        reportJotaiCapture(existing.__source === 'aries' ? 'aries' : 'shared');
-        return existing;
-      }
-    }
+  // 2) The game assigns __jotaiStore before first render with no event to
+  //    hook; give it (and a slow Aries Mod) a bounded window before patching.
+  const start = Date.now();
+  while (Date.now() - start < NATIVE_STORE_WAIT_MS) {
+    await wait(200);
+    const late = getExistingStore();
+    if (late) return adoptExistingStore(late);
   }
 
   // Prevent concurrent captures
@@ -104,13 +99,11 @@ export async function ensureJotaiStore(): Promise<JotaiStore> {
       return fiberStore;
     }
 
-    // 4) Try write-once capture (only if no other mod has captured). The store
-    //    reports its own __source: 'write' when the write channel fired, or
-    //    'read' when only the atom.read channel captured a store getter (still
-    //    usable for reads, throws on set).
+    // 4) Try write-once capture (only if no other mod has captured). It can
+    //    also return the game's store if that appeared while it waited.
     const writeStore = await captureViaWriteOnce(5000);
     if (writeStore) {
-      const mode = writeStore.__source === 'read' ? 'read' : 'write';
+      const mode = writeStore.__source === 'native' ? 'native' : 'write';
       setStoreRef(writeStore);
       setLastCaptureMode(mode);
       shareStoreNonInvasively(writeStore);

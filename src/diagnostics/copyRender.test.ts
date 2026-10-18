@@ -115,6 +115,11 @@ describe('renderReport header', () => {
     const out = renderReport(input({ npcDialogueLine: 'NpcDialogue: x', camera3dLine: '3D: on live=0 s=0.00 fp=0 detail=M caps=ok fails=0' }));
     expect(out.indexOf('3D: on live=0')).toBeGreaterThan(out.indexOf('NpcDialogue: x'));
   });
+
+  it('threads the spectatorLine through after the 3D line', () => {
+    const out = renderReport(input({ camera3dLine: '3D: off', spectatorLine: 'Spectator: off seat=seated fails=0' }));
+    expect(out).toContain('\n3D: off\nSpectator: off seat=seated fails=0\n');
+  });
 });
 
 describe('renderReport errors', () => {

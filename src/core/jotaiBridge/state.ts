@@ -4,8 +4,11 @@ import type { AtomCacheLike, CaptureMode, JotaiStore } from './types';
 
 export const STORE_GLOBAL_KEY = '__qpmJotaiStore__';
 export const CACHE_GLOBAL_KEY = '__qpmJotaiAtomCache__';
+// The game publishes its own store here before first render (release 1604+).
+// Unofficial: absent on older builds, so the other tiers stay as fallbacks.
+export const NATIVE_STORE_KEY = '__jotaiStore';
+export const NATIVE_STORE_WAIT_MS = 3000;
 export const SHARED_STORE_KEYS = [
-  '__jotaiStore',      // Aries Mod primary
   'jotaiStore',        // Aries Mod alternate
   '__MG_SHARED_JOTAI__',
   '__MGTOOLS_JOTAI_STORE__',

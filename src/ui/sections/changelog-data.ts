@@ -2,6 +2,33 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.56",
+    date: "2026-10-18",
+    notes: [
+      "Fixed the 3D camera not working after the latest game update: scrolling past max zoom tilts into 3D again",
+      "Fixed NPC dialogue lines not showing after the latest game update",
+      "Fixed the Blobling Customiser failing to load cosmetics after the latest game update",
+      "Improved compatibility with the latest game update: QPM now reads game state through the game's own store and no longer hooks it in a way that could crash the game",
+      "Fixed tiles, garden edges, desks and the tram drawing in the wrong order in the 3D camera after the latest game update, so players and pets no longer get covered by rows behind them",
+      "Fixed dirt patches and area indicators in the 3D camera after the latest game update",
+      "Fixed fireflies, torch glows and pet thought bubbles floating in the wrong place in the 3D camera at night: they now sit on the thing they belong to",
+      "Added the moon to the 3D sky at night: look up toward the north to see it",
+    ],
+  },
+  {
+    version: "3.3.55",
+    date: "2026-10-12",
+    notes: [
+      "Added a spectator camera: press G to fly around the map with WASD (Shift for faster, E and Q to zoom) while your player stays put, and press G or Esc to fly back",
+      "Added following other players while spectating: use [ and ], the seat number keys, or click their avatar, with a bar above the hotbar listing who is in the room and what they last did",
+      "Added an info card while following someone: their pets with mutations and hunger, what they are holding, recent activity, coins and dust (press I to hide it)",
+      "Added an auto-director (T) that switches to whoever is busy, and waypoints to save spots and fly back to them (B to save, then , and . to cycle)",
+      "Added photo mode while spectating (P): it hides the game and QPM UI, then copies or saves the shot as a PNG",
+      "Added spectator settings in the Config tab: fly speed, director timing and rebindable keys, with a warning when a key clashes with another QPM keybind",
+      "Improved 3D camera performance with lots of players and pets on screen",
+    ],
+  },
+  {
     version: "3.3.54",
     date: "2026-10-09",
     notes: [

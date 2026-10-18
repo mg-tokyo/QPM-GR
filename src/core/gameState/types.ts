@@ -40,6 +40,9 @@ export interface AtomSourceSpec<T> {
   /** Shape adapter so this rung yields the same T as the state-tree rung. */
   readonly project?: (raw: unknown) => Selected<T>;
   readonly writable?: boolean;
+  /** The labelled atom holds a scope object; the rung reads, writes and subscribes to the atom in this field of it,
+   *  following the scope when the game swaps it (e.g. `currentRoomAtom` → `.npcLines`, by game 1468). */
+  readonly via?: string;
   /** When true, this rung reports unavailable while `runtime.identity().myIdx === null`.
    *  Used on game atoms that null-coalesce to 0/`[]`/etc. when the player has no seat,
    *  so the ladder falls through to `defaultValue ?? null` (unmasking the "fallback delivers 0" case). */
@@ -96,6 +99,8 @@ export interface SourceHandle<T> {
    */
   subscribe(cb: (value: T | null) => void, onFailure?: (reason: string) => void): () => void;
   write?(value: T): Promise<void>;
+  /** Writable atom rungs only: true when the value is in the atom on return. Never throws. */
+  writeSync?(value: T): boolean;
   /** Atom rungs only: the resolved jotai atom object (for read-patch instrumentation). */
   atomObject?(): unknown;
   /** Drop any topology-dependent cache. Called by the resolver on every

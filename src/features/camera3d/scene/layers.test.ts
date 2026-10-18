@@ -64,6 +64,27 @@ describe('createLayerHandler: tile-radius area marks', () => {
     expect(layer.detach).toBe(gameDetach);
   });
 
+  it('perf 13: version changes when adopt finds new layer nodes or area marks, and only then', () => {
+    const { world, onLayer } = layerWorld();
+    const tile = world.addChild(new FakeNode(5120, 3840));
+    const h = createLayerHandler();
+    const { ctx } = ctxFor(world);
+    h.adopt(ctx);
+    const v0 = h.version!();
+    h.adopt(ctx);
+    expect(h.version!()).toBe(v0);
+    onLayer(tile.addChild(new FakeNode()).addChild(new FakeNode().withTexture(144, 127, 0.5)));
+    h.adopt(ctx);
+    const v1 = h.version!();
+    expect(v1).not.toBe(v0);
+    h.adopt(ctx);
+    expect(h.version!()).toBe(v1);
+    const area = tile.addChild(new FakeNode()).addChild(new FakeNode());
+    [area.addChild(new FakeNode(-256, 0).withTexture(256, 256, 0.5)), area.addChild(new FakeNode(256, 0).withTexture(256, 256, 0.5))].forEach(onLayer);
+    h.adopt(ctx);
+    expect(h.version!()).not.toBe(v1);
+  });
+
   it('releases the layer slot when nothing is kept', () => {
     const { world, layer, onLayer } = layerWorld();
     onLayer(world.addChild(new FakeNode(10, 10)).addChild(new FakeNode().withTexture(16, 16, 0.5)));

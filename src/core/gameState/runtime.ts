@@ -28,6 +28,8 @@ export interface AtomRuntime {
   read(atom: unknown): Promise<unknown>;
   subscribe(atom: unknown, cb: (value: unknown) => void, tier?: SubscriberTier, statePath?: PatchPath): Promise<() => void>;
   write(atom: unknown, value: unknown): Promise<void>;
+  /** True when a read-back after the write returns `value` itself. */
+  writeSync(atom: unknown, value: unknown): boolean;
   cacheSize(): number;
 }
 
@@ -76,6 +78,15 @@ export function createProductionRuntime(identity: () => IdentityContext): Source
       read: (atom) => readAtomValue(atom),
       subscribe: (atom, cb, tier, statePath) => subscribeAtom(atom, cb, tier, statePath),
       write: (atom, value) => writeAtomValue(atom, value),
+      // The write capture's async set() calls the game's setter before its first await (jotaiBridge/capture.ts),
+      // and fiber/Aries stores are jotai's own, so the write lands now; the read-back is the proof.
+      writeSync: (atom, value) => {
+        const store = getCachedStore();
+        if (!store || store.__polyfill || store.__source === 'read') return false;
+        const pending: unknown = store.set(atom, value);
+        if (pending instanceof Promise) pending.catch(() => { /* the read-back reports it */ });
+        return Object.is(store.get(atom), value);
+      },
       cacheSize: () => getAtomCacheSize(),
     },
     identity,

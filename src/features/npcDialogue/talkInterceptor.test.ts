@@ -3,6 +3,7 @@ import {
   ensureTalkInterceptor,
   getInterceptorState,
   installTalkInterceptor,
+  isInterceptorTarget,
   uninstallTalkInterceptor,
 } from './talkInterceptor';
 
@@ -75,6 +76,34 @@ describe('talkInterceptor', () => {
     expect(rewrite).toHaveBeenCalledTimes(1);
     expect(rewrite).toHaveBeenCalledWith('NPC_Iris#u1', visitor);
     expect((f.calls[0] as Record<string, unknown>).NPC_Reina).toBe(shown);
+  });
+
+  it('1468 sayNpcLine shape: rewrites only the entry with a new saidAtMs, never a pose-only placeholder', () => {
+    const f = fakeAtom();
+    const rewrite = vi.fn(() => ({ message: 'q' }));
+    installTalkInterceptor(f.atom, rewrite);
+    const shown = { message: 'old', pose: 'idle', saidAtMs: 10 };
+    const said = { message: 'native', pose: 'idle', saidAtMs: 20 };
+    const placeholder = { message: '', pose: 'wave', saidAtMs: 20, persistent: true };
+    f.sendOver({ NPC_Reina: shown }, { NPC_Reina: shown, NPC_Wade: said, NPC_Haunt: placeholder });
+    expect(rewrite).toHaveBeenCalledTimes(1);
+    expect(rewrite).toHaveBeenCalledWith('NPC_Wade', said);
+    const out = f.calls[0] as Record<string, unknown>;
+    expect(out.NPC_Reina).toBe(shown);
+    expect(out.NPC_Haunt).toBe(placeholder);
+  });
+
+  it('moves to a swapped atom and hands the old one its own write back', () => {
+    const a = fakeAtom();
+    const b = fakeAtom();
+    const aOriginal = a.atom.write;
+    installTalkInterceptor(a.atom, () => ({ message: 'q' }));
+    expect(installTalkInterceptor(b.atom, () => ({ message: 'q' }))).toBe(true);
+    expect(a.atom.write).toBe(aOriginal);
+    expect(isInterceptorTarget(b.atom)).toBe(true);
+    expect(getInterceptorState()).toBe('installed');
+    b.send(talk('NPC_Reina'));
+    expect((b.calls[0] as Record<string, { message: string }>).NPC_Reina?.message).toBe('q');
   });
 
   it('passes the original through when the rewriter returns null or throws', () => {

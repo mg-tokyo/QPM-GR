@@ -92,6 +92,11 @@ export function setCamera3dLineSource(source: (() => string | null) | null): voi
   camera3dLineSource = source;
 }
 
+let spectatorLineSource: (() => string | null) | null = null;
+export function setSpectatorLineSource(source: (() => string | null) | null): void {
+  spectatorLineSource = source;
+}
+
 // Silent when the interceptor is installed AND the Companion opt-in is off — otherwise surface state and inject stats.
 function renderNpcDialogueLine(): string | null {
   if (!npcDialoguePayloadSource) return null;
@@ -179,6 +184,7 @@ export function renderCopyPayload(opts: CopyPayloadOptions = DEFAULT_COPY_OPTION
     restockLine: safe(() => renderRestockLine(), null),
     npcDialogueLine: safe(() => renderNpcDialogueLine(), null),
     camera3dLine: safe(() => (camera3dLineSource ? camera3dLineSource() : null), null),
+    spectatorLine: safe(() => (spectatorLineSource ? spectatorLineSource() : null), null),
     subsystems: healthBus.readAll(),
     aggregate: healthBus.aggregate(),
     gameStateProblemLines: renderGameStateProblemLines(),

@@ -116,6 +116,8 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   (QPM_DEBUG_API as any).npcDialogue = { diagnostics: getNpcDialogueDiagnostics, restartInjector: restartCompanionInjector };
   const { loadCamera3dDebugApi } = await import('../../features/camera3d');
   (QPM_DEBUG_API as any).camera3d = await loadCamera3dDebugApi();
+  const { loadSpectatorDebugApi } = await import('../../features/spectator');
+  (QPM_DEBUG_API as any).spectator = await loadSpectatorDebugApi();
 
   // Also expose to __QPM_INTERNAL__ for legacy/diagnostic access
   const { getGardenFiltersConfig, updateGardenFiltersConfig, applyGardenFiltersNow } = await import('../../features/garden/filters');

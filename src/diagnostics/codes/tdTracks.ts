@@ -3,8 +3,6 @@
 
 import type { ErrorCodeDefinition } from '../types';
 
-// Keep in sync with CURRENT_VERSION in ../codes.ts (local copy avoids a
-// circular import).
 const V = '3.3.27';
 
 export const TD_TRACKS_CODES: readonly ErrorCodeDefinition[] = [

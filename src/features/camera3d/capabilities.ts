@@ -4,9 +4,9 @@ import { findStageLayer } from '../../core/pixiScene';
 import { getCtors } from '../../sprite-v2/utils';
 import { getEngineSystem } from '../../utils/quinoaEngine';
 import { isRecord } from '../../utils/typeGuards';
-import { checkDepthKeys } from './math/depth';
+import { checkDepthKeys, depthSamples } from './math/depth';
 import { checkTileLayout } from './scene/tileArt';
-import type { Caps, EngineSystems, Node3, PixiClasses, RendererLike, SceneRefs, TileDataLike } from './types';
+import type { Caps, DirectionalInputLike, EngineSystems, Node3, PixiClasses, RendererLike, SceneRefs, TileDataLike } from './types';
 
 export type CapsResult = { ok: true; caps: Caps } | { ok: false; missing: string[]; ready: boolean };
 
@@ -59,7 +59,7 @@ export function resolveScene(stage: unknown, renderer: unknown, app: unknown): S
   if (!tilemap) missing.push('tilemap');
   // Layouts the 3D scene reads by position (A V8): a drift draws a broken 3D, so it stays 2D with QPM-CAM3D-001.
   if (tileData && checkTileLayout(tileData.pointsBuf).verdict === 'drift') missing.push('tilemap-layout');
-  if (world && checkDepthKeys(world.children).verdict === 'drift') missing.push('depth-keys');
+  if (world && checkDepthKeys(depthSamples(world.children)).verdict === 'drift') missing.push('depth-keys');
   const r = isRecord(renderer) ? renderer : null;
   const gl = r?.gl;
   if (!isRecord(gl) || typeof gl.texStorage2D !== 'function') missing.push('webgl2');
@@ -138,7 +138,33 @@ export function resolveMeshGeometry(stage: unknown): unknown {
   return cls;
 }
 
-export function resolveSystems(engine: unknown): EngineSystems | string[] {
+// The map key's own structure check doesn't name collisionTiles (keys/garden.ts), which buildings.ts reads.
+const isMap = (m: unknown): m is EngineSystems['map'] => isRecord(m) && typeof m.cols === 'number' && typeof m.rows === 'number'
+  && typeof (m.collisionTiles as { has?: unknown } | undefined)?.has === 'function';
+
+/** The world map (mapAtom, static, no seat needed); null while unresolved. */
+export function readWorldMap(): unknown {
+  try { return readSync('map'); } catch { return null; }
+}
+
+/** Seat systems the game doesn't give right now (spectator Task 12): the normal camera runs without camera-relative
+ * WASD. A null mover alone is the D5 quarter-snap fallback, not a missing seat. */
+export function seatMissing(s: EngineSystems): string[] {
+  return s.directionalInput ? [] : ['directionalInput'];
+}
+
+/** A system replaced under an install (a room reconnect, live 2026-10-03): reinstall. A seat system that is absent now
+ * is gone for now, not replaced; one that appears (seated after spectating) is new. */
+export function systemsReplaced(now: EngineSystems, was: EngineSystems): boolean {
+  const seat = (n: unknown, w: unknown): boolean => n !== null && n !== w;
+  return now.zoomSys !== was.zoomSys || seat(now.directionalInput, was.directionalInput) || seat(now.mover, was.mover)
+    || now.movementFallback !== was.movementFallback || now.petSystem !== was.petSystem || now.activity !== was.activity
+    || now.tapRouter !== was.tapRouter || now.avatar !== was.avatar || now.map !== was.map
+    || now.depthStrips !== was.depthStrips || now.moon !== was.moon || now.cameraMirrors?.[0] !== was.cameraMirrors?.[0];
+}
+
+/** worldMap: readWorldMap() (a parameter so tests need no store). */
+export function resolveSystems(engine: unknown, worldMap: unknown = null): EngineSystems | string[] {
   if (!isRecord(engine)) return ['engine'];
   const missing: string[] = [];
   const zoomSys = getEngineSystem(engine, 'zoom') as Record<string, unknown> | null;
@@ -148,24 +174,25 @@ export function resolveSystems(engine: unknown): EngineSystems | string[] {
   const zoomOk = isRecord(zoomSys) && isRecord(zoom) && typeof zoom.applyInputZoom === 'function' && typeof zoomSys.shouldBlockZoom === 'function'
     && typeof zoom.effective === 'number' && typeof zoom.intentTileSize === 'number' && 'overrideTileSize' in zoom;
   if (!zoomOk) missing.push('zoom');
+  // Seat systems are optional: a seatless spectator has none (S §5.1); the normal camera loses camera-relative WASD.
   const di = getEngineSystem(engine, 'directionalInput') as Record<string, unknown> | null;
-  if (!isRecord(di) || typeof di.updateDirectionState !== 'function' || !Array.isArray(di.keysPressed)) missing.push('directionalInput');
+  const diOk = isRecord(di) && typeof di.updateDirectionState === 'function' && Array.isArray(di.keysPressed);
   const router = getEngineSystem(engine, 'worldTapRouter') as Record<string, unknown> | null;
   const mf = isRecord(router) ? router.movementFallback : null;
   if (!isRecord(mf) || typeof mf.isTapInBounds !== 'function') missing.push('worldTapRouter');
   const mv = getEngineSystem(engine, 'movement') as Record<string, unknown> | null;
-  // The map's size sizes the floor, the far plane and the cull box.
-  const map = isRecord(mv) && isRecord(mv.map) ? (mv.map as { cols?: unknown; rows?: unknown }) : null;
-  if (!map || typeof map.cols !== 'number' || typeof map.rows !== 'number') missing.push('movement');
+  // The map's size sizes the floor, the far plane and the cull box; its collision tiles find walk-in buildings.
+  const map = isMap(worldMap) ? worldMap : isRecord(mv) && isMap(mv.map) ? mv.map : null;
+  if (!map) missing.push('map');
   const pet = getEngineSystem(engine, 'pet') as Record<string, unknown> | null;
   if (!isRecord(pet) || typeof pet.preDraw !== 'function') missing.push('pet');
-  if (missing.length) return missing;
+  if (missing.length || !map) return missing;
   return {
     zoomSys: zoomSys as unknown as EngineSystems['zoomSys'],
-    directionalInput: di as unknown as EngineSystems['directionalInput'],
+    directionalInput: diOk ? (di as unknown as DirectionalInputLike) : null,
     mover: isRecord(mv) && typeof mv.movePlayer === 'function' ? (mv as unknown as EngineSystems['mover']) : null,
     movementFallback: mf as unknown as EngineSystems['movementFallback'],
-    map: (mv as { map: unknown }).map as EngineSystems['map'],
+    map,
     petSystem: pet as unknown as EngineSystems['petSystem'],
     activity: resolveActivity(engine),
     // Optional (live 2026-10-04 build 1395, 17 claimants; beta 3668 WorldTapRouter.resolveClaimAt): without it a 3D tap
@@ -173,7 +200,36 @@ export function resolveSystems(engine: unknown): EngineSystems | string[] {
     tapRouter: isRecord(router) && typeof router.resolveClaimAt === 'function' ? (router as unknown as EngineSystems['tapRouter']) : null,
     avatar: resolveAvatar(engine),
     clock: typeof engine.lastFrameTimeMs === 'number' ? (engine as unknown as EngineSystems['clock']) : null,
+    depthStrips: resolveDepthStrips(engine),
+    cameraMirrors: resolveCameraMirrors(engine),
+    moon: resolveMoon(engine),
   };
+}
+
+const isDepthStrips = (v: unknown): v is EngineSystems['depthStrips'] =>
+  isRecord(v) && isRecord(v.world) && v.strips instanceof Map && typeof v.update === 'function';
+
+// Optional (live 1634): one manager per World. No system owns it by name; these two hold a reference (class fields).
+function resolveDepthStrips(engine: Record<string, unknown>): EngineSystems['depthStrips'] {
+  const paper = getEngineSystem(engine, 'paperstackChangelog');
+  if (isRecord(paper) && isDepthStrips(paper.depthStrips)) return paper.depthStrips;
+  const garden = getEngineSystem(engine, 'gardenObject');
+  const views = isRecord(garden) ? garden.tileViews : null;
+  if (views instanceof Map) for (const v of views.values()) return isRecord(v) && isDepthStrips(v.depthStrips) ? v.depthStrips : null;
+  return null;
+}
+
+// Optional (live 1634): the day/night system moves these with the 2D camera every frame.
+function resolveCameraMirrors(engine: Record<string, unknown>): Node3[] | null {
+  const sys = getEngineSystem(engine, 'dayNight');
+  const m = isRecord(sys) ? sys.cameraMirrors : null;
+  return Array.isArray(m) && m.length > 0 && m.every((n) => isRecord(n) && Array.isArray(n.children) && isRecord(n.position)) ? (m as Node3[]) : null;
+}
+
+function resolveMoon(engine: Record<string, unknown>): EngineSystems['moon'] {
+  const sys = getEngineSystem(engine, 'moon');
+  return isRecord(sys) && typeof sys.draw === 'function' && isRecord(sys.container) && Array.isArray(sys.container.children)
+    ? (sys as unknown as EngineSystems['moon']) : null;
 }
 
 // Optional (live 2026-10-05 v1419: getSystem('avatar').views, a Map of AvatarView per player and NPC). Each view is
@@ -200,7 +256,7 @@ export function resolveCapabilities(): CapsResult {
   const scene = resolveScene(refs.stage, refs.renderer, refs.app);
   if (Array.isArray(scene)) return { ok: false, missing: scene, ready: true };
   const classes = resolveClasses(refs.app, refs.renderer, scene);
-  const systems = resolveSystems(engine);
+  const systems = resolveSystems(engine, readWorldMap());
   const missing = [...(Array.isArray(classes) ? classes : []), ...(Array.isArray(systems) ? systems : [])];
   if (Array.isArray(classes) || Array.isArray(systems)) return { ok: false, missing, ready: true };
   return { ok: true, caps: { scene, classes, systems } };

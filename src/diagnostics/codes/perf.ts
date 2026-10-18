@@ -1,7 +1,6 @@
 import type { ErrorCodeDefinition } from '../types';
 
-// Keep in sync with CURRENT_VERSION in ../codes.ts (local copy avoids a
-// circular import). Perf codes ship in 3.3.43 (P2, lag remediation plan).
+// Perf codes ship in 3.3.43 (P2, lag remediation plan).
 const V = '3.3.43';
 
 export const PERF_CODES: readonly ErrorCodeDefinition[] = [

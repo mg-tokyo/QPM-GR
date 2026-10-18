@@ -1,4 +1,5 @@
 import { TILE } from '../constants';
+import type { FrameCtx } from '../frame/frame';
 import { PET_LAYER, RIDER_LAYER, layerOf } from '../math/depth';
 import type { AvatarViewLike, Node3, XY } from '../types';
 
@@ -48,6 +49,11 @@ export interface GroundTracker {
    * groundY call; null without the game's view. */
   tileOf(n: Node3): XY | null;
 }
+
+/** The followed avatar (FrameCtx.avatar: yours under the normal camera, anyone's or none under the spectator) or its
+ * mount: drawn on the follow point, never frozen far away. */
+export const isFollowedOrMount = (g: Pick<GroundTracker, 'riderOf'>) => (ctx: FrameCtx, n: Node3): boolean =>
+  ctx.avatar !== null && (n === ctx.avatar || g.riderOf(n) === ctx.avatar);
 
 /** Linear in the natural y between source and target, so it rides the game's own glide curve, whatever its easing. */
 export function heightAlong(g: Glide, natY: number): number {

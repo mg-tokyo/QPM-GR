@@ -16,12 +16,13 @@ import {
   resetPanelToggleKeybind,
   onPanelToggleKeybindChange,
 } from '../../../features/input/panelHotkey';
-import { normalizeKeybind, formatKeybind, createKeybindButton } from '../../pets/petsWindow/helpers';
+import { normalizeKeybind, formatKeybind, createKeybindButton, beginKeybindRecording } from '../../pets/petsWindow/helpers';
 import { t } from '../../../i18n';
 import { startControllerStatus } from '../../panel/tileStatusesCore';
 import { startShopKeybindsStatus, startPanelShortcutStatus } from '../../panel/tileStatusesNew';
 import { getDiagnosticsCard } from '../../../diagnostics/configCard';
 import { getCamera3dCard } from '../../sections/camera3dSection';
+import { getSpectatorCard } from '../../sections/spectatorSection';
 
 const SHOP_IDS: readonly ShopId[] = ['seedShop', 'eggShop', 'toolShop', 'decorShop'];
 const SHOP_I18N_KEYS: Record<ShopId, string> = {
@@ -136,6 +137,7 @@ export function renderShopKeybindsExpanded(container: HTMLElement): () => void {
     ].join(';');
 
     let recording = false;
+    let endMark: (() => void) | null = null;
 
     function updateDisplay(): void {
       const binds = getAllShopKeybinds();
@@ -160,12 +162,15 @@ export function renderShopKeybindsExpanded(container: HTMLElement): () => void {
     function startRecording(): void {
       recording = true;
       updateDisplay();
+      endMark = beginKeybindRecording();
       document.addEventListener('keydown', onKeyDown, true);
     }
 
     function stopRecording(): void {
       recording = false;
       document.removeEventListener('keydown', onKeyDown, true);
+      endMark?.();
+      endMark = null;
       updateDisplay();
     }
 
@@ -524,6 +529,9 @@ export function getConfigGroup(): HubGroupDef {
     id: 'config',
     label: t('hub.config.label'),
     icon: { kind: 'emoji', value: '⚙️' },
-    cards: [controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, npcDialogueCard, getCamera3dCard(), getDiagnosticsCard(), resetToursCard],
+    cards: [
+      controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, npcDialogueCard, getCamera3dCard(), getSpectatorCard(),
+      getDiagnosticsCard(), resetToursCard,
+    ],
   };
 }

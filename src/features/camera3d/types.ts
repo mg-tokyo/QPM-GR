@@ -166,12 +166,19 @@ export interface AvatarViewLike {
   buildingDataProvider?: { getBuildingAt(p: XY): unknown };
 }
 export interface AvatarSystemLike { views: Map<unknown, unknown> }
+/** The game's World depth-strip manager (live 1634): `update(node, depth)` writes the node's zIndex and files it into the
+ * render group of its depth row, `strips` (key → that group). Tiles, garden edges, desks and the tram live there. */
+export interface DepthStripsLike { world: Node3; strips: Map<unknown, Node3>; update(node: Node3, depth: unknown): void }
+/** The game's moon system (live 1634): its container in World, drawn by `draw(frameContext)` (visibility, phase). */
+export interface MoonSystemLike { container: Node3; draw(ctx: unknown): unknown }
 export interface EngineSystems {
   zoomSys: ZoomSystemLike;
-  directionalInput: DirectionalInputLike;
-  /** The movement system's step (optional): without it WASD keeps the quarter-turn snap (spec D5). */
+  /** A seat system (live 1497: page.playerViews), null without a seat: no camera-relative WASD (spectator S §5.1). */
+  directionalInput: DirectionalInputLike | null;
+  /** The movement system's step (optional, seat): without it WASD keeps the quarter-turn snap (spec D5). */
   mover: MovementLike | null;
   movementFallback: { isTapInBounds(x: number, y: number): boolean };
+  /** The world map (the `map` game-state key; else the movement system's, the same object live 1497). */
   map: MovementMapLike;
   petSystem: { preDraw(...a: unknown[]): unknown };
   /** The game's FPS policy (optional): keeps the active frame rate while 3D input never reaches the canvas. */
@@ -185,6 +192,12 @@ export interface EngineSystems {
   /** The engine's frame clock (optional; live 2026-10-06 v1419: the frame's own timestamp, set before its render).
    * Without it the walk follower times by the render call, which jitters a few ms per frame. */
   clock: { readonly lastFrameTimeMs: number } | null;
+  /** Optional (live 1634): null on builds without depth strips, or when the manager was not found (QPM-CAM3D-012). */
+  depthStrips: DepthStripsLike | null;
+  /** Optional (live 1634: NightLight, NightAnnotation): layers outside Camera that the game moves with the 2D camera. */
+  cameraMirrors: Node3[] | null;
+  /** Optional (live 1634). */
+  moon: MoonSystemLike | null;
 }
 
 export interface Caps { scene: SceneRefs; classes: PixiClasses; systems: EngineSystems }

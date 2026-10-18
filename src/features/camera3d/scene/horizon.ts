@@ -13,9 +13,22 @@ const RING_N = 8, RING_H0_ABOVE_BOTTOM = 176, RING_BLEND = 160;
 
 interface RingUniforms { uScreen: Float32Array; uRingN: number; uH0: number; uStrip: Float32Array; uBlend: number; uTopColor: Float32Array; uBotColor: Float32Array }
 
+/** el: the elevation (rad) the ring draws a sky-band row at; radPerPx: the ring's angle per world px of band art. */
+export interface SkyAngle { el: number; radPerPx: number }
+export interface Horizon extends Pass {
+  /** Where the ring draws 2D world row `y` of the sky band (RING_FS); null while no strip is baked. */
+  skyAngle(y: number): SkyAngle | null;
+}
+
+/** RING_FS inverted: row = uH0 − el·N·w/τ (rows from the band's top). */
+export function ringAngle(row: number, h0: number, stripW: number, n = RING_N): SkyAngle {
+  const radPerPx = (2 * Math.PI) / (n * stripW);
+  return { el: (h0 - row) * radPerPx, radPerPx };
+}
+
 /** cam: the shared camera uniform group (camUniforms.ts). onDrift('horizon'): no sky band once the tile textures
  * resolved (A V8), reported once; the ring stays hidden. */
-export function createHorizon(caps: Caps, floor: Floor, getScan: () => TileScan, cam: UniformGroupLike, onDrift: (what: string) => void): Pass {
+export function createHorizon(caps: Caps, floor: Floor, getScan: () => TileScan, cam: UniformGroupLike, onDrift: (what: string) => void): Horizon {
   const { scene: s, classes: C } = caps;
   const f1 = (v: number) => ({ value: v, type: 'f32' });
   const fv = (len: number, type: string) => ({ value: new Float32Array(len), type });
@@ -36,6 +49,7 @@ export function createHorizon(caps: Caps, floor: Floor, getScan: () => TileScan,
   const at = s.ground.children.findIndex((c) => c.label === 'qpm3d-ground');
   s.ground.addChildAt(ring, at < 0 ? s.ground.children.length : at);
   let strip: TexLike | null = null;
+  let bandY0 = 0;
   let drifted = false;
   let held: { offs: number[]; saved: Float32Array } | null = null;
   // The scan a floor bake hid standing art with. Baked before the tile textures resolved, that art went flat into it
@@ -79,6 +93,7 @@ export function createHorizon(caps: Caps, floor: Floor, getScan: () => TileScan,
     u.uBotColor.set(rowAverage(ex.pixels, ex.width, ex.height - 1));
     u.uStrip[0] = band.w; u.uStrip[1] = band.h;
     u.uH0 = band.h - RING_H0_ABOVE_BOTTOM;
+    bandY0 = band.y0;
     // Bound first: PIXI warns when a bound texture source is destroyed.
     const old = strip;
     strip = rt;
@@ -122,6 +137,7 @@ export function createHorizon(caps: Caps, floor: Floor, getScan: () => TileScan,
       ring.visible = strip !== null;
     },
     warm(ov) { return !strip && bakeStrip(ov); },
+    skyAngle: (y) => (strip ? ringAngle(y - bandY0, u.uH0, u.uStrip[0]!) : null),
     compile() { compileNow(caps, geom, shader); },
     drop() { ring.visible = false; },
     destroy() {

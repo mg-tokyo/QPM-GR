@@ -200,6 +200,19 @@ describe('camera-steered steps (P15 a; M1, M2)', () => {
     off();
     expect(Object.prototype.hasOwnProperty.call(r.di, 'updateDirectionState')).toBe(false);
   });
+
+  it('without the key stack (no seat, spectator Task 12): nothing is wrapped and the game\'s step is its own', () => {
+    const r = rig();
+    (r.rt.caps.systems as { directionalInput: DirectionalInputLike | null }).directionalInput = null;
+    const step = r.mover.movePlayer;
+    const off = installCameraRelativeMovement(r.rt);
+    expect(r.mover.movePlayer).toBe(step);
+    expect(r.steer()).toBeNull();
+    expect(tick(r, 1, 'left')).toBe(1);
+    expect(r.mover.calls).toEqual(['left']);
+    off();
+    expect(r.mover.movePlayer).toBe(step);
+  });
 });
 
 describe('camera-relative movement helpers (the D5 fallback)', () => {

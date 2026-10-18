@@ -3,16 +3,13 @@
 
 import type { ErrorCodeDefinition } from '../types';
 
-// Keep in sync with CURRENT_VERSION in ../codes.ts. Local copy avoids the
-// circular import that would result from importing the constant back through
-// the parent module.
 const V = '3.2.29';
 
 // Feature: TD Custom Designs — sprite composites for tower kinds. Codes cover
 // import validation, bootstrap safety, and runtime render fallbacks. The
 // `subsystem: 'feature'` field here is a placeholder; per-call subsystem is
 // overridden to 'feature:tdCustomDesigns' via context.feature (matches the
-// STORE-*/FEATURE-*/TEXTURESWAP-* grouping conventions in ../codes.ts).
+// STORE-*/FEATURE-*/TEXTURESWAP-* grouping conventions in ./store.ts and ./feature.ts).
 
 export const TD_CUSTOM_DESIGNS_CODES: readonly ErrorCodeDefinition[] = [
   {

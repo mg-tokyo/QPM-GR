@@ -1,9 +1,10 @@
 import type { ErrorCodeDefinition } from '../types';
 
 // The release each code first shipped in: 001–008 with the 3D camera (3.3.51), 009–011 with its polish and perf work
-// (next release).
+// (next release), 012 with the game 1634 scene layers.
 const V = '3.3.51';
 const V_POLISH = '3.3.53';
+const V_LAYERS = '3.3.56';
 const SUB = 'feature:camera3d';
 
 export const CAMERA3D_CODES: readonly ErrorCodeDefinition[] = [
@@ -94,5 +95,13 @@ export const CAMERA3D_CODES: readonly ErrorCodeDefinition[] = [
     userAction: 'None.',
     devNotes: "src/features/camera3d/engine/farAnim.ts, once per install. context.kind 'refused': a sprite QPM paused came back un-paused (RiveSprite cancelPauseAfterSnapshotFailure, or another script resumed it) or pause() threw; it is not paused again this install. 'shape': a World-rooted Rive sprite without pause/resume/isPaused. 'tracker': the rive-engine tracker has not hooked the game's atlas working set (instanceTracker.ts tryHook, isInstanceTrackerHooked), so no sprite is seen and nothing freezes.",
     sinceVersion: V_POLISH, notifyUser: false,
+  },
+  {
+    code: 'QPM-CAM3D-012', subsystem: SUB, category: 'feature', severity: 'info',
+    title: 'Part of the game scene drawn as in 2D in 3D',
+    description: "A newer game scene layer (depth rows, night lights and thought bubbles, or the moon) is on screen, but QPM could not find the game object it uses to place that layer in 3D, so that layer keeps its 2D order or position while 3D is on.",
+    userAction: 'None needed. Report it if 3D shows crops in the wrong order or bubbles and lights in the wrong place.',
+    devNotes: "src/features/camera3d/passes.ts reportMissingLayers(), once per install; resolvers in capabilities.ts. context.missing: 'depthStrips' = a World group shaped like a depth strip exists but no manager (paperstackChangelog.depthStrips / gardenObject.tileViews[].depthStrips, scene/depthStrips.ts); 'cameraMirrors' = NightLight/NightAnnotation on stage but no dayNight.cameraMirrors (scene/nightMirrors.ts); 'moon' = a World 'Moon' but no moon system (scene/moon.ts).",
+    sinceVersion: V_LAYERS, notifyUser: false,
   },
 ];

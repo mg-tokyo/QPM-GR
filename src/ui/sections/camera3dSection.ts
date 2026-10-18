@@ -5,25 +5,17 @@ import {
 } from '../../features/camera3d';
 import { t } from '../../i18n';
 import { createButton, createPillTabs, createSliderRowControl, createToggle } from '../components';
-import { closeWindow, destroyWindow, isWindowOpen, openWindow, windowLog } from '../core/modalWindow';
 import type { CardIcon, ExpandableCardConfig } from '../hub/cards/types';
+import { alignedRows, muted, toggleDetachedSection } from './sectionLayout';
 
 const DETACH_ID = 'config-camera3d';
 
 // eslint-disable-next-line qpm/no-emoji-in-ui -- CardConfig.icon renders via renderIcon; kind:'emoji' is the path the NPC dialogue card uses (configGroup.ts:369-370).
 const CAMERA3D_ICON: CardIcon = { kind: 'emoji', value: '🎥' };
-const MUTED = 'font-size:12px;color:var(--qpm-text-muted);line-height:1.4;';
 
 type SubKey = 'firstPerson' | 'camMove' | 'invertY';
 const GRAPHICS_PILLS = [...GRAPHICS_PRESET_NAMES, 'custom'] as const;
 const FAR_ANIM_LABEL: Readonly<Record<FarAnim, string>> = { off: 'common.off', full: 'common.on' };
-
-function muted(text: string): HTMLElement {
-  const el = document.createElement('div');
-  el.style.cssText = MUTED;
-  el.textContent = text;
-  return el;
-}
 
 interface PillRow { root: HTMLElement; render: (cur: Camera3dSettings) => void }
 
@@ -46,19 +38,6 @@ function pillRow<K extends keyof GraphicsRows>(
     ));
   };
   return { root, render };
-}
-
-/** Slider rows sharing one label column (subgrid), so their tracks line up while each label stays on one line. */
-function alignedRows(rows: HTMLElement[]): HTMLElement {
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;gap:8px;';
-  for (const row of rows) {
-    row.style.display = 'grid';
-    row.style.gridColumn = '1 / -1';
-    row.style.gridTemplateColumns = 'subgrid';
-  }
-  grid.append(...rows);
-  return grid;
 }
 
 /** Every control follows the stored settings, so Enable, Reset and a second open copy update it in place. */
@@ -177,22 +156,6 @@ export function getCamera3dCard(): ExpandableCardConfig {
       return section.destroy;
     },
     detachWindowId: DETACH_ID,
-    onDetach: () => {
-      if (isWindowOpen(DETACH_ID)) { closeWindow(DETACH_ID); return; }
-      // Closing ran the section's cleanup but kept the element: rebuild it so it subscribes again (openDetachedTracker,
-      // trackersGroup.ts:95). Position and size come back from storage inside openWindow.
-      destroyWindow(DETACH_ID);
-      openWindow(DETACH_ID, t('feature.camera3d.title'), (root) => {
-        root.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:12px;';
-        try {
-          const section = createCamera3dSection();
-          root.appendChild(section.root);
-          return section.destroy;
-        } catch (e) {
-          windowLog.warn('QPM-UI-002', { what: 'camera3dDetach' }, e);
-          return undefined;
-        }
-      }, '420px', '60vh');
-    },
+    onDetach: () => { toggleDetachedSection(DETACH_ID, t('feature.camera3d.title'), createCamera3dSection, 'camera3dDetach'); },
   };
 }
