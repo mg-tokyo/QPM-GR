@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.58",
+    date: "2026-10-21",
+    notes: [
+      "Fixed every other shop purchase or action failing after the latest game update",
+      "Fixed the connection status staying on \"waiting for Welcome\" after the latest game update, and it now recovers properly after a reconnect",
+      "Fixed QPM features that follow garden changes going stale after the latest game update",
+      "Fixed journal and catalog icons showing as letter badges when Arie's Mod is running alongside QPM",
+      "Fixed items with no shop price, like the Camera and potions, missing from QPM's item lists",
+    ],
+  },
+  {
     version: "3.3.57",
     date: "2026-10-21",
     notes: [

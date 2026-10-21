@@ -38,6 +38,8 @@ export function registerForeignSignal(id: string, probe: SignalProbe): () => voi
 const KNOWN_MOD_GLOBALS: ReadonlyArray<{ global: string; label: string }> = [
   { global: 'AriesMod', label: 'AriesMod' },
   { global: 'starweaver', label: 'Starweaver' },
+  // Garden Companion sets this only once it has read a room state.
+  { global: '__gardenCompanionState', label: 'GardenCompanion' },
 ];
 
 // Grows from real Discord reports: a stable substring of the collapsed wrapper
@@ -52,6 +54,7 @@ const WRAPPER_SIGNATURES: ReadonlyArray<{ pattern: string; label: string }> = [
 // Globals a mod sets as install flags; only reported when nothing else named that mod.
 const KNOWN_MOD_MARKERS: ReadonlyArray<{ global: string; label: string }> = [
   { global: '__tmMessageHookInstalled', label: 'AriesMod' },
+  { global: '__gardenCompanionSpriteLoaderRan', label: 'GardenCompanion' },
 ];
 
 const ROOM_SEND_KEYS: readonly string[] = ['sendMessage', 'trySendMessageNow'];

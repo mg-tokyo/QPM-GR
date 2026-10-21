@@ -441,14 +441,9 @@ export async function createDebugApi(): Promise<DebugApiType> {
     },
 
     debugInventory: async () => {
-      const userSlotsAtom = getAtomByLabel('userSlotsAtom');
-      if (userSlotsAtom) {
-        const inventory = await readAtomValue(userSlotsAtom);
-        console.log('Inventory:', inventory);
-        return inventory;
-      }
-      console.error('userSlotsAtom not found');
-      return null;
+      const userSlots = await gameStateMod.read('userSlots');
+      console.log('userSlots:', userSlots);
+      return userSlots;
     },
 
     testPetData,

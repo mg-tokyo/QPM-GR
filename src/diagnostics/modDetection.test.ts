@@ -155,6 +155,18 @@ describe("Arie's Mod identification", () => {
   });
 });
 
+describe('Garden Companion identification', () => {
+  it('reads the state global version and keeps it out of the sweep', () => {
+    const r = detectOtherMods({ __gardenCompanionState: { version: '0.9.66' }, __gardenCompanionSpriteLoaderRan: 1 });
+    expect(r.known).toEqual(['GardenCompanion 0.9.66']);
+    expect(r.discovered).toEqual([]);
+  });
+
+  it('falls back to the sprite-loader marker before a room state exists', () => {
+    expect(detectOtherMods({ __gardenCompanionSpriteLoaderRan: 1 }).known).toEqual(['GardenCompanion']);
+  });
+});
+
 describe('send chain line source', () => {
   it('reads the latest source and ignores a stale unregister', () => {
     const stopA = registerSendChainLineSource(() => 'Chain: A');

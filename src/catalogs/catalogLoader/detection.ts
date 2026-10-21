@@ -209,3 +209,36 @@ export function normalizeWeatherCatalog(
 
   return out;
 }
+
+const WEB_ADDRESS_RE = /^[a-z][a-z0-9+.-]*:\/\//;
+const WEB_ADDRESS_SAMPLE = 3;
+
+function ownStringHasWebAddress(obj: Record<string, unknown>, depth: number): boolean {
+  // for..in, not Object.keys: this runs inside the Object.* hook and must not re-enter it.
+  for (const key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    let value: unknown;
+    try { value = obj[key]; } catch { continue; }
+    if (typeof value === 'string') {
+      if (WEB_ADDRESS_RE.test(value)) return true;
+    } else if (depth === 0 && value && typeof value === 'object' && !Array.isArray(value)) {
+      if (ownStringHasWebAddress(value as Record<string, unknown>, 1)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Another mod's copy of the game data (Arie's Mod loads one from its own API)
+ * carries web-address sprites; the game's own dex never does. Samples the
+ * first entries, at entry level and one stage down (plant seed/plant/crop).
+ */
+export function hasWebAddressSprite(obj: Record<string, unknown>, keys: string[]): boolean {
+  for (const key of keys.slice(0, WEB_ADDRESS_SAMPLE)) {
+    let entry: unknown;
+    try { entry = obj[key]; } catch { continue; }
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)
+      && ownStringHasWebAddress(entry as Record<string, unknown>, 0)) return true;
+  }
+  return false;
+}

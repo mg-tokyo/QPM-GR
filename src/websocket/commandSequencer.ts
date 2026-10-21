@@ -5,6 +5,7 @@
 // invalid_sequence). Wrapper is the INNERMOST layer so numbers are only
 // allocated for messages that actually reach the socket.
 
+import { isGameStateReady, readSync } from '../core/gameState';
 import { pageWindow } from '../core/pageContext';
 import { createNamedLogger } from '../diagnostics/logger';
 import { registerForeignSignal, registerSendChainLineSource } from '../diagnostics/modDetection';
@@ -76,6 +77,9 @@ let unansweredFloor = 0;
 // Bumped on every invalid_sequence heal so rejections from an older epoch
 // don't re-heal (a burst of sibling rejections would race a live retry).
 let epoch = 0;
+// Game 1686+ has no subscribeToWelcome: a reconnect shows up as a new
+// commandSessionId on roomPublicationAtom instead.
+let lastSessionId: number | null = null;
 
 const pending = new Map<string, PendingEntry>();
 const assigned = new Map<string, { epoch: number; seq: number; at: number }>();
@@ -120,7 +124,7 @@ const attach = createSequencerAttach({
   onFrame,
   onWelcome,
   seedIfUnseeded: (room) => {
-    if (!seeded) seedFrom(room.lastDistributedRoomPublication?.executedCommandSequence);
+    if (!seeded) seedFrom(room.lastDistributedRoomPublication?.executedCommandSequence ?? readPublication()?.executedCommandSequence);
   },
   refresh: (room) => {
     resultBinder.bind(room);
@@ -169,8 +173,27 @@ function seedFrom(seq: unknown): void {
   seeded = true;
 }
 
+function readPublication(): { executedCommandSequence: number; commandSessionId: number | null } | null {
+  if (!isGameStateReady()) return null;
+  try { return readSync('roomCommandFrontier'); } catch { return null; }
+}
+
 function readRoomExecuted(): number | null {
-  return readExecutedSequence(attach.attachedRoom()?.lastDistributedRoomPublication?.executedCommandSequence);
+  const legacy = readExecutedSequence(attach.attachedRoom()?.lastDistributedRoomPublication?.executedCommandSequence);
+  return legacy ?? readExecutedSequence(readPublication()?.executedCommandSequence);
+}
+
+// Returns true when it handled a session change (counters already reseeded).
+function checkSessionChange(): boolean {
+  if (typeof attach.attachedRoom()?.subscribeToWelcome === 'function') return false;
+  const pub = readPublication();
+  const session = pub?.commandSessionId ?? null;
+  if (pub === null || session === null || session === lastSessionId) return false;
+  const first = lastSessionId === null;
+  lastSessionId = session;
+  if (first) return false;
+  onWelcome(pub.executedCommandSequence);
+  return true;
 }
 
 // CS-18: `frontier` is otherwise fed only by the room-frame subscription and
@@ -180,6 +203,7 @@ function readRoomExecuted(): number | null {
 // forever. The room's own counter is a plain property read on a different
 // path; consult it every time we allocate or resync.
 function refreshFrontier(): void {
+  if (checkSessionChange()) return;
   const seq = readRoomExecuted();
   if (seq === null) return;
   if (seq > frontier) { frontier = seq; stats.frontierCatchUps++; }
@@ -194,12 +218,15 @@ function onWelcome(seq: unknown): void {
   unansweredFloor = 0;
   // A (re)connect starts a fresh command session server-side: reset, and fail
   // anything still in flight — its result will never arrive on this session.
+  // Unsent entries (wire null) belong to the new session: 1686 detects the
+  // change lazily, possibly mid-allocation for the entry being sent.
   seedFrom(seq);
-  for (const entry of [...pending.values()]) settle(entry, null);
+  for (const entry of [...pending.values()]) if (entry.wire !== null) settle(entry, null);
   assigned.clear();
 }
 
 function onFrame(frame: RoomFrameLike): void {
+  checkSessionChange();
   const seq = readExecutedSequence(frame?.executedCommandSequence);
   if (seq === null) return;
   stats.frames++;
@@ -405,6 +432,8 @@ function onTimeout(entry: PendingEntry): void {
   // the server's only answer to a stale number is silence, re-emitting it can
   // never recover — treat it as spent and bias every later allocation past it.
   refreshFrontier();
+  // A session change inside refreshFrontier already failed this entry.
+  if (pending.get(entry.requestId) !== entry) return;
   if (entry.wire !== null && entry.wire > frontier && entry.wire > unansweredFloor) {
     unansweredFloor = entry.wire;
     stats.unansweredProbes++;
@@ -527,6 +556,7 @@ export function stopCommandSequencer(): void {
   for (const entry of [...pending.values()]) settle(entry, null);
   assigned.clear();
   unansweredFloor = 0;
+  lastSessionId = null;
   skippedPreSessionWarned = false;
   foreignGate.reset();
   attach.resetWarnings();
@@ -545,6 +575,7 @@ export function getCommandSequencerStats(): Record<string, unknown> {
     epoch,
     unansweredFloor,
     roomExecuted: readRoomExecuted(),
+    sessionId: lastSessionId,
     pending: pending.size,
     outstanding: countOutstanding(assigned.values(), Date.now(), RESULT_TIMEOUT_MS),
     ...stats,

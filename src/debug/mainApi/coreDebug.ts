@@ -197,7 +197,7 @@ export const coreDebugApi = {
   supportReport: async () => {
     const { renderCopyPayload } = await import('../../diagnostics/copyPayload');
     const { getPitySnapshot, getPityAccountError, isPityKindEnabled } = await import('../../store/pityTracker');
-    const { captureSources } = await import('../../catalogs/catalogLoader/state');
+    const { captureSources, catalogReplacements } = await import('../../catalogs/catalogLoader/state');
     const { getHookEnvironment } = await import('../../catalogs/catalogLoader');
     const { isChainTrapInstalled } = await import('../../websocket/roomConnectionEvents');
 
@@ -230,6 +230,8 @@ export const coreDebugApi = {
         // Per-catalog capture path: 'hook' alone means the enumeration-race
         // capture was never verified/topped-up from bundle text.
         catalogSources: { ...captureSources },
+        // Captured copies swapped for the bundle blueprint (another mod's data).
+        catalogReplacements: { ...catalogReplacements },
         // Other mods wrapping Object.* shift enumeration order — the trigger
         // for partial dex captures. Says who owns Object.keys right now.
         objectHooks: getHookEnvironment(),

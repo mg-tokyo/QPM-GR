@@ -7,7 +7,7 @@ import { healthBus } from '../diagnostics/healthBus';
 import type { Subsystem, SubsystemHealth } from '../diagnostics/types';
 import { visibleInterval } from '../utils/scheduling/timerManager';
 import { onRoomConnectionChange, type RoomLike } from './roomConnectionEvents';
-import { toUnsub } from './sequencerSocket';
+import { subscribeRoomWelcome, type WelcomeHost as RoomWelcomeHost } from './roomWelcome';
 
 const WS_SUBSYSTEM: Subsystem = 'websocket';
 
@@ -22,9 +22,7 @@ export const wsCounters = {
   enveloped: 0,
 };
 
-interface WelcomeHost extends RoomLike {
-  subscribeToWelcome?: (cb: () => void) => unknown;
-}
+type WelcomeHost = RoomLike & RoomWelcomeHost;
 
 let diagnosticsStarted = false;
 let connectionPollStop: (() => void) | null = null;
@@ -86,9 +84,9 @@ function bindWelcome(room: WelcomeHost | null): void {
   if ((room as object | null) === welcomeRoom) return;
   if (unsubWelcome) { try { unsubWelcome(); } catch { /* closed */ } unsubWelcome = null; }
   welcomeRoom = room;
-  if (!room || typeof room.subscribeToWelcome !== 'function') return;
+  if (!room) return;
   try {
-    unsubWelcome = toUnsub(room.subscribeToWelcome(() => publishSessionState()));
+    unsubWelcome = subscribeRoomWelcome(room, () => publishSessionState());
   } catch { unsubWelcome = null; }
 }
 

@@ -24,6 +24,8 @@ import { formatTopShare, takeCostWindow, type CostWindowTop } from '../diagnosti
 import type { Subsystem } from '../diagnostics/types';
 import type { QuinoaStateSnapshot } from '../types/gameAtoms';
 import { getRoomConnection } from '../websocket/api';
+import { subscribeRoomWelcome } from '../websocket/roomWelcome';
+import { diffSnapshotPaths } from './reactive/snapshotDiff';
 import { findSlotIdxByOwner, getPlayerIdSync } from './playerContext';
 import { hasMyIdxPlaceholder, matchesPathPrefix } from './reactive/pathMatcher';
 import type { PatchPath } from './reactive/types';
@@ -49,6 +51,7 @@ let diagnosticsStarted = false;
 let sourceUnsubscribe: (() => void) | null = null;
 let welcomeUnsubscribe: (() => void) | null = null;
 let activeSource: 'roomPatches' | 'stateAtom' | 'none' = 'none';
+const diffStats = { derived: 0, fullReloads: 0 };
 // Previous event's resolved myIdx. A change (null↔N or N↔M) fans out to every
 // `{myIdx}` subscriber even when no patch names the seat cell directly.
 let lastMyIdx: number | null = null;
@@ -180,7 +183,7 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
   if (!currentSnapshot) return;
 
   // Patch-prefix gating for selector subscribers. Empty / absent patches
-  // (welcome message, stateAtom fallback path, dev-tools reload) fall back to
+  // (welcome message, undiffable stateAtom event, dev-tools reload) fall back to
   // running every subscriber — safe worst case, matches reactive/manager.ts.
   const havePatchInfo = patches !== undefined && patches.length > 0;
   const snapshot = currentSnapshot;
@@ -201,8 +204,8 @@ function onStateEvent(next: unknown, patches?: readonly PatchOp[]): void {
     sub.totalMs += dt;
   }
 
-  // Fan out to patch listeners (reactive manager). Empty patch array from
-  // the stateAtom fallback path is a signal "full snapshot, no patch data".
+  // Fan out to patch listeners (reactive manager). An empty patch array is
+  // the signal "full snapshot, no patch data".
   if (patchListeners.size > 0) {
     const p = patches ?? EMPTY_PATCHES;
     for (const listener of patchListeners) {
@@ -309,31 +312,6 @@ function tryAttachRoomPatchSubscription(): boolean {
       sourceUnsubscribe = result as () => void;
     }
 
-    // subscribeToWelcome (RoomConnection.ts:172-184) fires on connect and
-    // every reconnect, and immediately with the current state if already
-    // connected. Public API (unlike the private lastRoomStateJsonable field).
-    // Belt-and-braces seed for the case where subscribeToPatches's currentState
-    // was empty or absent (older bundles).
-    if (typeof rc.subscribeToWelcome === 'function') {
-      try {
-        const welcomeResult: unknown = rc.subscribeToWelcome((welcomeState, publishedAtServerMs, executedCommandSequence) => {
-          lastWelcome = {
-            at: Date.now(),
-            publishedAtServerMs: typeof publishedAtServerMs === 'number' ? publishedAtServerMs : null,
-            executedCommandSequence: typeof executedCommandSequence === 'number' ? executedCommandSequence : null,
-          };
-          for (const l of welcomeListeners) { try { l(lastWelcome); } catch { /* swallow */ } }
-          if (welcomeState && typeof welcomeState === 'object') onStateEvent(welcomeState);
-        });
-        if (welcomeResult && typeof welcomeResult === 'object' && 'unsubscribe' in welcomeResult) {
-          const welcomeUnsub = (welcomeResult as { unsubscribe?: unknown }).unsubscribe;
-          if (typeof welcomeUnsub === 'function') welcomeUnsubscribe = welcomeUnsub as () => void;
-        } else if (typeof welcomeResult === 'function') {
-          welcomeUnsubscribe = welcomeResult as () => void;
-        }
-      } catch { /* subscribeToWelcome unavailable on this bundle — non-fatal */ }
-    }
-
     activeSource = 'roomPatches';
     diagLog.info('stateTree source: MagicCircle_RoomConnection.subscribeToPatches');
     return true;
@@ -347,9 +325,7 @@ async function attachStateAtomSubscription(): Promise<void> {
   if (!stateAtom) {
     throw new Error('stateTree: stateAtom not found in jotaiAtomCache');
   }
-  // No patches available on the fallback path — patch listeners get an
-  // empty patch array as "full-state, treat as reload."
-  sourceUnsubscribe = await subscribeAtom(stateAtom, (v: unknown) => onStateEvent(v, EMPTY_PATCHES));
+  sourceUnsubscribe = await subscribeAtom(stateAtom, (v: unknown) => onStateEvent(v, derivePatches(v)));
   // subscribeAtom fires an initial value synchronously via `invoke()` — but
   // read once more via readAtomValue to guarantee currentSnapshot is warm even
   // if the initial invoke was lost to a subscribe-race.
@@ -362,13 +338,49 @@ async function attachStateAtomSubscription(): Promise<void> {
     }
   }
   activeSource = 'stateAtom';
-  diagLog.info('stateTree source: stateAtom (jotai) fallback');
+  diagLog.info('stateTree source: stateAtom (jotai) fallback, snapshot-diff patches');
+}
+
+// The stateAtom source has no patch stream; derive one from the previous
+// snapshot so prefix gating keeps working. Empty = full reload.
+function derivePatches(next: unknown): readonly PatchOp[] {
+  const derived = diffSnapshotPaths(currentSnapshot, next);
+  if (derived && derived.length > 0) { diffStats.derived++; return derived; }
+  diffStats.fullReloads++;
+  return EMPTY_PATCHES;
+}
+
+function readPublicationMeta(): Record<string, unknown> | null {
+  try {
+    const atom = getAtomByLabel('roomPublicationAtom');
+    const v: unknown = atom ? getCachedStore()?.get(atom) : null;
+    return v && typeof v === 'object' ? v as Record<string, unknown> : null;
+  } catch { return null; }
+}
+
+// Legacy subscribeToWelcome also seeds the patch source with its state; on 1686+
+// the Welcome state already arrived through stateAtom (setRoomState runs first).
+function attachWelcome(): void {
+  const rc = getRoomConnection();
+  if (!rc) return;
+  try {
+    welcomeUnsubscribe = subscribeRoomWelcome(rc, (args) => {
+      const meta = args ?? readPublicationMeta();
+      lastWelcome = {
+        at: Date.now(),
+        publishedAtServerMs: typeof meta?.publishedAtServerMs === 'number' ? meta.publishedAtServerMs : null,
+        executedCommandSequence: typeof meta?.executedCommandSequence === 'number' ? meta.executedCommandSequence : null,
+      };
+      for (const l of welcomeListeners) { try { l(lastWelcome); } catch { /* swallow */ } }
+      if (activeSource === 'roomPatches' && args?.state && typeof args.state === 'object') onStateEvent(args.state);
+    });
+  } catch { /* no Welcome hook on this bundle — non-fatal */ }
 }
 
 async function attachSource(): Promise<void> {
   // Prefer atom-free source (patch stream); fall through to jotai stateAtom.
-  if (tryAttachRoomPatchSubscription()) return;
-  await attachStateAtomSubscription();
+  if (!tryAttachRoomPatchSubscription()) await attachStateAtomSubscription();
+  attachWelcome();
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────
@@ -443,6 +455,8 @@ export function stopStateTree(): void {
   lastWelcome = null;
   lastMyIdx = null;
   activeSource = 'none';
+  diffStats.derived = 0;
+  diffStats.fullReloads = 0;
   selectorSuppressLog = new WeakSet<Selector<unknown>>();
 }
 
@@ -520,7 +534,7 @@ function readSnapshotFromStore(): QuinoaStateSnapshot | null {
  * Subscribe to raw JSON Patch operations flowing from the game engine.
  * Callback fires once per state event with the patches plus the fresh
  * snapshot. Empty patch array signals "no patch data available for this
- * event" (fallback stateAtom source, welcome message, or dev-tools reload).
+ * event" (undiffable stateAtom event, welcome message, or dev-tools reload).
  *
  * Selector-memoized `subscribe()` remains the right API for feature code;
  * patch subscribers are for infrastructure (reactive manager) that routes by
@@ -639,5 +653,6 @@ function exposeDebugBridge(): void {
     subs: () => subscriberSummary(),
     pendingCount: () => pending.length,
     welcome: () => lastWelcome,
+    diff: () => ({ ...diffStats }),
   });
 }

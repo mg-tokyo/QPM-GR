@@ -2,6 +2,7 @@
 
 import type { GameCatalogs } from '../types';
 import {
+  hasWebAddressSprite,
   looksLikeCosmeticArray,
   looksLikeDecorCatalog,
   looksLikeEggCatalog,
@@ -31,8 +32,11 @@ const seenObjects = new WeakSet<object>();
 const SCAN_NODE_BUDGET = 400;
 const MIN_CATALOG_KEYS = 5;
 let budget = 0;
-const scanStats = { calls: 0, budgetExhausted: 0 };
-export function getScanStats(): Readonly<typeof scanStats> { return { ...scanStats }; }
+type ForeignCheckedCatalog = 'itemCatalog' | 'decorCatalog' | 'mutationCatalog' | 'eggCatalog' | 'petCatalog' | 'plantCatalog' | 'petAbilities';
+const scanStats = { calls: 0, budgetExhausted: 0, foreignRejected: {} as Partial<Record<ForeignCheckedCatalog, number>> };
+export function getScanStats(): Readonly<typeof scanStats> {
+  return { ...scanStats, foreignRejected: { ...scanStats.foreignRejected } };
+}
 
 /**
  * Recursively scan an object and its children for catalog patterns
@@ -79,18 +83,27 @@ function deepScan(obj: unknown, depth: number): void {
     return true;
   };
 
+  // Another mod's copy of the dex (web-address sprites) is never captured; the
+  // node is still recursed into below.
+  let foreign: boolean | null = null;
+  const rejectForeign = (name: ForeignCheckedCatalog): boolean => {
+    foreign ??= hasWebAddressSprite(record, keys);
+    if (foreign) scanStats.foreignRejected[name] = (scanStats.foreignRejected[name] ?? 0) + 1;
+    return foreign;
+  };
+
   if (keys.length >= MIN_CATALOG_KEYS) {
     let didCapture = false;
     try {
-      if (looksLikeItemCatalog(record, keys) && captureOrUpgrade('itemCatalog')) {
+      if (looksLikeItemCatalog(record, keys) && !rejectForeign('itemCatalog') && captureOrUpgrade('itemCatalog')) {
         didCapture = true;
       }
 
-      if (looksLikeDecorCatalog(record, keys) && captureOrUpgrade('decorCatalog')) {
+      if (looksLikeDecorCatalog(record, keys) && !rejectForeign('decorCatalog') && captureOrUpgrade('decorCatalog')) {
         didCapture = true;
       }
 
-      if (!capturedCatalogs.mutationCatalog && looksLikeMutationCatalog(record, keys)) {
+      if (!capturedCatalogs.mutationCatalog && looksLikeMutationCatalog(record, keys) && !rejectForeign('mutationCatalog')) {
         capturedCatalogs.mutationCatalog = record as GameCatalogs['mutationCatalog'];
         captureSources.mutationCatalog = 'hook';
         catalogLog('Captured mutationCatalog');
@@ -100,15 +113,15 @@ function deepScan(obj: unknown, depth: number): void {
         startMutationColorPolling();
       }
 
-      if (looksLikeEggCatalog(record, keys) && captureOrUpgrade('eggCatalog')) {
+      if (looksLikeEggCatalog(record, keys) && !rejectForeign('eggCatalog') && captureOrUpgrade('eggCatalog')) {
         didCapture = true;
       }
 
-      if (looksLikePetCatalog(record, keys) && captureOrUpgrade('petCatalog')) {
+      if (looksLikePetCatalog(record, keys) && !rejectForeign('petCatalog') && captureOrUpgrade('petCatalog')) {
         didCapture = true;
       }
 
-      if (looksLikePetAbilities(record, keys)) {
+      if (looksLikePetAbilities(record, keys) && !rejectForeign('petAbilities')) {
         // Capture-or-upgrade, not capture-once: the game exposes partial
         // dex-shaped objects during load (spread sources for the merged dex),
         // and another mod's enumeration order can surface a partial one first.
@@ -127,7 +140,7 @@ function deepScan(obj: unknown, depth: number): void {
         }
       }
 
-      if (looksLikePlantCatalog(record, keys) && captureOrUpgrade('plantCatalog')) {
+      if (looksLikePlantCatalog(record, keys) && !rejectForeign('plantCatalog') && captureOrUpgrade('plantCatalog')) {
         didCapture = true;
       }
 

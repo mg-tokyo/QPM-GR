@@ -1,9 +1,21 @@
 import { getPetAbilitiesCatalogMap } from '../logic/petAbilitiesCatalog';
-import { getDexFromBundle, holdDexBundleCache, type DexCatalogName } from '../logic/dexCatalogs';
+import { getDexBlueprint, holdDexBundleCache, type DexCatalogName } from '../logic/dexCatalogs';
+import { checkCatalogAgreement } from './agreement';
 import { enrichMutationColors, enrichPetAbilityColors, pollAttempts, startMutationColorPolling } from './enrichment';
 import { publishCatalogsHealth } from './diagnostics';
 import { checkAndNotifyReady, notifyPetAbilitiesCaptured } from './readyState';
-import { captureSources, capturedCatalogs, catalogLog, publishCatalogs } from './state';
+import { captureSources, capturedCatalogs, catalogLog, catalogReplacements, publishCatalogs } from './state';
+
+// QPM's own enrichment writes `color` onto mutation and ability entries.
+const AGREEMENT_IGNORE_KEYS: readonly string[] = ['color'];
+const MISMATCH_LOG_LIMIT = 5;
+
+function recordReplacement(name: keyof typeof captureSources, mismatches: readonly string[]): void {
+  const sample = mismatches.slice(0, MISMATCH_LOG_LIMIT).join('; ');
+  catalogReplacements[name] = `captured copy disagrees with bundle text (${mismatches.length}): ${mismatches.slice(0, 2).join('; ')}`;
+  captureSources[name] = 'bundle-text';
+  catalogLog(`${name} replaced from bundle text — captured copy disagrees (${mismatches.length} mismatches): ${sample}`);
+}
 
 let fallbackInFlight: Promise<boolean> | null = null;
 
@@ -31,14 +43,15 @@ let mergeInFlight: Promise<boolean> | null = null;
 
 /**
  * Verifies a hook-captured petAbilities catalog against the bundle text (the
- * same blueprint the game executes) and tops up missing entries. The hook can
+ * same blueprint the game executes) and tops up missing entries, or replaces
+ * it outright when its entries disagree (another mod's copy). The hook can
  * capture a partial dex-shaped object when another mod's enumeration order
  * surfaces it first — see scan.ts capture-or-upgrade. Hook entries win on key
  * collision; the captured object is never mutated (it may be the game's live dex).
  *
  * With `observedIds` (ability ids seen on real pets) the bundle fetch is skipped
  * entirely when all are present. Without them, verification is unconditional.
- * Returns true only when entries were actually added.
+ * Returns true only when the catalog changed.
  */
 export function mergePetAbilitiesIfIncomplete(observedIds?: readonly string[]): Promise<boolean> {
   const current = capturedCatalogs.petAbilities;
@@ -52,6 +65,17 @@ export function mergePetAbilitiesIfIncomplete(observedIds?: readonly string[]): 
     if (!map) return false;
     const base = capturedCatalogs.petAbilities;
     if (!base) return false;
+    const { agrees, mismatches } = checkCatalogAgreement(base, map, { ignoreKeys: AGREEMENT_IGNORE_KEYS });
+    if (!agrees) {
+      // Another mod's colour strings would pass readAbilityColorBg and never be corrected.
+      capturedCatalogs.petAbilities = { ...map };
+      recordReplacement('petAbilities', mismatches);
+      publishCatalogs();
+      publishCatalogsHealth();
+      void enrichPetAbilityColors();
+      notifyPetAbilitiesCaptured();
+      return true;
+    }
     const additions = Object.keys(map).filter((k) => !(k in base));
     if (additions.length === 0) return false;
     capturedCatalogs.petAbilities = { ...map, ...base };
@@ -82,7 +106,8 @@ const dexView = capturedCatalogs as unknown as Record<DexCatalogName, Record<str
  * keys) or, for mutationCatalog, a lookalike keyed by DISPLAY names — so
  * mutationCatalog is replaced by the bundle blueprint (enriched colors carried
  * over per key) while every other dex is topped up with hook entries winning.
- * Returns true only when the catalog actually changed.
+ * A complete copy that disagrees with the bundle (another mod's data, see
+ * agreement.ts) is replaced outright. Returns true only when the catalog changed.
  */
 export function mergeCatalogIfIncomplete(name: DexCatalogName, observedIds?: readonly string[]): Promise<boolean> {
   const current = dexView[name];
@@ -93,9 +118,30 @@ export function mergeCatalogIfIncomplete(name: DexCatalogName, observedIds?: rea
   dexMergeAttempts[name] += 1;
 
   const promise = (async () => {
-    const map = await getDexFromBundle(name);
-    if (!map) return false;
+    const blueprint = await getDexBlueprint(name);
+    if (!blueprint) return false;
+    const { map } = blueprint;
     const base = dexView[name];
+
+    // Without resolved sprites the bundle map has no sprite fields to compare.
+    const agreement = base && blueprint.spritesResolved
+      ? checkCatalogAgreement(base, map, { ignoreKeys: AGREEMENT_IGNORE_KEYS })
+      : null;
+
+    if (agreement && !agreement.agrees) {
+      // No colour carry-over: enrichMutationColors only fills colourless entries,
+      // so a foreign colour carried here would never be corrected.
+      dexView[name] = { ...map };
+      recordReplacement(name, agreement.mismatches);
+      if (name === 'mutationCatalog') {
+        pollAttempts.mutationColor = 0;
+        startMutationColorPolling();
+        void enrichMutationColors();
+      }
+      publishCatalogs();
+      publishCatalogsHealth();
+      return true;
+    }
 
     if (name === 'mutationCatalog' && base) {
       const missing = Object.keys(map).filter((k) => !(k in base));

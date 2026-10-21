@@ -6,6 +6,16 @@ import { selectMySlot } from './selectors';
 
 const isSnapshot = (v: unknown): v is QuinoaStateSnapshot => isRecord(v) && 'child' in v && isRecord(v.child);
 
+export interface RoomCommandFrontier {
+  executedCommandSequence: number;
+  commandSessionId: number | null;
+}
+
+const projectFrontier = (v: unknown): RoomCommandFrontier | undefined =>
+  (isRecord(v) && typeof v.executedCommandSequence === 'number' && Number.isFinite(v.executedCommandSequence)
+    ? { executedCommandSequence: v.executedCommandSequence, commandSessionId: typeof v.commandSessionId === 'number' ? v.commandSessionId : null }
+    : undefined);
+
 export const PLAYER_KEYS = {
   state: defineKey<QuinoaStateSnapshot>({
     policy: 'authoritative', tier: 'state', doc: 'Root room state snapshot',
@@ -94,5 +104,13 @@ export const PLAYER_KEYS = {
     sources: [
       atomSource(/^isSpectatingAtom$/, 'client', { structure: (v) => typeof v === 'boolean' }),
     ],
+  }),
+  // Atom-only, so policy 'client' (see isSpectating). Game 1686 dropped the
+  // connection's lastDistributedRoomPublication / subscribeToWelcome; setRoomState
+  // writes this atom on Welcome and every RoomFrame (RoomConnection-*.js setRoomState).
+  roomCommandFrontier: defineKey<RoomCommandFrontier>({
+    policy: 'client', tier: 'client',
+    doc: 'Server command frontier + client command session (roomPublicationAtom, game 1686+)',
+    sources: [atomSource(/^roomPublicationAtom$/, 'client', { project: projectFrontier })],
   }),
 };

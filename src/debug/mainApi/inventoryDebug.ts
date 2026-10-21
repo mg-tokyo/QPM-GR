@@ -4,20 +4,21 @@ import { readInventoryDirect, getInventoryItems } from '../../store/inventory';
 export const inventoryDebugApi = {
   debugInventory: async () => {
     try {
-      const { getAtomByLabel, readAtomValue } = await import('../../core/jotaiBridge');
+      const { isGameStateReady, read } = await import('../../core/gameState');
 
       console.log('=== Inventory Debug ===\n');
 
-      // Try userSlotsAtom first
-      const userSlotsAtom = getAtomByLabel('userSlotsAtom');
-      if (userSlotsAtom) {
-        const inventory = await readAtomValue(userSlotsAtom);
-        console.log('userSlotsAtom inventory:', inventory);
+      const userSlots: unknown = isGameStateReady() ? await read('userSlots') : null;
+      if (userSlots) {
+        console.log('userSlots:', userSlots);
 
-        const plantItems = Array.isArray(inventory) ? inventory.filter((item: any) =>
+        // userSlots is seat-indexed (null = empty seat); items live in my inventory.
+        const inventory = await read('inventory');
+        const items: unknown[] = Array.isArray(inventory?.items) ? inventory.items : [];
+        const plantItems: any[] = items.filter((item: any) => item && (
           item.itemType === 'Plant' ||
           (item.slots && item.slots.length > 0)
-        ) : [];
+        ));
         console.log(`\nFound ${plantItems?.length || 0} plant items:`);
         console.table(plantItems?.map((item: any, i: number) => ({
           Index: i,
@@ -39,10 +40,10 @@ export const inventoryDebugApi = {
           }
         }
 
-        return { userSlots: inventory, plantItems };
+        return { userSlots, plantItems };
       }
 
-      console.error('❌ userSlotsAtom not found');
+      console.error('❌ userSlots unavailable (gameState not ready or no source bound)');
       return null;
     } catch (error) {
       console.error('Failed to debug inventory:', error);

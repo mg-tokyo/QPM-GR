@@ -27,6 +27,9 @@ export interface SequencerConnection {
   trySendMessageNow?: (payload: unknown) => boolean;
   subscribeToWelcome?: (cb: (state: unknown, publishedAtServerMs?: unknown, executedCommandSequence?: unknown) => void) => unknown;
   subscribeToRoomFrames?: (cb: (frame: RoomFrameLike) => void) => unknown;
+  // Game 1686+: replaces subscribeToRoomFrames; fires on every RoomFrame with
+  // the max(previous, frame) executedCommandSequence (handleRoomFrame).
+  subscribeToRoomFrameCapture?: (cb: (frame: RoomFrameLike) => void) => unknown;
   lastDistributedRoomPublication?: { executedCommandSequence?: unknown };
   ws?: WebSocket | null;
   socket?: WebSocket | null;
@@ -337,6 +340,8 @@ export function createSequencerAttach(hooks: SequencerAttachHooks): SequencerAtt
   ): void {
     if (typeof room.subscribeToRoomFrames === 'function') {
       record.unsubFrames = toUnsub(room.subscribeToRoomFrames(hooks.onFrame));
+    } else if (typeof room.subscribeToRoomFrameCapture === 'function') {
+      record.unsubFrames = toUnsub(room.subscribeToRoomFrameCapture(hooks.onFrame));
     }
     if (typeof room.subscribeToWelcome === 'function') {
       // Fires synchronously with the current publication when already connected.

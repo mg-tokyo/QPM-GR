@@ -15,6 +15,7 @@ import {
   fixLeadingDotNumbers,
   toStrictJsonCandidate,
 } from './bundleTextParsing';
+import { resolveSpriteEnumRefs, type SpriteEnumTable } from './spriteEnumText';
 
 export type DexCatalogName =
   | 'eggCatalog'
@@ -38,7 +39,8 @@ interface DexBlueprintConfig {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const num = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v);
+// Infinity is real game data: `coinPrice:1/0` marks not-for-sale (Camera, potions, DecorShed).
+const num = (v: unknown): boolean => typeof v === 'number' && !Number.isNaN(v);
 
 export const DEX_BLUEPRINT_CONFIGS: Readonly<Record<DexCatalogName, DexBlueprintConfig>> = {
   eggCatalog: {
@@ -119,9 +121,16 @@ function stripNonPathSpriteFields(entry: Record<string, unknown>, depth = 0): vo
   }
 }
 
-function parseDexBlock(text: string, blockStart: number, block: string, config: DexBlueprintConfig): DexMap | null {
+function parseDexBlock(
+  text: string,
+  blockStart: number,
+  block: string,
+  config: DexBlueprintConfig,
+  spriteTable: SpriteEnumTable | null,
+): DexMap | null {
   const constMap = prescanNumericConsts(text, blockStart);
-  const candidate = toStrictJsonCandidate(fixLeadingDotNumbers(block), {
+  const resolved = spriteTable ? resolveSpriteEnumRefs(block, spriteTable) : block;
+  const candidate = toStrictJsonCandidate(fixLeadingDotNumbers(resolved), {
     memberExprMode: 'lastSegment',
     resolveIdentifier: (name) => constMap[name] ?? null,
     quoteNumericKeys: true,
@@ -157,7 +166,8 @@ function findPrecedingBrace(text: string, anchorPos: number): number {
   return -1;
 }
 
-export function extractDexFromText(text: string, name: DexCatalogName): DexMap | null {
+/** With `spriteTable`, enum sprite refs resolve to their real paths; without it they are dropped. */
+export function extractDexFromText(text: string, name: DexCatalogName, spriteTable: SpriteEnumTable | null = null): DexMap | null {
   const config = DEX_BLUEPRINT_CONFIGS[name];
 
   for (const anchorId of config.anchorIds) {
@@ -179,7 +189,7 @@ export function extractDexFromText(text: string, name: DexCatalogName): DexMap |
         const block = extractBalancedBlock(text, start);
         if (!block) continue;
         if (match.index < start || match.index >= start + block.length) continue;
-        const map = parseDexBlock(text, start, block, config);
+        const map = parseDexBlock(text, start, block, config, spriteTable);
         if (map) return map;
       }
     }

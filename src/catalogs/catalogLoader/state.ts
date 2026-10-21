@@ -66,6 +66,9 @@ export const captureSources: Record<
   decorCatalog: null,
 };
 
+/** Why a captured catalog was swapped for the bundle-text blueprint (another mod's copy). */
+export const catalogReplacements: Partial<Record<keyof typeof captureSources, string>> = {};
+
 export function publishCatalogs(): void {
   try {
     shareGlobal('__QPM_CATALOGS', capturedCatalogs);

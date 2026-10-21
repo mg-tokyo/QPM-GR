@@ -85,6 +85,24 @@ describe('createSequencerAttach — chokepoint mode', () => {
     expect(room.sent).toEqual([[a, false], [b, false]]);
   });
 
+  it('feeds frames from subscribeToRoomFrameCapture when subscribeToRoomFrames is gone (game 1686)', () => {
+    const room = new FakeRoom();
+    const subs = new Set<(f: { executedCommandSequence?: unknown }) => void>();
+    (room as unknown as Record<string, unknown>).subscribeToRoomFrameCapture = (cb: (f: { executedCommandSequence?: unknown }) => void) => {
+      subs.add(cb);
+      return () => { subs.delete(cb); };
+    };
+    const { hooks } = makeHooks(room);
+    const frames: unknown[] = [];
+    hooks.onFrame = (f) => { frames.push(f.executedCommandSequence); };
+    const attach = createSequencerAttach(hooks);
+    attach.ensureAttached();
+    for (const cb of subs) cb({ executedCommandSequence: 7 });
+    expect(frames).toEqual([7]);
+    attach.detach();
+    expect(subs.size).toBe(0);
+  });
+
   it('allocates nothing for a send the game refuses before the chokepoint', () => {
     const room = new FakeRoom();
     const { hooks, rewritten } = makeHooks(room);
