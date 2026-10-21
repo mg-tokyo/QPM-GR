@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.57",
+    date: "2026-10-21",
+    notes: [
+      "Fixed the lit area around lamps and lanterns missing from the 3D camera at night: the ground around them now shows in daytime colours, as it does in 2D",
+    ],
+  },
+  {
     version: "3.3.56",
     date: "2026-10-18",
     notes: [

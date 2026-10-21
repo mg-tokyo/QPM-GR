@@ -6,7 +6,7 @@ import { DrawnTable, FullSaves } from '../frame/drawn';
 import { MOVE_PX, RING_PX, ROLL_SLICES, cullSlot, type FrameCtx } from '../frame/frame';
 import { PersistTable } from '../frame/persist';
 import { makeBasis, project } from '../math/camera';
-import { createEntityPass, holdThroughOnRender, newPlacement, placeBillboard } from './entities';
+import { LIGHT_POOL_BLEND, createEntityPass, holdThroughOnRender, newPlacement, placeBillboard } from './entities';
 
 const W = 1000, H = 600, k = 1.5, fov = (20 * Math.PI) / 180;
 
@@ -65,6 +65,22 @@ describe('placeBillboard (art-row formula)', () => {
     seen.length = 0;
     pass.pre(frame);
     expect(seen).toEqual([a.node, b.node]);
+  });
+
+  it("hands a night light pool to lightPool instead of placing it as a card (its zIndex is MAX_SAFE_INTEGER)", () => {
+    const world = new FakeNode();
+    const lamp = world.addChild(new FakeNode(5000, 4000));
+    const pool = world.addChild(Object.assign(new FakeNode(5000, 4000).withTexture(256, 256, 1), { blendMode: LIGHT_POOL_BLEND }));
+    pool.zIndex = Number.MAX_SAFE_INTEGER;
+    const seen: unknown[] = [], pools: unknown[] = [];
+    const pass = createEntityPass({
+      skip: new WeakSet(), buildings: null, layers: null, standRow: (_c: unknown, n: unknown, y: number) => { seen.push(n); return y; },
+      afterPlace: null, fade: null, placeMask: null, lightPool: (_c: unknown, n: unknown) => { pools.push(n); },
+    } as never);
+    const ov = { put: () => undefined, drop: () => undefined, raw: () => true, gameValue: () => 0 };
+    pass.pre({ ...topDownCtx(), ov, reCull: true, caps: { scene: { world: world.node }, classes: { Texture: { WHITE: {} } } } } as unknown as FrameCtx);
+    expect(seen).toEqual([lamp.node]);
+    expect(pools).toEqual([pool.node]);
   });
 
   it('between full re-culls a hidden tile is re-decided only in its own rolling slice', () => {

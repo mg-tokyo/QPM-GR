@@ -75,7 +75,13 @@ export interface EntityDeps {
   standStill?: ((ctx: FrameCtx, node: Node3, token: unknown) => boolean) | null;
   /** Mid-fade: a replayed tile still gets its fade. Absent: always faded. */
   isFading?: ((ctx: FrameCtx, node: Node3) => boolean) | null;
+  /** A night light pool (LIGHT_POOL_BLEND): laid flat on its ground point. Absent: placed as a card. */
+  lightPool?: ((ctx: FrameCtx, node: Node3) => void) | null;
 }
+
+// Game 1684 night light pools: a radial sprite on the lamp's tile at zIndex MAX_SAFE_INTEGER (read as a depth key it
+// stands 9e11 px south and is culled). The blend lowers alpha, which the night grade draws ungraded (live 2026-10-21).
+export const LIGHT_POOL_BLEND = 'illuminate';
 
 /** Debug levers (perf Task 13 A/B): plan, the World walk plan (walkPlan.ts); refs, a replay through its record's handles. */
 export interface EntityTune { plan: boolean; refs: boolean }
@@ -331,6 +337,7 @@ export function createEntityPass(deps: EntityDeps): EntityPass {
     if (e.renderLayerChildren) return null;
     if (isScrim(ctx, e)) { placeScrim(ctx, e); return null; }
     if (e.includeInBuild === false) return null; // mask graphics: moved with their owner
+    if (deps.lightPool && e.texture && e.blendMode === LIGHT_POOL_BLEND) { deps.lightPool(ctx, e); return null; }
     if (e.x === 0 && e.y === 0) {
       if ((e.label ?? '').startsWith('Building')) { blds.push(e); return null; }
       if (e.children.length > 0 && !e.texture) {

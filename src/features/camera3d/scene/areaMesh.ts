@@ -91,7 +91,7 @@ function writeNodeQuad(n: Node3, W2: Affine, pos: Float32Array, uv: Float32Array
 }
 
 interface DynGeometry extends GeometryLike { getBuffer(name: string): { update(): void } }
-interface Batch { src: object; z: number; mesh: Node3; geom: DynGeometry; shader: ShaderLike; cap: number; pos: Float32Array; uv: Float32Array; col: Float32Array; n: number; used: number; dirty: boolean }
+interface Batch { src: object; z: number; blend: string | null; mesh: Node3; geom: DynGeometry; shader: ShaderLike; cap: number; pos: Float32Array; uv: Float32Array; col: Float32Array; n: number; used: number; dirty: boolean }
 
 export interface AreaMesh extends Pass, AreaTileSink {}
 
@@ -112,7 +112,7 @@ export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>, cam: UniformGro
     }) as unknown as DynGeometry;
   };
 
-  function create(src: object, z: number): Batch | null {
+  function create(src: object, z: number, blend: string | null): Batch | null {
     try {
       program ??= new C.GlProgram({ vertex: AREA_VS, fragment: AREA_FS, name: 'qpm3d-area' });
       const cap = MIN_QUADS;
@@ -124,9 +124,10 @@ export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>, cam: UniformGro
       mesh.label = 'qpm3d-area';
       mesh.eventMode = 'none';
       mesh.zIndex = z;
+      if (blend) mesh.blendMode = blend;
       skip.add(mesh);
       s.world.addChild(mesh);
-      return { src, z, mesh, geom, shader, cap, pos, uv, col, n: 0, used: 0, dirty: true };
+      return { src, z, blend, mesh, geom, shader, cap, pos, uv, col, n: 0, used: 0, dirty: true };
     } catch (e) {
       failed = true;
       camera3dDiag.diag.info('QPM-CAM3D-008', { error: String(e) });
@@ -174,11 +175,13 @@ export function createAreaMesh(caps: Caps, skip: WeakSet<Node3>, cam: UniformGro
       const src = quadSource(n);
       if (!src) return false;
       if (frame !== ctx.frameNo) { frame = ctx.frameNo; for (const x of batches) x.n = 0; }
+      // A sprite's own blend (the game's light pools: 'illuminate') goes to a batch drawn with it.
+      const blend = n.blendMode && n.blendMode !== 'inherit' && n.blendMode !== 'normal' ? n.blendMode : null;
       let b: Batch | null = null;
-      for (const x of batches) if (x.src === src && x.z === z) { b = x; break; }
+      for (const x of batches) if (x.src === src && x.z === z && x.blend === blend) { b = x; break; }
       if (!b) {
         if (batches.length >= MAX_BATCHES && !freeSlot()) return false;
-        b = create(src, z);
+        b = create(src, z, blend);
         if (!b) return false;
         batches.push(b);
       }

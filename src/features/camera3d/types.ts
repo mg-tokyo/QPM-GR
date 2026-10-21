@@ -45,6 +45,7 @@ export interface Node3 {
   mask?: unknown;
   eventMode?: string;
   tint?: number;
+  blendMode?: string;
   width?: number;
   height?: number;
   includeInBuild?: boolean;

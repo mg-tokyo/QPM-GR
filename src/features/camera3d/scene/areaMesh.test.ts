@@ -143,6 +143,18 @@ describe('createAreaMesh', () => {
     expect(world.children.map((n) => n.visible)).toEqual([false, true]);
   });
 
+  it("draws a sprite with its own blend (a light pool's 'illuminate') in a batch of that blend", () => {
+    const world = new FakeNode();
+    const mesh = createAreaMesh(fakeCaps(world).caps, new WeakSet(), CAM);
+    const W2 = new FakeMatrix() as unknown as Mat;
+    const src = { style: {} };
+    const plain = tile(src, 0), inherit = Object.assign(tile(src, 256), { blendMode: 'inherit' }), pool = Object.assign(tile(src, 512), { blendMode: 'illuminate' });
+    for (const s of [plain, inherit, pool]) expect(mesh.add(ctxAt(1), s.node, W2, 1)).toBe(true);
+    mesh.pre(ctxAt(1));
+    expect(mesh.stats?.()).toMatchObject({ quads: 3, batches: 2 });
+    expect(world.children.map((n) => n.node.blendMode)).toEqual([undefined, 'illuminate']);
+  });
+
   it('draws a cacheAsTexture node (the tap-to-move outline) as its cached texture over its texture bounds', () => {
     // Live 1411: the outline's render group draws a 272 px texture frame over _textureBounds ±136 around the tile centre.
     const world = new FakeNode();

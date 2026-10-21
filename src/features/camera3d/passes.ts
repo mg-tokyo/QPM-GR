@@ -65,7 +65,13 @@ export function buildPasses(caps: Caps, tx: InstallStack, gfx: GraphicsRows, onD
   );
   const fader = createFader();
   // Tilted, building decals (the weather-shop rugs) draw in perspective through the area mesh, as ground markers do.
-  const buildings = createBuildingPlacer(gameNodeFade(fader), createFlatPlacer(areaMesh));
+  const flat = createFlatPlacer(areaMesh);
+  const buildings = createBuildingPlacer(gameNodeFade(fader), flat);
+  // Night light pools lie on the ground over every card, at the game's zIndex as in 2D.
+  const lightPool = (ctx: FrameCtx, n: Node3): void => {
+    const t = n.texture, r = t ? Math.max(t.orig.width * Math.abs(n.scale.x), t.orig.height * Math.abs(n.scale.y)) / 2 : 0;
+    flat.place(ctx, n, n.x, n.y, ctx.ov.gameValue<number>('zIndex', n), r);
+  };
   const ground = createGroundTracker(createAvatarSource(caps.systems.avatar, (info) => camera3dDiag.diag.info('QPM-CAM3D-009', info)));
   const lifter = createLifter((n) => layers.isLayerNode(n), ground.isAvatar);
   // Tiles and overlay markers (the top-anchored journal polaroid) stand on their base sprite (a bush, a trellis, a
@@ -90,7 +96,7 @@ export function buildPasses(caps: Caps, tx: InstallStack, gfx: GraphicsRows, onD
   const entities = own('entities', () => createEntityPass({
     skip, buildings, layers, standRow, afterPlace: lifter.afterPlace, fade, placeMask, held, feetHeight: ground.feetH, isSelf,
     standKey: (ctx, n) => lifter.standToken(ctx, n), standStill: (ctx, n, t) => lifter.standStill(ctx, n, t as object),
-    isFading: (ctx, n) => fader.isFading(ctx, n),
+    isFading: (ctx, n) => fader.isFading(ctx, n), lightPool,
   }));
   let scan: TileScan | null = null;
   const getScan = (): TileScan => { scan = scanTiles(caps.scene.tileData, scan); return scan; };
