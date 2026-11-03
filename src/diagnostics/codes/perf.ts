@@ -12,7 +12,7 @@ export const PERF_CODES: readonly ErrorCodeDefinition[] = [
     title: 'Main thread long tasks',
     description: 'The page recorded sustained long tasks (>50 ms) over the last two 15 s windows.',
     userAction: 'Paste this report; the Perf line shows which QPM probe (if any) is over budget.',
-    devNotes: 'src/diagnostics/perfMonitor.ts — longtask PerformanceObserver; game work counts too, read the probes.',
+    devNotes: 'src/diagnostics/perfMonitor.ts — longtask PerformanceObserver; any page work counts. context.qpmMs/taskMs: ms of long-task time inside instrumented QPM spans (lower bound) vs total.',
     sinceVersion: V,
   },
   {

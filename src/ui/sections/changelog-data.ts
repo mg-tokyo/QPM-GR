@@ -2,6 +2,14 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.61",
+    date: "2026-11-03",
+    notes: [
+      "Improved the Perf line in Diagnostics: when the page has slow moments it now shows how much of that time came from QPM and which part of QPM, so lag reports can tell QPM apart from the game or other mods",
+      "Fixed game state showing as degraded in Diagnostics when Arie's Mod Companion is running alongside QPM",
+    ],
+  },
+  {
     version: "3.3.60",
     date: "2026-11-03",
     notes: [

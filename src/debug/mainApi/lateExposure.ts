@@ -18,6 +18,7 @@ import { isDevModeEnabled, setDevModeEnabled } from '../../core/devMode';
 import { renderCopyPayload } from '../../diagnostics/copyPayload';
 import { getCapturedGameVersion } from '../../diagnostics/gameVersionCapture';
 import { getCurrentVersion } from '../../utils/versionChecker';
+import { startPerfBusyTimer } from './perfBusyTimer';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
@@ -250,6 +251,8 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   if (debugGlobalsEnabled) {
     registerUniversalProbe(QPM_DEBUG_API as Record<string, unknown>);
     (QPM_DEBUG_API as Record<string, unknown>).ws = createWsMonitor();
+    // Long-task attribution check: the Perf line should name this timer as QPM's share.
+    (QPM_DEBUG_API as Record<string, unknown>).perfBusyTimer = startPerfBusyTimer;
     shareGlobal('QPM_DEBUG_API', QPM_DEBUG_API);
     shareGlobal('QPM', QPM_DEBUG_API);
     exposeValidationCommands();

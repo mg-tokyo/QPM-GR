@@ -30,6 +30,14 @@ export const PLAYER_KEYS = {
       stateSource('/child/data', (s) => (s.child?.data && typeof s.child.data === 'object' ? s.child.data : undefined), { trustPatches: true, ignorePatchSuffixes: ROOT_TICK_PATCH_PATHS }),
       atomSource(/^quinoaDataAtom$/, 'authoritative'),
     ],
+    // Arie's Mod Companion patches quinoaDataAtom.read to merge its NPC body into
+    // `npcs` (scraped-data/MG-AriesMod-main/src/services/companion/injection.ts:30-47), so the
+    // rungs differ there by design, not through a wrong-sibling label match.
+    auditNormalize: (data) => {
+      if (!isRecord(data)) return data;
+      const { npcs: _npcs, ...rest } = data;
+      return rest;
+    },
   }),
   userSlots: defineKey<unknown[]>({
     policy: 'authoritative', tier: 'state', doc: 'All user slots (null entries for empty seats)',

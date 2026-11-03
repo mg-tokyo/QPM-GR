@@ -1,3 +1,5 @@
+import { recordSpan } from '../../diagnostics/perfSpans';
+
 export type Predicate = (el: Element) => boolean;
 export type SelectorOrPredicate = string | Predicate;
 
@@ -66,7 +68,9 @@ function _flush(): void {
   _flushCount++;
   if (_addedListeners.size)   for (const cb of _addedListeners)   _safeCall(cb, batch);
   if (_removedListeners.size) for (const cb of _removedListeners) _safeCall(cb, batch);
-  _lastFlushMs = performance.now() - t0;
+  const t1 = performance.now();
+  _lastFlushMs = t1 - t0;
+  recordSpan('dom.flush', t0, t1);
 }
 
 function _ensureSharedObserver(): void {

@@ -1,4 +1,4 @@
-import { recordProbe } from '../../diagnostics/perfMonitor';
+import { recordProbeHalves } from '../../diagnostics/perfMonitor';
 import { camera3dDiag } from './diagnostics';
 import { chainMatrix } from './frame/drawn';
 import { createFrameRunner, type FrameRunner, type Pass } from './frame/frame';
@@ -242,8 +242,9 @@ export function createRuntime(caps: Caps, passes: readonly Pass[], tracker: Grou
     for (const cb of postCbs) {
       try { cb(); } catch (e) { fail('postRender', e); }
     }
-    const js = (tPre - t0) + (performance.now() - tRender);
-    recordProbe('camera3d.frame', js);
+    const tEnd = performance.now();
+    const js = (tPre - t0) + (tEnd - tRender);
+    recordProbeHalves('camera3d.frame', t0, tPre, tRender, tEnd);
     ring[frames % ring.length] = js;
     frames++;
     renderSum += tRender - tPre;

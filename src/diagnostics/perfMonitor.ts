@@ -7,6 +7,8 @@ import type { Subsystem } from './types';
 import { visibleInterval } from '../utils/scheduling/timerManager';
 import { getAnchorWalkStats, takeAnchorWalkWindow } from '../features/standalone/tooltipInjection/pixiAnchor';
 import { isDiscordSurface } from '../utils/environment';
+import { attributeLongTasks, isSpanRecording, recordSpan, recordSpanEndingNow, setSpanRecording } from './perfSpans';
+import { createOverlap, formatLongTaskProblem, formatLongTaskSegment, topShares, type Overlap } from './longTaskOverlap';
 
 const SUBSYSTEM: Subsystem = 'perf';
 const log = createNamedLogger(SUBSYSTEM);
@@ -46,8 +48,10 @@ export function setProbeAttribution(name: ProbeName, fn: (() => string | null) |
 // and a probe hovering around its budget re-fired the warn every few minutes.
 const warnedProbes = new Set<ProbeName>();
 
-let longTaskWindow = { count: 0, max: 0 };
-let lastWindow = { count: 0, max: 0 };
+interface LongTaskWindow { count: number; max: number; overlap: Overlap }
+const emptyLongTaskWindow = (): LongTaskWindow => ({ count: 0, max: 0, overlap: createOverlap() });
+let longTaskWindow = emptyLongTaskWindow();
+let lastWindow = emptyLongTaskWindow();
 // Anchor-walk max of the last complete publish window — the Perf line's M in
 // "anchor walk N/M"; the session high-water mark moved to "(peak K)".
 let anchorWindowMax = 0;
@@ -57,13 +61,26 @@ let observer: PerformanceObserver | null = null;
 let stopPublish: (() => void) | null = null;
 let started = false;
 
-export function recordProbe(name: ProbeName, ms: number): void {
+function pushSample(name: ProbeName, ms: number): boolean {
   const p = probes.get(name);
-  if (!p || !Number.isFinite(ms)) return;
+  if (!p || !Number.isFinite(ms)) return false;
   p.samples[p.idx] = ms;
   p.idx = (p.idx + 1) % RING;
   if (p.n < RING) p.n += 1;
   p.count += 1;
+  return true;
+}
+
+export function recordProbe(name: ProbeName, ms: number): void {
+  // The span ends now: every caller records straight after its own end stamp.
+  if (pushSample(name, ms)) recordSpanEndingNow(name, ms);
+}
+
+// For a probe whose cost brackets work it does not own (camera3d: pre + post around the game's render).
+export function recordProbeHalves(name: ProbeName, preStart: number, preEnd: number, postStart: number, postEnd: number): void {
+  if (!pushSample(name, (preEnd - preStart) + (postEnd - postStart))) return;
+  recordSpan(name, preStart, preEnd);
+  recordSpan(name, postStart, postEnd);
 }
 
 /** Pure: p50/p95/max over the ring. Exported for tests. */
@@ -83,12 +100,20 @@ function currentSummary(p: Probe): Summary {
 
 export function getPerfSnapshot(): {
   probes: Record<ProbeName, Summary & { count: number; note: string | null }>;
-  longTasks: { count: number; max: number; supported: boolean };
+  longTasks: {
+    count: number; max: number; supported: boolean; spans: boolean;
+    taskMs: number; qpmMs: number; unseenMs: number; top: { name: string; pct: number }[];
+  };
   anchor: ReturnType<typeof getAnchorWalkStats>;
 } {
   const out = {} as Record<ProbeName, Summary & { count: number; note: string | null }>;
   for (const [name, p] of probes) out[name] = { ...currentSummary(p), count: p.count, note: p.note };
-  return { probes: out, longTasks: { ...lastWindow, supported: longTasksSupported }, anchor: getAnchorWalkStats() };
+  const { count, max, overlap } = lastWindow;
+  const longTasks = {
+    count, max, supported: longTasksSupported, spans: isSpanRecording(),
+    taskMs: overlap.taskMs, qpmMs: overlap.qpmMs, unseenMs: overlap.unseenMs, top: topShares(overlap, 3),
+  };
+  return { probes: out, longTasks, anchor: getAnchorWalkStats() };
 }
 
 const fmt = (ms: number): string => (ms >= 10 ? Math.round(ms).toString() : ms.toFixed(1));
@@ -97,8 +122,8 @@ export function formatPerfLine(): string | null {
   if (!started) return null;
   const s = getPerfSnapshot();
   // Firefox/Safari have no Long Tasks API; "0/15s" there would read as healthy.
-  const parts = [s.longTasks.supported
-    ? `longtasks ${s.longTasks.count}/15s (max ${Math.round(s.longTasks.max)}ms)`
+  const parts = [longTasksSupported
+    ? formatLongTaskSegment(lastWindow.count, lastWindow.max, lastWindow.overlap)
     : 'longtasks n/a'];
   for (const name of PROBE_NAMES) {
     const p = s.probes[name];
@@ -114,9 +139,14 @@ export function formatPerfLine(): string | null {
 function publish(): void {
   anchorWindowMax = takeAnchorWalkWindow();
   lastWindow = longTaskWindow;
-  longTaskWindow = { count: 0, max: 0 };
+  longTaskWindow = emptyLongTaskWindow();
   const problems: string[] = [];
-  const metrics: Record<string, number> = { longTasks: lastWindow.count, longTaskMaxMs: Math.round(lastWindow.max) };
+  const metrics: Record<string, number> = {
+    longTasks: lastWindow.count,
+    longTaskMaxMs: Math.round(lastWindow.max),
+    longTaskMs: Math.round(lastWindow.overlap.taskMs),
+    qpmLongTaskMs: Math.round(lastWindow.overlap.qpmMs),
+  };
   for (const [name, p] of probes) {
     const s = summarize(p.samples, p.n);
     const windowSamples = p.n;
@@ -139,8 +169,13 @@ function publish(): void {
   }
   const bad = lastWindow.count >= LONG_TASK_WARN_PER_WINDOW || lastWindow.max >= LONG_TASK_WARN_MAX_MS;
   badWindows = bad ? badWindows + 1 : 0;
-  if (badWindows === 2) log.warn('QPM-PERF-001', { longTasks: lastWindow.count, maxMs: Math.round(lastWindow.max) });
-  if (badWindows >= 2) problems.push(`longtasks ${lastWindow.count}/15s`);
+  if (badWindows === 2) {
+    log.warn('QPM-PERF-001', { longTasks: lastWindow.count, maxMs: Math.round(lastWindow.max), qpmMs: Math.round(lastWindow.overlap.qpmMs), taskMs: Math.round(lastWindow.overlap.taskMs) });
+  }
+  if (badWindows >= 2) {
+    const maxRuleOnly = lastWindow.count < LONG_TASK_WARN_PER_WINDOW;
+    problems.push(formatLongTaskProblem(lastWindow.count, lastWindow.overlap, maxRuleOnly ? lastWindow.max : undefined));
+  }
   healthBus.publish({
     subsystem: SUBSYSTEM,
     category: 'core',
@@ -159,14 +194,18 @@ export function startPerfMonitor(): void {
       && (PerformanceObserver.supportedEntryTypes ?? []).includes('longtask');
     if (longTasksSupported) {
       observer = new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) {
+        const entries = list.getEntries();
+        for (const e of entries) {
           longTaskWindow.count += 1;
           if (e.duration > longTaskWindow.max) longTaskWindow.max = e.duration;
         }
+        attributeLongTasks(entries, longTaskWindow.overlap);
       });
       observer.observe({ entryTypes: ['longtask'] });
     }
   } catch { observer = null; longTasksSupported = false; }
+  // Without long-task entries nothing ever reads the spans (Firefox, Safari).
+  setSpanRecording(longTasksSupported);
   // polling-justified: a fixed 15 s aggregation window, not a state read —
   // probes push samples through recordProbe(); this timer only closes the
   // window and publishes it. There is no event that means "window elapsed".
@@ -180,10 +219,11 @@ export function stopPerfMonitor(): void {
   observer = null;
   stopPublish?.();
   stopPublish = null;
+  setSpanRecording(false);
   for (const p of probes.values()) { p.n = 0; p.idx = 0; p.count = 0; p.overBudgetWindows = 0; p.last = null; p.note = null; }
   warnedProbes.clear();
-  longTaskWindow = { count: 0, max: 0 };
-  lastWindow = { count: 0, max: 0 };
+  longTaskWindow = emptyLongTaskWindow();
+  lastWindow = emptyLongTaskWindow();
   anchorWindowMax = 0;
   longTasksSupported = false;
   badWindows = 0;

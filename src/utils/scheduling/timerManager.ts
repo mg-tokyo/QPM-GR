@@ -4,6 +4,7 @@
 import { createNamedLogger } from '../../diagnostics/logger';
 import { healthBus } from '../../diagnostics/healthBus';
 import type { Subsystem } from '../../diagnostics/types';
+import { recordSpan } from '../../diagnostics/perfSpans';
 
 const TIMER_SUBSYSTEM: Subsystem = 'timerManager';
 const timerLog = createNamedLogger(TIMER_SUBSYSTEM);
@@ -13,6 +14,7 @@ type TimerPriority = 'critical' | 'normal' | 'low';
 
 interface Timer {
   id: string;
+  spanLabel: string; // `timers:<id>`, built once so the tick never concatenates
   callback: TimerCallback;
   intervalMs: number;
   lastRun: number;
@@ -67,6 +69,7 @@ class TimerManager {
 
     const timer: Timer = {
       id,
+      spanLabel: `timers:${id}`,
       callback,
       intervalMs,
       lastRun: immediate ? 0 : performance.now(),
@@ -151,7 +154,9 @@ class TimerManager {
       return;
     }
 
-    // Process timers by priority (array is module-level to avoid per-frame allocation)
+    // One long-task span per tick that ran a timer, named after the costliest one.
+    let costliest: Timer | null = null;
+    let costliestMs = -1;
     for (const priority of TICK_PRIORITIES) {
       for (const timer of this.timers.values()) {
         if (timer.priority !== priority) continue;
@@ -160,15 +165,19 @@ class TimerManager {
 
         const elapsed = now - timer.lastRun;
         if (elapsed >= timer.intervalMs) {
+          const t0 = performance.now();
           try {
             timer.callback();
           } catch (error) {
             timerLog.warn('QPM-TIMER-001', { id: timer.id }, error);
           }
+          const ms = performance.now() - t0;
+          if (ms > costliestMs) { costliestMs = ms; costliest = timer; }
           timer.lastRun = now;
         }
       }
     }
+    if (costliest) recordSpan(costliest.spanLabel, now, performance.now());
 
     this.rafId = requestAnimationFrame(this.tick);
   };
