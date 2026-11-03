@@ -126,9 +126,12 @@ function deepScan(obj: unknown, depth: number): void {
         // dex-shaped objects during load (spread sources for the merged dex),
         // and another mod's enumeration order can surface a partial one first.
         // A strictly bigger match replaces it while hooks are still installed.
+        // A bundle-verified catalog is final: a bigger candidate after that is
+        // another mod's superset copy (Arie's has ids the game does not ship).
         const current = capturedCatalogs.petAbilities;
         const currentCount = current ? originalKeys.call(NativeObject, current).length : 0;
-        if (!current || keys.length > currentCount) {
+        const verified = captureSources.petAbilities === 'bundle-text' || captureSources.petAbilities === 'hook+bundle-text';
+        if (!current || (!verified && keys.length > currentCount)) {
           capturedCatalogs.petAbilities = record as GameCatalogs['petAbilities'];
           captureSources.petAbilities = 'hook';
           catalogLog(current

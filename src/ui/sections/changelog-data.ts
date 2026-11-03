@@ -2,6 +2,13 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.60",
+    date: "2026-11-03",
+    notes: [
+      "Fixed the Pet Optimizer showing as degraded in Diagnostics when Arie's Mod is running alongside QPM, and QPM now always uses the game's own pet ability list instead of Arie's copy",
+    ],
+  },
+  {
     version: "3.3.59",
     date: "2026-11-03",
     notes: [

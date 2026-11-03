@@ -70,12 +70,17 @@ export function startPetOptimizer(): void {
   driftUnsub = onPetAbilitiesCaptured(() => { void runDriftCheck(); });
 }
 
+function hasDriftRegression(d: ReturnType<typeof getAbilityCatalogDrift>): boolean {
+  const hardcodedRegressions = d.hardcodedOnly.filter((id) => !FORWARD_COMPAT_ABILITY_IDS.has(id));
+  return hardcodedRegressions.length > 0 || d.unknownParamKeys.length > 0 || d.unknownTriggers.length > 0;
+}
+
 async function runDriftCheck(): Promise<void> {
   let d = getAbilityCatalogDrift();
-  // hardcodedOnly means the catalog is missing ids we KNOW exist — the usual
-  // cause is a partial hook capture (enumeration-order race with other mods).
-  // Verify against bundle text and re-diff before deciding to warn.
-  if (d.hardcodedOnly.length > 0) {
+  // The hook can hold a partial dex or another mod's copy (Arie's mg-api copy is
+  // a superset with extra ids, triggers and param keys). Verify against bundle
+  // text and re-diff before deciding to warn.
+  if (d.hardcodedOnly.length > 0 || hasDriftRegression(d)) {
     const merged = await mergePetAbilitiesIfIncomplete().catch(() => false);
     if (merged) d = getAbilityCatalogDrift();
   }
@@ -83,8 +88,7 @@ async function runDriftCheck(): Promise<void> {
   // that vanished, param key no rule matches, or a trigger family we don't score.
   // New catalog-only abilities, unclassified auto-derived ones, and forward-compat
   // entries missing from a stale catalog are the expected steady state.
-  const hardcodedRegressions = d.hardcodedOnly.filter((id) => !FORWARD_COMPAT_ABILITY_IDS.has(id));
-  if (hardcodedRegressions.length || d.unknownParamKeys.length || d.unknownTriggers.length) {
+  if (hasDriftRegression(d)) {
     // gameVersion distinguishes a stale client bundle (old catalog on an old
     // build) from a real rename on the current build.
     warnFeature('QPM-FEATURE-004', {
