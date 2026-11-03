@@ -1,14 +1,16 @@
 import { LEGACY_CULL, TILE } from '../constants';
 import { project } from '../math/camera';
-import { depthKey } from '../math/depth';
+import { depthKeyAlong } from '../math/depth';
+import { getGameTexture } from '../../../sprite-v2/gameTextures';
 import { hullMayShow, legacyWallShow } from '../frame/cull';
 import { nearCamera, recheck, ringDue, ringExact, type FrameCtx, type Pass } from '../frame/frame';
 import type { Caps, GeometryLike, Node3, ShaderLike, TexLike, UniformGroupLike } from '../types';
 import { CAM_RESOURCE } from './camUniforms';
 import type { Fader } from './fades';
+import { SIDE_WALL_BACK, sideWall, type ArtTexLike, type DrawnSideWall, type SideDecorSource } from './sideDecor';
 import { FlipGate, IDLE_FRAMES, rectOnScreen } from './flipGate';
 import { AREA_FS, WALL_VS, compileNow } from './shaders';
-import { D8_MIRROR_H, FENCE_KEYS, RECT, artBaseRow, subTexture, type TileScan } from './tileArt';
+import { D8_MIRROR_H, FENCE_KEYS, RECT, SCAN_RETRY_MS, artBaseRow, subTexture, type TileScan } from './tileArt';
 import { STRIP_VERTS, projectStrip, stripCanWait, stripIndices, stripMayNeedPerspective, stripNeedsPerspective, stripUvs, wallQuadWorld, type WallLine } from './wallGeom';
 
 const QUAD = new Uint32Array([0, 1, 2, 0, 2, 3]);
@@ -18,11 +20,19 @@ interface DynGeometry extends GeometryLike { getBuffer(name: string): { update()
 // Showing a hidden quad is a visibility flip, so an error-only switch waits up to this many frames for such a frame
 // (live 1411: show flips made 22–25 of 150 yaw-sweep frames rebuild World). stripCanWait bounds the error meanwhile.
 const MAX_WAIT = 8;
+/** Rebuilds spent waiting for a turned decor's art to load, per side version. */
+export const SIDE_RETRY_MAX = 5;
+/** hasWall: a turned decor tile view (sideDecor.ts SideTile.node) has a wall built; its card fades out against it.
+ * drawnSideWalls: those walls drawn on the last frame, for picking (input/wallPick.ts). */
+export type FencePass = Pass & { hasWall(n: Node3): boolean; drawnSideWalls(): DrawnSideWall[] };
 // A wall's four corners (both ends, ground and top) as projected (sx, sy, cz) triples, for frame/cull.ts.
 const CORNERS = new Float64Array(12);
 
 interface Wall extends WallLine {
-  mx: number; mz: number; tex: PanelTex;
+  /** back: world px the depth key is pushed back along the view (a turned decor wall: what stands on its tile). */
+  mx: number; mz: number; back: number; tex: PanelTex;
+  /** The turned decor tile view this wall stands for (null: a fence). */
+  node: Node3 | null;
   /** The batched strip (null without a MeshGeometry class) and the perspective quad (built when first needed). */
   strip: Node3 | null; stripGeom: DynGeometry | null; persp: Node3 | null; perspGeom: GeometryLike | null;
   /** Fader identity: one node for the wall whichever mesh draws it. */
@@ -36,10 +46,11 @@ interface Wall extends WallLine {
 
 /** Fence walls (spec §6.7): per-tile panel art standing on its plot line. Far from the lens a wall is a batched strip of
  * exactly projected vertices (no extra draw call); near it, a perspective quad (A V4; wallGeom.ts). camU: the shared
- * camera uniform group (camUniforms.ts). */
+ * camera uniform group (camUniforms.ts). side: turned decor (sideDecor.ts) drawn as its front art on the same walls. */
 export function createFences(
   caps: Caps, skip: WeakSet<Node3>, fader: Fader, getScan: () => TileScan, onWalls: (fade: number) => void, camU: UniformGroupLike,
-): Pass {
+  side: SideDecorSource | null = null,
+): FencePass {
   const { scene: s, classes: C } = caps;
   const MG = C.MeshGeometry;
   const uvs = stripUvs(), idx = stripIndices();
@@ -47,6 +58,10 @@ export function createFences(
   const shaders = new Map<object, ShaderLike>();
   let walls: Wall[] = [];
   let builtFor: TileScan | null = null;
+  // The side version built, the next retry while side art was not loaded (ms, on the rolling re-cull) and the retries
+  // spent on this version; the tiles that got a wall (their cards fade out, any other keeps its card).
+  let builtSide = NaN, sideWalls = 0, sideMissing = 0, sideFailed = 0, sideRetryAt = 0, sideRetries = 0, builds = 0;
+  const walled = new Set<Node3>();
   let wallsOn = false;
   let attached = false;
   let program: unknown = null;
@@ -93,19 +108,20 @@ export function createFences(
     return t;
   }
 
-  function add(key: string, c0: number, c1: number, base: number, ax: number, az: number, bx: number, bz: number): void {
+  function add(key: string, c0: number, c1: number, base: number, ax: number, az: number, bx: number, bz: number, back = 0, node: Node3 | null = null): boolean {
     const tex = panel(key, c0, c1, base);
-    if (!tex) return;
-    const w = { ax, az, bx, bz, h: base, mx: (ax + bx) / 2, mz: (az + bz) / 2, tex, strip: null, stripGeom: null, persp: null, perspGeom: null,
+    if (!tex) return false;
+    const w = { ax, az, bx, bz, h: base, mx: (ax + bx) / 2, mz: (az + bz) / 2, back, tex, node, strip: null, stripGeom: null, persp: null, perspGeom: null,
       pos: new Float32Array(STRIP_VERTS * 2), depth: new Float32Array(STRIP_VERTS), on: false, near: MG === null, arm: false, stale: true, idle: IDLE_FRAMES, wait: 0, off: 0 } as Omit<Wall, 'key'> & { key?: Node3 };
     if (MG) {
       const geom = new MG({ positions: w.pos, uvs, indices: idx }) as DynGeometry & { positions?: Float32Array };
       if (geom.positions) w.pos = geom.positions;
       w.stripGeom = geom;
       w.strip = own(new C.Mesh({ geometry: geom, texture: tex }));
-    } else if (!perspOf(w as Wall)) return;
+    } else if (!perspOf(w as Wall)) return false;
     w.key = (w.strip ?? w.persp)!;
     walls.push(w as Wall);
+    return true;
   }
 
   function attach(on: boolean): void {
@@ -135,6 +151,7 @@ export function createFences(
   // Detached while 2D, like the decor cards (the game's World zIndex sort).
   function build(): void {
     release();
+    builds++;
     const scan = getScan();
     builtFor = scan;
     const pb = scan.pb;
@@ -151,7 +168,37 @@ export function createFences(
       else if (kind === 'T') { ew(TILE / 2, TILE); add(FENCE_KEYS.H, 0, TILE - base, base, cx, zb, cx, y + TILE); }
       else { ew(0, TILE); add(FENCE_KEYS.H, 0, base, base, cx, y, cx, zb); }
     }
+    buildSide();
   }
+
+  // Turned decor: its front art (game texture map, at 2D scale 1) on the tile's N-S line. A whole rebuild on a change:
+  // decor turns are rare and a rebuild re-makes every fence wall too (stated cost, measured live in T7).
+  function buildSide(): void {
+    sideWalls = 0; sideMissing = 0; sideFailed = 0;
+    walled.clear();
+    const ver = side ? side.version() : NaN;
+    if (!Object.is(ver, builtSide)) sideRetries = 0;
+    builtSide = ver;
+    if (!side) return;
+    for (const t of side.tiles()) {
+      const tex = getGameTexture(t.art) as ArtTexLike | null;
+      const g = tex ? sideWall(t, tex) : null;
+      if (g && add(t.art, 0, g.w, g.base, g.ax, g.az, g.bx, g.bz, SIDE_WALL_BACK, t.node)) { sideWalls++; walled.add(t.node); }
+      else if (!tex) sideMissing++;
+      else sideFailed++;
+    }
+  }
+  const stale = (ctx: FrameCtx | null): boolean => {
+    if (builtFor !== getScan()) return true;
+    if (!side) return false;
+    if (side.version() !== builtSide) return true;
+    // Side art not loaded yet: retried on the rolling re-cull, every SCAN_RETRY_MS, SIDE_RETRY_MAX times per version
+    // (each retry rebuilds every fence wall); a tile that never gets art keeps its card.
+    if (sideMissing === 0 || sideRetries >= SIDE_RETRY_MAX || !ctx || !(ctx.reCull || ctx.roll === 0) || ctx.now < sideRetryAt) return false;
+    sideRetryAt = ctx.now + SCAN_RETRY_MS;
+    sideRetries++;
+    return true;
+  };
 
   // Well inside the near ring, the wall's four corners against the screen as the camera may turn it before the next
   // rebuild (frame.ts ringExact, cull.ts ahead; its quad is world-fixed, so they bound it); farther out, its two ground
@@ -235,7 +282,9 @@ export function createFences(
     name: 'fences',
     pre(ctx: FrameCtx) {
       gate.begin(ctx);
-      if (builtFor !== getScan()) build();
+      // New walls start hidden: on a rolling frame recheck() would show one slice now and the rest over 7 frames.
+      const rebuilt = stale(ctx);
+      if (rebuilt) build();
       attach(true);
       // Walls fade in with the tilt (s), as the fence cards (decor.ts) fade out: the 2D match draws only the cards.
       const t = ctx.tilt;
@@ -249,7 +298,7 @@ export function createFences(
       shown = 0; persp = 0; parked = 0; pending = 0;
       for (let wi = 0; wi < walls.length; wi++) {
         const w = walls[wi]!;
-        const check = flip || recheck(ctx, wi) || ringDue(ctx, w.mx, w.mz);
+        const check = flip || rebuilt || recheck(ctx, wi) || ringDue(ctx, w.mx, w.mz);
         if (!check && !w.on) { conceal(ctx, w); continue; }
         let fresh = false;
         if (check) {
@@ -271,7 +320,7 @@ export function createFences(
         }
         // The lever can go off with the camera still (no re-projection): the arm goes with it.
         if (ctx.cull.aheadFrames <= 0) w.arm = false;
-        const key = depthKey(w.mx, w.mz, ctx.dx, ctx.dz, 0);
+        const key = depthKeyAlong(w.mx * ctx.dx + w.mz * ctx.dz + w.back, 0);
         if (ctx.cull.aheadFrames > 0 && mustWait(ctx, w, key)) { hold(w); continue; }
         if (w.near && !w.persp && !perspOf(w)) { conceal(ctx, w); continue; }
         // Building the quad adds a World child, a structure change of its own: only on a frame that rebuilds anyway.
@@ -283,7 +332,8 @@ export function createFences(
       }
       gate.end();
     },
-    warm() { if (builtFor === getScan()) return false; build(); return true; },
+    // Rescans first, so the first 3D frame does not rebuild for the side set (sideDecor pass: ≈0.02 ms a scan).
+    warm() { side?.rescan(); if (!stale(null)) return false; build(); return true; },
     // The perspective program compiles at install, not on the frame the first wall comes near (A T2).
     compile() {
       resources();
@@ -306,7 +356,19 @@ export function createFences(
       builtFor = null;
       (program as { destroy?(): void } | null)?.destroy?.();
       program = null;
+      walled.clear();
     },
-    stats: () => ({ walls: walls.length, shown, persp, switches, forced: gate.forced, parked, pending, batched: MG !== null }),
+    hasWall: (n: Node3) => walled.has(n),
+    // The mesh that drew: on, visible at full scale (not held or parked at scale 0) and not faded out.
+    drawnSideWalls() {
+      const out: DrawnSideWall[] = [];
+      for (const w of walls) {
+        const m = w.near ? w.persp : w.strip;
+        if (!w.node || !w.on || !m?.visible || m.scale.x === 0 || !(m.alpha > 0)) continue;
+        out.push({ node: w.node, mesh: m, ax: w.ax, az: w.az, bx: w.bx, bz: w.bz, h: w.h, tex: w.tex });
+      }
+      return out;
+    },
+    stats: () => ({ walls: walls.length, side: sideWalls, sideMissing, sideFailed, builds, shown, persp, switches, forced: gate.forced, parked, pending, batched: MG !== null }),
   };
 }

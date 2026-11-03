@@ -119,7 +119,7 @@ function install(tx: InstallStack, caps: Caps): void {
   };
   const z = tx.add('zoom', () => installZoomBridge(runtime, prewarm, () => externalBlock !== null), (x) => { x.uninstall(); zoom = null; });
   zoom = z;
-  const p = tx.add('picker', () => createPicker(runtime, passes.floor, passes.isAreaMark), (x) => { x.destroy(); picker = null; });
+  const p = tx.add('picker', () => createPicker(runtime, passes.floor, passes.isAreaMark, passes.sideWalls), (x) => { x.destroy(); picker = null; });
   picker = p;
   // Undone before the picker it calls, and look before the bridge it calls.
   tx.add('remap', () => installPointerRemap(runtime, p), call);

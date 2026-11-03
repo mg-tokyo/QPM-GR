@@ -83,11 +83,25 @@ function pieceRect(p: Node3, out: Rect): Rect | null {
   out.x0 = Math.min(x0, x0 + w); out.x1 = Math.max(x0, x0 + w); out.top = top; out.cx = x0 + w / 2; out.cy = top + h / 2;
   return out;
 }
+// Since v1847 a building's art sits in a "Building (N) Art" child: no texture and the identity transform, so its
+// children's coordinates are the building's own. Its leaves are the pieces.
+const isWrapper = (n: Node3): boolean => !n.texture && n.children.length > 0 && n.x === 0 && n.y === 0 && n.rotation === 0
+  && n.scale.x === 1 && n.scale.y === 1 && n.pivot.x === 0 && n.pivot.y === 0 && n.skew.x === 0 && n.skew.y === 0;
+function collectPieces(c: Node3, out: Node3[]): void {
+  for (const ch of c.children) if (isWrapper(ch)) collectPieces(ch, out); else out.push(ch);
+}
+/** Into `out` (reused): c's pieces, through any wrapper. */
+function piecesOf(c: Node3, out: Node3[]): Node3[] {
+  out.length = 0;
+  collectPieces(c, out);
+  return out;
+}
+
 const decalRect = newRect();
 // A piece whose sort y is its own top edge is a floor decal (the weather-shop rugs).
-function isDecal(c: Node3, gz: number): boolean {
+function isDecal(pieces: readonly Node3[], gz: number): boolean {
   let n = 0;
-  for (const p of c.children) {
+  for (const p of pieces) {
     if (!p.texture || !p.anchor) continue;
     const r = pieceRect(p, decalRect);
     if (!r || Math.abs(gz / SORT_Z_SCALE - r.top) >= 1) return false;
@@ -126,6 +140,7 @@ export function createBuildingPlacer(fade: PartFade | null, flat: FlatPlacer = c
   const anchors = new Map<number, Anchor[]>();
   const bases = new Set<number>();
   const baseCs: Node3[] = [], later: Node3[] = [];
+  const pcs: Node3[] = [], roofPcs: Node3[] = [];
   // One building's drawn pieces, reused every frame.
   const shownCh: Node3[] = [], shownLp: Placement[] = [], shownDepth: number[] = [];
   const lpPool: Placement[] = [], anPool: Anchor[] = [];
@@ -144,7 +159,7 @@ export function createBuildingPlacer(fade: PartFade | null, flat: FlatPlacer = c
   function roofCovers(ctx: FrameCtx, base: number, list: Anchor[], from: number): boolean {
     for (const r of later) {
       if (Math.floor(ctx.ov.gameValue<number>('zIndex', r)) !== base) continue;
-      for (const q of r.children) {
+      for (const q of piecesOf(r, roofPcs)) {
         const rc = pieceRect(q, rcB);
         if (!rc) continue;
         for (let i = from; i < list.length; i++) if (overlaps(list[i]!, rc)) { if (inRect(ctx, roofRect(q, list[i]!))) return true; break; }
@@ -170,7 +185,7 @@ export function createBuildingPlacer(fade: PartFade | null, flat: FlatPlacer = c
     let zMin = Infinity, zMax = -Infinity, wx0 = Infinity, wx1 = -Infinity, covers = false;
     const test = canCover(ctx);
     shownCh.length = 0; shownLp.length = 0; shownDepth.length = 0;
-    for (const ch of c.children) {
+    for (const ch of piecesOf(c, pcs)) {
       const rc = pieceRect(ch, rcA);
       const lp = nextLp();
       // Depth always from the sort line (D6): a player on the shop mat stays in front of the card at s = 0.
@@ -210,8 +225,9 @@ export function createBuildingPlacer(fade: PartFade | null, flat: FlatPlacer = c
       lpN = 0; anN = 0;
       for (const c of blds) {
         const gz = ctx.ov.gameValue<number>('zIndex', c);
-        if (isDecal(c, gz)) {
-          for (const p of c.children) { const r = pieceRect(p, rcA); if (r) flat.place(ctx, p, r.cx, r.cy, BUILDING_DECAL_Z, Math.hypot((r.x1 - r.x0) / 2, r.cy - r.top)); }
+        const ps = piecesOf(c, pcs);
+        if (isDecal(ps, gz)) {
+          for (const p of ps) { const r = pieceRect(p, rcA); if (r) flat.place(ctx, p, r.cx, r.cy, BUILDING_DECAL_Z, Math.hypot((r.x1 - r.x0) / 2, r.cy - r.top)); }
           ctx.ov.put('zIndex', c, BUILDING_DECAL_Z + Math.floor(gz) / SORT_Z_SCALE);
           continue;
         }
@@ -224,7 +240,7 @@ export function createBuildingPlacer(fade: PartFade | null, flat: FlatPlacer = c
         const gz = ctx.ov.gameValue<number>('zIndex', c);
         const base = Math.floor(gz);
         let zMax = -Infinity;
-        for (const q of c.children) {
+        for (const q of piecesOf(c, pcs)) {
           const rc = pieceRect(q, rcA);
           const A = rc ? anchorOver(anchors.get(base), rc) : null;
           if (!A) {

@@ -128,7 +128,7 @@ const LEXICAL_GLOBALS = [
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         QPM (ALPHA)
 // @namespace    Quinoa
-// @version      3.3.58
+// @version      3.3.59
 // @description  Quality-of-life enhancements for Magic Garden: crop type locking, mutation tracking, value calculator, harvest reminders, journal species checker, and persistent feed statistics.
 // @author       TOKYO.#6464
 // @match        https://1227719606223765687.discordsays.com/*
@@ -175,10 +175,11 @@ function buildUserscript() {
     const packageVersion = extractPackageVersion();
     validateVersionSync(packageVersion);
 
+    const outDir = process.env.FIXTURE === "1" ? "dist-fixture" : "dist";
     const builtFile = path.join(
       __dirname,
       "..",
-      "dist",
+      outDir,
       "quinoa-pet-manager.iife.js",
     );
 
@@ -220,7 +221,7 @@ function buildUserscript() {
       USERSCRIPT_FOOTER +
       inlineMapComment;
 
-    const outputPath = path.join(__dirname, "..", "dist", "QPM.user.js");
+    const outputPath = path.join(__dirname, "..", outDir, "QPM.user.js");
     fs.writeFileSync(outputPath, userscript, "utf8");
 
     console.log("Userscript built successfully.");

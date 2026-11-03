@@ -1,7 +1,9 @@
 import type { BubbleLine, BubbleTag, CurrencyTag, MutationTag, Slot } from './types';
 
 export const mutationTag = (mutationId: string): MutationTag => ({ mutation: mutationId });
-export const coinsTag = (amount: number): CurrencyTag => ({ currency: { kind: 'currencyAmount', currency: 'coins', amount } });
+// The live renderer reads a currency tag flat (`currency` keys its icon map). Beta previews nest a
+// `{ kind: 'currencyAmount', … }` value; that shape throws live and leaves the NPC bubble empty.
+export const coinsTag = (amount: number): CurrencyTag => ({ currency: 'coins', amount });
 
 const tidy = (s: string): string => s.replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
 

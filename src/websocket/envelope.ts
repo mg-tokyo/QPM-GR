@@ -36,6 +36,8 @@ export const LEGACY_ROOM_ACTION_TYPES: ReadonlySet<string> = new Set([
   'SkipNpcVisitArrival',
   'TramArrival',
   'TramBoarding',
+  // observed flat on live games 1753–1847
+  'SetPlayerInteraction',
 ]);
 
 export function isLegacyRoomActionType(type: string): boolean {

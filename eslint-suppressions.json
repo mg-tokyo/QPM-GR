@@ -307,7 +307,7 @@
   },
   "src/main/init.ts": {
     "qpm/polling-needs-justification": {
-      "count": 3
+      "count": 2
     }
   },
   "src/rive-engine/instanceTracker.ts": {

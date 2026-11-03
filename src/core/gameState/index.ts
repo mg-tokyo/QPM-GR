@@ -19,6 +19,7 @@ import { CAMERA_KEYS } from './keys/camera';
 import { Registry } from './resolver';
 import { createProductionRuntime, type SourceRuntime } from './runtime';
 import { startSeatWatcher, stopSeatWatcher } from './seatWatcher';
+import { createUnbindReporter } from './unbindReporter';
 import { getTopologyStats, onTopologyChange, resetTopology, signalTopology } from './topology';
 import type { KeyExplain, SourceKind } from './types';
 
@@ -110,11 +111,18 @@ export function initGameState(): void {
     fetchAccountPlayerId: async () => (await fetchGameAccountInfo())?.playerId ?? null,
   });
 
+  const unbinds = createUnbindReporter({
+    hasSeat: () => getIdentity().myIdx !== null,
+    isSpectating: () => readIsSpectating(reg),
+    warn: (ctx) => log.warn('QPM-ATOM-001', ctx),
+  });
+  disposers.push(() => unbinds.dispose());
   const reg: Registry<typeof GAME_STATE_KEYS> = new Registry(GAME_STATE_KEYS, runtime, {
     onRebind: (key, from, to) => {
-      const e = reg.explain(key as GameStateKey);
-      if (to !== null && !e.preferred) log.info('QPM-ATOM-004 rebound to lower rung', { key, from, to });
-      else if (to === null && from !== null) log.warn('QPM-ATOM-001', { key, from });
+      if (to !== null) {
+        unbinds.onBound(key);
+        if (!reg.explain(key as GameStateKey).preferred) log.info('QPM-ATOM-004 rebound to lower rung', { key, from, to });
+      } else if (from !== null) unbinds.onUnbind(key, from);
     },
   });
   registry = reg;

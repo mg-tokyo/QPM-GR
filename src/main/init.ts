@@ -12,9 +12,6 @@ import {
   initSpriteSystem,
   startSpriteV2Diagnostics,
   reportSpriteV2InitFailed,
-  reportSpriteV2InitRecovered,
-  probePixiPresence,
-  resetSpriteBootStateForRetry,
 } from '../sprite-v2/index';
 import type { SpriteService } from '../sprite-v2/types';
 import { setSpriteService, inspectPetSprites } from '../sprite-v2/compat';
@@ -81,6 +78,7 @@ import { initializeGlobalApis } from './globalApis';
 import { disposers, installGlobalHandlers, isStoodDown, standDownFrameHost } from './shutdown';
 import { isGameFrameHost } from '../utils/environment';
 import { runFeaturePhases } from './phases';
+import { startLateSpriteBoot } from './lateSpriteBoot';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
@@ -115,44 +113,6 @@ async function waitForGame(): Promise<'game' | 'frame-host'> {
 
   diag.debug('Game UI not detected within timeout, proceeding anyway');
   return 'game';
-}
-
-/**
- * Late-boot recovery for the sprite subsystem. Called when the initial
- * initSpriteSystem() rejects (typically 'PIXI app timeout'). Polls the cheap
- * PIXI presence probe every 5s for up to 5 minutes; if PIXI appears late
- * (slow bundle, background-tab throttling, late Discord Activity handoff),
- * resets the sprite boot guards and retries once. On success, publishes the
- * recovery message so the diagnostics bus can transition failed → recovering
- * → ok via the hysteresis machine.
- */
-function scheduleLateSpriteBoot(applyServiceOnBoot: (service: SpriteService) => void): void {
-  const START_MS = Date.now();
-  const MAX_MS = 5 * 60 * 1000;
-  const INTERVAL_MS = 5000;
-  let retrying = false;
-
-  const timerId = 'qpm-sprite-late-boot';
-  const stop = visibleInterval(timerId, () => {
-    if (retrying) return;
-    if (Date.now() - START_MS > MAX_MS) {
-      stop();
-      return;
-    }
-    if (!probePixiPresence()) return;
-
-    retrying = true;
-    stop();
-    resetSpriteBootStateForRetry();
-    initSpriteSystem()
-      .then((service) => {
-        applyServiceOnBoot(service);
-        reportSpriteV2InitRecovered();
-      })
-      .catch((err) => {
-        reportSpriteV2InitFailed(err);
-      });
-  }, INTERVAL_MS);
 }
 
 async function initialize(): Promise<void> {
@@ -258,10 +218,11 @@ async function initialize(): Promise<void> {
     }
   };
 
+  let spriteBootFailed = false;
   const spriteInit = initSpriteSystem().then(applyServiceOnBoot).catch((err) => {
     if (isStoodDown()) return;
     reportSpriteV2InitFailed(err);
-    scheduleLateSpriteBoot(applyServiceOnBoot);
+    spriteBootFailed = true;
   });
 
   // Wait for game to be ready (parallel with sprite init)
@@ -332,6 +293,11 @@ async function initialize(): Promise<void> {
   } catch (error) {
     warnCore('QPM-INIT-001', { what: 'gameState' }, error);
   }
+
+  // Armed after initGameState so the late boot can also wake on quinoaEngine.
+  void spriteInit.then(() => {
+    if (spriteBootFailed && !isStoodDown()) disposers.lateSpriteBoot = startLateSpriteBoot(applyServiceOnBoot);
+  });
 
   // Preset stores run after initGameState so getPlayerId() can resolve the
   // per-player scoped storage key at boot (pre-facade they raced it and fell

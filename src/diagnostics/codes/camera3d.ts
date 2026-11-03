@@ -99,9 +99,9 @@ export const CAMERA3D_CODES: readonly ErrorCodeDefinition[] = [
   {
     code: 'QPM-CAM3D-012', subsystem: SUB, category: 'feature', severity: 'info',
     title: 'Part of the game scene drawn as in 2D in 3D',
-    description: "A newer game scene layer (depth rows, night lights and thought bubbles, or the moon) is on screen, but QPM could not find the game object it uses to place that layer in 3D, so that layer keeps its 2D order or position while 3D is on.",
-    userAction: 'None needed. Report it if 3D shows crops in the wrong order or bubbles and lights in the wrong place.',
-    devNotes: "src/features/camera3d/passes.ts reportMissingLayers(), once per install; resolvers in capabilities.ts. context.missing: 'depthStrips' = a World group shaped like a depth strip exists but no manager (paperstackChangelog.depthStrips / gardenObject.tileViews[].depthStrips, scene/depthStrips.ts); 'cameraMirrors' = NightLight/NightAnnotation on stage but no dayNight.cameraMirrors (scene/nightMirrors.ts); 'moon' = a World 'Moon' but no moon system (scene/moon.ts).",
+    description: "A newer game scene layer (depth rows, night lights and thought bubbles, the moon, or turned decor) is on screen, but QPM could not find the game object it uses to place that layer in 3D, so that layer keeps its 2D order or position while 3D is on.",
+    userAction: 'None needed. Report it if 3D shows crops in the wrong order, bubbles and lights in the wrong place, or turned arches and bridges as tall flat cards.',
+    devNotes: "src/features/camera3d/passes.ts reportMissingLayers(), once per install; resolvers in capabilities.ts. context.missing: 'depthStrips' = a World group shaped like a depth strip exists but no manager (paperstackChangelog.depthStrips / gardenObject.tileViews[].depthStrips, scene/depthStrips.ts); 'cameraMirrors' = NightLight/NightAnnotation on stage but no dayNight.cameraMirrors (scene/nightMirrors.ts); 'moon' = a World 'Moon' but no moon system (scene/moon.ts); 'gardenTiles' = no gardenObject.tileViews map, so side-view decor stays a card (scene/sideDecor.ts).",
     sinceVersion: V_LAYERS, notifyUser: false,
   },
 ];

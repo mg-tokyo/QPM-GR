@@ -40,9 +40,11 @@ const warned = new Set<string>();
 /** Build the persisted entry was loaded against; null until the build id resolves. */
 let loadedBuild: string | null = null;
 let qpmSendDepth = 0;
+let qpmSendRefused = false;
 
 /** Marks sends issued by QPM so the chokepoint doesn't record them as the game's. */
 export function withQpmOrigin<T>(fn: () => T): T {
+  if (qpmSendDepth === 0) qpmSendRefused = false;
   qpmSendDepth += 1;
   try {
     return fn();
@@ -53,6 +55,17 @@ export function withQpmOrigin<T>(fn: () => T): T {
 
 export function isQpmOriginSend(): boolean {
   return qpmSendDepth > 0;
+}
+
+// A send guard drops a refused send and answers like a closed socket (false /
+// nothing), so the QPM caller can't tell the two apart from the return value.
+export function markQpmSendRefused(): void {
+  if (qpmSendDepth > 0) qpmSendRefused = true;
+}
+
+/** True when a send guard refused the most recent `withQpmOrigin` send. */
+export function wasQpmSendRefused(): boolean {
+  return qpmSendRefused;
 }
 
 function allowlistTransport(type: string): Transport {

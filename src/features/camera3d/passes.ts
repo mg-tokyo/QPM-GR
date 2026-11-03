@@ -1,3 +1,4 @@
+import { getDecor } from '../../catalogs/gameCatalogs';
 import { findStageLayer } from '../../core/pixiScene';
 import { getAllInstances, isInstanceTrackerHooked } from '../../rive-engine';
 import { resolveHotbar } from './capabilities';
@@ -23,6 +24,7 @@ import { createLayerHandler } from './scene/layers';
 import { createLifter } from './scene/lift';
 import { createMoon } from './scene/moon';
 import { createNightMirrors } from './scene/nightMirrors';
+import { createSideDecorPass, createSideDecorSource, type DrawnSideWall } from './scene/sideDecor';
 import { scanTiles, type TileScan } from './scene/tileArt';
 import { createHeldHandler, createHotbarProbe, defaultViewmodelTune, type ViewmodelTune } from './scene/viewmodel';
 import { createWeatherMirror, defaultWeatherTuning, type WeatherMirror, type WeatherTuning } from './scene/weather';
@@ -35,6 +37,8 @@ export interface PassSet {
   weatherMirror: WeatherMirror;
   /** Game area-indicator tiles laid flat on the floor: the picker skips them in their owner's card. */
   isAreaMark: (n: Node3) => boolean;
+  /** Turned decor walls drawn last frame: the picker hits them in place of their faded cards. */
+  sideWalls: () => DrawnSideWall[];
   held: HeldHandler;
   viewmodel: ViewmodelTune;
   farAnim: FarAnimPass;
@@ -78,7 +82,10 @@ export function buildPasses(caps: Caps, tx: InstallStack, gfx: GraphicsRows, onD
   // decor), avatars on their gliding ground point (with their height above it), a ridden pet on its rider's.
   const standRow = (ctx: FrameCtx, n: Node3, sortY: number, isTile: boolean): number =>
     (isTile || layers.isOverlayNode(n) ? lifter.standRow(ctx, n, sortY) : ground.groundY(n, sortY, ctx.now));
-  const billboardFade = gameNodeFade(fader, false);
+  // Turned decor (arches, bridges, benches) is a wall in the fences pass: its card fades out as the wall fades in,
+  // only once that wall exists (art not loaded or unusable: the card stays).
+  const side = createSideDecorSource(caps.systems.gardenTiles, getDecor);
+  const billboardFade = gameNodeFade(fader, false, (ctx, n) => (fences.hasWall(n) ? 1 - ctx.tilt : 1));
   // The followed avatar's mount goes with its body: no proximity fade, the push-in fade, hidden in first person (its card
   // stands at the eye; live 2026-10-04 it drew at ×12 in front of the lens while riding).
   const fade: PartFade = (ctx, n, key, gx, gy) => {
@@ -93,15 +100,19 @@ export function buildPasses(caps: Caps, tx: InstallStack, gfx: GraphicsRows, onD
     each: (fn) => { for (const inst of getAllInstances()) fn(inst.raw); }, tracking: isInstanceTrackerHooked,
     report: (info) => camera3dDiag.diag.info('QPM-CAM3D-011', info),
   }));
+  // Before the entity pass, which fades the turned cards.
+  const sidePass = own('sideDecor', () => createSideDecorPass(side));
   const entities = own('entities', () => createEntityPass({
     skip, buildings, layers, standRow, afterPlace: lifter.afterPlace, fade, placeMask, held, feetHeight: ground.feetH, isSelf,
     standKey: (ctx, n) => lifter.standToken(ctx, n), standStill: (ctx, n, t) => lifter.standStill(ctx, n, t as object),
-    isFading: (ctx, n) => fader.isFading(ctx, n), lightPool,
+    // A still-camera replay re-fades only fading cards: a card that is or was turned is re-faded too, so a turn made
+    // while the camera rests never leaves a stale alpha.
+    isFading: (ctx, n) => fader.isFading(ctx, n) || side.wasSide(n), lightPool,
   }));
   let scan: TileScan | null = null;
   const getScan = (): TileScan => { scan = scanTiles(caps.scene.tileData, scan); return scan; };
   const decor = own('decor', () => createDecor(caps, skip, fader, getScan));
-  const fences = own('fences', () => createFences(caps, skip, fader, getScan, (t) => decor.setFenceFade(t), cam.group));
+  const fences = own('fences', () => createFences(caps, skip, fader, getScan, (t) => decor.setFenceFade(t), cam.group, caps.systems.gardenTiles ? side : null));
   const horizon = own('horizon', () => createHorizon(caps, floor, getScan, cam.group, onDrift));
   // After the entity pass: thought bubbles go where their pet's card was drawn this frame.
   const mirrors = own('nightMirrors', () => createNightMirrors(caps.systems.cameraMirrors));
@@ -117,23 +128,30 @@ export function buildPasses(caps: Caps, tx: InstallStack, gfx: GraphicsRows, onD
     drop: () => { fader.drop(); lifter.reset(); },
     destroy: () => fader.drop(),
   }));
-  const list: Pass[] = [cam, floor, viewport, strips, farAnim, entities, areaMesh, fences, decor, weather, horizon, mirrors, moon, faderPass];
+  const list: Pass[] = [cam, floor, viewport, strips, farAnim, sidePass, entities, areaMesh, fences, decor, weather, horizon, mirrors, moon, faderPass];
   tx.add('compile', () => { for (const p of list) p.compile?.(); }, () => undefined);
   const set: PassSet = {
     list, floor, detail, skip, fader, ground, scanMissing: () => getScan().missing,
-    weather: weatherTune, weatherMirror: weather, isAreaMark: (n) => layers.isAreaMark(n), held, viewmodel, farAnim, entities,
+    weather: weatherTune, weatherMirror: weather, isAreaMark: (n) => layers.isAreaMark(n), sideWalls: () => fences.drawnSideWalls(), held, viewmodel, farAnim, entities,
   };
   applyGraphics(set, gfx);
   return set;
 }
 
-/** QPM-CAM3D-012: a 1634 layer is on the stage but the hook that handles it in 3D was not found (once per install). */
-function reportMissingLayers(caps: Caps, strips: DepthStripPass): void {
+/** A 1634 layer on the stage whose 3D hook was not found; the garden tiles (side-view decor walls) whenever absent. */
+export function missingLayers(caps: Caps, strips: Pick<DepthStripPass, 'unmanaged'>): string[] {
   const { stage, world } = caps.scene, sys = caps.systems;
   const missing: string[] = [];
   if (strips.unmanaged()) missing.push('depthStrips');
   if (!sys.cameraMirrors && (findStageLayer(stage, 'NightLight') || findStageLayer(stage, 'NightAnnotation'))) missing.push('cameraMirrors');
   if (!sys.moon && world.children.some((c) => c.label === 'Moon')) missing.push('moon');
+  if (!sys.gardenTiles) missing.push('gardenTiles');
+  return missing;
+}
+
+/** QPM-CAM3D-012, once per install. */
+function reportMissingLayers(caps: Caps, strips: DepthStripPass): void {
+  const missing = missingLayers(caps, strips);
   if (missing.length) camera3dDiag.diag.info('QPM-CAM3D-012', { missing: missing.join(',') });
 }
 

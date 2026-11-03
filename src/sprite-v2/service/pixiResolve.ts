@@ -2,6 +2,8 @@ import type { PixiHooks, SpriteState } from '../types';
 import { createPixiHooks, waitForPixi } from '../hooks';
 import { pageWindow } from '../../core/pageContext';
 import { repairPixiCapture } from '../../core/pixiCapture';
+import { isGameStateReady, readSync } from '../../core/gameState';
+import { isRecord } from '../../utils/typeGuards';
 import type { PixiBundle } from './types';
 import { hasExtractCanvas, updateBootReportRenderer } from './bootReport';
 
@@ -17,6 +19,26 @@ export interface PixiPresenceProbe {
   hooksInjected: boolean;
   surface: string;
   visibilityState: string;
+  appInitHook: string;
+  engineApp: boolean;
+}
+
+// Game 1202+ engine shape; live-verified 2026-11-02 on 1847 to be the app the
+// __PIXI_APP_INIT__ hook captures. Other engine shapes resolve nothing.
+export function pixiFromEngine(engine: unknown): PixiBundle | null {
+  if (!isRecord(engine) || !isRecord(engine.page)) return null;
+  const app = engine.page.app;
+  if (!isRecord(app) || !isRecord(app.stage) || !isRecord(app.renderer)) return null;
+  return { app, renderer: app.renderer, version: null };
+}
+
+function readEngineBundle(): PixiBundle | null {
+  if (!isGameStateReady()) return null;
+  try {
+    return pixiFromEngine(readSync('quinoaEngine'));
+  } catch {
+    return null;
+  }
 }
 
 function computePixiPresenceProbe(): PixiPresenceProbe {
@@ -48,7 +70,17 @@ function computePixiPresenceProbe(): PixiPresenceProbe {
     visibilityState: (() => {
       try { return String(document.visibilityState ?? 'unknown'); } catch { return 'unknown'; }
     })(),
+    appInitHook: typeof root.__PIXI_APP_INIT__,
+    engineApp: !!readEngineBundle(),
   };
+}
+
+const bit = (v: boolean): number => (v ? 1 : 0);
+
+function formatPixiPresenceProbe(p: PixiPresenceProbe & { elapsedMs: number }): string {
+  return `hook=${p.appInitHook} engine=${bit(p.engineApp)} cap=${bit(p.injectedApp)}/${bit(p.injectedRenderer)}`
+    + ` glob=${bit(p.hasPixiGlobal)} aries=${bit(p.hasAriesService)} canvas=${p.canvasCount}/${p.bigCanvasCount}`
+    + ` hooks=${bit(p.hooksActive)}/${bit(p.hooksInjected)} vis=${p.visibilityState} ${p.surface} ${Math.round(p.elapsedMs / 1000)}s`;
 }
 
 /**
@@ -62,7 +94,7 @@ export function probePixiPresence(): boolean {
   const app = root.__PIXI_APP__ || root.PIXI_APP || root.app;
   if (app && (root.__PIXI_RENDERER__ || root.PIXI_RENDERER__ || root.renderer || app?.renderer)) return true;
   if (root.__MG_SPRITE_SERVICE__?.state?.renderer) return true;
-  return false;
+  return readEngineBundle() !== null;
 }
 
 // PIXI hooks must install BEFORE the game calls __PIXI_APP_INIT__. main.ts calls
@@ -236,7 +268,8 @@ export async function resolvePixiFast(): Promise<PixiBundle> {
   const cheapCheck = (): PixiBundle | null =>
     checkInjectedCapture()
     || repaired(checkGlobals(), 'globals')
-    || repaired(checkAriesService(), 'aries-service');
+    || repaired(checkAriesService(), 'aries-service')
+    || repaired(readEngineBundle(), 'engine-atom');
 
   // Try immediately (include fiber — a hit here skips all polling)
   const hit = cheapCheck() || repaired(checkFiber(), 'fiber');
@@ -283,7 +316,7 @@ export async function resolvePixiFast(): Promise<PixiBundle> {
     ...computePixiPresenceProbe(),
     elapsedMs: Math.round(performance.now() - pollStart),
   };
-  const err = new Error(`PIXI app timeout (${JSON.stringify(diag)})`);
+  const err = new Error(`PIXI app timeout (${formatPixiPresenceProbe(diag)})`);
   (err as Error & { qpmDiagnostic?: typeof diag }).qpmDiagnostic = diag;
   throw err;
 }

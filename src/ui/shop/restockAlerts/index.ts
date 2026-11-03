@@ -8,8 +8,10 @@ import { getShopStockState, onShopStock, startShopStockStore } from '../../../st
 import { startShopRegistry } from '../../../store/shopRegistry';
 import { onInventoryChange, startInventoryStore } from '../../../store/inventory';
 import { subscribeAtomValue } from '../../../core/atomRegistry';
-import { pageWindow } from '../../../core/pageContext';
+import { dispatchCustomEventAll, pageWindow } from '../../../core/pageContext';
 import { installDebugNamespace } from '../../../utils/debugGlobals';
+import { onCatalogsReady } from '../../../utils/game/catalogHelpers';
+import { migrateStaleRestockPins } from '../../../store/restockTracked';
 import {
   DISMISSED_CYCLES_KEY,
   ALERT_STYLE_ID,
@@ -225,6 +227,10 @@ export function startShopRestockAlerts(): void {
     ensureAlertSocketPollRunning();
 
     startWeatherAlertProcessor();
+    stopPinMigration?.();
+    stopPinMigration = onCatalogsReady(() => {
+      if (migrateStaleRestockPins()) dispatchCustomEventAll(TRACKED_UPDATED_EVENT, { migrated: true });
+    });
     installDebugBridge();
     setRestockPayloadSource(() => ({
       pendings: pendingOwnershipConfirmations.size,
@@ -251,6 +257,7 @@ function currentConfirmationSources(): readonly ('A' | 'B' | 'C' | 'D')[] {
 }
 
 let removeDebugBridge: (() => void) | null = null;
+let stopPinMigration: (() => void) | null = null;
 
 function installDebugBridge(): void {
   removeDebugBridge?.();
@@ -300,6 +307,8 @@ export function stopShopRestockAlerts(): void {
   detachAlertSocketListener();
   stopAllLoops();
   stopWeatherAlertProcessor();
+  stopPinMigration?.();
+  stopPinMigration = null;
 
   dismissedInStockKeys.clear();
   dismissedCyclesByKey.clear();

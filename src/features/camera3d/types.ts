@@ -167,6 +167,8 @@ export interface AvatarViewLike {
   buildingDataProvider?: { getBuildingAt(p: XY): unknown };
 }
 export interface AvatarSystemLike { views: Map<unknown, unknown> }
+/** The game's garden tile views (live v1847 getSystem('gardenObject').tileViews), shape-checked in scene/sideDecor.ts. */
+export interface GardenTilesLike { tileViews: Map<unknown, unknown> }
 /** The game's World depth-strip manager (live 1634): `update(node, depth)` writes the node's zIndex and files it into the
  * render group of its depth row, `strips` (key → that group). Tiles, garden edges, desks and the tram live there. */
 export interface DepthStripsLike { world: Node3; strips: Map<unknown, Node3>; update(node: Node3, depth: unknown): void }
@@ -195,6 +197,8 @@ export interface EngineSystems {
   clock: { readonly lastFrameTimeMs: number } | null;
   /** Optional (live 1634): null on builds without depth strips, or when the manager was not found (QPM-CAM3D-012). */
   depthStrips: DepthStripsLike | null;
+  /** Optional (live v1847 gardenObject): without it turned decor stays a card (QPM-CAM3D-012). */
+  gardenTiles: GardenTilesLike | null;
   /** Optional (live 1634: NightLight, NightAnnotation): layers outside Camera that the game moves with the 2D camera. */
   cameraMirrors: Node3[] | null;
   /** Optional (live 1634). */

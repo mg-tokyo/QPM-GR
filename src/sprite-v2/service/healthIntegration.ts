@@ -192,15 +192,15 @@ export function stopSpriteV2Diagnostics(): void {
  * the initSpriteSystem() promise rejects — otherwise the bus would sit in
  * 'starting' forever.
  *
- * Publishes an explicit message BEFORE the log call so the bus row shows the
- * real error text; without this the previous 'starting' message ("Waiting for
- * PIXI + atlas hydration") leaks through because fanOut only sets status +
- * lastError, and healthBus.publish preserves any prior message field.
+ * Logs BEFORE publishing: the logger's bus fan-out writes the code title as the
+ * row message, so publishing last keeps the real error text (the PIXI probe)
+ * on the row the copy report prints.
  */
 export function reportSpriteV2InitFailed(error: unknown): void {
   const raw = error instanceof Error ? error.message : String(error);
-  publishSpriteHealth('failed', `initSpriteSystem rejected: ${raw}`);
   diagLog.error('QPM-SPRITE-001', { phase: 'initSpriteSystem' }, error);
+  lastPublishedSig = '';
+  publishSpriteHealth('failed', `initSpriteSystem rejected: ${raw}`);
 }
 
 /**

@@ -92,3 +92,17 @@ describe('v1361 flat allowlist', () => {
     expect(t.transportAudit().mismatches).toEqual([]);
   });
 });
+
+// Observed flat on live games 1753–1847 (QPM-WS-009 in every copy report since 2026-10-22).
+describe('SetPlayerInteraction is sent flat', () => {
+  it('resolves legacy on cold start', async () => {
+    const t = await load();
+    expect(t.resolveTransport('SetPlayerInteraction')).toEqual({ transport: 'legacy', source: 'allowlist' });
+  });
+
+  it('reports no mismatch when the game sends it flat', async () => {
+    const t = await load();
+    t.recordGameTransport('SetPlayerInteraction', 'legacy');
+    expect(t.transportAudit().mismatches).toEqual([]);
+  });
+});

@@ -8,7 +8,7 @@ import {
   newRequestId,
   type QuinoaCommandResultMessage,
 } from './envelope';
-import { resolveTransport, takeSendToken, withQpmOrigin } from './transport';
+import { resolveTransport, takeSendToken, wasQpmSendRefused, withQpmOrigin } from './transport';
 import { toWireCommand } from './wireCommand';
 import {
   cancelCommandRequest,
@@ -89,7 +89,9 @@ export type WebSocketSendFailureReason =
   | 'invalid_payload'
   | 'throttled'
   | 'send_failed'
-  | 'locker_blocked';
+  | 'locker_blocked'
+  /** A registered send guard (sendGuard.ts) refused it; the socket may be fine. */
+  | 'guard_blocked';
 
 export interface WebSocketSendResult {
   ok: boolean;
@@ -472,7 +474,7 @@ export function transmitRoomAction(
     const sent = withQpmOrigin(() => connection.trySendMessageNow!(envelope));
     if (!sent) {
       cancelCommandRequest(envelope.requestId);
-      return { ok: false, reason: 'no_connection' };
+      return { ok: false, reason: wasQpmSendRefused() ? 'guard_blocked' : 'no_connection' };
     }
     wsCounters.enveloped++;
     return {
@@ -483,6 +485,7 @@ export function transmitRoomAction(
     };
   }
   withQpmOrigin(() => connection.sendMessage({ scopePath, type: wire.type, ...wire.payload }));
+  if (wasQpmSendRefused()) return { ok: false, reason: 'guard_blocked' };
   return { ok: true, transport: 'legacy' };
 }
 
@@ -549,6 +552,8 @@ export function sendRoomAction(
         }
         return result;
       }
+      // sendGuard.ts already logged it as QPM-WS-GUARD with the guard's reason.
+      if (result.reason === 'guard_blocked') return result;
       wsCounters.noConnections++;
       log.warn('QPM-WS-001', { type: actionType, reason: result.reason });
       return result;

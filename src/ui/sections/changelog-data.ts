@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.59",
+    date: "2026-11-03",
+    notes: [
+      "Fixed shops and buildings bunching up in the top left corner of the map in the 3D camera after the latest game update",
+      "Fixed rotated decor like arches, bridges and benches showing as tall flat cards in the 3D camera: they now stand as side walls, and clicks through an arch's opening reach the tile behind it",
+      "Fixed NPC dialogue bubbles showing up empty when a line mentions a coin amount",
+      "Fixed pinned Moonbinder and Dawnbinder items disappearing from the restock window after they moved to the weather shops",
+      "Fixed QPM icons, sprites and the crop value on garden tooltips going missing until a reload when the game loads slowly: they now appear as soon as the game is ready",
+    ],
+  },
+  {
     version: "3.3.58",
     date: "2026-10-21",
     notes: [

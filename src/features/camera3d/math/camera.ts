@@ -37,7 +37,8 @@ export function project(b: Basis, X: number, Y: number, Z: number, out: number[]
   out[2] = cz;
 }
 
-function rayDir(b: Basis, sx: number, sy: number): V3 {
+/** World direction of the ray through screen (sx, sy); its dot with F is fpx, so camera depth = t × fpx. */
+export function rayDir(b: Basis, sx: number, sy: number): V3 {
   const a = sx - b.cx0, c = b.cy0 - sy;
   return [
     b.F[0] * b.fpx + b.R[0] * a + b.U[0] * c,

@@ -210,6 +210,22 @@ describe('capabilities', () => {
     expect(resolve({ views: {} })).toBeNull();
     expect(resolve(null)).toBeNull();
   });
+
+  it('the garden tiles are optional: gardenObject when it holds a tileViews map, null otherwise (side-view decor)', () => {
+    const resolve = (gardenObject: unknown) => {
+      const sys: Record<string, unknown> = {
+        zoom: { zoom: zoomOk, shouldBlockZoom: () => false }, directionalInput: { updateDirectionState() { /* noop */ }, keysPressed: [] },
+        worldTapRouter: { movementFallback: { isTapInBounds: () => true } }, movement: { map: { cols: 1, rows: 1, collisionTiles: new Set() } }, pet: { preDraw() { /* noop */ } }, gardenObject,
+      };
+      const registry = { getSystem: (n: string) => sys[n] ?? null };
+      const r = resolveSystems({ page: { rendererScope: { systemRegistry: registry }, playerViews: { systemRegistry: registry } } });
+      return Array.isArray(r) ? 'missing' : r.gardenTiles;
+    };
+    const garden = { tileViews: new Map() };
+    expect(resolve(garden)).toBe(garden);
+    expect(resolve({ tileViews: [] })).toBeNull();
+    expect(resolve(undefined)).toBeNull();
+  });
 });
 
 describe('resolveMeshGeometry (polish Task 11: batched fence strips)', () => {

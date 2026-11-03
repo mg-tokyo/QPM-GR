@@ -96,10 +96,11 @@ export function createFader(): Fader {
 }
 
 /** Fade for game-owned nodes, written through the alpha override and scaled by the game's alpha. `occlude` false:
- * the proximity fade only (every billboard, user decision 2026-10-03); building parts also get the occlusion fade. */
-export function gameNodeFade(fader: Fader, occlude = true): PartFade {
+ * the proximity fade only (every billboard, user decision 2026-10-03); building parts also get the occlusion fade.
+ * scale: a further per-node factor (a turned decor card fades out as its wall fades in). */
+export function gameNodeFade(fader: Fader, occlude = true, scale: ((ctx: FrameCtx, part: Node3) => number) | null = null): PartFade {
   return (ctx, part, key, gx, gy) => {
-    const f = fader.factor(ctx, part, key, gx, gy, occlude);
+    const f = fader.factor(ctx, part, key, gx, gy, occlude) * (scale ? scale(ctx, part) : 1);
     if (f >= 1) ctx.ov.drop('alpha', part);
     else ctx.ov.put('alpha', part, f * ctx.ov.gameValue<number>('alpha', part));
   };

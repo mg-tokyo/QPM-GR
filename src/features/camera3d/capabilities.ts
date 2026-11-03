@@ -160,7 +160,7 @@ export function systemsReplaced(now: EngineSystems, was: EngineSystems): boolean
   return now.zoomSys !== was.zoomSys || seat(now.directionalInput, was.directionalInput) || seat(now.mover, was.mover)
     || now.movementFallback !== was.movementFallback || now.petSystem !== was.petSystem || now.activity !== was.activity
     || now.tapRouter !== was.tapRouter || now.avatar !== was.avatar || now.map !== was.map
-    || now.depthStrips !== was.depthStrips || now.moon !== was.moon || now.cameraMirrors?.[0] !== was.cameraMirrors?.[0];
+    || now.depthStrips !== was.depthStrips || now.gardenTiles !== was.gardenTiles || now.moon !== was.moon || now.cameraMirrors?.[0] !== was.cameraMirrors?.[0];
 }
 
 /** worldMap: readWorldMap() (a parameter so tests need no store). */
@@ -201,6 +201,7 @@ export function resolveSystems(engine: unknown, worldMap: unknown = null): Engin
     avatar: resolveAvatar(engine),
     clock: typeof engine.lastFrameTimeMs === 'number' ? (engine as unknown as EngineSystems['clock']) : null,
     depthStrips: resolveDepthStrips(engine),
+    gardenTiles: resolveGardenTiles(engine),
     cameraMirrors: resolveCameraMirrors(engine),
     moon: resolveMoon(engine),
   };
@@ -217,6 +218,12 @@ function resolveDepthStrips(engine: Record<string, unknown>): EngineSystems['dep
   const views = isRecord(garden) ? garden.tileViews : null;
   if (views instanceof Map) for (const v of views.values()) return isRecord(v) && isDepthStrips(v.depthStrips) ? v.depthStrips : null;
   return null;
+}
+
+// Optional (live v1847): side-view decor walls (scene/sideDecor.ts shape-checks each view).
+function resolveGardenTiles(engine: Record<string, unknown>): EngineSystems['gardenTiles'] {
+  const garden = getEngineSystem(engine, 'gardenObject');
+  return isRecord(garden) && garden.tileViews instanceof Map ? (garden as unknown as EngineSystems['gardenTiles']) : null;
 }
 
 // Optional (live 1634): the day/night system moves these with the 2D camera every frame.

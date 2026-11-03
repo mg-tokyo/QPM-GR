@@ -5,6 +5,7 @@
 import { storage } from '../utils/storage';
 import { canonicalItemId, getItemIdVariants } from '../utils/restock/dataService';
 import { isWeatherShopType } from '../types/shops';
+import { getItemEligibleShops } from '../catalogs/shopEligibility';
 
 export const TRACKED_KEY = 'qpm.restock.tracked';
 
@@ -47,4 +48,42 @@ export function isTrackedItem(tracked: Set<string>, shopType: RestockShopType, i
   }
 
   return false;
+}
+
+/**
+ * Re-keys pins whose shop no longer sells the item to the shops the catalog lists now
+ * (Moonbinder moved seed → amber, Dawnbinder seed → dawn). The restock window drops rows
+ * for ineligible shops, so an un-migrated pin vanishes from the panel. Null when unchanged.
+ */
+export function rekeyStalePins(keys: readonly string[], eligibleShopsFor: (itemId: string) => string[]): string[] | null {
+  const next: string[] = [];
+  let changed = false;
+  for (const key of keys) {
+    const sep = key.indexOf(':');
+    const shopType = sep > 0 ? key.slice(0, sep) : '';
+    const itemId = sep > 0 ? key.slice(sep + 1) : '';
+    if (!shopType || !itemId || shopType === 'weather') {
+      next.push(key);
+      continue;
+    }
+    const canonical = canonicalItemId(shopType, itemId);
+    const eligible = eligibleShopsFor(canonical);
+    if (eligible.length === 0 || eligible.includes(shopType)) {
+      next.push(key);
+      continue;
+    }
+    changed = true;
+    for (const shop of eligible) next.push(`${shop}:${canonical}`);
+  }
+  return changed ? Array.from(new Set(next)) : null;
+}
+
+/** Persists {@link rekeyStalePins} over the saved pins; true when the stored list changed. */
+export function migrateStaleRestockPins(): boolean {
+  const saved = storage.get<string[] | null>(TRACKED_KEY, null);
+  if (!Array.isArray(saved) || saved.length === 0) return false;
+  const next = rekeyStalePins(saved, getItemEligibleShops);
+  if (!next) return false;
+  storage.set(TRACKED_KEY, next);
+  return true;
 }

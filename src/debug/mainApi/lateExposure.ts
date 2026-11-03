@@ -15,6 +15,9 @@ import { registerUniversalProbe } from '../universalProbe';
 import { createWsMonitor } from '../wsMonitor';
 import { QPM_DEBUG_API } from './apiObject';
 import { isDevModeEnabled, setDevModeEnabled } from '../../core/devMode';
+import { renderCopyPayload } from '../../diagnostics/copyPayload';
+import { getCapturedGameVersion } from '../../diagnostics/gameVersionCapture';
+import { getCurrentVersion } from '../../utils/versionChecker';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
@@ -197,9 +200,13 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     };
   };
 
+  // A literal-false define lets the bundler drop the import, so release builds carry no fixture code.
+  const fixture = __QPM_FIXTURE__ ? (await import('../fixture')).createFixtureApi() : undefined;
+
   const globalTarget = pageWindow;
   (globalTarget as any).__QPM_INTERNAL__ = {
     ...(globalTarget as any).__QPM_INTERNAL__,
+    ...(fixture ? { fixture } : {}),
     getGardenSnapshot,
     getMapSnapshot,
     isGardenBridgeReady,
@@ -219,6 +226,14 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     instaHarvestSnapshot,
     getScanStats,
     getPerfSnapshot,
+    // Read-only copy of the Diagnostics "Copy for Discord" text for the triage
+    // pipeline's debug-Chrome capture. Never touches the clipboard.
+    diagnosticsReport: () => ({
+      text: renderCopyPayload(),
+      qpmVersion: getCurrentVersion(),
+      gameVersion: getCapturedGameVersion(),
+      capturedAt: new Date().toISOString(),
+    }),
     gameStateConsumerCosts: async () => { const m = await import('../../core/gameState'); return m.consumerCosts(); },
     gameStateStop: async () => { const m = await import('../../core/gameState'); m.stopGameState(); },
     gameStateStart: async () => { const m = await import('../../core/gameState'); m.initGameState(); },

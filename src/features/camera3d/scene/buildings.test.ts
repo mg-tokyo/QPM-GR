@@ -4,6 +4,8 @@ import type { FrameCtx } from '../frame/frame';
 import type { Caps } from '../types';
 import { createBuildingPlacer, createClipper, isWalkIn, standLine } from './buildings';
 import type { PlaceFn } from './entities';
+import type { FlatPlacer } from './flat';
+import { BUILDING_DECAL_Z, SORT_Z_SCALE } from '../math/depth';
 
 const D = Math.PI / 180;
 
@@ -196,6 +198,81 @@ describe('createBuildingPlacer: a building card covering the avatar (A V5, seed 
     const s = scene(10624, 7120, -90000000, -83199999.8);
     createBuildingPlacer(null).place({ ...s.ctx, avatarKey: null, avatarUpper: null, avatarGround: null } as FrameCtx, [s.roof.node, s.shop.node], s.place);
     expect(s.puts.get(s.shop)).toBe(-90000000);
+  });
+});
+
+describe('createBuildingPlacer: the "Building (N) Art" wrapper (live v1847)', () => {
+  // Building (0,0) → "Building (N) Art" (0,0, no texture) → world-positioned art leaves, anchor (0, 1).
+  function wrapped(...leaves: FakeNode[]): { b: FakeNode; art: FakeNode } {
+    const art = new FakeNode(0, 0, 1, leaves);
+    art.label = 'Building (N) Art';
+    return { b: new FakeNode(0, 0, 1, [art]), art };
+  }
+  function leaf(x: number, y: number, w: number, h: number): FakeNode {
+    const n = new FakeNode(x, y, 1);
+    n.texture = gameTex(w, h) as unknown as FakeNode['texture'];
+    n.anchor = new FakePoint(0, 1);
+    return n;
+  }
+  function rig(z: Map<unknown, number>, tiles: Array<[number, number]> = []) {
+    const puts = new Map<unknown, number>(), placed: Array<{ n: unknown; artRow: boolean }> = [], flats: unknown[] = [], pushed: unknown[] = [];
+    const ov = {
+      gameValue: (_k: string, n: unknown) => z.get(n) ?? 0,
+      put: (k: string, n: unknown, v: number) => { if (k === 'zIndex') puts.set(n, v); },
+      drop: () => undefined, raw: () => true,
+    };
+    const ctx = {
+      ov, exactKeys: false, params: { pitch: 30 * D }, basis: { C: [0, 900, 0] }, drawn: { push: (n: unknown) => { pushed.push(n); } },
+      avatarKey: null, avatarUpper: null, avatarGround: null,
+      caps: { ...caps, systems: { map: map(tiles) } },
+    } as unknown as FrameCtx;
+    const place: PlaceFn = (_c, n, o, lp) => {
+      placed.push({ n, artRow: o.artRow });
+      lp.key = 5; lp.fx = n.x; lp.fy2d = n.y; lp.sx = 100; lp.sy = 200; lp.mm = 0.5;
+      return 5;
+    };
+    const flat = { place: (_c: FrameCtx, n: unknown) => { flats.push(n); return true; }, placeTree: () => false, drop: () => undefined } as unknown as FlatPlacer;
+    return { puts, placed, flats, pushed, ctx, place, flat };
+  }
+
+  it('lays a weather-shop rug inside the wrapper flat as a decal', () => {
+    // Live: Building (83: dawnShop), zIndex 74372728, DawnRug top 7437.3.
+    const rug = leaf(12100, 7713.6, 800, 276.3), { b, art } = wrapped(rug), gz = 74372728;
+    const r = rig(new Map([[b, gz]]));
+    createBuildingPlacer(null, r.flat).place(r.ctx, [b.node], r.place);
+    expect(r.flats).toEqual([rug]);
+    expect(r.placed).toEqual([]);
+    expect(r.flats).not.toContain(art);
+    expect(r.puts.get(b)).toBe(BUILDING_DECAL_Z + gz / SORT_Z_SCALE);
+  });
+
+  it('sinks the walk-in gazebo leaf, not the wrapper', () => {
+    // Live: Building (81), zIndex 76629418, GazeboBody bottom 7850.9, top 6911.3; nothing collides under it.
+    const body = leaf(12481.6, 7850.9, 885, 939.6), { b, art } = wrapped(body);
+    const game = body.texture;
+    const r = rig(new Map([[b, 76629418]]));
+    createBuildingPlacer(null, r.flat).place(r.ctx, [b.node], r.place);
+    expect(r.placed).toEqual([{ n: body, artRow: true }]);
+    expect(r.placed.some((p) => p.n === art)).toBe(false);
+    expect(body.texture).not.toBe(game);
+    expect(r.puts.get(b)).toBe(5);
+  });
+
+  it('keeps a fractional-z roof on its base, both wrapped', () => {
+    // Live: Building (80: dawnShop) z 77487377 body, Building (82: dawnShop) z 77487377.5 top.
+    const body = leaf(12479.6, 7841.8, 885, 930.7), top = leaf(12480.1, 7353.4, 885, 795.5);
+    const base = wrapped(body), roof = wrapped(top);
+    // A collision tile under the body (column 50, row 30), so it is not a walk-in and keeps its texture.
+    const r = rig(new Map([[base.b, 77487377], [roof.b, 77487377.5]]), [[50, 30]]);
+    const game = body.texture;
+    createBuildingPlacer(null, r.flat).place(r.ctx, [roof.b.node, base.b.node], r.place);
+    expect(r.placed).toEqual([{ n: body, artRow: false }]);
+    expect(body.texture).toBe(game);
+    expect(r.pushed).toContain(top);
+    expect([top.x, top.y]).toEqual([100 + (12480.1 - 12479.6) * 0.5, 200 + (7353.4 - 7841.8) * 0.5]);
+    expect(top.scale.x).toBe(0.5);
+    expect(r.puts.get(roof.b)).toBe(5.5);
+    expect([roof.art.x, roof.art.y, base.art.x, base.art.y]).toEqual([0, 0, 0, 0]);
   });
 });
 

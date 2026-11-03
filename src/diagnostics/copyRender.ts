@@ -82,8 +82,9 @@ function severityTag(sev: Severity): string {
   }
 }
 
-// Per-event counters that would split one pattern into many lines.
-const VOLATILE_CONTEXT_KEYS = new Set(['seq', 'retries', 'requestId', 'attempts', 'checks', 'sustainedChecks', 'durationMs', 'elapsedMs']);
+// Per-event counters and measurements that would split one pattern into many lines.
+// Exported so the triage core's copy of this list can be asserted equal to it.
+export const VOLATILE_CONTEXT_KEYS = new Set(['seq', 'retries', 'requestId', 'attempts', 'checks', 'sustainedChecks', 'durationMs', 'elapsedMs', 'longTasks', 'maxMs', 'p95']);
 
 function contextKey(context: Record<string, unknown> | undefined): string {
   if (!context) return '';
@@ -212,7 +213,8 @@ export function renderReport(input: ReportInput, opts: CopyPayloadOptions = DEFA
   }
 
   const headerLines: string[] = [];
-  headerLines.push(`QPM Diagnostics${opts.timestamp ? `  (${formatTimestamp(input.now)})` : ''}`);
+  // "/2" is the report format version; the triage parser asserts it.
+  headerLines.push(`QPM Diagnostics/2${opts.timestamp ? `  (${formatTimestamp(input.now)})` : ''}`);
 
   const idParts: string[] = [];
   if (opts.qpmVersion)  idParts.push(`QPM ${input.qpmVersion}`);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FrameCtx } from '../frame/frame';
 import { FakeNode } from '../__test__/fakeNode';
-import { OCCLUDE_ALPHA, createFader, easeAlpha, fadeTarget, spriteScreenRect } from './fades';
+import { OCCLUDE_ALPHA, createFader, easeAlpha, fadeTarget, gameNodeFade, spriteScreenRect, type Fader } from './fades';
 
 const D = Math.PI / 180;
 
@@ -138,5 +138,30 @@ describe('spriteScreenRect', () => {
     const out = { x0: 0, y0: 0, x1: 0, y1: 0 };
     expect(spriteScreenRect(new FakeNode(0, 0).withTexture(10, 10, 0.5).node, out)).toBe(out);
     expect(spriteScreenRect(new FakeNode(0, 0).node)).toBeNull();
+  });
+});
+
+describe('gameNodeFade', () => {
+  // The overrides as the fade sees them: game alpha 0.8, the put/drop log.
+  const ovLog = () => {
+    const log: Array<[string, number?]> = [];
+    const ov = { put: (_k: string, _n: unknown, v: number) => log.push(['put', v]), drop: () => log.push(['drop']), gameValue: () => 0.8 };
+    return { log, ctx: (tilt: number) => ({ ov, tilt }) as unknown as FrameCtx };
+  };
+  const fader = (f: number): Fader => ({ factor: () => f, isFading: () => false, prune: () => undefined, size: () => 0, drop: () => undefined });
+  const n = new FakeNode().node;
+
+  it('multiplies the proximity fade by a per-node scale (a turned decor card fades out by 1 − tilt)', () => {
+    const { log, ctx } = ovLog();
+    const fade = gameNodeFade(fader(0.5), false, (c) => 1 - c.tilt);
+    fade(ctx(0.25), n, 0, 0, 0);
+    expect(log).toEqual([['put', 0.5 * 0.75 * 0.8]]);
+  });
+
+  it('at tilt 0 with no proximity fade it hands the game alpha back, as without a scale', () => {
+    const { log, ctx } = ovLog();
+    gameNodeFade(fader(1), false, (c) => 1 - c.tilt)(ctx(0), n, 0, 0, 0);
+    gameNodeFade(fader(1), false)(ctx(0), n, 0, 0, 0);
+    expect(log).toEqual([['drop'], ['drop']]);
   });
 });

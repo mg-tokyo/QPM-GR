@@ -78,6 +78,8 @@ export const disposers = {
   canvasRuntimeTrap: null as (() => void) | null,
   // Waits for the 3D camera to be ready, then offers its tour once.
   camera3dTour: null as (() => void) | null,
+  // Event-driven sprite boot retry, armed only after the first boot failed.
+  lateSpriteBoot: null as (() => void) | null,
 };
 
 // Global error filter to silence noisy external proxy errors
@@ -104,6 +106,8 @@ function stopEarlyBoot(): void {
   stopWebsocketDiagnostics();
   stopCatalogsDiagnostics();
   stopJotaiBridgeDiagnostics();
+  try { disposers.lateSpriteBoot?.(); } catch { /* best effort */ }
+  disposers.lateSpriteBoot = null;
   stopSpriteV2Diagnostics();
   try { stopPetRive(); } catch { /* best effort */ }
   stopRestockDataDiagnostics();

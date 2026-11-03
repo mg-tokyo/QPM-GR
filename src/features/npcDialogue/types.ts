@@ -1,6 +1,6 @@
 export type MutationTag = { mutation: string };
 export type GameThingTag = { gameThing: { name: string; sprite: string } };
-export type CurrencyTag = { currency: { kind: 'currencyAmount'; currency: 'coins' | 'credits' | 'magicDust'; amount: number | null } };
+export type CurrencyTag = { currency: 'coins' | 'credits' | 'magicDust'; amount: number };
 export type BubbleTag = MutationTag | GameThingTag | CurrencyTag;
 export interface BubbleLine {
   message: string;

@@ -1,13 +1,16 @@
 import { readSync } from '../../../core/gameState';
 import { chainMatrix, type DrawnEntry, type DrawnTable, type LiftEntry } from '../frame/drawn';
+import type { FrameCtx } from '../frame/frame';
 import { groundRay } from '../math/camera';
 import { sortYOf } from '../math/depth';
 import type { Runtime } from '../runtime';
 import type { Floor } from '../scene/floor';
+import type { DrawnSideWall } from '../scene/sideDecor';
 import type { Mat, Node3, TexLike, XY } from '../types';
 import { createAlphaProbe, PROBE_W, type Texel } from './alphaProbe';
 import { collectLeafHits, relMatrix, type LeafHit } from './leafHits';
 import { chooseTapPoint, type TapHit } from './tapPoint';
+import { panelTexel, sideWallHits } from './wallPick';
 
 const BATCH = 8;
 const ALPHA_MIN = 0.1;
@@ -36,7 +39,8 @@ export interface Picker {
   destroy(): void;
 }
 
-interface Cand { e: DrawnEntry; hits: LeafHit[]; key: [number, number, number] }
+/** wall: a turned decor wall hit (wallPick.ts) at panel (u, v); `e` is then its tile view's entry, so the hit is the card's. */
+interface Cand { e: DrawnEntry; hits: LeafHit[]; key: [number, number, number]; wall?: { tex: DrawnSideWall['tex']; u: number; v: number } }
 interface Pair { c: Cand; h: LeafHit }
 // A billboard outcome in World space, copied at pick time (DrawnTable entries are reused). `world` is the tap point,
 // chosen once (tapPoint.ts) and turned into a 2D global point when used.
@@ -63,8 +67,11 @@ class Ring {
   p95(): number { const k = Math.min(this.n, this.a.length); const s = Array.from(this.a.subarray(0, k)).sort((x, y) => x - y); return k ? s[Math.floor(k * 0.95)]! : 0; }
 }
 
-/** skipLeaf: leaves drawn flat on the floor, not in their entity's card (the game's area indicator tiles). */
-export function createPicker(rt: Runtime, floor: Floor, skipLeaf: (n: Node3) => boolean = () => false): Picker {
+/** skipLeaf: leaves drawn flat on the floor, not in their entity's card (the game's area indicator tiles). sideWalls:
+ * turned decor walls drawn last frame (fences.ts); a hit on one is a hit on its tile's card, as a 2D tap there is. */
+export function createPicker(
+  rt: Runtime, floor: Floor, skipLeaf: (n: Node3) => boolean = () => false, sideWalls: () => readonly DrawnSideWall[] = () => [],
+): Picker {
   const { classes: C, scene } = rt.caps;
   const world = scene.world;
   const probe = createAlphaProbe(scene.renderer, C, () => floor.renderTextureClass());
@@ -120,14 +127,23 @@ export function createPicker(rt: Runtime, floor: Floor, skipLeaf: (n: Node3) => 
 
   // Leaves under the cursor on the last drawn frame, topmost first. An entity with lifted units skips the bounds
   // prefilter: its produce is drawn off its card (A I6).
-  function gather(cx: number, cy: number, frameNo: number, prefilter: boolean): Pair[] {
+  function gather(cx: number, cy: number, ctx: FrameCtx, prefilter: boolean): Pair[] {
     const table: DrawnTable = rt.frame.published();
     const liftOf = (n: Node3): LiftEntry | null => table.liftFor(n);
     const cands: Cand[] = [];
+    const frameNo = ctx.frameNo;
     budget = BOUNDS_PER_PICK;
+    // A wall's tile view out of the table (culled card) still holds its 2D position after the frame.
+    const entryOf = (n: Node3): DrawnEntry => table.entryFor(n) ?? { node: n, x: n.x, y: n.y, sx: 1, sy: 1, px: 0, py: 0, mm: 1, held: false };
+    const ws = sideWalls();
+    const side = ws.length ? sideWallHits(ctx.basis, ctx.tilt, cx, cy, ws, entryOf) : null;
+    if (side) for (const { wall, u, v, sprite } of side.hits) {
+      const e = entryOf(wall.node);
+      cands.push({ e, hits: [{ leaf: wall.mesh, map: e, wx: sprite.x, wy: sprite.y }], key: [wall.mesh.zIndex, world.children.indexOf(wall.mesh), 0], wall: { tex: wall.tex, u, v } });
+    }
     for (let i = 0; i < table.len; i++) {
       const e = table.entries[i]!;
-      if (e.node.destroyed || !e.node.parent || !(e.mm > 0)) continue;
+      if (e.node.destroyed || !e.node.parent || !(e.mm > 0) || side?.cards.has(e.node)) continue;
       at.x = e.x + (cx - e.px) / e.mm;
       at.y = e.y + (cy - e.py) / e.mm;
       if (prefilter && !table.hasLifts(e.node) && outside(e.node, at, frameNo)) continue;
@@ -143,7 +159,8 @@ export function createPicker(rt: Runtime, floor: Floor, skipLeaf: (n: Node3) => 
 
   // The cursor's source texel on a leaf as drawn this frame, into `out`. Display (u, v) goes through the texture's own
   // uvs, so trims, mirrors and rotations hold (the Rive atlas frames are mirrored, rotate 8). OPAQUE: nothing to sample.
-  const texelAt = ({ h }: Pair, cx: number, cy: number, out: Texel): TexelRes => {
+  const texelAt = ({ c, h }: Pair, cx: number, cy: number, out: Texel): TexelRes => {
+    if (c.wall) return panelTexel(c.wall.tex, c.wall.u, c.wall.v, out) ? HIT : OPAQUE;
     const leaf = h.leaf, map = h.map;
     const t = leaf.texture as TexFull | null | undefined, anc = leaf.anchor;
     if (!t || !anc || !t.uvs) return OPAQUE;
@@ -204,7 +221,7 @@ export function createPicker(rt: Runtime, floor: Floor, skipLeaf: (n: Node3) => 
     let best: Hit | null = null;
     let probes = 0;
     if (ctx && w2g) {
-      const pairs = gather(cx, cy, ctx.frameNo, false);
+      const pairs = gather(cx, cy, ctx, false);
       for (let k = 0; k < pairs.length && !best; k += BATCH) {
         const batch = pairs.slice(k, k + BATCH);
         const outs = batch.map(newTexel);
@@ -241,7 +258,7 @@ export function createPicker(rt: Runtime, floor: Floor, skipLeaf: (n: Node3) => 
     texels.length = 0; hits.length = 0;
     let fallback: Hit | null = null;
     const t0 = performance.now();
-    const pairs = gather(cx, cy, ctx.frameNo, true);
+    const pairs = gather(cx, cy, ctx, true);
     const t1 = performance.now();
     for (const p of pairs) {
       const i = texels.length;

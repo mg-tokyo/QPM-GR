@@ -36,9 +36,14 @@ export type ItemCatalog = Record<string, ItemCatalogEntry>;
 // DECOR CATALOG - Garden decorations
 // ============================================================================
 
+/** e.g. `{ sprite: 'sprite/decor/WoodArchSide', flipH: true }` (live v1847). */
+export interface DecorRotationVariant { sprite?: string; flipH?: boolean }
+
 export interface DecorCatalogEntry {
   tileRef?: TileRef;
-  rotationVariants?: Record<string, TileRef>;
+  /** Front art sprite key, e.g. `'sprite/decor/WoodArch'`. */
+  art?: string;
+  rotationVariants?: Record<string, DecorRotationVariant>;
   name?: string;
   coinPrice: number;
   creditPrice: number;

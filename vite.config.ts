@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 
 const PROFILE_BUILD = process.env.PROFILE === '1';
+// Fixture builds go to dist-fixture/ because dist/ is committed with releases.
+const FIXTURE_BUILD = process.env.FIXTURE === '1';
 
 export default defineConfig({
   build: {
@@ -10,7 +12,7 @@ export default defineConfig({
       fileName: 'quinoa-pet-manager',
       formats: ['iife']
     },
-    outDir: 'dist',
+    outDir: FIXTURE_BUILD ? 'dist-fixture' : 'dist',
     // Opt-in inline sourcemap for perf retrace builds. Default off — the
     // ~10 MB base64 map inflates dist/QPM.user.js to ~12 MB, which is slow
     // enough for Tampermonkey to inject at document-start that QPM's early
@@ -53,6 +55,7 @@ export default defineConfig({
     }
   },
   define: {
-    'process.env.NODE_ENV': '"production"'
+    'process.env.NODE_ENV': '"production"',
+    __QPM_FIXTURE__: JSON.stringify(FIXTURE_BUILD)
   }
 });

@@ -120,6 +120,17 @@ describe('renderReport header', () => {
     const out = renderReport(input({ camera3dLine: '3D: off', spectatorLine: 'Spectator: off seat=seated fails=0' }));
     expect(out).toContain('\n3D: off\nSpectator: off seat=seated fails=0\n');
   });
+
+  it('prints the format version token on the first line', () => {
+    const out = renderReport(input());
+    const firstLine = out.split('\n')[1]; // index 0 is the ``` fence
+    expect(firstLine).toMatch(/^QPM Diagnostics\/2  \(\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('keeps the token when the timestamp is opted out', () => {
+    const out = renderReport(input(), { ...DEFAULT_COPY_OPTIONS, timestamp: false });
+    expect(out.split('\n')[1]).toBe('QPM Diagnostics/2');
+  });
 });
 
 describe('renderReport errors', () => {
@@ -178,6 +189,21 @@ describe('renderReport errors', () => {
     const groups = groupErrors(errors);
     expect(groups).toHaveLength(2);
     expect(groups.find((g) => g.total === 2)?.latest.context).toEqual({ type: 'PurchaseShopItem', code: 'rejected', seq: 119 });
+  });
+
+  it('groups perf measurements into one line per probe, showing the latest numbers', () => {
+    const errors = [
+      entry({ code: 'QPM-PERF-001', at: T0 + 1 * MIN, context: { longTasks: 12, maxMs: 204 } }),
+      entry({ code: 'QPM-PERF-001', at: T0 + 2 * MIN, context: { longTasks: 33, maxMs: 387 } }),
+      entry({ code: 'QPM-PERF-002', at: T0 + 1 * MIN, context: { probe: 'camera3d.frame', p95: 3, budget: 3 } }),
+      entry({ code: 'QPM-PERF-002', at: T0 + 2 * MIN, context: { probe: 'camera3d.frame', p95: 5, budget: 3 } }),
+      entry({ code: 'QPM-PERF-002', at: T0 + 3 * MIN, context: { probe: 'anchor.tick', p95: 4, budget: 2 } }),
+    ];
+    const groups = groupErrors(errors);
+    expect(groups).toHaveLength(3);
+    expect(groups.find((g) => g.latest.code === 'QPM-PERF-001')?.total).toBe(2);
+    const out = renderReport(input({ errors }));
+    expect(out).toContain('{"longTasks":33,"maxMs":387}  ×2');
   });
 
   it('places a session divider between live errors and pre-reload residue', () => {
