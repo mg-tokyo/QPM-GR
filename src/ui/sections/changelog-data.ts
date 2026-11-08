@@ -2,6 +2,15 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.63",
+    date: "2026-11-08",
+    notes: [
+      "Added a switch at the bottom of the Diagnostics window to show or hide the status dot in the QPM bar",
+      "Added a switch on each Diagnostics subsystem to stop it lighting the status dot, so a slow PC no longer keeps the dot on because of performance warnings",
+      "Fixed clicks in the Diagnostics subsystem list sometimes doing nothing because the list refreshed mid-click",
+    ],
+  },
+  {
     version: "3.3.62",
     date: "2026-11-08",
     notes: [

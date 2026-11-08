@@ -5,6 +5,8 @@
 
 import { copyPayloadToClipboard, DEFAULT_COPY_OPTIONS, getGameStateSnapshotForPayload, renderCopyPayload, writeToClipboard } from './copyPayload';
 import type { CopyPayloadOptions } from './copyPayload';
+import { createDotFooter, createSubsystemDotToggle } from './dotControls';
+import { isDotEnabled, onDotPreferencesChange } from './dotPreferences';
 import { errorBuffer } from './errorBuffer';
 import { healthBus } from './healthBus';
 import type { AggregateStatus, ErrorBufferEntry, SubsystemHealth } from './types';
@@ -24,6 +26,9 @@ interface RenderState {
   // Without this the 2s poll wipes hover state and any in-flight "Copied" badge.
   lastErrorFingerprint: string;
   lastSubsystemFingerprint: string;
+  // Rows rebuild every couple of seconds; hold them still while the pointer is over the table
+  // so row toggles and click-to-copy aren't swapped out mid-click.
+  subsystemHovered: boolean;
 }
 
 function errorFingerprint(rows: readonly ErrorBufferEntry[]): string {
@@ -99,7 +104,7 @@ function renderSubsystemRows(host: HTMLElement, rows: readonly SubsystemHealth[]
     const item = document.createElement('div');
     item.style.cssText = [
       'display:grid',
-      'grid-template-columns:auto 1fr auto',
+      'grid-template-columns:auto 1fr auto auto',
       'align-items:center',
       'gap:10px',
       'padding:8px 10px',
@@ -130,7 +135,7 @@ function renderSubsystemRows(host: HTMLElement, rows: readonly SubsystemHealth[]
     category.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);text-transform:uppercase;letter-spacing:0.5px;';
     category.textContent = row.category;
 
-    item.append(pill, meta, category);
+    item.append(pill, meta, category, createSubsystemDotToggle(row.subsystem));
 
     if (row.lastError) {
       const errLine = document.createElement('div');
@@ -324,7 +329,7 @@ function refreshAggregate(state: RenderState): void {
 function refreshTables(state: RenderState, force = false): void {
   const subs = healthBus.readAll();
   const subFp = subsystemFingerprint(subs);
-  if (force || subFp !== state.lastSubsystemFingerprint) {
+  if (force || (!state.subsystemHovered && subFp !== state.lastSubsystemFingerprint)) {
     state.lastSubsystemFingerprint = subFp;
     renderSubsystemRows(state.subsystemTable, subs);
   }
@@ -546,7 +551,7 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
   const errorList = document.createElement('div');
   errorList.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
 
-  root.append(header, subsHeader, subsystemTable, errHeader, errorList);
+  root.append(header, subsHeader, subsystemTable, errHeader, errorList, createDotFooter());
 
   const state: RenderState = {
     aggregatePill,
@@ -556,7 +561,13 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
     cleanup: [],
     lastErrorFingerprint: '',
     lastSubsystemFingerprint: '',
+    subsystemHovered: false,
   };
+  subsystemTable.addEventListener('pointerenter', () => { state.subsystemHovered = true; });
+  subsystemTable.addEventListener('pointerleave', () => {
+    state.subsystemHovered = false;
+    refreshTables(state);
+  });
 
   const refresh = (): void => {
     refreshAggregate(state);
@@ -575,6 +586,15 @@ export function renderDiagnosticsWindow(root: HTMLElement): void {
     queueMicrotask(refresh);
   });
   state.cleanup.push(unsub);
+
+  // Row toggles disable while the master switch is off, so rebuild them when it flips.
+  let lastDotEnabled = isDotEnabled();
+  state.cleanup.push(onDotPreferencesChange(() => {
+    const enabled = isDotEnabled();
+    if (enabled === lastDotEnabled) return;
+    lastDotEnabled = enabled;
+    refreshTables(state, true);
+  }));
 
   // Poll the error buffer cheaply — buffer has no subscribe API. refresh() is
   // fingerprint-aware and no-ops when nothing changed, so hover state and any

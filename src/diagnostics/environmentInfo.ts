@@ -1,6 +1,7 @@
 import { isIsolatedContext, readSharedGlobal } from '../core/pageContext';
 import { hasGmApis, isDiscordSurface } from '../utils/environment';
 import { getStorageRuntime, storage } from '../utils/storage';
+import { getMutedSubsystems, isDotEnabled } from './dotPreferences';
 import { errorBuffer } from './errorBuffer';
 import { isVerboseLogsEnabled } from './logger';
 
@@ -117,6 +118,11 @@ export function readNonDefaultFlags(): string[] {
   for (const { key, label } of DEFAULT_OFF_FLAGS) {
     if (readBool(key) === true) out.push(`${label}=on`);
   }
+  try {
+    if (!isDotEnabled()) out.push('dot=off');
+    const muted = getMutedSubsystems();
+    if (muted.length > 0) out.push(`dotMuted=${muted.join(',')}`);
+  } catch { /* storage unreadable */ }
   try {
     if (isVerboseLogsEnabled()) out.push('verbose=on');
   } catch { /* shared global unreadable */ }

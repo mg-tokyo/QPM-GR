@@ -282,6 +282,8 @@ export const QPM_STORAGE_KEYS = [
   // Diagnostics
   'qpm.diagnostics.errorBuffer.v1',
   'qpm.diagnostics.errorBuffer.migration.v1',
+  'qpm.diagnostics.dot.enabled.v1',
+  'qpm.diagnostics.dot.mutedSubsystems.v1',
 
   // Shop Enhancer (Aries co-existence gate)
   'qpm.shopEnhancer.mode',

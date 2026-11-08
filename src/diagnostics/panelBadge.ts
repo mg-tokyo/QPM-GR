@@ -2,6 +2,7 @@
 
 import { toggleWindow } from '../ui/core/modalWindow';
 import { healthBus } from './healthBus';
+import { dotAggregate, isDotEnabled, onDotPreferencesChange } from './dotPreferences';
 import {
   DIAGNOSTICS_WINDOW_ID,
   DIAGNOSTICS_WINDOW_TITLE,
@@ -10,6 +11,7 @@ import {
 
 let badgeEl: HTMLElement | null = null;
 let unsubscribe: (() => void) | null = null;
+let unsubscribePrefs: (() => void) | null = null;
 
 function open(): void {
   toggleWindow(DIAGNOSTICS_WINDOW_ID, DIAGNOSTICS_WINDOW_TITLE, renderDiagnosticsWindow, '720px', '78vh');
@@ -17,7 +19,7 @@ function open(): void {
 
 function applyAggregateState(): void {
   if (!badgeEl) return;
-  const status = healthBus.aggregate();
+  const status = isDotEnabled() ? dotAggregate() : 'ok';
   if (status === 'ok') {
     badgeEl.style.display = 'none';
     badgeEl.title = '';
@@ -82,12 +84,19 @@ export function mountPanelBadge(): void {
       queueMicrotask(applyAggregateState);
     });
   }
+  if (!unsubscribePrefs) {
+    unsubscribePrefs = onDotPreferencesChange(applyAggregateState);
+  }
 }
 
 export function unmountPanelBadge(): void {
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;
+  }
+  if (unsubscribePrefs) {
+    unsubscribePrefs();
+    unsubscribePrefs = null;
   }
   if (badgeEl) {
     badgeEl.remove();

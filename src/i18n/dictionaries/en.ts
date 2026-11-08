@@ -77,6 +77,14 @@ const en: Dictionary = {
   'panel.loadError': 'Panel failed to load.',
   'panel.windowLoadError': 'Failed to load. Reload the page and try again.',
 
+  // ── Diagnostics: titlebar status dot ──────────────────────────────────────
+  'feature.diagnostics.dot.show': 'Show status dot in the QPM bar',
+  'feature.diagnostics.dot.hint': 'The amber/red dot only appears when something needs attention. Use the switch on each subsystem to stop that subsystem lighting it.',
+  'feature.diagnostics.dot.rowCounted': 'Counts toward the status dot. Click to ignore this subsystem.',
+  'feature.diagnostics.dot.rowIgnored': 'Ignored by the status dot. Click to count it again.',
+  'feature.diagnostics.dot.rowMasterOff': 'The status dot is turned off at the bottom of this window.',
+  'feature.diagnostics.dot.rowAria': 'Count {subsystem} toward the status dot',
+
   // ── Card chrome ───────────────────────────────────────────────────────────
   'hub.card.expand': 'Expand',
   'hub.card.open': 'Open \u2192',
