@@ -1,4 +1,5 @@
 import type { Manifest, AtlasData } from './types';
+import { pageWindow } from '../core/pageContext';
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -70,6 +71,68 @@ export async function getJSON<T = any>(url: string): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+// Game ≥1973 serves `manifest.<gpu-format>.json` (bc7/astc/…, picked from GPU caps) and 404s
+// the plain `manifest.json`; follow whichever one the game itself fetched.
+const FORMAT_MANIFEST_RE = /\/manifest\.[a-z0-9]+\.json(?:[?#]|$)/i;
+const LEGACY_MANIFEST = 'manifest.json';
+const GAME_MANIFEST_WAIT_MS = 15000;
+const resolvedManifestUrls = new Map<string, string>();
+
+function findGameManifestUrl(base: string): string | null {
+  const prefix = joinPath(base, '');
+  try {
+    for (const entry of pageWindow.performance?.getEntriesByType?.('resource') ?? []) {
+      const url = entry.name;
+      if (typeof url === 'string' && url.startsWith(prefix) && FORMAT_MANIFEST_RE.test(url)) return url;
+    }
+  } catch { /* resource timing unavailable */ }
+  return null;
+}
+
+function waitForGameManifestUrl(base: string, ms: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    let observer: PerformanceObserver | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = (url: string | null): void => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      try { observer?.disconnect(); } catch { /* ignore */ }
+      observer = null;
+      resolve(url);
+    };
+    try {
+      observer = new PerformanceObserver(() => {
+        const url = findGameManifestUrl(base);
+        if (url) finish(url);
+      });
+      observer.observe({ entryTypes: ['resource'] });
+    } catch {
+      finish(findGameManifestUrl(base));
+      return;
+    }
+    timer = setTimeout(() => finish(findGameManifestUrl(base)), ms);
+    const already = findGameManifestUrl(base);
+    if (already) finish(already);
+  });
+}
+
+/** Filename the current base's manifest resolved to; legacy name before the first resolve. */
+export function resolvedManifestFilename(base: string): string {
+  const url = resolvedManifestUrls.get(base);
+  return url ? url.slice(url.lastIndexOf('/') + 1).replace(/[?#].*$/, '') : LEGACY_MANIFEST;
+}
+
+export async function getAssetManifest<T = Manifest>(base: string): Promise<T> {
+  const cached = resolvedManifestUrls.get(base);
+  if (cached) return getJSON<T>(cached);
+
+  const gameUrl = findGameManifestUrl(base) ?? await waitForGameManifestUrl(base, GAME_MANIFEST_WAIT_MS);
+  const url = gameUrl ?? joinPath(base, LEGACY_MANIFEST);
+  const manifest = await getJSON<T>(url);
+  resolvedManifestUrls.set(base, url);
+  return manifest;
+}
+
 export async function getBlob(url: string): Promise<Blob> {
   const response = await gmRequest(url, 'blob');
   return response.response || response;
@@ -118,7 +181,7 @@ export function extractAtlasJsons(manifest: Manifest): Set<string> {
         const src = typeof srcItem === 'string' ? srcItem : (srcItem as any).src;
         if (typeof src !== 'string') continue;
         if (!src.endsWith('.json')) continue;
-        if (src === 'manifest.json') continue;
+        if (/^manifest(?:\.[a-z0-9]+)?\.json$/i.test(src)) continue;
         if (src.startsWith('audio/')) continue;
 
         jsons.add(src);

@@ -42,6 +42,7 @@ import {
   handleToolInventorySnapshot,
 } from './ownershipTracker';
 import { processShopStock, loadDismissedCycles } from './stockProcessor';
+import { readCycleView, summarizeCycles } from './cycleView';
 import { applyAlertSprite, removeAlert } from './alertDom';
 import { stopAllLoops } from './soundEngine';
 import { startWeatherAlertProcessor, stopWeatherAlertProcessor } from './weatherAlertProcessor';
@@ -237,12 +238,20 @@ export function startShopRestockAlerts(): void {
       active: activeAlerts.size,
       sources: currentConfirmationSources(),
       purchasesField: getDiscoveredShopPurchasesFieldName(),
+      cycles: summarizeCycles(readCycleView(), alertedShopKeys()),
     }));
     publishOk('Started');
   } catch (error) {
     alertState.started = false;
     warnFeature('QPM-FEATURE-003', { what: 'start' }, error);
   }
+}
+
+function alertedShopKeys(): string[] {
+  const keys: string[] = [];
+  for (const alert of activeAlerts.values()) keys.push(alert.model.shopType);
+  for (const pending of pendingOwnershipConfirmations.values()) keys.push(pending.shopType);
+  return keys;
 }
 
 function currentConfirmationSources(): readonly ('A' | 'B' | 'C' | 'D')[] {
@@ -270,10 +279,12 @@ function installDebugBridge(): void {
       sent: p.sent,
       confirmed: p.confirmed,
       shopPurchasesArmed: p.shopPurchasesArmed,
+      autoStoreAwaitingStack: p.autoStoreAwaitingStack,
       cycleArmFp: p.cycleArmFp,
       hasPresenter: p.presenter !== null,
     })),
     getActiveAlerts: () => Array.from(activeAlerts.keys()),
+    getCycleView: readCycleView,
     getPurchasesFieldName: () => getDiscoveredShopPurchasesFieldName(),
     getSourceState: () => ({
       hasInventory: alertState.hasInventoryBaseline,

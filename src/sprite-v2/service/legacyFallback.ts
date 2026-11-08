@@ -1,5 +1,5 @@
 import type { SpriteState } from '../types';
-import { blobToImage, getBlob, getJSON, isAtlas, joinPath, loadAtlasJsons, relPath } from '../manifest';
+import { blobToImage, getBlob, getJSON, isAtlas, joinPath, loadAtlasJsons, relPath, resolvedManifestFilename } from '../manifest';
 import { buildAtlasTextures } from '../atlas';
 import { COMPRESSED_ATLAS_RE, KTX2_NATIVE_REQUIRED_VERSION, MAX_MISSING_SAMPLE } from './constants';
 import type { AtlasBootReport, CompressedAtlasEntry } from './types';
@@ -49,7 +49,7 @@ export async function tryLegacyVersionFallback(
     if (!fallbackBase) continue;
 
     try {
-      const manifest = await getJSON(joinPath(fallbackBase, 'manifest.json'));
+      const manifest = await getJSON(joinPath(fallbackBase, resolvedManifestFilename(base)));
       const atlasJsons = await loadAtlasJsons(fallbackBase, manifest);
       const usableEntries = Object.entries(atlasJsons).filter(([path, data]) => {
         if (!isAtlas(data)) return false;

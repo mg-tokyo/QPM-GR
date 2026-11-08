@@ -34,4 +34,13 @@ export const SHOP_KEYS = {
   eggShop: category('egg'),
   toolShop: category('tool'),
   decorShop: category('decor'),
+  // The game gates shop sales on this clock. It ticks once a second, so read it
+  // with readSync; a subscription would wake on every tick.
+  serverTime: defineKey<number>({
+    policy: 'authoritative', tier: 'state', doc: 'Room server clock (ms epoch)',
+    sources: [stateSource('/child/data/currentTime', (s) => {
+      const t = s.child?.data?.currentTime;
+      return typeof t === 'number' && Number.isFinite(t) ? t : undefined;
+    }, { trustPatches: true })],
+  }),
 };

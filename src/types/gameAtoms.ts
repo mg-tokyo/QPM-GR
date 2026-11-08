@@ -58,6 +58,7 @@ export interface ShopCategorySnapshot {
   secondsUntilRestock?: number | null;
   restockId?: string | null;          // e.g., "egg:1989892" — identifies the stock cycle
   startedAtMs?: number;
+  deadlineMs?: number;                // game ≥1973: absolute end of the cycle; replaces secondsUntilRestock
   [key: string]: unknown;
 }
 

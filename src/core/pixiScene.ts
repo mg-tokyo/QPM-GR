@@ -281,8 +281,9 @@ export function findByLabel(root: unknown, matcher: LabelMatcher): PixiNode | nu
 }
 
 // Game 1361 nests the stage layers (`UI`, `StageUiRoot`, `Camera`) under `GameContent`;
-// by game 1634 `Camera` sits one deeper, in `GameContent > NightScene`. Three levels cover all of them.
-const STAGE_LAYER_DEPTH = 3;
+// by game 1634 `Camera` sits one deeper, in `GameContent > NightScene`; game 1973 adds `Scene`
+// (`GameContent > Scene > NightScene > Camera`). Four levels cover all of them (137 nodes live, 1973).
+const STAGE_LAYER_DEPTH = 4;
 
 /** A top-level stage layer by label — never descends into the layers themselves. */
 export function findStageLayer(stage: unknown, label: string): PixiNode | null {

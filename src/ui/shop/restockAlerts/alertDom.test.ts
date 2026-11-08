@@ -137,7 +137,7 @@ function makePending(key: string): PendingOwnershipConfirmation {
     },
     confirmed: 0,
     staleNoticeTimerId: null, staleNoticeShown: false, maxTimeoutTimerId: null,
-    autoStoreInFlight: false, autoStoreFinalMoveRequested: false,
+    autoStoreInFlight: false, autoStoreAwaitingStack: false, autoStoreFinalMoveRequested: false,
     autoStoreStorageId: null, autoStoreLabel: null, storedInTargetStorage: false,
     shopPurchasesBaseline: null, shopPurchasesArmed: false, cycleArmFp: null,
     cleanups: [], presenter: null, settle: null,
@@ -193,7 +193,6 @@ describe('armAlertPurchaseWatcher — cooperates with pending (T5)', () => {
     expect(alertState.activeAlerts.has('seed:CarrotSeed')).toBe(false);
     expect(alertState.dismissedInStockKeys.has('seed:CarrotSeed')).toBe(true);
     expect(dismissedCycles).toEqual([['seed:CarrotSeed', 'cycle-Z']]);
-    expect(mockClearPendingCalls).toContain('seed:CarrotSeed');
   });
 
   it('with a pending, derived-zero writes the decrement but leaves dismissal to the pending', async () => {
@@ -235,13 +234,24 @@ describe('armAlertPurchaseWatcher — cooperates with pending (T5)', () => {
 });
 
 describe('removeAlert — pending purchases', () => {
-  it('clears a pending that is still awaiting purchase confirmation', async () => {
+  const presenter = { showStaleNotice: vi.fn(), showProgress: vi.fn(), showCompletion: vi.fn(), showFailure: vi.fn() };
+
+  it("clears the card's own pending that is still awaiting purchase confirmation", async () => {
+    const { removeAlert } = await loadAlertDom();
+    const { pendingOwnershipConfirmations } = await loadAlertState();
+    pendingOwnershipConfirmations.set('seed:CarrotSeed', { ...makePending('seed:CarrotSeed'), presenter });
+
+    removeAlert('seed:CarrotSeed');
+    expect(mockClearPendingCalls).toEqual(['seed:CarrotSeed']);
+  });
+
+  it('leaves a headless purchaseAndConfirm pending to its own signals', async () => {
     const { removeAlert } = await loadAlertDom();
     const { pendingOwnershipConfirmations } = await loadAlertState();
     pendingOwnershipConfirmations.set('seed:CarrotSeed', makePending('seed:CarrotSeed'));
 
     removeAlert('seed:CarrotSeed');
-    expect(mockClearPendingCalls).toEqual(['seed:CarrotSeed']);
+    expect(mockClearPendingCalls).toEqual([]);
   });
 
   it('leaves a confirmed pending that only awaits its auto-store verdict', async () => {
@@ -249,6 +259,7 @@ describe('removeAlert — pending purchases', () => {
     const { pendingOwnershipConfirmations } = await loadAlertState();
     pendingOwnershipConfirmations.set('seed:CarrotSeed', {
       ...makePending('seed:CarrotSeed'),
+      presenter,
       confirmed: 1,
       autoStoreInFlight: true,
       deferredCompletionSuffix: '',

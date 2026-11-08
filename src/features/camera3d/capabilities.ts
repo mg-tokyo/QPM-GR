@@ -37,11 +37,22 @@ function findNode(root: unknown, pred: (n: Record<string, unknown>) => boolean, 
 
 export interface SceneParts { camera: Node3 | null; world: Node3 | null; ground: Node3 | null; weather: Node3 | null; tilemap: Node3 | null; tileData: TileDataLike | null }
 
+const holdsPoints = (c: Node3): boolean => isRecord(c.children?.[0]) && 'pointsBuf' in (c.children[0] as object);
+// Game 1973 wraps the composite tilemap in `Ground > Tiles`; earlier builds put it directly under Ground.
+function findTilemap(ground: Node3): Node3 | null {
+  for (const c of ground.children) {
+    if (holdsPoints(c)) return c;
+    const inner = c.children?.find(holdsPoints);
+    if (inner) return inner;
+  }
+  return null;
+}
+
 /** The Camera layers by label and the tilemap by its points buffer, null where absent (no checks). */
 export function findSceneParts(stage: unknown): SceneParts {
   const camera = findStageLayer(stage, 'Camera') as Node3 | null;
   const world = childByLabel(camera, 'World'), ground = childByLabel(camera, 'Ground'), weather = childByLabel(camera, 'Weather');
-  const tilemap = ground?.children.find((c) => isRecord(c.children?.[0]) && 'pointsBuf' in (c.children[0] as object)) ?? null;
+  const tilemap = ground ? findTilemap(ground) : null;
   return { camera, world, ground, weather, tilemap, tileData: tilemap ? (tilemap.children[0] as unknown as TileDataLike) : null };
 }
 

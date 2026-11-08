@@ -181,6 +181,7 @@ function makePending(key: string, presenter: PendingPresenter | null, overrides:
     staleNoticeShown: false,
     maxTimeoutTimerId: null,
     autoStoreInFlight: false,
+    autoStoreAwaitingStack: false,
     autoStoreFinalMoveRequested: false,
     autoStoreStorageId: null,
     autoStoreLabel: null,

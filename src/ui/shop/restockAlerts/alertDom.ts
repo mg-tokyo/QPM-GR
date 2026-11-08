@@ -190,13 +190,12 @@ export function removeAlertRootIfEmpty(): void {
 // ---------------------------------------------------------------------------
 
 export function removeAlert(key: string): void {
-  // Unconditional and ahead of the alert-existence guard: a headless
-  // purchaseAndConfirm() has no alert card, and this clear is what settles its
-  // promise (with `error: 'purchase cleared'`) when the alert goes away.
-  // Exception: a pending whose purchase is already confirmed and only awaits
-  // its auto-store verdict (bounded by the result timeout) settles itself via
-  // finishDeferredCompletion — clearing it here would misreport the purchase.
-  if (pendingOwnershipConfirmations.get(key)?.deferredCompletionSuffix == null) {
+  // Only a card's own pending goes with the card. A headless purchaseAndConfirm()
+  // pending is not tied to any card (processShopStock removes every untracked key
+  // each pass) and settles through its own signals or max timeout. A confirmed
+  // pending awaiting its auto-store verdict settles via finishDeferredCompletion.
+  const pending = pendingOwnershipConfirmations.get(key);
+  if (pending && pending.presenter !== null && pending.deferredCompletionSuffix == null) {
     clearPendingOwnershipConfirmation(key);
   }
   stopLoop(key);

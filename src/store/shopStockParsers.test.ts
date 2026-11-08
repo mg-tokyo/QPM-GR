@@ -132,6 +132,15 @@ describe('custom restocks mirror the game', () => {
     expect(seedState(myData(null), null).items).toEqual([]);
   });
 
+  it('gates on the selling snapshot deadline; timers stay on the global snapshot', () => {
+    const deadlineMs = T + 60_000;
+    const global = { ...GLOBAL_SEED, deadlineMs };
+    expect(buildCategoryState('seeds', global, null, null, null, deadlineMs - 1).items.map((item) => item.id)).toEqual(['Carrot']);
+    const gated = buildCategoryState('seeds', global, null, null, null, deadlineMs);
+    expect(gated.items).toEqual([]);
+    expect(gated.nextRestockAt).toBe(deadlineMs);
+  });
+
   it('reads the pre-v1361 `.items` field when `.inventory` is absent', () => {
     const { inventory, ...rest } = CUSTOM_SEED;
     const state = seedState(myData(null), { ...rest, items: inventory });

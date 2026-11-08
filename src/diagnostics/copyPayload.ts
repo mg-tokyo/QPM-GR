@@ -50,6 +50,7 @@ export interface RestockPayload {
   readonly active: number;
   readonly sources: readonly ('A' | 'B' | 'C' | 'D')[];
   readonly purchasesField: string | null;
+  readonly cycles: readonly string[]; // e.g. "egg:current", "seed:stale:gated" for shops with alerts or pendings
 }
 
 let restockPayloadSource: (() => RestockPayload | null) | null = null;
@@ -57,16 +58,20 @@ export function setRestockPayloadSource(source: (() => RestockPayload | null) | 
   restockPayloadSource = source;
 }
 
+// Also shown while a card is up or a buy is pending: a stuck card happens on a healthy row.
+export function formatRestockLine(p: RestockPayload, degraded: boolean): string | null {
+  if (!degraded && p.active === 0 && p.pendings === 0) return null;
+  const field = p.purchasesField ?? 'absent';
+  return `Restock: pendings=${p.pendings}, active=${p.active}, sources=[${p.sources.join(',')}], purchasesField=${field}, cycles=[${p.cycles.join(',')}]`;
+}
+
 function renderRestockLine(): string | null {
-  const row = healthBus.readAll().find((s) => s.subsystem === 'feature:shopRestockAlerts');
-  if (!row || row.status === 'ok' || row.status === 'starting') return null;
   if (!restockPayloadSource) return null;
+  const row = healthBus.readAll().find((s) => s.subsystem === 'feature:shopRestockAlerts');
+  if (!row) return null;
   try {
     const p = restockPayloadSource();
-    if (!p) return null;
-    const sources = p.sources.length === 0 ? '[]' : `[${p.sources.join(',')}]`;
-    const field = p.purchasesField ?? 'absent';
-    return `Restock: pendings=${p.pendings}, active=${p.active}, sources=${sources}, purchasesField=${field}`;
+    return p ? formatRestockLine(p, row.status !== 'ok' && row.status !== 'starting') : null;
   } catch { return null; }
 }
 

@@ -4,6 +4,7 @@
 // live-probe evidence: `.claude/plans/2026-07-08-ktx2-libktx-port.md`.
 
 import { discoverGameAssets, type GameAssetHit } from '../../utils/gameAssetDiscovery';
+import { createGpuKtx2Decoder } from './gpuDecode';
 import type {
   Ktx2DecodeResult,
   Ktx2DecoderPool,
@@ -108,6 +109,7 @@ export function createKtx2DecoderPool(options: Ktx2DecoderPoolOptions = {}): Ktx
   let workerUrl: string | null = null;
   let wasmBytes: ArrayBuffer | null = null;
   let runtimePromise: Promise<void> | null = null;
+  const gpu = createGpuKtx2Decoder();
 
   const handleMessage = (event: MessageEvent<WorkerInbound>): void => {
     const message = event.data;
@@ -331,6 +333,17 @@ export function createKtx2DecoderPool(options: Ktx2DecoderPoolOptions = {}): Ktx
       }
       const taskId = nextTaskId++;
       telemetry.decodeAttempts += 1;
+      try {
+        const direct = gpu.decode(bytes);
+        if (direct) {
+          telemetry.decodeSuccesses += 1;
+          telemetry.totalDecodeMs += direct.decodeMs;
+          return Promise.resolve(direct);
+        }
+      } catch (error) {
+        telemetry.decodeFailures += 1;
+        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+      }
       return new Promise<Ktx2DecodeResult>((resolve, reject) => {
         const task: DecodeTask = { id: taskId, label, bytes, resolve, reject };
         queue.push(task);
@@ -352,6 +365,7 @@ export function createKtx2DecoderPool(options: Ktx2DecoderPoolOptions = {}): Ktx
     destroy(): void {
       if (destroyed) return;
       destroyed = true;
+      gpu.destroy();
 
       while (queue.length > 0) {
         const task = queue.shift();

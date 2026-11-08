@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FIXTURE_IDENTITY, FIXTURE_SNAPSHOT } from './__fixtures__/snapshot';
 import { GAME_STATE_KEYS, validateKeyTable, type GameStateKey } from './index';
-import type { SourceSpec, StateTreeSourceSpec } from '../types';
+import { selectMyData } from './selectors';
+import type { AtomSourceSpec, SourceSpec, StateTreeSourceSpec } from '../types';
 
 const stateRung = (key: GameStateKey): StateTreeSourceSpec<unknown> | undefined => {
   const sources = GAME_STATE_KEYS[key].sources as readonly SourceSpec<unknown>[];
@@ -27,6 +28,22 @@ describe('key table', () => {
     expect(sel('petSlotInfos')).toEqual({ pet1: { motion: { kind: 'idle' } } });
     expect((sel('players') as unknown[]).length).toBe(1);
     expect(sel('seatPetSlots')).toEqual([null, [{ id: 'pet1' }]]);
+    expect(sel('serverTime')).toBe(1794116408575);
+  });
+  it('shopPurchases atom rung projects the same value as the state rung', () => {
+    const atom = (GAME_STATE_KEYS.shopPurchases.sources as readonly SourceSpec<unknown>[])
+      .find((s): s is AtomSourceSpec<unknown> => s.kind === 'atom')!;
+    expect(atom.label.test('myDataAtom')).toBe(true);
+    expect(atom.requiresSeat).toBe(true);
+    expect(sel('shopPurchases')).toEqual({ seed: {} });
+    expect(atom.project!(selectMyData(FIXTURE_SNAPSHOT, FIXTURE_IDENTITY))).toEqual(sel('shopPurchases'));
+    expect(atom.project!({ coinsCount: 1 })).toBeNull();
+    expect(atom.project!(null)).toBeUndefined();
+  });
+  it('serverTime is unavailable without a room clock', () => {
+    const noClock = { ...FIXTURE_SNAPSHOT, child: { scope: 'Quinoa', data: { shops: {} } } };
+    expect(stateRung('serverTime')!.select(noClock, FIXTURE_IDENTITY)).toBeUndefined();
+    expect(stateRung('serverTime')!.select({ ...FIXTURE_SNAPSHOT, child: null }, FIXTURE_IDENTITY)).toBeUndefined();
   });
   it('returns undefined (unavailable), not null, when identity is unresolved', () => {
     for (const key of ['coinsBalance', 'inventory', 'hutchPets', 'myData', 'riddenPetId'] as const) {

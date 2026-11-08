@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.62",
+    date: "2026-11-08",
+    notes: [
+      "Fixed QPM sprites and icons failing to load after the latest game update",
+      "Fixed the 3D camera not finding the garden after the latest game update",
+      "Fixed restock alert cards staying on screen after the shop's restock time had already passed",
+      "Fixed restock alert cards sometimes showing one more item left than the shop really had right after a restock",
+      "Fixed bought items sometimes not being auto-stored when the purchase went through before the item showed up in your inventory",
+    ],
+  },
+  {
     version: "3.3.61",
     date: "2026-11-03",
     notes: [

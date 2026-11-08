@@ -11,6 +11,11 @@ const MAX_STRIP_PX = 4096;
 // The art row on the horizon sits this far above the sky band's bottom (spike-tuned: row 2384 of 2560, qpm3d-horizon.js).
 const RING_N = 8, RING_H0_ABOVE_BOTTOM = 176, RING_BLEND = 160;
 
+function isAncestorOrSelf(node: Node3, of: Node3): boolean {
+  for (let n: Node3 | null | undefined = of; n; n = n.parent as Node3 | null | undefined) if (n === node) return true;
+  return false;
+}
+
 interface RingUniforms { uScreen: Float32Array; uRingN: number; uH0: number; uStrip: Float32Array; uBlend: number; uTopColor: Float32Array; uBotColor: Float32Array }
 
 /** el: the elevation (rad) the ring draws a sky-band row at; radPerPx: the ring's angle per world px of band art. */
@@ -71,7 +76,8 @@ export function createHorizon(caps: Caps, floor: Floor, getScan: () => TileScan,
     if (scan.len < 0) return false;
     const band = skyStrip(s.tileData.pointsBuf, scan.sky, MAX_STRIP_PX / STRIP_RES);
     if (!band) { drifted = true; onDrift('horizon'); return false; }
-    const others: Node3[] = s.ground.children.filter((c) => c !== s.tilemap && c.visible);
+    // The tilemap may sit in a wrapper under Ground (game 1973 `Tiles`): keep its whole branch shown.
+    const others: Node3[] = s.ground.children.filter((c) => c.visible && !isAncestorOrSelf(c, s.tilemap));
     const tv = ov.raw<boolean>('visible', s.tilemap);
     setTilemapShown(ov, s.tilemap, true);
     for (const c of others) c.visible = false;

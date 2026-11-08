@@ -14,7 +14,7 @@ import {
   type OwnershipBaseline,
   type PendingOwnershipConfirmation,
 } from './types';
-import { alertState } from './alertState';
+import { alertState, pendingOwnershipConfirmations } from './alertState';
 import {
   debugLog,
   finishDeferredCompletion,
@@ -113,6 +113,7 @@ export function pickAutoStoreStackForKey(
 
 /** Storage fallback wait when the server's answer is unknown (timeout, legacy transport). */
 const AUTO_STORE_OBSERVE_MS = 3_000;
+export const AUTO_STORE_STACK_WAIT_MS = 3_000;
 
 function storageKeyCounts(storageId: string): Map<string, number> | null {
   if (storageId === SEED_SILO_WS_STORAGE_ID) return alertState.seedSiloKeyCounts;
@@ -183,10 +184,45 @@ export function maybeAutoStoreConfirmedDelta(
 
   const targetStack = pickAutoStoreStackForKey(pending.key, pending.baseline);
   if (!targetStack) {
-    debugLog('Auto-store skipped (no inventory stack found for key)', { key: pending.key, confirmed, expectedIncrease: pending.expectedIncrease });
+    awaitStackThenStore(pending, storageId, confirmed);
     return;
   }
+  sendStoreMove(pending, storageId, targetStack, confirmed);
+}
 
+/**
+ * The purchase counter can confirm a frame before the inventory delivers the stack.
+ * Holding `autoStoreInFlight` makes completePending defer (and drop its max timer),
+ * so this wait must stay bounded.
+ */
+function awaitStackThenStore(pending: PendingOwnershipConfirmation, storageId: string, confirmed: number): void {
+  pending.autoStoreInFlight = true;
+  pending.autoStoreAwaitingStack = true;
+  debugLog('Auto-store waiting for inventory stack', { key: pending.key, confirmed, waitMs: AUTO_STORE_STACK_WAIT_MS });
+  void waitForOwnershipMatch(
+    () => pickAutoStoreStackForKey(pending.key, pending.baseline) !== null,
+    AUTO_STORE_STACK_WAIT_MS,
+  ).then((arrived) => {
+    pending.autoStoreAwaitingStack = false;
+    if (!arrived) {
+      settleAutoStore(pending, false, 'no inventory stack seen');
+      return;
+    }
+    pending.autoStoreInFlight = false;
+    const stack = pickAutoStoreStackForKey(pending.key, pending.baseline);
+    if (stack && pendingOwnershipConfirmations.get(pending.key) === pending) {
+      sendStoreMove(pending, storageId, stack, confirmed);
+    }
+    if (!pending.autoStoreInFlight) finishDeferredCompletion(pending);
+  });
+}
+
+function sendStoreMove(
+  pending: PendingOwnershipConfirmation,
+  storageId: string,
+  targetStack: { itemId: string; quantity: number; gained: number },
+  confirmed: number,
+): void {
   pending.autoStoreFinalMoveRequested = true;
   const label = pending.autoStoreLabel ?? storageId;
   const { held, limit, room } = getStorageRoomForKey(storageId, pending.key);

@@ -453,11 +453,10 @@ export function clearPendingOwnershipConfirmation(key: string): void {
   }
   pending.cleanups.length = 0;
   pendingOwnershipConfirmations.delete(key);
-  // A headless caller (purchaseAndConfirm) is awaiting this pending's settle.
-  // Every path that clears a pending must therefore resolve it — removeAlert()
-  // clears unconditionally, so without this the promise hangs forever with the
-  // caller's in-flight flag stuck on. Sites with a more specific outcome null
-  // out `settle` before calling here, so this never double-settles.
+  // A headless caller (purchaseAndConfirm) is awaiting this pending's settle, so
+  // every clear must resolve it (feature stop/restart clears all pendings) or the
+  // caller's in-flight flag sticks. Sites with a more specific outcome null out
+  // `settle` before calling here, so this never double-settles.
   const orphaned = pending.settle;
   if (orphaned) {
     pending.settle = null;

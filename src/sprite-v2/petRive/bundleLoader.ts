@@ -1,5 +1,5 @@
 import { listSeenRivUrls } from '../../rive-engine/fetchInterceptor';
-import { getBlob, getJSON, joinPath } from '../manifest';
+import { getAssetManifest, getBlob, joinPath } from '../manifest';
 import { buildAssetsBaseUrl } from '../detector';
 import { spriteLog } from '../diagnostics';
 
@@ -43,7 +43,7 @@ function findPetsPathInManifest(manifest: ManifestLike): string | null {
 async function discoverViaManifest(): Promise<string | null> {
   try {
     const base = buildAssetsBaseUrl();
-    const manifest = await getJSON<ManifestLike>(joinPath(base, 'manifest.json'));
+    const manifest = await getAssetManifest<ManifestLike>(base);
     const petsPath = findPetsPathInManifest(manifest);
     if (!petsPath) return null;
     if (/^https?:\/\//i.test(petsPath)) return petsPath;

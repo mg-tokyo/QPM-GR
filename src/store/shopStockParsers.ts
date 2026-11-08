@@ -76,6 +76,28 @@ export interface ShopStockCategoryState {
   raw: ShopCategorySnapshot | null;
 }
 
+export type RestockTiming = Pick<ShopStockCategoryState, 'secondsUntilRestock' | 'nextRestockAt' | 'restockIntervalMs'>;
+
+const finite = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * Game ≥1973 sends `{startedAtMs, deadlineMs}` per shop instead of a per-second
+ * `secondsUntilRestock`; `deadlineMs` is the cycle's end (server clock), so it
+ * fills `nextRestockAt`. `secondsUntilRestock` stays null there: a stored
+ * countdown would go stale between shop patches — derive it from `nextRestockAt`.
+ */
+export function readRestockTiming(snapshot: ShopCategorySnapshot | null | undefined): RestockTiming {
+  const started = finite(snapshot?.startedAtMs);
+  const deadline = finite(snapshot?.deadlineMs);
+  const cycleDeadline = deadline != null && deadline > 0 ? deadline : null;
+  const span = cycleDeadline != null && started != null && started > 0 && cycleDeadline > started ? cycleDeadline - started : null;
+  return {
+    secondsUntilRestock: finite(snapshot?.secondsUntilRestock),
+    nextRestockAt: finite(snapshot?.nextRestockAt) ?? cycleDeadline,
+    restockIntervalMs: finite(snapshot?.restockIntervalMs) ?? span,
+  };
+}
+
 export interface ShopStockState {
   updatedAt: number;
   categories: Record<ShopCategory, ShopStockCategoryState>;
@@ -357,9 +379,10 @@ export function buildCategoryState(
   purchases: ShopPurchasesAtomSnapshot | null,
   customInventory: ShopCategorySnapshot | null,
   customRestock: CustomRestock | null,
+  serverNowMs: number | null = null,
 ): ShopStockCategoryState {
   const now = Date.now();
-  const stock = resolveStockSnapshot(getAtomKeyForCategory(category), snapshot, customRestock, customInventory);
+  const stock = resolveStockSnapshot(getAtomKeyForCategory(category), snapshot, customRestock, customInventory, serverNowMs);
   const inventory = readStockInventory(stock);
   const cycle = getShopCycle(stock);
   const items: ShopStockItem[] = [];
@@ -375,15 +398,9 @@ export function buildCategoryState(
     .map((item) => `${item.id}:${item.remaining ?? 'x'}:${item.currentStock ?? 'x'}:${item.purchased}`)
     .join('|');
 
-  const secondsUntilRestock = typeof snapshot?.secondsUntilRestock === 'number' ? snapshot!.secondsUntilRestock! : null;
-  const nextRestockAt = typeof snapshot?.nextRestockAt === 'number' ? snapshot!.nextRestockAt! : null;
-  const restockIntervalMs = typeof snapshot?.restockIntervalMs === 'number' ? snapshot!.restockIntervalMs! : null;
-
   return {
     category,
-    secondsUntilRestock,
-    nextRestockAt,
-    restockIntervalMs,
+    ...readRestockTiming(snapshot),
     items,
     availableCount,
     signature,

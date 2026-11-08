@@ -1,5 +1,5 @@
 import type { SpriteState } from '../types';
-import { blobToImage, getBlob, getJSON, isAtlas, joinPath, loadAtlasJsons, relPath } from '../manifest';
+import { blobToImage, getAssetManifest, getBlob, isAtlas, joinPath, loadAtlasJsons, relPath } from '../manifest';
 import { buildAtlasTextures, buildItemsFromTextures } from '../atlas';
 import { clearVariantCache } from '../cache';
 import { clearSpriteDataUrlCache } from '../compat';
@@ -39,7 +39,7 @@ let sprite006ReportedThisBoot = false;
 export async function prefetchAtlasData(base: string): Promise<PrefetchedAtlas | null> {
   try {
     notifyWarmup({ phase: 'prefetch-manifest' });
-    const manifest = await getJSON(joinPath(base, 'manifest.json'));
+    const manifest = await getAssetManifest(base);
 
     notifyWarmup({ phase: 'prefetch-atlas-json' });
     const atlasJsons = await loadAtlasJsons(base, manifest);
@@ -100,7 +100,7 @@ export async function loadTextures(
   notifyWarmup({ phase: 'load-manifest' });
   const manifest = usePrefetched?.atlasJsons
     ? null // Already have atlas JSONs
-    : await getJSON(joinPath(base, 'manifest.json'));
+    : await getAssetManifest(base);
 
   const atlasJsons = usePrefetched?.atlasJsons ?? await loadAtlasJsons(base, manifest!);
 

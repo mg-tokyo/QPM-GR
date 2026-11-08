@@ -411,6 +411,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
       staleNoticeShown: false,
       maxTimeoutTimerId: null,
       autoStoreInFlight: false,
+      autoStoreAwaitingStack: false,
       autoStoreFinalMoveRequested: false,
       autoStoreStorageId: autoStoreTarget?.storageId ?? null,
       autoStoreLabel: autoStoreTarget?.label ?? null,

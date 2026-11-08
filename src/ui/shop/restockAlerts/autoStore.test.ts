@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OwnershipBaseline, PendingOwnershipConfirmation } from './types';
 import type { WebSocketSendResult } from '../../../websocket/api';
 import type { QuinoaCommandResultMessage } from '../../../websocket/envelope';
@@ -14,16 +14,40 @@ let sendCalls: Array<{ itemId: string; storageId: string }>;
 let nextSend: WebSocketSendResult;
 let observeResult: boolean;
 let finished: PendingOwnershipConfirmation[];
+let pendingsMap: Map<string, PendingOwnershipConfirmation>;
+let ownershipListeners: Set<() => void>;
+let waitCalls: number[];
+/** When set, waitForOwnershipMatch behaves like the real one (listener + timeout) instead of returning observeResult. */
+let realisticWait: boolean;
+
+function notifyOwnership(): void {
+  for (const l of Array.from(ownershipListeners)) l();
+}
 
 vi.mock('./alertState', () => ({
   get alertState() { return alertStateObj; },
+  get pendingOwnershipConfirmations() { return pendingsMap; },
 }));
 
 vi.mock('./ownershipTracker', () => ({
   debugLog: () => { /* no-op */ },
   finishDeferredCompletion: (p: PendingOwnershipConfirmation) => { finished.push(p); },
   resolveOwnershipKey: (key: string) => key,
-  waitForOwnershipMatch: async () => observeResult,
+  waitForOwnershipMatch: (predicate: () => boolean, timeoutMs: number): Promise<boolean> => {
+    waitCalls.push(timeoutMs);
+    if (!realisticWait) return Promise.resolve(observeResult);
+    if (predicate()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const listener = (): void => {
+        if (!predicate()) return;
+        ownershipListeners.delete(listener);
+        clearTimeout(id);
+        resolve(true);
+      };
+      const id = setTimeout(() => { ownershipListeners.delete(listener); resolve(false); }, timeoutMs);
+      ownershipListeners.add(listener);
+    });
+  },
 }));
 
 vi.mock('./purchaseActions', () => ({
@@ -41,7 +65,7 @@ vi.mock('../../../types/shops', () => ({
   isWeatherShopType: (id: string) => !['seed', 'egg', 'tool', 'decor'].includes(id),
 }));
 
-import { getStorageRoomForKey, maybeAutoStoreConfirmedDelta } from './autoStore';
+import { AUTO_STORE_STACK_WAIT_MS, getStorageRoomForKey, maybeAutoStoreConfirmedDelta } from './autoStore';
 
 function result(ok: boolean, code?: string): QuinoaCommandResultMessage {
   return { type: 'QuinoaCommandResult', requestId: 'r1', ok, ...(code ? { code } : {}) } as QuinoaCommandResultMessage;
@@ -69,6 +93,7 @@ function makePending(key: string, storageId: string, label: string): PendingOwne
     staleNoticeShown: false,
     maxTimeoutTimerId: null,
     autoStoreInFlight: false,
+    autoStoreAwaitingStack: false,
     autoStoreFinalMoveRequested: false,
     autoStoreStorageId: storageId,
     autoStoreLabel: label,
@@ -99,6 +124,10 @@ beforeEach(() => {
   nextSend = { ok: true, awaitResult: async () => result(true) };
   observeResult = false;
   finished = [];
+  pendingsMap = new Map();
+  ownershipListeners = new Set();
+  waitCalls = [];
+  realisticWait = false;
 });
 
 describe('getStorageRoomForKey', () => {
@@ -190,5 +219,108 @@ describe('maybeAutoStoreConfirmedDelta', () => {
     expect(pending.autoStoreInFlight).toBe(false);
     expect(pending.storedInTargetStorage).toBe(false);
     expect(pending.autoStoreSkipReason).toBe('send failed (no_connection)');
+  });
+});
+
+describe('maybeAutoStoreConfirmedDelta — inventory stack not delivered yet', () => {
+  const KEY = 'tool:ReplenishPotion';
+
+  function stagePendingWithoutStack(): PendingOwnershipConfirmation {
+    vi.useFakeTimers();
+    realisticWait = true;
+    alertStateObj.inventoryKeyItemQuantities.delete(KEY);
+    alertStateObj.toolShackKeyCounts.set(KEY, 50);
+    const pending = makePending(KEY, 'ToolShack', 'Tool Shack');
+    pendingsMap.set(KEY, pending);
+    return pending;
+  }
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('holds the pending while it waits, then moves the stack once it appears', async () => {
+    const pending = stagePendingWithoutStack();
+
+    maybeAutoStoreConfirmedDelta(pending, 1);
+    expect(sendCalls).toEqual([]);
+    expect(pending.autoStoreAwaitingStack).toBe(true);
+    expect(pending.autoStoreInFlight).toBe(true);
+    expect(waitCalls).toEqual([AUTO_STORE_STACK_WAIT_MS]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    alertStateObj.inventoryKeyItemQuantities.set(KEY, new Map([['ReplenishPotion', 99]]));
+    notifyOwnership();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sendCalls).toEqual([{ itemId: 'ReplenishPotion', storageId: 'ToolShack' }]);
+    expect(pending.autoStoreAwaitingStack).toBe(false);
+    expect(pending.storedInTargetStorage).toBe(true);
+    expect(pending.autoStoreInFlight).toBe(false);
+    expect(finished).toEqual([pending]);
+  });
+
+  it('settles as kept-in-inventory when no stack appears within the bound', async () => {
+    const pending = stagePendingWithoutStack();
+
+    maybeAutoStoreConfirmedDelta(pending, 1);
+    await vi.advanceTimersByTimeAsync(AUTO_STORE_STACK_WAIT_MS - 1);
+    expect(finished).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(sendCalls).toEqual([]);
+    expect(pending.autoStoreAwaitingStack).toBe(false);
+    expect(pending.autoStoreInFlight).toBe(false);
+    expect(pending.storedInTargetStorage).toBe(false);
+    expect(pending.autoStoreSkipReason).toBe('no inventory stack seen');
+    expect(finished).toEqual([pending]);
+  });
+
+  it('ignores a second confirmation while the wait is open', async () => {
+    const pending = stagePendingWithoutStack();
+
+    maybeAutoStoreConfirmedDelta(pending, 1);
+    maybeAutoStoreConfirmedDelta(pending, 1);
+    expect(waitCalls).toHaveLength(1);
+    expect(ownershipListeners.size).toBe(1);
+    await vi.advanceTimersByTimeAsync(AUTO_STORE_STACK_WAIT_MS);
+    expect(finished).toEqual([pending]);
+  });
+
+  it('sends nothing when the pending was cleared during the wait', async () => {
+    const pending = stagePendingWithoutStack();
+
+    maybeAutoStoreConfirmedDelta(pending, 1);
+    pendingsMap.delete(KEY);
+    alertStateObj.inventoryKeyItemQuantities.set(KEY, new Map([['ReplenishPotion', 99]]));
+    notifyOwnership();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sendCalls).toEqual([]);
+    expect(pending.autoStoreInFlight).toBe(false);
+    expect(pending.autoStoreAwaitingStack).toBe(false);
+  });
+
+  it('finishes the held completion when the late stack meets a full storage stack', async () => {
+    const pending = stagePendingWithoutStack();
+    alertStateObj.toolShackKeyCounts.set(KEY, 99);
+
+    maybeAutoStoreConfirmedDelta(pending, 1);
+    alertStateObj.inventoryKeyItemQuantities.set(KEY, new Map([['ReplenishPotion', 99]]));
+    notifyOwnership();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sendCalls).toEqual([]);
+    expect(pending.autoStoreSkipReason).toBe('Tool Shack already holds 99/99');
+    expect(finished).toEqual([pending]);
+  });
+
+  it('does not wait when there is no storage target', () => {
+    const pending = stagePendingWithoutStack();
+    pending.autoStoreStorageId = null;
+
+    maybeAutoStoreConfirmedDelta(pending, 1);
+
+    expect(waitCalls).toEqual([]);
+    expect(pending.autoStoreAwaitingStack).toBe(false);
+    expect(pending.autoStoreInFlight).toBe(false);
   });
 });

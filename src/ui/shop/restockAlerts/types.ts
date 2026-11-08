@@ -156,6 +156,8 @@ export interface PendingOwnershipConfirmation {
   staleNoticeShown: boolean;
   maxTimeoutTimerId: number | null;
   autoStoreInFlight: boolean;
+  /** Confirmed, but the inventory stack to move has not arrived yet; bounded by AUTO_STORE_STACK_WAIT_MS. */
+  autoStoreAwaitingStack: boolean;
   autoStoreFinalMoveRequested: boolean;
   autoStoreStorageId: string | null;
   autoStoreLabel: string | null;

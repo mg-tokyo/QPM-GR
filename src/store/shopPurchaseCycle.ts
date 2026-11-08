@@ -40,21 +40,31 @@ export function extractMyDataCustomRestocks(value: unknown): CustomRestockMap {
   return map;
 }
 
+/** No clock or a 0/absent `deadlineMs` (pre-1973 shapes) never gates. */
+export function isPastDeadline(snapshot: ShopCategorySnapshot | null, serverNowMs: number | null): boolean {
+  const deadline = snapshot?.deadlineMs;
+  return serverNowMs !== null && typeof deadline === 'number' && Number.isFinite(deadline) && deadline > 0 && serverNowMs >= deadline;
+}
+
 /**
- * The snapshot a shop sells from, mirroring the game's `nn` (v1361 bootScreen chunk): a live custom
- * restock sells only from the custom inventory whose id is `${shop}:custom:${purchasedAt}`, and a
- * null `restockId` sells nothing. Null = no stock.
+ * The snapshot a shop sells from, mirroring the game's seller (`ot` on 1973): a live custom restock
+ * sells only from the custom inventory whose id is `${shop}:custom:${purchasedAt}`, a null
+ * `restockId` sells nothing, and nothing sells once server time reaches that snapshot's `deadlineMs`.
  */
 export function resolveStockSnapshot(
   shopKey: string,
   snapshot: ShopCategorySnapshot | null,
   customRestock: CustomRestock | null,
   customInventory: ShopCategorySnapshot | null,
+  serverNowMs: number | null = null,
 ): ShopCategorySnapshot | null {
+  let selling: ShopCategorySnapshot | null;
   if (customRestock) {
-    return customInventory?.restockId === `${shopKey}:custom:${customRestock.purchasedAt}` ? customInventory : null;
+    selling = customInventory?.restockId === `${shopKey}:custom:${customRestock.purchasedAt}` ? customInventory : null;
+  } else {
+    selling = snapshot?.restockId === null ? null : snapshot;
   }
-  return snapshot?.restockId === null ? null : snapshot;
+  return isPastDeadline(selling, serverNowMs) ? null : selling;
 }
 
 // Mirrors the game's `rn`: an OLDER cycle's purchases count as 0; a bucket NEWER than the snapshot
@@ -64,6 +74,12 @@ function classifyBucketCycle(bucket: ShopPurchaseBucket, cycle: ShopCycle | null
   if (bucket.restockId === cycle.restockId) return 'current';
   const bucketStart = bucket.startedAtMs;
   return typeof bucketStart === 'number' && cycle.startedAtMs != null && bucketStart < cycle.startedAtMs ? 'stale' : 'ahead';
+}
+
+export type BucketCycleClass = 'current' | 'stale' | 'ahead' | 'none';
+
+export function describeBucketCycle(bucket: ShopPurchaseBucket | null | undefined, cycle: ShopCycle | null | undefined): BucketCycleClass {
+  return bucket ? classifyBucketCycle(bucket, cycle) : 'none';
 }
 
 export function isBucketAheadOfCycle(bucket: ShopPurchaseBucket | null | undefined, cycle: ShopCycle | null | undefined): boolean {

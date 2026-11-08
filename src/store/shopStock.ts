@@ -11,6 +11,7 @@ const diag = createStoreDiagnostics('storeShops', 'shops');
 let shopFirstPublished = false;
 import type {
   ShopsAtomSnapshot,
+  ShopPurchaseBucket,
   ShopPurchasesAtomSnapshot,
 } from '../types/gameAtoms';
 import { type ShopCategory } from '../types/shops';
@@ -19,13 +20,15 @@ import {
   buildCategoryState,
   extractCustomInventories,
   extractMyDataShopPurchases,
+  readRestockTiming,
   type CustomInventoryMap,
   type ShopStockItem,
   type ShopStockCategoryState,
   type ShopStockState,
 } from './shopStockParsers';
-import { extractMyDataCustomRestocks, type CustomRestockMap } from './shopPurchaseCycle';
-import { canonicalItemId } from '../utils/restock/dataService';
+import { extractMyDataCustomRestocks, isPastDeadline, resolveStockSnapshot, type CustomRestockMap } from './shopPurchaseCycle';
+import { getServerNowMs } from './serverClock';
+import { indexItemsByKey, notifyItemListeners, resetShopStockItemIndex } from './shopStockItemIndex';
 import {
   getKnownShopIds,
   getWeatherGatedShopIds,
@@ -36,6 +39,7 @@ import { deepEqual } from '../utils/deepEqual';
 
 // Re-export types so existing importers of shopStock.ts continue to work.
 export type { ShopStockItem, ShopStockCategoryState, ShopStockState } from './shopStockParsers';
+export { getShopStockItemByKey, onShopStockItemChange } from './shopStockItemIndex';
 
 function itemTypeLabel(category: string): string {
   switch (category) {
@@ -164,56 +168,44 @@ interface CategoryMemo {
   // A restock can repeat the same inventory; purchases only count within one cycle.
   // Undefined (legacy shape, counts) and null (no stock) must stay distinct.
   restockId: unknown;
+  // Past `deadlineMs` with no roll yet: nothing in the inputs changes at a deadline, only this.
+  gated: boolean;
   state: ShopStockCategoryState;
 }
 const categoryMemo = new Map<ShopCategory, CategoryMemo>();
 let memoPurchases: ShopPurchasesAtomSnapshot | null = null;
 
-const itemsByKey = new Map<string, ShopStockItem>();
-const keyChangeListeners = new Map<string, Set<(item: ShopStockItem | null) => void>>();
-const lastItemFingerprintByKey = new Map<string, string>();
+const DEADLINE_MARGIN_MS = 50;
+let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
+let deadlineTimerTarget: string | null = null;
 
-function fingerprintItemForCycle(item: ShopStockItem, bucket: ShopStockCategoryState | undefined): string {
-  const nr = bucket?.nextRestockAt ?? '';
-  const init = item.initialStock ?? '';
-  const cur = item.currentStock ?? '';
-  const rem = item.remaining ?? '';
-  const pur = item.purchased;
-  const spawn = item.canSpawn ? '1' : '0';
-  return `${nr}|${init}|${cur}|${rem}|${pur}|${spawn}`;
+function clearDeadlineTimer(): void {
+  if (deadlineTimer !== null) clearTimeout(deadlineTimer);
+  deadlineTimer = null;
+  deadlineTimerTarget = null;
 }
 
-function rebuildItemsByKey(state: ShopStockState): void {
-  const nextMap = new Map<string, ShopStockItem>();
-  const nextFingerprints = new Map<string, string>();
-  for (const [category, bucket] of Object.entries(state.categories)) {
-    if (!bucket || !Array.isArray(bucket.items)) continue;
-    const shopType = getAtomKeyForCategory(category);
-    for (const item of bucket.items) {
-      const key = `${shopType}:${canonicalItemId(shopType, item.id).trim().toLowerCase()}`;
-      nextMap.set(key, item);
-      nextFingerprints.set(key, fingerprintItemForCycle(item, bucket));
-    }
-  }
-  itemsByKey.clear();
-  for (const [k, v] of nextMap) itemsByKey.set(k, v);
-  for (const [key, subs] of keyChangeListeners) {
-    if (subs.size === 0) continue;
-    const nextItem = nextMap.get(key) ?? null;
-    const nextFp = nextFingerprints.get(key) ?? null;
-    const prevFp = lastItemFingerprintByKey.get(key) ?? null;
-    if (nextFp !== prevFp) {
-      for (const cb of Array.from(subs)) {
-        try { cb(nextItem); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'keyChangeListener' }, error); }
-      }
-    }
-  }
-  lastItemFingerprintByKey.clear();
-  for (const [k, v] of nextFingerprints) lastItemFingerprintByKey.set(k, v);
+// No patch arrives at a deadline (`shops` changes only at rolls and purchases), so one one-shot
+// at the nearest future deadline re-runs the gate. Only future deadlines arm (delay ≥ margin, no
+// tight loop); a gated shop waiting for a late roll arms nothing, the roll's own patch rebuilds.
+function armDeadlineTimer(deadlineMs: number | null, serverNowMs: number | null): void {
+  const target = deadlineMs === null ? null : `${deadlineMs}:${serverNowMs !== null}`;
+  if (target === deadlineTimerTarget) return;
+  clearDeadlineTimer();
+  if (deadlineMs === null) return;
+  deadlineTimerTarget = target;
+  deadlineTimer = setTimeout(() => {
+    deadlineTimer = null;
+    deadlineTimerTarget = null;
+    rebuildState();
+  }, deadlineMs - (serverNowMs ?? Date.now()) + DEADLINE_MARGIN_MS);
 }
 
 function rebuildState(): void {
   const now = Date.now();
+  const serverNowMs = getServerNowMs();
+  const clockNow = serverNowMs ?? now;
+  let nearestDeadline: number | null = null;
   const categories = Object.create(null) as Record<ShopCategory, ShopStockCategoryState>;
   const effectivePurchases = getEffectivePurchasesSnapshot();
   const effectiveShops = shopsSnapshot ?? quinoaDataShopsSnapshot;
@@ -227,14 +219,18 @@ function rebuildState(): void {
     const customRestock = customRestocks?.[atomKey] ?? null;
     const inventory = snapshot?.inventory ?? null;
     const restockId = snapshot?.restockId;
+    const selling = resolveStockSnapshot(atomKey, snapshot, customRestock, customInventory);
+    const gated = isPastDeadline(selling, serverNowMs);
+    const deadline = selling?.deadlineMs;
+    if (typeof deadline === 'number' && Number.isFinite(deadline) && deadline > clockNow && (nearestDeadline === null || deadline < nearestDeadline)) {
+      nearestDeadline = deadline;
+    }
     const memo = categoryMemo.get(category);
-    if (memo && purchasesSame && restockId === memo.restockId && deepEqual(inventory, memo.inventory) && deepEqual(customInventory, memo.customInventory) && deepEqual(customRestock, memo.customRestock)) {
+    if (memo && purchasesSame && restockId === memo.restockId && gated === memo.gated && deepEqual(inventory, memo.inventory) && deepEqual(customInventory, memo.customInventory) && deepEqual(customRestock, memo.customRestock)) {
       const prev = memo.state;
       const state: ShopStockCategoryState = {
         ...prev,
-        secondsUntilRestock: typeof snapshot?.secondsUntilRestock === 'number' ? snapshot.secondsUntilRestock : null,
-        nextRestockAt: typeof snapshot?.nextRestockAt === 'number' ? snapshot.nextRestockAt : null,
-        restockIntervalMs: typeof snapshot?.restockIntervalMs === 'number' ? snapshot.restockIntervalMs : null,
+        ...readRestockTiming(snapshot),
         updatedAt: now,
         raw: snapshot ?? null,
       };
@@ -242,19 +238,19 @@ function rebuildState(): void {
       memo.state = state;
       continue;
     }
-    const built = buildCategoryState(category, snapshot, effectivePurchases, customInventory, customRestock);
+    const built = buildCategoryState(category, snapshot, effectivePurchases, customInventory, customRestock, serverNowMs);
     // Weather-gated shop items have no price fields in raw atom data — resolve from game catalogs.
     if (weatherGated.has(category)) resolveWeatherShopCatalogPrices(built.items);
     categories[category] = built;
-    categoryMemo.set(category, { inventory, customInventory, customRestock, restockId, state: built });
+    categoryMemo.set(category, { inventory, customInventory, customRestock, restockId, gated, state: built });
   }
   cachedState = { updatedAt: now, categories };
-  // notifyState runs the general onShopStock listeners (processShopStock among
-  // them, which is what upserts alerts and computes their quantity). Per-key
-  // watchers must fire AFTER that so their targeted computations win over any
-  // stale getItemQuantity value that came from a lagging shop atom entry.
+  // Index before notifyState (alerts created there baseline from getShopStockItemByKey,
+  // which held the previous cycle's item); per-key listeners still fire after it.
+  const fingerprints = indexItemsByKey(cachedState);
   notifyState();
-  rebuildItemsByKey(cachedState);
+  notifyItemListeners(fingerprints);
+  armDeadlineTimer(nearestDeadline, serverNowMs);
 }
 
 export async function startShopStockStore(): Promise<void> {
@@ -359,6 +355,7 @@ export function stopShopStockStore(): void {
   quinoaDataShopsUnsubscribe = null;
   discoveryUnsubscribe = null;
   startPromise = null;
+  clearDeadlineTimer();
   categoryMemo.clear();
   memoPurchases = null;
   shopsSnapshot = null;
@@ -369,9 +366,7 @@ export function stopShopStockStore(): void {
   cachedState = createEmptyState();
   shopFirstPublished = false;
   lastNotifySignature = null;
-  itemsByKey.clear();
-  keyChangeListeners.clear();
-  lastItemFingerprintByKey.clear();
+  resetShopStockItemIndex();
 }
 
 /** Re-read shop atoms via the registry and rebuild if changed — used by the background atom poller when subscriptions don't fire (background tabs). */
@@ -428,33 +423,12 @@ export function getShopStockState(): ShopStockState {
   return cachedState;
 }
 
-/** O(1) lookup by canonical `${shopType}:${itemId.toLowerCase()}` key. Null when the item isn't in any category. */
-export function getShopStockItemByKey(canonicalKey: string): ShopStockItem | null {
-  return itemsByKey.get(canonicalKey) ?? null;
+export function getPurchaseBucket(category: ShopCategory): ShopPurchaseBucket | null {
+  return myDataPurchasesSnapshot?.[getAtomKeyForCategory(category)] ?? null;
 }
 
-/**
- * Fires when the item at `canonicalKey` transitions in ways that matter for
- * cycle rollover / stale-purchase detection (nextRestockAt, initialStock,
- * currentStock, remaining, purchased, canSpawn). Fires with null if the item
- * is no longer in any category. Reactive; driven off the shop atom fanout.
- */
-export function onShopStockItemChange(
-  canonicalKey: string,
-  cb: (item: ShopStockItem | null) => void,
-): () => void {
-  let subs = keyChangeListeners.get(canonicalKey);
-  if (!subs) {
-    subs = new Set();
-    keyChangeListeners.set(canonicalKey, subs);
-  }
-  subs.add(cb);
-  return () => {
-    const set = keyChangeListeners.get(canonicalKey);
-    if (!set) return;
-    set.delete(cb);
-    if (set.size === 0) keyChangeListeners.delete(canonicalKey);
-  };
+export function isCategoryGated(category: ShopCategory): boolean {
+  return categoryMemo.get(category)?.gated ?? false;
 }
 
 export function onShopStock(
