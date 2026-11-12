@@ -3,7 +3,7 @@ import { atomSource, customSource, defineKey } from '../define';
 import { isRecord } from '../../../utils/typeGuards';
 import { isQuinoaEngine } from '../../../utils/quinoaEngine';
 import { findAtomsByLabel, getCachedStore, subscribeAtom } from '../../jotaiBridge';
-import type { GridPosition, NpcChatBubble } from '../../../types/gameAtoms';
+import type { CropBrowsingControl, CropBrowsingProjection, GridPosition, NpcChatBubble } from '../../../types/gameAtoms';
 
 const KNOWN_MODALS = new Set([
   'seedShop', 'eggShop', 'toolShop', 'inventory', 'leaderboard', 'journal', 'decorShop', 'stats', 'petHutch',
@@ -87,6 +87,16 @@ export const UI_KEYS = {
       atomSource(/^selectedCropSlotIdAtom$/, 'client', { project: slotIdOrNull }),
       atomSource(/^myCurrentGrowSlotIdAtom$/, 'client', { project: slotIdOrNull }),
     ],
+  }),
+  cropBrowsingProjection: defineKey<CropBrowsingProjection | null>({
+    policy: 'client', tier: 'client', defaultValue: null,
+    doc: 'Game crop browsing projection { visit, order: { occupiedSlotIds }, selection: { sourceKey, slotId }, control } for the plant under the player (game ≥1989)',
+    sources: [atomSource(/^cropBrowsingProjectionAtom$/, 'client', { structure: (v) => isRecord(v) && isRecord(v.control) })],
+  }),
+  cropBrowsingControl: defineKey<CropBrowsingControl | null>({
+    policy: 'client', tier: 'client', defaultValue: null,
+    doc: 'Game crop browsing control { active, visit } — the primitive atom the game\'s advanceCropSelection writes',
+    sources: [atomSource(/^cropBrowsingControlAtom$/, 'client', { writable: true, structure: (v) => isRecord(v) && typeof v.active === 'boolean' })],
   }),
   action: defineKey<unknown>({
     policy: 'client', tier: 'composite', doc: 'Current action type (state + input dependent)',

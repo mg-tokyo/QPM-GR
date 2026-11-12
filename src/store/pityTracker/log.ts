@@ -1,4 +1,3 @@
-import { storage } from '../../utils/storage';
 import {
   CAPSULE_PITY_THRESHOLDS,
   GROWTH_PITY_THRESHOLDS,
@@ -7,7 +6,7 @@ import {
   type PityKind,
   type PityRoll,
 } from '../../catalogs/pityThresholds';
-import { LOG_STORAGE_KEY, MAX_LOG_ENTRIES, ctx, type PityHit } from './state';
+import { MAX_LOG_ENTRIES, ctx, type PityHit } from './state';
 import { applyRoll } from './rolls';
 
 /** One counted roll. Candidates are re-derived from the catalog on replay, so they are not stored. */
@@ -19,27 +18,41 @@ export interface PullLogEntry {
   h: string | null;
   /** `state.gaps[k]` when recorded — keeps gapBase exact on replay. */
   g: number;
+  /** `<activity entry key>#<crop or pull index>`; with `r` it names one roll, so two copies of a log de-duplicate. Absent before REL-5. */
+  s?: string;
 }
 
 const LOG_VERSION = 1;
 
-interface LogEnvelope { version: number; entries: PullLogEntry[] }
+/** Counters wait for a replay of a merged log; `dropped` = entries the merge could not place (PD1). */
+export interface PendingRebuild { dropped: number }
+
+interface LogEnvelope { version: number; entries: PullLogEntry[]; rebuild?: PendingRebuild }
 
 function isEntry(value: unknown): value is PullLogEntry {
   if (!value || typeof value !== 'object') return false;
   const e = value as Record<string, unknown>;
   return typeof e.t === 'number' && typeof e.k === 'string' && typeof e.i === 'string'
-    && typeof e.r === 'string' && (typeof e.h === 'string' || e.h === null) && typeof e.g === 'number';
+    && typeof e.r === 'string' && (typeof e.h === 'string' || e.h === null) && typeof e.g === 'number'
+    && (e.s === undefined || typeof e.s === 'string');
 }
 
-export function loadLog(): PullLogEntry[] {
-  const raw = storage.get<Partial<LogEnvelope> | null>(LOG_STORAGE_KEY, null);
-  if (!raw || raw.version !== LOG_VERSION || !Array.isArray(raw.entries)) return [];
-  return raw.entries.filter(isEntry).sort((a, b) => a.t - b.t);
+export function parseLog(raw: unknown): PullLogEntry[] {
+  const envelope = raw && typeof raw === 'object' ? (raw as Partial<LogEnvelope>) : null;
+  if (!envelope || envelope.version !== LOG_VERSION || !Array.isArray(envelope.entries)) return [];
+  return envelope.entries.filter(isEntry).sort((a, b) => a.t - b.t);
 }
 
-export function saveLog(): void {
-  storage.set(LOG_STORAGE_KEY, { version: LOG_VERSION, entries: ctx.log } satisfies LogEnvelope);
+/** Builds without `rebuild` read the envelope through `parseLog`, which ignores the extra field. */
+export function buildLogEnvelope(entries: PullLogEntry[], rebuild: PendingRebuild | null): LogEnvelope {
+  return rebuild ? { version: LOG_VERSION, entries, rebuild } : { version: LOG_VERSION, entries };
+}
+
+export function parseRebuild(raw: unknown): PendingRebuild | null {
+  const rebuild = raw && typeof raw === 'object' ? (raw as Partial<LogEnvelope>).rebuild : undefined;
+  if (!rebuild || typeof rebuild !== 'object') return null;
+  const dropped = (rebuild as Partial<PendingRebuild>).dropped;
+  return { dropped: typeof dropped === 'number' && Number.isFinite(dropped) ? dropped : 0 };
 }
 
 /** Outcomes this roll competed for — mirrors what recordRoll counted when it was live. */

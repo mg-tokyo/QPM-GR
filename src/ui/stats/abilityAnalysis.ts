@@ -1,6 +1,6 @@
 import type { ActivePetInfo } from '../../store/pets';
 import { findAbilityHistoryForIdentifiers, type AbilityHistory, type AbilityEvent } from '../../store/abilityLogs';
-import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../../features/pets/data/petAbilities';
+import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, getAbilityRateContext, type AbilityDefinition } from '../../features/pets/data/petAbilities';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type DynamicAbilityEffect } from '../../features/pets/abilityValuation';
 
 // ---- Constants ----
@@ -230,7 +230,7 @@ export function analyzeActivePetAbilities(infos: ActivePetInfo[]): AbilityAnalys
         continue;
       }
 
-      const stats = computeAbilityStats(definition, info.strength);
+      const stats = computeAbilityStats(definition, info.strength, getAbilityRateContext(info.species));
       const history = getAbilityHistoryForPet(info, definition.id);
       const observation = history ? computeObservedMetrics(history, definition) : null;
 

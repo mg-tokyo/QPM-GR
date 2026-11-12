@@ -9,7 +9,7 @@ import { calculateMaxStrength } from '../../../store/xpTracker';
 import type { PooledPet } from '../../../types/petTeams';
 import type { CompareStage } from '../../../features/pets/data/petCompareRules';
 import type { CompareAbilityStats } from './types';
-import { getSpriteSrc } from './helpers';
+import { getSpriteSrc, getPooledPetRateContext } from './helpers';
 import { buildGroupedAbilityGroups, resolveSavedAbilityFilter } from './abilityFilter';
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ export function computePetAbilityStatsForCompare(
   const def = getAbilityDefinition(abilityId);
   if (!def) return null;
   const str = pet.strength ?? calculateMaxStrength(pet.targetScale, pet.species) ?? 100;
-  const stats = computeAbilityStats(def, str);
+  const stats = computeAbilityStats(def, str, getPooledPetRateContext(pet));
   const isEventTriggered = isEventTriggeredAbility(def);
   const triggerChancePercent = Math.max(0, Math.min(100, stats.chancePerMinute));
 

@@ -4,8 +4,8 @@
 import { subscribeAtomValue } from '../core/atomRegistry';
 import { recordPetHatch } from './stats';
 import { recordDetailedHatch } from './hatchStatsStore';
-import { storage } from '../utils/storage';
 import { createStoreDiagnostics } from './_storeDiagnostics';
+import { createPlayerScoped, type PlayerScopedHandle, type PlayerScopedLayout } from './playerScoped';
 
 const diag = createStoreDiagnostics('storePetHatching', 'petHatching');
 
@@ -13,6 +13,27 @@ const STORAGE_KEY = 'qpm.petHatchingTracker.knownPetIds.v1';
 const MAX_KNOWN_PET_IDS = 5000;
 let started = false;
 let unsubscribe: (() => void) | null = null;
+let handle: PlayerScopedHandle<string[]> | null = null;
+
+const knownIdsLayout: PlayerScopedLayout<string[]> = {
+  parts: [STORAGE_KEY],
+  join: ([raw]) => (Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : undefined),
+  split: (ids) => [ids],
+};
+
+/** Set union in insertion order (oldest first), capped by dropping the oldest. Returns `a` itself when `b` adds nothing. */
+export function mergeKnownPetIds(a: string[], b: string[], cap = MAX_KNOWN_PET_IDS): string[] {
+  const seen = new Set(a);
+  const extra: string[] = [];
+  for (const id of b) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    extra.push(id);
+  }
+  if (extra.length === 0) return a;
+  const merged = [...a, ...extra];
+  return merged.length > cap ? merged.slice(merged.length - cap) : merged;
+}
 
 interface PetInfo {
   id?: string;
@@ -90,22 +111,10 @@ function extractMutations(pet: PetInfo): string[] {
 // Track known pet IDs to detect new hatches - PERSISTED to prevent compounding bug
 let knownPetIds = new Set<string>();
 
-function loadKnownPetIds(): void {
-  try {
-    const stored = storage.get<string[]>(STORAGE_KEY, []);
-    knownPetIds = new Set(stored);
-    if (knownPetIds.size > 0) {
-      diag.log.debug(`Loaded ${knownPetIds.size} known pet IDs from storage`);
-    }
-  } catch (error) {
-    diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
-    knownPetIds = new Set();
-  }
-}
-
 function saveKnownPetIds(): void {
+  if (!handle?.isReady()) return;
   try {
-    storage.set(STORAGE_KEY, Array.from(knownPetIds));
+    if (!handle.write(Array.from(knownPetIds))) diag.warn('QPM-STORE-004', { what: 'knownPetIds', key: handle.scopedKey() ?? STORAGE_KEY });
   } catch (error) {
     diag.warn('QPM-STORE-004', { what: 'knownPetIds', key: STORAGE_KEY }, error);
   }
@@ -204,54 +213,75 @@ function processPetData(value: unknown): void {
   }
 }
 
-export async function startPetHatchingTracker(): Promise<void> {
-  if (started) return;
+let subscribing = false;
 
-  diag.register('Loading known pet IDs and subscribing to petInventory');
-  loadKnownPetIds();
+/** The player's copy, unioned with ids seen this session (dropping one would count a returning pet as a hatch). */
+function onBound(value: string[]): void {
+  knownPetIds = new Set(mergeKnownPetIds(value, Array.from(knownPetIds)));
+  if (knownPetIds.size !== value.length) saveKnownPetIds();
+  diag.publishOk('Pet hatching tracker started', { knownPetIds: knownPetIds.size });
+  // Hatch detection diffs against the loaded set, so the inventory is read only once it is loaded.
+  if (unsubscribe || subscribing) return;
+  subscribing = true;
+  subscribeInventory()
+    .catch((error) => { diag.error('QPM-STORE-001', { phase: 'subscribe' }, error); })
+    .finally(() => { subscribing = false; });
+}
 
+async function subscribeInventory(): Promise<void> {
   let isFirstCall = true;
-
-  try {
-    const unsub = await subscribeAtomValue('petInventory', (value) => {
-      try {
-        if (isFirstCall) {
-          isFirstCall = false;
-          const pets = extractPetInfos(value);
-          for (const pet of pets) {
-            const species = extractSpecies(pet);
-            const petId = pet.id || `${species || 'unknown'}-${pet.targetScale ?? 1}`;
-            knownPetIds.add(petId);
-          }
-          saveKnownPetIds();
-          diag.log.debug(`Pet hatching tracker initialized with ${knownPetIds.size} existing pets`);
-        } else {
-          processPetData(value);
+  const unsub = await subscribeAtomValue('petInventory', (value) => {
+    try {
+      if (isFirstCall) {
+        isFirstCall = false;
+        const pets = extractPetInfos(value);
+        for (const pet of pets) {
+          const species = extractSpecies(pet);
+          const petId = pet.id || `${species || 'unknown'}-${pet.targetScale ?? 1}`;
+          knownPetIds.add(petId);
         }
-      } catch (error) {
-        diag.warn('QPM-STORE-003', { phase: 'processPetData' }, error);
+        saveKnownPetIds();
+        diag.log.debug(`Pet hatching tracker initialized with ${knownPetIds.size} existing pets`);
+      } else {
+        processPetData(value);
       }
-    });
-
-    if (!unsub) {
-      diag.warn('QPM-STORE-002', { atom: 'petInventory' });
-      return;
+    } catch (error) {
+      diag.warn('QPM-STORE-003', { phase: 'processPetData' }, error);
     }
-    unsubscribe = unsub;
+  });
 
-    started = true;
-    diag.publishOk('Pet hatching tracker started', {
-      knownPetIds: knownPetIds.size,
-    });
-  } catch (error) {
-    diag.error('QPM-STORE-001', { phase: 'subscribe' }, error);
-    throw error;
+  if (!started) {
+    unsub?.();
+    return;
   }
+  if (!unsub) {
+    diag.warn('QPM-STORE-002', { atom: 'petInventory' });
+    return;
+  }
+  unsubscribe = unsub;
+}
+
+/** Starts once the player id resolves; known pet ids are kept per player (`<key>.<playerId>`). */
+export function startPetHatchingTracker(): Promise<void> {
+  if (started) return Promise.resolve();
+  started = true;
+  diag.register('Waiting for the player id to load known pet IDs');
+  handle = createPlayerScoped<string[]>({
+    baseKey: STORAGE_KEY,
+    fallback: [],
+    merge: (a, b) => mergeKnownPetIds(a, b),
+    onReady: onBound,
+    flush: saveKnownPetIds,
+  }, knownIdsLayout);
+  handle.start();
+  return Promise.resolve();
 }
 
 export function stopPetHatchingTracker(): void {
   unsubscribe?.();
   unsubscribe = null;
+  handle?.stop();
+  handle = null;
   started = false;
   // Don't clear knownPetIds — prevents compounding on restart.
   diag.log.debug('Pet hatching tracker stopped');

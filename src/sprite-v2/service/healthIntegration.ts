@@ -7,6 +7,8 @@ import type { PixiConstructors } from '../types';
 import { HYDRATION_EVENT } from './constants';
 import { bootReportRef } from './bootReport';
 import { ctxRef } from './state';
+import { petRiveState } from '../petRive/state';
+import { cachedSpeciesCount } from '../petRive/cache';
 
 // Diagnostics bus wiring (Phase 2 item 2.5)
 // §4.4 ruling: single 'spriteV2' bus entry; sub-state lives in `metrics`, not split into multiple subsystems.
@@ -73,6 +75,7 @@ function buildSpriteMetrics(detail?: Record<string, unknown>): Readonly<Record<s
     decoderFailures: decoder?.decodeFailures ?? 0,
     decoderAvgMs,
     decoderDiscovery: decoder?.discoveryStrategy ?? 'pending',
+    petRive: `${cachedSpeciesCount()}/${petRiveState.artboardNames.size}`,
   };
 }
 
@@ -210,4 +213,12 @@ export function reportSpriteV2InitFailed(error: unknown): void {
  */
 export function reportSpriteV2InitRecovered(): void {
   publishSpriteHealth('ok', 'Recovered after late PIXI arrival');
+}
+
+/** Zero discovered species is the 1973-style manifest drift signal; a positive count publishes nothing. */
+export function reportPetRiveDiscovery(discovered: number): void {
+  if (discovered > 0) return;
+  diagLog.warn('QPM-SPRITE-008', { discovered });
+  lastPublishedSig = '';
+  publishSpriteHealth('degraded', 'Pet Rive: 0 species discovered');
 }

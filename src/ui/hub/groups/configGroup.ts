@@ -23,6 +23,7 @@ import { startShopKeybindsStatus, startPanelShortcutStatus } from '../../panel/t
 import { getDiagnosticsCard } from '../../../diagnostics/configCard';
 import { getCamera3dCard } from '../../sections/camera3dSection';
 import { getSpectatorCard } from '../../sections/spectatorSection';
+import { getGameUpdateRefreshCard } from '../../sections/gameUpdateRefreshSection';
 
 const SHOP_IDS: readonly ShopId[] = ['seedShop', 'eggShop', 'toolShop', 'decorShop'];
 const SHOP_I18N_KEYS: Record<ShopId, string> = {
@@ -531,7 +532,7 @@ export function getConfigGroup(): HubGroupDef {
     icon: { kind: 'emoji', value: '⚙️' },
     cards: [
       controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, npcDialogueCard, getCamera3dCard(), getSpectatorCard(),
-      getDiagnosticsCard(), resetToursCard,
+      getGameUpdateRefreshCard(), getDiagnosticsCard(), resetToursCard,
     ],
   };
 }

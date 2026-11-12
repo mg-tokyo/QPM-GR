@@ -1,15 +1,19 @@
 // Rich per-hatch stats tracking: species + abilities + session/lifetime counts.
 
-import { storage } from '../utils/storage';
 import { areCatalogsReady, getAllPetSpecies, onCatalogsReady } from '../catalogs/gameCatalogs';
 import { createStoreDiagnostics } from './_storeDiagnostics';
+import {
+  HATCH_MAX_EVENTS as MAX_EVENTS,
+  HATCH_MAX_SEEDED_IDS as MAX_SEEDED_PET_IDS,
+  HATCH_STATS_VERSION as CURRENT_VERSION,
+  mergeHatchStats,
+  normalizeHatchStats,
+} from './hatchStatsMerge';
+import { createPlayerScoped, type PlayerScopedHandle, type PlayerScopedLayout } from './playerScoped';
 
 const diag = createStoreDiagnostics('storeHatchStats', 'hatchStats');
 
 const STORAGE_KEY = 'qpm.hatchStats.v1';
-const MAX_EVENTS = 100;
-const MAX_SEEDED_PET_IDS = 5000;
-const CURRENT_VERSION = 1;
 
 export interface HatchEvent {
   species: string;
@@ -67,6 +71,16 @@ function defaultState(): HatchStatsState {
 
 let state: HatchStatsState = defaultState();
 const listeners = new Set<(s: HatchStatsState) => void>();
+let handle: PlayerScopedHandle<HatchStatsState> | null = null;
+/** Hatches seen before the player id resolves; replayed onto the player's copy, since a PD2 max merge would drop them. */
+let pendingHatches: HatchEvent[] = [];
+let catalogCleanupUnsub: (() => void) | null = null;
+
+const hatchStatsLayout: PlayerScopedLayout<HatchStatsState> = {
+  parts: [STORAGE_KEY],
+  join: ([raw]) => normalizeHatchStats(raw),
+  split: (value) => [value],
+};
 
 function notify(): void {
   for (const cb of listeners) {
@@ -79,11 +93,8 @@ function notify(): void {
 }
 
 function persist(): void {
-  try {
-    storage.set(STORAGE_KEY, state);
-  } catch (error) {
-    diag.warn('QPM-STORE-004', { what: 'stats', key: STORAGE_KEY }, error);
-  }
+  if (!handle?.isReady()) return;
+  if (!handle.write(state)) diag.warn('QPM-STORE-004', { what: 'stats', key: handle.scopedKey() ?? STORAGE_KEY });
 }
 
 // One-time data cleanup — removes inflated/corrupted entries
@@ -150,46 +161,62 @@ function runCleanup(): void {
   persist();
 }
 
-export function initHatchStatsStore(): void {
-  diag.register('Loading hatch stats from storage');
-  try {
-    const saved = storage.get<HatchStatsState | null>(STORAGE_KEY, null);
-    if (saved && saved.meta?.version === CURRENT_VERSION) {
-      // Restore lifetime + recentEvents + seededPetIds; always reset session on init
-      state = {
-        ...saved,
-        seededPetIds: Array.isArray(saved.seededPetIds) ? saved.seededPetIds : [],
-        session: { ...emptyBucket(), start: Date.now() },
-      };
-    } else {
-      state = defaultState();
-    }
+function ensureCleaned(): void {
+  if (state.meta.cleanedAt) return;
+  if (!areCatalogsReady() && !catalogCleanupUnsub) {
+    // Defer the catalog-checked pass; the heuristic pass below covers catalogs that never load.
+    catalogCleanupUnsub = onCatalogsReady(() => {
+      catalogCleanupUnsub = null;
+      if (!state.meta.cleanedAt) runCleanup();
+    });
+  }
+  runCleanup();
+}
 
-    if (!state.meta.cleanedAt) {
-      if (areCatalogsReady()) {
-        runCleanup();
-      } else {
-        // Defer cleanup until catalogs are available for species validation
-        onCatalogsReady(() => {
-          if (!state.meta.cleanedAt) {
-            runCleanup();
-          }
-        });
-        // Also run heuristic cleanup immediately as a fallback
-        // (in case catalogs never load, we at least remove obvious junk)
-        runCleanup();
-      }
-    }
+/** The player's merged copy; the session bucket restarts, then pre-bind hatches are replayed onto it. */
+function onBound(value: HatchStatsState): void {
+  try {
+    state = { ...value, session: { ...emptyBucket(), start: Date.now() } };
+    // Cleanup first: it clears recentEvents and byAbility, which would drop the replayed hatches.
+    ensureCleaned();
+    const replay = pendingHatches;
+    pendingHatches = [];
+    for (const event of replay) applyHatch(event);
+    if (replay.length > 0) persist();
   } catch (error) {
     diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
     state = defaultState();
   }
-
+  notify();
   diag.publishOk('Hatch stats initialised', {
     lifetimeHatched: state.lifetime.totalHatched,
     events: state.recentEvents.length,
     seededIds: state.seededPetIds.length,
   });
+}
+
+export function initHatchStatsStore(): void {
+  if (handle) return;
+  diag.register('Waiting for the player id to load hatch stats');
+  state = defaultState();
+  const fallback = defaultState();
+  handle = createPlayerScoped<HatchStatsState>({
+    baseKey: STORAGE_KEY,
+    fallback,
+    merge: mergeHatchStats,
+    // The fallback is shared across binds and the store mutates its state in place.
+    onReady: (value) => onBound(value === fallback ? defaultState() : value),
+    flush: persist,
+  }, hatchStatsLayout);
+  handle.start();
+}
+
+export function stopHatchStatsStore(): void {
+  handle?.stop();
+  handle = null;
+  pendingHatches = [];
+  catalogCleanupUnsub?.();
+  catalogCleanupUnsub = null;
 }
 
 function incrementBucket(
@@ -211,22 +238,25 @@ function incrementBucket(
   }
 }
 
+function applyHatch(event: HatchEvent): void {
+  incrementBucket(state.lifetime, event.species, event.rarity, event.abilities);
+  incrementBucket(state.session, event.species, event.rarity, event.abilities);
+  state.recentEvents.unshift(event);
+  if (state.recentEvents.length > MAX_EVENTS) {
+    state.recentEvents = state.recentEvents.slice(0, MAX_EVENTS);
+  }
+  state.meta.updatedAt = Date.now();
+}
+
 export function recordDetailedHatch(
   species: string,
   rarity: 'normal' | 'gold' | 'rainbow',
   abilities: string[],
   timestamp: number,
 ): void {
-  incrementBucket(state.lifetime, species, rarity, abilities);
-  incrementBucket(state.session, species, rarity, abilities);
-
   const event: HatchEvent = { species, rarity, abilities, timestamp };
-  state.recentEvents.unshift(event);
-  if (state.recentEvents.length > MAX_EVENTS) {
-    state.recentEvents = state.recentEvents.slice(0, MAX_EVENTS);
-  }
-
-  state.meta.updatedAt = Date.now();
+  applyHatch(event);
+  if (handle && !handle.isReady() && pendingHatches.length < MAX_EVENTS) pendingHatches.push(event);
   persist();
   notify();
 }
@@ -300,6 +330,8 @@ function detectSeedRarity(pet: PetSeedInput): 'normal' | 'gold' | 'rainbow' {
  * Returns { added } = number of newly added pets.
  */
 export function seedLifetimeFromPets(pets: PetSeedInput[]): { added: number } {
+  // Seeded ids belong to the player's copy; before it binds they would be lost or credited to defaults.
+  if (!handle?.isReady()) return { added: 0 };
   let added = 0;
   const seenIds = new Set(state.seededPetIds);
 

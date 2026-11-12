@@ -24,7 +24,8 @@ import { getTopologyStats, onTopologyChange, resetTopology, signalTopology } fro
 import type { KeyExplain, SourceKind } from './types';
 
 export type { GameStateKey, GameStateValue } from './keys';
-export type { KeyExplain, SourceKind } from './types';
+export type { IdentityContext, KeyExplain, SourceKind } from './types';
+export { onIdentityChange } from './identity';
 export { renderGameStateTable } from './health';
 export type { DivergenceReport } from './divergence';
 /** The game's 2D camera handles (keys/camera.ts), for the spectator startup check. */

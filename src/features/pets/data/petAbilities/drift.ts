@@ -1,6 +1,15 @@
-import { getAbilityDef, getAllAbilities, arePetAbilitiesCaptured, areCatalogsReady } from '../../../../catalogs/gameCatalogs';
+import { getAbilityDef, getAllAbilities, arePetAbilitiesCaptured, areCatalogsReady, getPetCatalog } from '../../../../catalogs/gameCatalogs';
+import { getDayCycle, getDayCycleSourceStatus } from '../../../../catalogs/logic/dayCycleCatalog';
+import type { DayCycleData, DayCycleSourceStatus, StageKeyMismatch } from '../../../../catalogs/logic/dayCycleCatalog';
+import { compareStageKeys } from '../../../../catalogs/logic/dayCycleParsing';
+import { getBundleFetchStats } from '../../../../catalogs/logic/bundleParser';
+import { isGameStateReady, readSync } from '../../../../core/gameState';
+import { getCapturedBuildId } from '../../../../diagnostics/gameVersionCapture';
 import { ABILITY_METADATA } from './definitions';
-import { canResolveParameterKey } from './catalogAdapter';
+import { canResolveParameterKey, getAbilityDefinition, getAllAbilityDefinitions } from './catalogAdapter';
+import { getAbilityRateContext, getActiveCrystalTypes, getCrystalStrengthBonus } from './dayStage';
+import { computeAbilityStats } from './stats';
+import { getActivePetInfos } from '../../../../store/pets';
 import { isHighValueAbility, isLowValueAbility } from './classification';
 import { classifySizeBoostAbility, FLAT_SIZE_KEYS, PERCENT_SIZE_KEYS } from './sizeBoost';
 
@@ -138,4 +147,89 @@ export function getAbilityCatalogDrift(): AbilityCatalogDrift {
     unknownTriggers: [...unknownTriggers],
     unclassified: catalogIds.filter((id) => !isHighValueAbility(id) && !isLowValueAbility(id)),
   };
+}
+
+export interface DayStageDrift extends DayCycleData {
+  build: string | null;
+  source: DayCycleSourceStatus;
+  cycleMinutes: number | null;
+  bonusStageMismatch: StageKeyMismatch | null;
+  currentStage: string | null;
+  unknownStagesSeen: string[];        // stage values on the atom that the parsed cycle lacks
+  nocturnalSpecies: string[];
+  abilitiesInScope: Record<string, string[]>;  // continuous chance abilities by category
+  activeCrystalTypes: string[];       // placed crystals with charge left in my garden
+  crystalStrengthBonus: number;
+  bundleFetch: ReturnType<typeof getBundleFetchStats>;  // REL-7: failed and given-up chunk URLs
+}
+
+export function getDayStageDrift(): DayStageDrift {
+  const data = getDayCycle();
+  const source = getDayCycleSourceStatus();
+  const stageIds = data.stages ? new Set(data.stages.map((s) => s.id)) : null;
+  const nocturnalSpecies = Object.entries(getPetCatalog() ?? {})
+    .filter(([, entry]) => entry.isNocturnal === true)
+    .map(([species]) => species);
+  const abilitiesInScope: Record<string, string[]> = {};
+  for (const def of getAllAbilityDefinitions()) {
+    if (def.trigger !== 'continuous' || !((def.baseProbability ?? 0) > 0)) continue;
+    (abilitiesInScope[def.category] ??= []).push(def.id);
+  }
+  return {
+    ...data,
+    build: getCapturedBuildId(),
+    source,
+    cycleMinutes: data.stages ? data.stages.reduce((sum, s) => sum + s.minutes, 0) : null,
+    bonusStageMismatch: data.stages && data.nocturnalBonus ? compareStageKeys(data.stages, data.nocturnalBonus) : null,
+    currentStage: isGameStateReady() ? readSync('dayNightStage') : null,
+    unknownStagesSeen: stageIds ? source.stagesSeen.filter((s) => !stageIds.has(s)) : [],
+    nocturnalSpecies,
+    abilitiesInScope,
+    activeCrystalTypes: [...getActiveCrystalTypes()],
+    crystalStrengthBonus: getCrystalStrengthBonus(data),
+    bundleFetch: getBundleFetchStats(),
+  };
+}
+
+export interface AbilityRateRow {
+  slotIndex: number;
+  species: string | null;
+  strength: number | null;
+  abilityId: string;
+  stage: string | null;
+  nocturnal: boolean;
+  stageBonus: number;
+  crystalBonus: number;
+  multiplier: number;
+  cardChancePerMinute: number;   // percent, as the game's ability card shows it
+  procsPerHour: number;
+  dayAverageProcsPerHour: number | null;
+}
+
+/** Every active pet's continuous chance ability through the shared maths (REL-6). */
+export function getAbilityRateReport(): AbilityRateRow[] {
+  const rows: AbilityRateRow[] = [];
+  for (const pet of getActivePetInfos()) {
+    const context = getAbilityRateContext(pet.species);
+    for (const abilityId of pet.abilities) {
+      const def = getAbilityDefinition(abilityId);
+      if (!def || def.trigger !== 'continuous' || !((def.baseProbability ?? 0) > 0)) continue;
+      const stats = computeAbilityStats(def, pet.strength, context);
+      rows.push({
+        slotIndex: pet.slotIndex,
+        species: pet.species,
+        strength: pet.strength,
+        abilityId: def.id,
+        stage: stats.stage,
+        nocturnal: context.isNocturnal,
+        stageBonus: stats.stageBonus,
+        crystalBonus: context.strengthBonus,
+        multiplier: stats.multiplier,
+        cardChancePerMinute: stats.chancePerMinute,
+        procsPerHour: stats.procsPerHour,
+        dayAverageProcsPerHour: stats.dayAverage?.procsPerHour ?? null,
+      });
+    }
+  }
+  return rows;
 }

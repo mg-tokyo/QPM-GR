@@ -20,8 +20,8 @@ export function applyHatch(hatch: PendingHatch): void {
     if (getEggCatalog()) void mergeCatalogIfIncomplete('eggCatalog', [hatch.eggId]).catch(() => {});
     return;
   }
-  recordRoll('egg', hatch.eggId, 'species', hatch.species, hatch.at);
-  recordRoll('egg', hatch.eggId, 'mutation', hatch.mutation, hatch.at);
+  recordRoll('egg', hatch.eggId, 'species', hatch.species, hatch.at, `${hatch.key}#0`);
+  recordRoll('egg', hatch.eggId, 'mutation', hatch.mutation, hatch.at, `${hatch.key}#0`);
 }
 
 export function drainPendingHatches(): boolean {

@@ -394,7 +394,9 @@ export function wrapRiveLoad(rive: LowLevelRive, label = 'unknown'): void {
     );
   }
 
-  const wrapped = function (this: unknown, bytes: Uint8Array, callerLoader?: unknown) {
+  // `rest` carries the glue's later parameters; game 1995 calls `load(bytes, undefined, false)`
+  // and the `false` turns the CDN asset loader off, so it must reach the original.
+  const wrapped = function (this: unknown, bytes: Uint8Array, callerLoader?: unknown, ...rest: unknown[]) {
     loadCallCount++;
     const url = findUrlForBytes(bytes);
     loadHistory.push({ url, label, byteLength: bytes.byteLength, callIndex: loadCallCount });
@@ -403,7 +405,7 @@ export function wrapRiveLoad(rive: LowLevelRive, label = 'unknown'): void {
     if (!CustomLoader || !Fallback) {
       // Defensive: runtime lacks the chain classes we need. Don't drop the
       // caller — pass it through so the game's loader still runs.
-      return originalLoad.call(rive, bytes, callerLoader);
+      return originalLoad.call(rive, bytes, callerLoader, ...rest);
     }
 
     const overrideFn = makeOverrideLoader(rive, url, label);
@@ -417,7 +419,7 @@ export function wrapRiveLoad(rive: LowLevelRive, label = 'unknown'): void {
     chain.addLoader(overrideLoader);
     if (callerLoader !== undefined) chain.addLoader(callerLoader);
 
-    return originalLoad.call(rive, bytes, chain);
+    return originalLoad.call(rive, bytes, chain, ...rest);
   };
   (wrapped as unknown as Record<string, unknown>).__qpmWrapped = true;
   (wrapped as unknown as Record<string, unknown>).__qpmLabel = label;

@@ -193,3 +193,30 @@ export interface NpcChatBubble {
   tags?: Record<number, unknown>;
   [key: string]: unknown;
 }
+
+// Game crop browsing (client `data/tile/cropSelection.ts`, live 1989). Values are passed through
+// uncopied: the game compares selections by identity.
+export interface CropSelection {
+  readonly sourceKey: string;
+  readonly slotId: number;
+  readonly [key: string]: unknown;
+}
+
+export interface CropBrowsingVisit {
+  readonly sourceKey: string;
+  readonly selection: CropSelection | null;
+  readonly [key: string]: unknown;
+}
+
+export interface CropBrowsingControl {
+  readonly active: boolean;
+  readonly visit: CropBrowsingVisit | null;
+  readonly [key: string]: unknown;
+}
+
+export interface CropBrowsingProjection {
+  readonly visit: CropBrowsingVisit | null;
+  readonly order: { readonly sourceKey: string; readonly occupiedSlotIds: readonly number[]; readonly [key: string]: unknown } | null;
+  readonly selection: CropSelection | null;
+  readonly control: CropBrowsingControl;
+}

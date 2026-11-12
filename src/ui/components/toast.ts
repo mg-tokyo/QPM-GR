@@ -10,9 +10,19 @@ export interface ToastAction {
 export interface ToastOptions {
   variant?: 'success' | 'error' | 'info';
   duration?: number;
+  /** Stay until `close()`, the action, or a newer toast; `duration` is ignored. */
+  persist?: boolean;
   /** Wrap long text at this width (px); unset = no limit (callers before 2026-10-04 rely on that). */
   maxWidth?: number;
   action?: ToastAction;
+}
+
+export interface ToastHandle {
+  setMessage(message: string): void;
+  /** Removes the toast now; safe to call twice or after it faded. */
+  close(): void;
+  /** False once closed, faded out, closed by its action, or replaced by a newer toast. */
+  isOpen(): boolean;
 }
 
 const VARIANT_BORDER: Record<string, string> = {
@@ -21,8 +31,10 @@ const VARIANT_BORDER: Record<string, string> = {
   info: 'border-color:var(--qpm-accent);',
 };
 
-export function showToast(message: string, options: ToastOptions = {}): void {
-  const { variant = 'info', duration = 2500, maxWidth, action } = options;
+const FADE_MS = 300;
+
+export function showToast(message: string, options: ToastOptions = {}): ToastHandle {
+  const { variant = 'info', duration = 2500, persist = false, maxWidth, action } = options;
 
   ensureToastStyle();
 
@@ -31,7 +43,17 @@ export function showToast(message: string, options: ToastOptions = {}): void {
 
   const toast = document.createElement('div');
   toast.className = 'qpm-toast';
-  toast.textContent = message;
+  const text = document.createTextNode(message);
+  toast.appendChild(text);
+
+  let closed = false;
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  const close = (): void => {
+    closed = true;
+    for (const id of timers) clearTimeout(id);
+    timers.length = 0;
+    toast.remove();
+  };
 
   const borderStyle = VARIANT_BORDER[variant] ?? VARIANT_BORDER.info;
   toast.style.cssText +=
@@ -44,8 +66,8 @@ export function showToast(message: string, options: ToastOptions = {}): void {
       variant: 'primary',
       size: 'sm',
       onClick: () => {
-        if (!toast.isConnected) return;
-        toast.remove();
+        if (closed || !toast.isConnected) return;
+        close();
         action.onClick();
       },
     }));
@@ -54,11 +76,18 @@ export function showToast(message: string, options: ToastOptions = {}): void {
 
   document.body.appendChild(toast);
 
-  setTimeout(() => {
-    toast.style.transition = 'opacity 0.3s ease';
-    toast.style.opacity = '0';
-    setTimeout(() => {
-      try { toast.remove(); } catch { /* already removed */ }
-    }, 300);
-  }, duration);
+  if (!persist) {
+    timers.push(setTimeout(() => {
+      closed = true;
+      toast.style.transition = 'opacity 0.3s ease';
+      toast.style.opacity = '0';
+      timers.push(setTimeout(() => { toast.remove(); }, FADE_MS));
+    }, duration));
+  }
+
+  return {
+    setMessage: (next) => { text.data = next; },
+    close,
+    isOpen: () => !closed && toast.isConnected,
+  };
 }

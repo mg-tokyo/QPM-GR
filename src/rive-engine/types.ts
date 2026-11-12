@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 export type LowLevelRive = {
-  load(bytes: Uint8Array, assetLoader?: unknown): unknown;
+  load(bytes: Uint8Array, assetLoader?: unknown, ...rest: unknown[]): unknown;
   decodeImage(bytes: Uint8Array, cb: (img: RiveImage | null) => void): void;
   makeRenderer(canvas: HTMLCanvasElement): unknown;
   StateMachineInstance: new (sm: unknown, artboard: unknown) => unknown;

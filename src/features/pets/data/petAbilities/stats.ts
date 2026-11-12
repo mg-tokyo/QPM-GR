@@ -1,49 +1,47 @@
 import { getAbilityDef } from '../../../../catalogs/gameCatalogs';
 import type { AbilityDefinition } from './definitions';
+import { computeDayAverageRate, computeStageRate, noStageContext } from './dayStage';
+import type { AbilityRateContext, DayAverageRate } from './dayStage';
 
-const STRENGTH_BASELINE = 100;
-const MIN_MULTIPLIER = 0.25;
-const MAX_CHANCE_PER_SECOND = 0.95 / 60; // cap: 95% per minute
 const DEFAULT_ROLL_MINUTES = 1;
 
 export interface AbilityStats {
-  multiplier: number;
-  chancePerRoll: number;
+  multiplier: number;        // effective strength incl. crystal + stage bonus, no floor
+  chancePerRoll: number;     // decimal per-second chance (compounding)
   rollPeriodMinutes: number;
   procsPerHour: number;
-  chancePerSecond: number;   // game rolls every second
-  chancePerMinute: number;   // for display
+  chancePerSecond: number;   // percent; the server ticks every second
+  chancePerMinute: number;   // percent, capped: the ability card's "Chance per minute"
+  stage: string | null;
+  stageBonus: number;
+  dayAverage?: DayAverageRate;   // absent until the day cycle is parsed
 }
 
-export function computeAbilityStats(definition: AbilityDefinition, strength: number | null | undefined): AbilityStats {
-  // STR is a percentage multiplier: STR=100 → 1.0x, STR=62 → 0.62x, STR=50 → 0.5x. Game rolls every second.
-  const rawStrength = Number.isFinite(strength) ? (strength as number) : STRENGTH_BASELINE;
-  const multiplier = Math.max(MIN_MULTIPLIER, rawStrength / 100);
-
-  const baseChancePerMinute = Math.max(0, definition.baseProbability ?? 0);
-  const baseChancePerSecond = baseChancePerMinute / 60;
-
-  const chancePerSecondDecimal = Math.max(0, baseChancePerSecond / 100);
-  const chancePerRoll = Math.min(MAX_CHANCE_PER_SECOND, chancePerSecondDecimal * multiplier);
-
-  const rollsPerHour = 3600;
-  const procsPerHour = rollsPerHour * chancePerRoll;
-
-  const chancePerSecond = chancePerRoll * 100;
-  const chancePerMinute = chancePerSecond * 60;
-
-  const rollPeriodMinutes = definition.rollPeriodMinutes ?? DEFAULT_ROLL_MINUTES;
+/** Without `context` there is no stage or crystal term and no day average. */
+export function computeAbilityStats(
+  definition: AbilityDefinition,
+  strength: number | null | undefined,
+  context?: AbilityRateContext,
+): AbilityStats {
+  const rateContext = context ?? noStageContext();
+  const baseProbability = definition.baseProbability ?? 0;
+  const live = computeStageRate(baseProbability, strength, rateContext, rateContext.stage);
+  const dayAverage = context ? computeDayAverageRate(baseProbability, strength, context) : null;
 
   return {
-    multiplier,
-    chancePerRoll,
-    rollPeriodMinutes,
-    procsPerHour,
-    chancePerSecond,
-    chancePerMinute,
+    multiplier: live.multiplier,
+    chancePerRoll: live.chancePerSecond,
+    rollPeriodMinutes: definition.rollPeriodMinutes ?? DEFAULT_ROLL_MINUTES,
+    procsPerHour: live.procsPerHour,
+    chancePerSecond: live.chancePerSecond * 100,
+    chancePerMinute: live.chancePerMinute * 100,
+    stage: live.stage,
+    stageBonus: live.stageBonus,
+    ...(dayAverage ? { dayAverage } : {}),
   };
 }
 
+/** With `strength` the effect scales by the effective strength (`stats.multiplier`). */
 export function computeEffectPerHour(
   definition: AbilityDefinition,
   stats: AbilityStats,
@@ -53,10 +51,15 @@ export function computeEffectPerHour(
   if (!Number.isFinite(effect) || effect === 0) {
     return 0;
   }
-  const strengthScale = strength != null && Number.isFinite(strength)
-    ? Math.max(0, strength) / 100
-    : 1;
+  const strengthScale = strength != null && Number.isFinite(strength) ? stats.multiplier : 1;
   return stats.procsPerHour * effect * strengthScale;
+}
+
+export function computeDayAverageEffectPerHour(definition: AbilityDefinition, stats: AbilityStats): number | null {
+  const effect = definition.effectValuePerProc ?? 0;
+  if (!stats.dayAverage) return null;
+  if (!Number.isFinite(effect) || effect === 0) return 0;
+  return stats.dayAverage.strengthWeightedProcsPerHour * effect;
 }
 
 /** Returns true if the ability has trigger 'playerActivated' (e.g. DawnCapture). */

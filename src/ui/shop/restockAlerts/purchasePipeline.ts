@@ -237,12 +237,12 @@ export interface PurchaseRequest {
  */
 export async function purchaseAndConfirm(req: PurchaseRequest): Promise<PurchaseOutcome> {
   if (pendingOwnershipConfirmations.has(req.key)) {
-    return { sent: 0, confirmed: 0, storedIn: null, error: 'purchase already pending', timedOut: false };
+    return { sent: 0, confirmed: 0, storedIn: null, error: 'purchase already pending', timedOut: false, status: 'notSent' };
   }
 
   const requested = applyInventoryCapToQuantity(req.shopType, req.itemId, req.key, Math.max(1, Math.floor(req.quantity)), req.itemType);
   if (requested <= 0) {
-    return { sent: 0, confirmed: 0, storedIn: null, error: 'inventory cap reached', timedOut: false };
+    return { sent: 0, confirmed: 0, storedIn: null, error: 'inventory cap reached', timedOut: false, status: 'notSent' };
   }
 
   const model: AlertModel = {
@@ -259,13 +259,13 @@ export async function purchaseAndConfirm(req: PurchaseRequest): Promise<Purchase
   const batchOpts: PurchaseBatchOptions = req.send !== undefined ? { send: req.send } : {};
   const result = await sendPurchaseBatch(model, requested, batchOpts);
   if (result.error || result.sent <= 0) {
-    return { sent: result.sent, confirmed: 0, storedIn: null, error: result.error ?? 'purchase failed', timedOut: false };
+    return { sent: result.sent, confirmed: 0, storedIn: null, error: result.error ?? 'purchase failed', timedOut: false, status: 'notSent' };
   }
   if (!result.confirmationAvailable || !result.baseline) {
     const gapText = result.baseline
       ? describeConfirmationSourceGaps(result.baseline, result.hasEnvelope ?? false)
       : '';
-    return { sent: result.sent, confirmed: 0, storedIn: null, error: `no confirmation source${gapText}`, timedOut: false };
+    return { sent: result.sent, confirmed: 0, storedIn: null, error: `no confirmation source${gapText}`, timedOut: false, status: 'noConfirmationSource' };
   }
 
   const autoStoreTarget = req.autoStore ? resolveAutoStoreTarget(req.shopType, req.key) : null;

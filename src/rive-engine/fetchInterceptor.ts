@@ -70,8 +70,22 @@ function fingerprint(bytes: Uint8Array): string {
   return `${len}:${head}:${tail}`;
 }
 
+const seenUrls = new Set<string>();
+const seenListeners = new Set<(url: string) => void>();
+
+/** Fires once per distinct .riv URL the game fetches; per-species pet files arrive this way after room load. */
+export function onRivUrlSeen(cb: (url: string) => void): () => void {
+  seenListeners.add(cb);
+  return () => { seenListeners.delete(cb); };
+}
+
 function recordBytes(bytes: Uint8Array, url: string): void {
   fingerprintToUrl.set(fingerprint(bytes), url);
+  if (seenUrls.has(url)) return;
+  seenUrls.add(url);
+  for (const cb of seenListeners) {
+    try { cb(url); } catch (e) { riveLog('onRivUrlSeen listener threw', e); }
+  }
 }
 
 /**
@@ -156,6 +170,7 @@ export function initRivFetchInterceptor(): () => void {
       }
     }
     fingerprintToUrl.clear();
+    seenUrls.clear();
     installed = false;
     riveLog('.riv fetch interceptor removed');
   };

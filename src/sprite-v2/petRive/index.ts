@@ -1,5 +1,7 @@
 import { awaitRiveSingleton } from '../../rive-engine';
+import { onRivUrlSeen } from '../../rive-engine/fetchInterceptor';
 import { spriteLog } from '../diagnostics';
+import { reportPetRiveDiscovery } from '../service/healthIntegration';
 import { petRiveState, resetPetRiveState } from './state';
 import {
   getCachedCanvas,
@@ -7,40 +9,23 @@ import {
   getCachedMutatedCanvas,
   cacheMutatedCanvas,
   getCachedMutatedDataUrl,
+  cacheCanvas,
   clearPetRiveCache,
   cachedSpeciesCount,
 } from './cache';
-import { fetchPetsRivBytes } from './bundleLoader';
-import { setupRenderer, warmupAllSpecies, notifySpritesRefresh } from './renderer';
+import { discoverPetRiveSources, fetchRivBytes, listSeenSpecies, speciesForSeenUrl } from './bundleLoader';
+import {
+  setupRenderer,
+  loadRiveFile,
+  renderFileArtboards,
+  notifySpritesRefresh,
+  scheduleSpritesRefresh,
+  cancelScheduledRefresh,
+} from './renderer';
 
 let initPromise: Promise<void> | null = null;
 
-async function performInit(): Promise<void> {
-  const runtime = await awaitRiveSingleton();
-  petRiveState.runtime = runtime;
-
-  const bytes = await fetchPetsRivBytes();
-  if (!bytes) return; // bundleLoader already logged
-
-  const setup = await setupRenderer(runtime, bytes, () => {
-    // Fire-and-forget re-warm after context restore
-    void reWarm();
-  });
-  if (!setup) return;
-
-  petRiveState.file = setup.file;
-  petRiveState.renderer = setup.renderer;
-  petRiveState.workCanvas = setup.canvas;
-
-  const { rendered, skipped } = warmupAllSpecies(runtime, setup.file, setup.renderer, setup.canvas);
-  petRiveState.ready = true;
-
-  spriteLog('info', 'pet-rive-warmup-complete', 'Pet species Rive warmup complete', {
-    rendered: rendered.length,
-    skipped: skipped.length,
-    skippedNames: skipped,
-  });
-
+function fireReadyCallbacks(): void {
   const callbacks = petRiveState.readyCallbacks.slice();
   petRiveState.readyCallbacks.length = 0;
   for (const cb of callbacks) {
@@ -50,24 +35,144 @@ async function performInit(): Promise<void> {
       });
     }
   }
+}
 
+function markFailed(species: string, reason: string): void {
+  petRiveState.failed.add(species);
+  spriteLog('warn', 'pet-rive-species-failed', `Pet Rive species '${species}' failed: ${reason}`, { species, reason }, {
+    onceKey: `pet-rive-species-failed:${species}`,
+  });
+}
+
+async function loadSpecies(species: string, url: string): Promise<void> {
+  const { runtime, renderer, workCanvas } = petRiveState;
+  if (!runtime || !renderer || !workCanvas) return;
+
+  const bytes = await fetchRivBytes(url);
+  if (petRiveState.runtime !== runtime) return; // stopped while fetching
+  if (!bytes) { markFailed(species, 'fetch'); return; }
+
+  const file = await loadRiveFile(runtime, bytes, species);
+  if (petRiveState.runtime !== runtime) { try { file?.unref?.(); } catch { /* ignore */ } return; }
+  if (!file) { markFailed(species, 'load'); return; }
+
+  const { rendered } = renderFileArtboards(runtime, file, renderer, workCanvas);
+  try { file.unref?.(); } catch { /* ignore */ }
+
+  const first = rendered[0];
+  if (!first) { markFailed(species, 'render'); return; }
+  // Cache under the species key too when the artboard carries a different name.
+  if (!getCachedCanvas(species)) {
+    const canvas = getCachedCanvas(first);
+    if (canvas) cacheCanvas(species, canvas);
+  }
+  scheduleSpritesRefresh();
+}
+
+function requestSpecies(species: string): Promise<void> {
+  const sources = petRiveState.sources;
+  if (!sources || sources.kind !== 'split' || !petRiveState.ready) return Promise.resolve();
+  const url = sources.bySpecies.get(species);
+  if (!url || petRiveState.failed.has(species) || getCachedCanvas(species)) return Promise.resolve();
+  const existing = petRiveState.inFlight.get(species);
+  if (existing) return existing;
+  const task = loadSpecies(species, url).finally(() => { petRiveState.inFlight.delete(species); });
+  petRiveState.inFlight.set(species, task);
+  return task;
+}
+
+/** Sequential so each species is its own task; the game already fetched these files. */
+async function warmSeenSpecies(): Promise<void> {
+  const sources = petRiveState.sources;
+  if (!sources) return;
+  const species = listSeenSpecies(sources);
+  const started = performance.now();
+  for (const s of species) {
+    if (petRiveState.sources !== sources) return;
+    await requestSpecies(s);
+  }
+  spriteLog('info', 'pet-rive-warm-complete', 'Pet Rive warm of game-fetched species complete', {
+    warmed: species.length,
+    cached: cachedSpeciesCount(),
+    discovered: petRiveState.artboardNames.size,
+    ms: Math.round(performance.now() - started),
+  });
+}
+
+async function warmSingleFile(url: string): Promise<void> {
+  const { runtime, renderer, workCanvas } = petRiveState;
+  if (!runtime || !renderer || !workCanvas) return;
+  const bytes = await fetchRivBytes(url);
+  if (!bytes) return;
+  const file = await loadRiveFile(runtime, bytes, 'pets.riv');
+  if (!file) return;
+  petRiveState.file = file;
+  const { rendered, skipped } = renderFileArtboards(runtime, file, renderer, workCanvas);
+  petRiveState.ready = true;
+  spriteLog('info', 'pet-rive-warmup-complete', 'Pet species Rive warmup complete', {
+    rendered: rendered.length,
+    skipped: skipped.length,
+    skippedNames: skipped,
+  });
+}
+
+async function performInit(): Promise<void> {
+  const runtime = await awaitRiveSingleton();
+  petRiveState.runtime = runtime;
+
+  const sources = await discoverPetRiveSources();
+  petRiveState.sources = sources;
+  const discovered = sources.kind === 'split' ? sources.bySpecies.size : sources.kind === 'single' ? 1 : 0;
+  reportPetRiveDiscovery(discovered);
+  if (sources.kind === 'none') {
+    spriteLog('warn', 'pet-rive-url-missing', 'No pet .riv sources discoverable', undefined, {
+      onceKey: 'pet-rive-url-missing',
+    });
+    return;
+  }
+
+  const setup = setupRenderer(runtime, () => { void reWarm(); });
+  if (!setup) return;
+  petRiveState.renderer = setup.renderer;
+  petRiveState.workCanvas = setup.canvas;
+
+  if (sources.kind === 'split') {
+    for (const species of sources.bySpecies.keys()) petRiveState.artboardNames.add(species);
+    petRiveState.ready = true;
+    fireReadyCallbacks();
+    notifySpritesRefresh();
+    // The game fetches a species file only when it shows that pet, usually
+    // after this init ran: warm each one as its fetch lands (HTTP cache hit).
+    petRiveState.cleanups.push(onRivUrlSeen((url) => {
+      const species = speciesForSeenUrl(sources, url);
+      if (species) void requestSpecies(species);
+    }));
+    await warmSeenSpecies();
+    return;
+  }
+
+  await warmSingleFile(sources.url);
+  if (!petRiveState.ready) return;
+  fireReadyCallbacks();
   notifySpritesRefresh();
 }
 
 async function reWarm(): Promise<void> {
-  if (!petRiveState.runtime || !petRiveState.file || !petRiveState.renderer || !petRiveState.workCanvas) return;
+  const { runtime, renderer, workCanvas, sources } = petRiveState;
+  if (!runtime || !renderer || !workCanvas || !sources) return;
   clearPetRiveCache();
-  const { rendered, skipped } = warmupAllSpecies(
-    petRiveState.runtime,
-    petRiveState.file,
-    petRiveState.renderer,
-    petRiveState.workCanvas,
-  );
-  petRiveState.ready = true;
-  spriteLog('info', 'pet-rive-rewarm-complete', 'Pet species Rive re-warm complete', {
-    rendered: rendered.length,
-    skipped: skipped.length,
-  });
+  petRiveState.failed.clear();
+  if (sources.kind === 'split') {
+    petRiveState.ready = true;
+    await warmSeenSpecies();
+  } else if (petRiveState.file) {
+    const { rendered, skipped } = renderFileArtboards(runtime, petRiveState.file, renderer, workCanvas);
+    petRiveState.ready = true;
+    spriteLog('info', 'pet-rive-rewarm-complete', 'Pet species Rive re-warm complete', {
+      rendered: rendered.length,
+      skipped: skipped.length,
+    });
+  }
   notifySpritesRefresh();
 }
 
@@ -86,6 +191,7 @@ export function stopPetRive(): void {
   for (const fn of petRiveState.cleanups) {
     try { fn(); } catch { /* best effort */ }
   }
+  cancelScheduledRefresh();
   try { petRiveState.file?.unref?.(); } catch { /* best effort */ }
   try { petRiveState.workCanvas?.remove(); } catch { /* best effort */ }
   clearPetRiveCache();
@@ -103,12 +209,18 @@ export function isPetRiveSpecies(species: string): boolean {
 
 export function getPetRiveCanvas(species: string): HTMLCanvasElement | null {
   if (!species) return null;
-  return getCachedCanvas(species);
+  const cached = getCachedCanvas(species);
+  if (cached) return cached;
+  void requestSpecies(species);
+  return null;
 }
 
 export function getPetRiveDataUrl(species: string): string {
   if (!species) return '';
-  return getCachedDataUrl(species);
+  const cached = getCachedDataUrl(species);
+  if (cached) return cached;
+  void requestSpecies(species);
+  return '';
 }
 
 export function getPetRiveMutatedCanvas(species: string, mutations: string[]): HTMLCanvasElement | null {
@@ -146,10 +258,8 @@ export function getPetRiveStats(): { ready: boolean; cached: number; artboards: 
   };
 }
 
-// Runtime + file access for consumers that need to instantiate their OWN
-// artboards for live per-frame animation (e.g. TD balloons). Returns null
-// until warmup completes. Callers must NOT reuse petRive's shared workCanvas
-// or renderer — create their own to avoid GL-state contention with warmups.
+// Single-file mode only: split mode unref's each per-species file after
+// rendering, so there is no shared file to hand out (returns null).
 export function getPetRiveInternals(): {
   runtime: import('../../rive-engine/types').LowLevelRive;
   file: import('./state').RivePetsFile;

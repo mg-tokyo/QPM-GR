@@ -21,6 +21,8 @@ import { getWeatherSnapshot } from '../../../store/weatherHub';
 import type { DetailedWeather } from '../../../utils/game/weatherDetection';
 import { arePetAbilitiesCaptured, getAbilityName, onPetAbilitiesCaptured } from '../../../utils/game/catalogHelpers';
 import { onCatalogsReady } from '../../../catalogs/gameCatalogs';
+import { onDayCycleChange } from '../../../catalogs/logic/dayCycleCatalog';
+import { isGameStateReady, subscribe } from '../../../core/gameState';
 import { t } from '../../../i18n';
 import { renderNearMaxSection, type NearMaxState } from './nearMaxSection';
 import {
@@ -64,6 +66,7 @@ export interface XpTrackerSummaryStats {
 
 interface XpTrackerComputedStats extends XpTrackerSummaryStats {
   stats: XpAbilityStats[];
+  planningTeamXpPerHour: number;   // day average when parsed, else live: drives time to level and near-max
 }
 
 function getXpTrackerComputedStats(pets: ActivePetInfo[]): XpTrackerComputedStats {
@@ -71,15 +74,7 @@ function getXpTrackerComputedStats(pets: ActivePetInfo[]): XpTrackerComputedStat
   const stats: XpAbilityStats[] = [];
   for (const pet of pets) {
     for (const def of findXpAbilities(pet)) {
-      stats.push(calculateXpStats(
-        pet,
-        def.id,
-        getAbilityName(def.id),
-        def.baseProbability ?? 0,
-        def.effectValuePerProc ?? 0,
-        def.requiredWeather ?? null,
-        currentWeather,
-      ));
+      stats.push(calculateXpStats(pet, def, getAbilityName(def.id), currentWeather));
     }
   }
 
@@ -87,6 +82,7 @@ function getXpTrackerComputedStats(pets: ActivePetInfo[]): XpTrackerComputedStat
   const abilityXpPerHour = combined?.totalXpPerHour ?? 0;
   return {
     stats,
+    planningTeamXpPerHour: 3600 + (combined?.totalDayAverageXpPerHour ?? abilityXpPerHour),
     abilityCount: stats.length,
     abilityXpPerHour,
     totalTeamXpPerHour: 3600 + abilityXpPerHour,
@@ -97,8 +93,16 @@ function getXpTrackerComputedStats(pets: ActivePetInfo[]): XpTrackerComputedStat
 }
 
 export function getXpTrackerSummaryStats(pets: ActivePetInfo[]): XpTrackerSummaryStats {
-  const { stats: _stats, ...summary } = getXpTrackerComputedStats(pets);
+  const { stats: _stats, planningTeamXpPerHour: _planning, ...summary } = getXpTrackerComputedStats(pets);
   return summary;
+}
+
+/** e.g. "Midnight +20 STR" for a nocturnal pet with an XP ability; the stage id is the game's own. */
+function stageLabelFor(pet: ActivePetInfo, stats: XpAbilityStats[]): string | null {
+  const row = stats.find((s) => s.isNocturnal && s.stage !== null && s.petId === (pet.petId ?? ''));
+  if (!row?.stage) return null;
+  const stage = row.stage.charAt(0).toUpperCase() + row.stage.slice(1);
+  return t('feature.xpTracker.stageBonus', { stage, bonus: String(row.stageBonus) });
 }
 
 // ============================================================================
@@ -209,6 +213,7 @@ function createPetCard(
   teamXpPerHour: number,
   potionCount: number,
   hoverGuard: HoverGuard,
+  stageLabel: string | null,
 ): HTMLElement {
   const maxStr = getMaxStr(pet);
   const xpPerLevel = pet.species ? getSpeciesXpPerLevel(pet.species) : null;
@@ -302,6 +307,12 @@ function createPetCard(
       maxEl.textContent = t('feature.xpTracker.maxStr', { value: String(maxStr) });
       maxEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);font-family:monospace;margin-top:1px;';
       badge.appendChild(maxEl);
+    }
+    if (stageLabel) {
+      const stageEl = document.createElement('div');
+      stageEl.textContent = stageLabel;
+      stageEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);font-family:monospace;margin-top:1px;white-space:nowrap;';
+      badge.appendChild(stageEl);
     }
     header.appendChild(badge);
   }
@@ -419,6 +430,7 @@ function updateSummaryStrip(
   teamXpPerHour: number,
   weather: DetailedWeather,
   petCount: number,
+  planningTeamXpPerHour: number,
 ): void {
   el.innerHTML = '';
   const abilityXp = teamXpPerHour - 3600;
@@ -459,6 +471,14 @@ function updateSummaryStrip(
     wChip.style.cssText = 'margin-left:auto;color:var(--qpm-text-muted);font-size:12px;';
     el.appendChild(wChip);
   }
+
+  const averageText = formatCoins(planningTeamXpPerHour);
+  if (stats.length > 0 && averageText !== formatCoins(teamXpPerHour)) {
+    const avg = document.createElement('span');
+    avg.textContent = t('feature.xpTracker.dayAverage', { rate: averageText });
+    avg.style.cssText = 'flex-basis:100%;font-size:10px;color:var(--qpm-text-muted);';
+    el.appendChild(avg);
+  }
 }
 
 // ============================================================================
@@ -477,6 +497,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   let latestPets: ActivePetInfo[] = [];
   let latestStats: XpAbilityStats[] = [];
   let totalTeamXpPerHour = 0;
+  let planningTeamXpPerHour = 0;
   let currentWeather: DetailedWeather = 'unknown';
   let potionCount = getXpPotionCount();
 
@@ -549,8 +570,9 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   let lastCardSig: string | null = null;
 
   const buildCardSignature = (pets: ActivePetInfo[]): string => {
-    const parts: string[] = [String(pets.length), String(potionCount), String(Math.round(totalTeamXpPerHour)), String(arePetAbilitiesCaptured())];
+    const parts: string[] = [String(pets.length), String(potionCount), String(Math.round(planningTeamXpPerHour)), String(arePetAbilitiesCaptured())];
     for (const pet of pets) {
+      parts.push(stageLabelFor(pet, latestStats) ?? '');
       const petKey = pet.petId ?? pet.slotId ?? `slot:${pet.slotIndex}`;
       const strBucket = pet.strength != null ? Math.floor(pet.strength / 5) : 'x';
       const xpBucket = pet.xp != null ? Math.floor(pet.xp / 50) : 'x';
@@ -580,7 +602,7 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
       petCardsContainer.appendChild(loading);
     }
     for (const pet of latestPets) {
-      petCardsContainer.appendChild(createPetCard(pet, totalTeamXpPerHour, potionCount, hoverGuard));
+      petCardsContainer.appendChild(createPetCard(pet, planningTeamXpPerHour, potionCount, hoverGuard, stageLabelFor(pet, latestStats)));
     }
   };
 
@@ -589,10 +611,11 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
     currentWeather = computed.currentWeather;
     latestStats = computed.stats;
     totalTeamXpPerHour = computed.totalTeamXpPerHour;
+    planningTeamXpPerHour = computed.planningTeamXpPerHour;
 
-    updateSummaryStrip(summaryStrip, latestStats, totalTeamXpPerHour, currentWeather, latestPets.length);
+    updateSummaryStrip(summaryStrip, latestStats, totalTeamXpPerHour, currentWeather, latestPets.length, planningTeamXpPerHour);
     renderPetCards();
-    renderNearMaxSection(nearMaxContainer, nearMaxState, latestPets, totalTeamXpPerHour);
+    renderNearMaxSection(nearMaxContainer, nearMaxState, latestPets, planningTeamXpPerHour);
   };
 
   // -- Subscriptions --
@@ -619,10 +642,13 @@ export function renderXpTrackerContent(container: HTMLElement): () => void {
   cleanups.push(unsubPotions);
 
   const unsubCatalogs = onCatalogsReady(() => {
-    renderNearMaxSection(nearMaxContainer, nearMaxState, latestPets, totalTeamXpPerHour);
+    renderNearMaxSection(nearMaxContainer, nearMaxState, latestPets, planningTeamXpPerHour);
   });
   cleanups.push(unsubCatalogs);
   cleanups.push(onPetAbilitiesCaptured(() => { if (latestPets.length) updateDisplay(); }));
+  const onRateInputsChange = (): void => { if (latestPets.length) updateDisplay(); };
+  cleanups.push(onDayCycleChange(onRateInputsChange));
+  if (isGameStateReady()) cleanups.push(subscribe('dayNightStage', onRateInputsChange));
 
   // Clean up near-max status timer
   cleanups.push(() => {

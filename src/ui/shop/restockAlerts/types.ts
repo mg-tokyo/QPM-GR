@@ -110,6 +110,11 @@ export interface OwnershipBaseline {
   inventoryKeyItemQuantities: Map<string, number>;
 }
 
+/** How a purchase settled, independent of the human-readable `error` text. */
+export type PurchaseOutcomeStatus =
+  | 'confirmed' | 'rejected' | 'timedOut' | 'connectionLost'
+  | 'cycleRolled' | 'cleared' | 'noConfirmationSource' | 'notSent';
+
 export interface PurchaseOutcome {
   sent: number;
   confirmed: number;
@@ -118,6 +123,7 @@ export interface PurchaseOutcome {
   storeNote?: string;
   error: string | null;
   timedOut: boolean;
+  status: PurchaseOutcomeStatus;
 }
 
 export interface PendingCompletionInfo {

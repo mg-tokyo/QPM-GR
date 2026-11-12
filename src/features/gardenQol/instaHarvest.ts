@@ -15,8 +15,11 @@ import { getGardenSnapshot } from '../garden/bridge';
 import { isRecord } from '../../utils/typeGuards';
 import { isHarvestAction } from './actionShape';
 import { getEnabledActions } from './holdHarvestKinds';
+import { advanceCropSelection } from './cropSelection';
 
 interface GrowSlotLike { slotId: number }
+
+const noop = (): void => {};
 
 const FEATURE_SUBSYSTEM: Subsystem = 'feature:gardenInstaHarvest';
 const FEATURE_NAME = 'gardenInstaHarvest';
@@ -120,12 +123,17 @@ function onKeyDownCapture(event: KeyboardEvent): void {
   event.preventDefault();
 
   const cropItemId = newClientItemId();
+  const rollbackSelection = advanceCropSelection(slotId);
   const result = sendRoomAction(
     'HarvestCrop',
     { slot: dirtTileIndex, slotsIndex: slotId, cropItemId },
     { skipThrottle: true },
   );
-  if (!result.ok) {
+  if (result.ok) {
+    // A timeout is an unknown outcome; like the game, only a definite answer rolls back.
+    result.awaitResult?.().then((r) => { if (!r.ok) rollbackSelection(); }, noop);
+  } else {
+    rollbackSelection();
     warnFeature('QPM-FEATURE-001', {
       type: 'HarvestCrop',
       reason: result.reason ?? 'unknown',

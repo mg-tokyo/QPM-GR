@@ -24,4 +24,4 @@ export { createSliderRow, createSliderRowControl, type SliderRowControl, type Sl
 export { createColorPicker } from './colorPicker';
 
 // Helpers
-export { showToast, type ToastOptions } from './toast';
+export { showToast, type ToastHandle, type ToastOptions } from './toast';

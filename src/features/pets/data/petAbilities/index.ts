@@ -1,7 +1,15 @@
 export type { AbilityCategory, AbilityDefinition } from './definitions';
 export { getAbilityDefinition, getAllAbilityDefinitions } from './catalogAdapter';
 export type { AbilityStats } from './stats';
-export { computeAbilityStats, computeEffectPerHour, isChargedAbility, getPetChargedAbility } from './stats';
+export {
+  computeAbilityStats,
+  computeEffectPerHour,
+  computeDayAverageEffectPerHour,
+  isChargedAbility,
+  getPetChargedAbility,
+} from './stats';
+export type { AbilityRateContext, DayAverageRate, StageRate } from './dayStage';
+export { averageOverDayCycle, compoundingChancePerSecond, getAbilityRateContext, stageStrengthBonus } from './dayStage';
 export {
   getAbilityTier,
   getAbilityFamilySiblings,

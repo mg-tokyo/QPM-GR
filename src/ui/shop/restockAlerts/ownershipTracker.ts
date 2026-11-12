@@ -299,7 +299,7 @@ export function armReactiveConfirmation(
     const nextFp = fingerprintCycle(item);
     if (cycleRolled(latest.cycleArmFp, nextFp)) {
       debugLog('Pending failed: shop cycle rolled', { key, armFp: latest.cycleArmFp, nextFp });
-      failPendingAndDismissForCycle(key, 'Cycle rolled before confirmation — retry');
+      failPendingAndDismissForCycle(key, 'Cycle rolled before confirmation — retry', 'cycleRolled');
     }
   });
   pending.cleanups.push(cycleUnsub);
@@ -314,7 +314,7 @@ export function armReactiveConfirmation(
       pending.expectedIncrease = Math.max(0, pending.expectedIncrease - units);
       debugLog('Pending send refused by server', { key, code: r.code, expectedIncrease: pending.expectedIncrease, confirmed: pending.confirmed });
       if (pending.expectedIncrease === 0) {
-        failPendingAndDismissForCycle(key, 'Shop rejected the purchase (sold out or not enough coins)');
+        failPendingAndDismissForCycle(key, 'Shop rejected the purchase (sold out or not enough coins)', 'rejected');
       } else if (pending.confirmed >= pending.expectedIncrease) {
         void maybeAutoStoreConfirmedDelta(pending, pending.confirmed);
         completePending(pending, '');
@@ -331,7 +331,7 @@ export function armReactiveConfirmation(
  * reject (Signal C) or cycle rollover (Signal B) — so the alert clears
  * instead of flashing red and reverting to "Ready to buy".
  */
-export function failPendingAndDismissForCycle(key: string, reason: string): void {
+export function failPendingAndDismissForCycle(key: string, reason: string, status: 'rejected' | 'cycleRolled'): void {
   const pending = pendingOwnershipConfirmations.get(key);
   if (!pending) return;
   const cycleId = pending.stockCycleId;
@@ -341,6 +341,7 @@ export function failPendingAndDismissForCycle(key: string, reason: string): void
     storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
     error: reason,
     timedOut: false,
+    status,
   };
   // Disarm before clearing: clearPendingOwnershipConfirmation now settles any
   // still-armed pending itself, and this outcome is the more specific one.
@@ -421,6 +422,7 @@ function completePending(pending: PendingOwnershipConfirmation, completionSuffix
     ...(storeNote ? { storeNote } : {}),
     error: null,
     timedOut: false,
+    status: 'confirmed',
   };
   const settle = pending.settle;
   pending.settle = null;
@@ -466,6 +468,7 @@ export function clearPendingOwnershipConfirmation(key: string): void {
       storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
       error: 'purchase cleared',
       timedOut: false,
+      status: 'cleared',
     });
   }
 }
@@ -493,7 +496,7 @@ export function schedulePendingStaleNotice(key: string): void {
   }, OWNERSHIP_STALE_NOTICE_MS);
 }
 
-export function failPendingConfirmation(key: string, reason: string): void {
+export function failPendingConfirmation(key: string, reason: string, status: 'timedOut' | 'connectionLost'): void {
   const pending = pendingOwnershipConfirmations.get(key);
   if (!pending) return;
   debugLog('Failing pending confirmation', { key, reason, sent: pending.sent, confirmed: pending.confirmed, headless: pending.presenter === null });
@@ -503,6 +506,7 @@ export function failPendingConfirmation(key: string, reason: string): void {
     storedIn: pending.storedInTargetStorage ? pending.autoStoreStorageId : null,
     error: reason,
     timedOut: reason.startsWith('Purchase timed out'),
+    status,
   };
   const presenter = pending.presenter;
   const settle = pending.settle;
@@ -520,14 +524,14 @@ export function scheduleMaxConfirmationTimeout(key: string): void {
     const latest = pendingOwnershipConfirmations.get(key);
     if (!latest) return;
     latest.maxTimeoutTimerId = null;
-    failPendingConfirmation(key, `Purchase timed out (${latest.confirmed}/${latest.sent} confirmed)`);
+    failPendingConfirmation(key, `Purchase timed out (${latest.confirmed}/${latest.sent} confirmed)`, 'timedOut');
   }, OWNERSHIP_MAX_CONFIRMATION_MS);
 }
 
-export function failAllPendingConfirmations(reason: string): void {
+export function failAllPendingConfirmations(reason: string, status: 'connectionLost'): void {
   if (pendingOwnershipConfirmations.size === 0) return;
   for (const key of Array.from(pendingOwnershipConfirmations.keys())) {
-    failPendingConfirmation(key, reason);
+    failPendingConfirmation(key, reason, status);
   }
 }
 

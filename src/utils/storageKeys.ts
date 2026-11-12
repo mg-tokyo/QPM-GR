@@ -29,6 +29,9 @@ export const QPM_STORAGE_KEYS = [
   'qpm.pityTracker.enabled.egg.v1',
   'qpm.pityTracker.enabled.capsule.v1',
 
+  // Player-scoped history: which player took each unscoped copy, per site
+  'qpm.playerScoped.claims.v1',
+
   // Garden Battleship
   'qpm.battleship.record.v1',
 
@@ -333,6 +336,10 @@ export const QPM_STORAGE_KEYS = [
   'qpm.spectator.infoCard.v1',
   'qpm.spectator.hints.v1',
 
+  // Auto reconnect: game update auto-refresh (setting + same-build loop guard)
+  'qpm.autoReconnect.enabled.v2',
+  'qpm.autoReconnect.guard.v1',
+
   // WebSocket QuinoaCommand envelope + wire sequencer kill switches
   'qpm.ws.envelope.enabled',
   'qpm.ws.sequencer.enabled',
@@ -379,6 +386,12 @@ export const EXPORT_EXCLUDE_KEYS: readonly string[] = [
   'qpm.petXpObservations.v1',
   'qpm.ariedam.gamedata',
 
+  // Per-device auto-refresh loop guard
+  'qpm.autoReconnect.guard.v1',
+
+  // Per-browser migration claims; an imported copy must not block this browser's own merge
+  'qpm.playerScoped.claims.v1',
+
   // Legacy keys (superseded, nothing reads them)
   'qpm-auto-feed-config',
   'qpm-auto-shop-config',
@@ -397,4 +410,8 @@ export const EXPORT_EXCLUDE_PREFIXES: readonly string[] = [
   // Tour/discovery state (ephemeral)
   'qpm.tour.',
   'qpm.discovered.',
+
+  // Per-player copies of the excluded logs above (`<key>.<playerId>`)
+  'qpm.petActivity.v1.',
+  'qpm.petHatchingTracker.knownPetIds.v1.',
 ];

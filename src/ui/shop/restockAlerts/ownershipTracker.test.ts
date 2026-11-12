@@ -412,7 +412,7 @@ describe('Signal C — refused sends', () => {
     await flush();
 
     expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatchObject({ sent: 3, confirmed: 2, error: null });
+    expect(outcomes[0]).toMatchObject({ sent: 3, confirmed: 2, error: null, status: 'confirmed' });
     expect(mockAutoStoreCalls).toEqual([{ key: 'seed:CarrotSeed', confirmed: 2 }]);
     expect(pendingOwnershipConfirmations.has(pending.key)).toBe(false);
   });
@@ -426,7 +426,7 @@ describe('Signal C — refused sends', () => {
     await flush();
 
     expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)' });
+    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)', status: 'rejected' });
     expect(mockAutoStoreCalls).toEqual([]);
   });
 
@@ -439,6 +439,49 @@ describe('Signal C — refused sends', () => {
     await flush();
 
     expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatchObject({ sent: 5, confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)' });
+    expect(outcomes[0]).toMatchObject({ sent: 5, confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)', status: 'rejected' });
+  });
+});
+
+describe('settled outcome status', () => {
+  it('a cycle rollover settles as cycleRolled', async () => {
+    const mod = await loadModule();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('seed:CarrotSeed', null, { settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mockShopStockByKey.set(pending.key, makeItem({ purchased: 0, initialStock: 5 }));
+    mod.armReactiveConfirmation(pending);
+
+    fireCallback(pending.key, makeItem({ purchased: 0, initialStock: 8 }));
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'Cycle rolled before confirmation — retry', status: 'cycleRolled' });
+  });
+
+  it('the max-confirmation timeout settles as timedOut', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('window', { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout });
+    try {
+      const mod = await loadModule();
+      const outcomes: PurchaseOutcome[] = [];
+      const pending = makePending('seed:CarrotSeed', null, { settle: (o) => { outcomes.push(o); } });
+      pendingOwnershipConfirmations.set(pending.key, pending);
+      mod.scheduleMaxConfirmationTimeout(pending.key);
+      vi.advanceTimersByTime(10 * 60_000);
+      expect(outcomes).toHaveLength(1);
+      expect(outcomes[0]).toMatchObject({ confirmed: 0, timedOut: true, status: 'timedOut' });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a bare clear settles an awaiting caller as cleared', async () => {
+    const mod = await loadModule();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('seed:CarrotSeed', null, { settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.clearPendingOwnershipConfirmation(pending.key);
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'purchase cleared', status: 'cleared' });
   });
 });

@@ -16,10 +16,10 @@ import {
   defaultState,
   diag,
   entryKey,
-  load,
   normalizeTimestamp,
   notify,
   persist,
+  publishPityRow,
   rememberKey,
   type ActivityEntry,
   type PityCounter,
@@ -32,6 +32,8 @@ import { readLifetime, detectGaps } from './gaps';
 import { refreshAccount } from './account';
 import { diffGardenSlots, growthMutationOf, readGardenSlots } from './garden';
 import { healPityViolations } from './invariants';
+import { applyPendingRebuild } from './rebuild';
+import { startPityScope, stopPityScope } from './scoped';
 
 export type { PityCounter, PityHit, PityAccount, PityLifetime, PendingHatch, PityTrackerState } from './state';
 export { pityGapFor } from './rolls';
@@ -70,15 +72,19 @@ function applyEntry(entry: ActivityEntry, now: number): boolean {
       if (!ctx.enabled.seed) return false;
       if (!Array.isArray(params.crops)) return false;
       let changed = false;
-      for (const crop of params.crops) {
+      const key = entryKey(entry);
+      for (const [index, crop] of params.crops.entries()) {
         const rec = asRecord(crop);
         const species = rec && typeof rec.species === 'string' ? rec.species : null;
         if (!species) continue;
         const bucket = pityBucketFor(species);
         const variant = RARE_PATCH_VARIANTS[bucket];
-        if (variant) recordRoll('seed', bucket, 'variant', species === variant ? variant : null, at);
+        const source = `${key}#${index}`;
+        if (variant) recordRoll('seed', bucket, 'variant', species === variant ? variant : null, at, source);
         // Growth roll waits for the slot that produced this crop (see matchHarvests).
-        ctx.pendingCrops.push({ species, bucket, mutation: growthMutationOf(rec?.mutations), at, expires: now + HARVEST_MATCH_WINDOW_MS });
+        ctx.pendingCrops.push({
+          species, bucket, mutation: growthMutationOf(rec?.mutations), at, expires: now + HARVEST_MATCH_WINDOW_MS, source,
+        });
         ctx.observedNow.seed++;
         changed = true;
       }
@@ -97,8 +103,9 @@ function applyEntry(entry: ActivityEntry, now: number): boolean {
         : Array.isArray(params.toolIds) ? params.toolIds : null;
       if (!toolId || !thresholds || !pulls) return false;
       if (!ctx.enabled.capsule) return false;
-      for (const pulled of pulls) {
-        recordRoll('capsule', toolId, 'species', typeof pulled === 'string' ? pulled : null, at);
+      const key = entryKey(entry);
+      for (const [index, pulled] of pulls.entries()) {
+        recordRoll('capsule', toolId, 'species', typeof pulled === 'string' ? pulled : null, at, `${key}#${index}`);
         ctx.observedNow.capsule++;
       }
       return true;
@@ -112,6 +119,7 @@ function processMyData(rawValue: unknown): void {
   const now = Date.now();
   let changed = false;
   ctx.observedNow = { egg: 0, seed: 0, capsule: 0 };
+  if (applyPendingRebuild()) changed = true;
   if (replayHatchHistory()) changed = true;
   if (drainPendingHatches()) changed = true;
 
@@ -157,19 +165,14 @@ function processMyData(rawValue: unknown): void {
   if (ctx.state.account?.createdAt == null) refreshAccount();
 }
 
-export function startPityTracker(): void {
-  if (ctx.started) return;
-  ctx.started = true;
+function resetSession(): void {
   ctx.seeded = false;
   ctx.pendingCrops = [];
   ctx.pendingGone = [];
   ctx.historyReplayed = false;
-  diag.register('Loading observed pity streaks and subscribing to myData');
-  loadEnabled();
-  load();
-  healPityViolations();
-  refreshAccount();
+}
 
+function subscribeMyData(): void {
   void subscribeAtomValue('myData', (value) => {
     try { processMyData(value); } catch (error) {
       diag.warn('QPM-STORE-003', { phase: 'processMyData' }, error);
@@ -181,16 +184,33 @@ export function startPityTracker(): void {
       ctx.unsubscribe = unsub;
     })
     .catch((error) => diag.error('QPM-STORE-001', { phase: 'subscribe' }, error));
+}
 
-  diag.publishOk('Pity tracker started', {
-    counters: Object.keys(ctx.state.counters).length,
-    observedSince: ctx.state.observedSince,
-  });
+/** The player's copy is in `ctx`; after a player change the next myData snapshot is history again. */
+function onPityBound(first: boolean): void {
+  if (!ctx.started) return;
+  if (!first) resetSession();
+  // Counters are the base copy's until the merged log replays; a heal now could accept a false imbalance.
+  if (!ctx.pendingRebuild) healPityViolations();
+  refreshAccount();
+  if (first) subscribeMyData();
+  publishPityRow();
+  notify();
+}
+
+export function startPityTracker(): void {
+  if (ctx.started) return;
+  ctx.started = true;
+  resetSession();
+  diag.register('Waiting for the player id to load observed pity streaks');
+  loadEnabled();
+  startPityScope(onPityBound);
 }
 
 export function stopPityTracker(): void {
   ctx.unsubscribe?.();
   ctx.unsubscribe = null;
+  stopPityScope();
   ctx.started = false;
   ctx.seeded = false;
 }
@@ -261,6 +281,7 @@ export function resetPityTracker(): void {
   ctx.historyReplayed = false;
   ctx.log = [];
   ctx.logDirty = true;
+  ctx.pendingRebuild = null;
   persist();
   notify();
 }

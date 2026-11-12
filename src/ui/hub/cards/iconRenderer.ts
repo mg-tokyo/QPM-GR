@@ -43,6 +43,41 @@ function resolveIconUrl(icon: CardIcon): string {
   return resolveSpriteUrl(icon.spriteKey, icon.spriteMutations);
 }
 
+// `data-qpm-sprite` descriptor (`kind:id:mut1,mut2`) read by compat.ts
+// refreshMarkedSpriteElements, which fills `src` when a lazily rendered
+// sprite (per-species pet Rive) lands after this element was built.
+function spriteDescriptor(spriteKey: string, mutations?: readonly string[]): string {
+  const muts = mutations?.length ? mutations.join(',') : '';
+  const petMatch = spriteKey.match(/^(?:sprite\/)?pet\/(.+)$/);
+  if (petMatch?.[1]) return `pet:${petMatch[1]}:${muts}`;
+  const plantMatch = spriteKey.match(/^(?:sprite\/)?plant\/(.+)$/);
+  if (plantMatch?.[1]) return `crop:${plantMatch[1]}:${muts}`;
+  return `any:${spriteKey}:`;
+}
+
+function createMarkedImg(spriteKey: string, mutations: readonly string[] | undefined, url: string, css: string): HTMLImageElement {
+  const img = document.createElement('img');
+  img.dataset.qpmSprite = spriteDescriptor(spriteKey, mutations);
+  img.alt = '';
+  img.style.cssText = css;
+  if (url) img.src = url;
+  return img;
+}
+
+/** Shows `fallback` until the marked img receives a src and loads, then swaps. */
+function mountWithFallback(host: HTMLElement, img: HTMLImageElement, fallback: string, fontSize: string): void {
+  host.style.fontSize = fontSize;
+  const fb = document.createElement('span');
+  fb.textContent = fallback;
+  img.style.display = 'none';
+  img.addEventListener('load', () => {
+    fb.remove();
+    img.style.display = '';
+    host.style.fontSize = '';
+  }, { once: true });
+  host.append(fb, img);
+}
+
 /**
  * Builds a bunched (overlapping cluster) sprite container.
  * Each sprite is offset slightly to create a layered hand-of-cards effect.
@@ -65,17 +100,14 @@ function buildBunchedContainer(entries: ReadonlyArray<BunchedSpriteEntry>, size:
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]!;
       const url = resolveSpriteUrl(entry.spriteKey, entry.mutations);
-      if (!url) { allResolved = false; continue; }
+      if (!url) allResolved = false;
 
-      const img = document.createElement('img');
-      img.src = url;
       const scale = entry.scale ?? 1;
       const ox = entry.offsetX ?? (i - (entries.length - 1) / 2) * 8;
       const oy = entry.offsetY ?? 0;
       const rot = rotations[i % rotations.length]!;
-      img.style.cssText = [
+      const img = createMarkedImg(entry.spriteKey, entry.mutations, url, [
         'position:absolute',
-        'image-rendering:pixelated',
         'object-fit:contain',
         `width:${Math.round(spriteSize * scale)}px`,
         `height:${Math.round(spriteSize * scale)}px`,
@@ -83,7 +115,7 @@ function buildBunchedContainer(entries: ReadonlyArray<BunchedSpriteEntry>, size:
         `left:50%`,
         `transform:translate(-50%,-50%) translate(${ox}px,${oy}px) rotate(${rot}deg)`,
         `z-index:${i + 1}`,
-      ].join(';');
+      ].join(';'));
       container.appendChild(img);
     }
     return allResolved;
@@ -133,25 +165,13 @@ export function buildIconBox(icon: CardIcon): HTMLElement {
   ].join(';');
 
   if (icon.kind === 'sprite' && icon.spriteKey) {
-    const fallback = icon.fallback ?? icon.value;
-
-    const trySetSprite = (): boolean => {
-      const url = resolveIconUrl(icon);
-      if (url) {
-        box.innerHTML = '';
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.cssText = 'width:32px;height:32px;image-rendering:pixelated;object-fit:contain;';
-        box.appendChild(img);
-        return true;
-      }
-      return false;
-    };
-
-    if (!trySetSprite()) {
-      box.style.fontSize = '18px';
-      box.textContent = fallback;
-      onSpritesReady(() => { trySetSprite(); });
+    const url = resolveIconUrl(icon);
+    const img = createMarkedImg(icon.spriteKey, icon.spriteMutations, url, 'width:32px;height:32px;object-fit:contain;');
+    if (url) {
+      box.appendChild(img);
+    } else {
+      mountWithFallback(box, img, icon.fallback ?? icon.value, '18px');
+      onSpritesReady(() => { const late = resolveIconUrl(icon); if (late) img.src = late; });
     }
   } else {
     box.style.fontSize = '18px';
@@ -177,25 +197,13 @@ export function buildSidebarIcon(icon: CardIcon): HTMLElement {
   el.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;height:100%;';
 
   if (icon.kind === 'sprite' && icon.spriteKey) {
-    const fallback = icon.fallback ?? icon.value;
-
-    const trySet = (): boolean => {
-      const url = resolveIconUrl(icon);
-      if (url) {
-        el.innerHTML = '';
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.cssText = 'width:28px;height:28px;image-rendering:pixelated;object-fit:contain;';
-        el.appendChild(img);
-        return true;
-      }
-      return false;
-    };
-
-    if (!trySet()) {
-      el.style.fontSize = '16px';
-      el.textContent = fallback;
-      onSpritesReady(() => { trySet(); });
+    const url = resolveIconUrl(icon);
+    const img = createMarkedImg(icon.spriteKey, icon.spriteMutations, url, 'width:28px;height:28px;object-fit:contain;');
+    if (url) {
+      el.appendChild(img);
+    } else {
+      mountWithFallback(el, img, icon.fallback ?? icon.value, '16px');
+      onSpritesReady(() => { const late = resolveIconUrl(icon); if (late) img.src = late; });
     }
   } else {
     el.style.fontSize = '16px';

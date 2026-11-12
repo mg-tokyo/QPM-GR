@@ -9,6 +9,7 @@ import {
   isQuinoaCommandResult,
   type QuinoaCommandResultMessage,
 } from './envelope';
+import { emitInboundHeartbeat } from './wireEvents';
 
 export interface SocketHost {
   ws?: WebSocket | null;
@@ -51,9 +52,12 @@ export function createResultBinder(onResult: (res: QuinoaCommandResultMessage) =
     if (isQuinoaCommandResult(parsed)) onResult(parsed);
   };
 
+  const heartbeatListener = (event: MessageEvent): void => { emitInboundHeartbeat(event.data); };
+
   const unbind = (): void => {
     if (!bound) return;
     try { bound.removeEventListener('message', listener); } catch { /* closed */ }
+    try { bound.removeEventListener('message', heartbeatListener); } catch { /* closed */ }
     bound = null;
   };
 
@@ -64,6 +68,7 @@ export function createResultBinder(onResult: (res: QuinoaCommandResultMessage) =
       unbind();
       if (!ws) return;
       ws.addEventListener('message', listener);
+      ws.addEventListener('message', heartbeatListener);
       bound = ws;
     },
     unbind,

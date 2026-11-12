@@ -6,7 +6,12 @@ vi.mock('../../core/notifications', () => ({ notify: () => {} }));
 vi.mock('../diagnostics', () => ({ spriteLog: () => {} }));
 
 import { healthBus } from '../../diagnostics/healthBus';
-import { reportSpriteV2InitFailed, startSpriteV2Diagnostics, stopSpriteV2Diagnostics } from './healthIntegration';
+import {
+  reportPetRiveDiscovery,
+  reportSpriteV2InitFailed,
+  startSpriteV2Diagnostics,
+  stopSpriteV2Diagnostics,
+} from './healthIntegration';
 
 beforeEach(() => {
   stopSpriteV2Diagnostics();
@@ -29,5 +34,26 @@ describe('reportSpriteV2InitFailed', () => {
     reportSpriteV2InitFailed(new Error('PIXI app timeout (hook=undefined engine=0)'));
 
     expect(healthBus.read('spriteV2')?.message).toContain('PIXI app timeout');
+  });
+});
+
+describe('reportPetRiveDiscovery', () => {
+  it('degrades the spriteV2 row with a petRive metric when nothing was discovered', () => {
+    startSpriteV2Diagnostics();
+    reportPetRiveDiscovery(0);
+
+    const row = healthBus.read('spriteV2');
+    expect(row?.status).toBe('degraded');
+    expect(row?.message).toContain('Pet Rive');
+    expect(row?.metrics?.['petRive']).toBe('0/0');
+  });
+
+  it('publishes nothing for a positive count', () => {
+    startSpriteV2Diagnostics();
+    const before = healthBus.read('spriteV2');
+    reportPetRiveDiscovery(32);
+    const after = healthBus.read('spriteV2');
+    expect(after?.status).toBe(before?.status);
+    expect(after?.message).toBe(before?.message);
   });
 });

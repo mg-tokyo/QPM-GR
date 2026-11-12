@@ -75,9 +75,11 @@ export function applyRoll(
 }
 
 /** Live roll: applies to state and appends to the pull log. Skips silently when the roll has no candidates. */
-export function recordRoll(kind: PityKind, itemId: string, roll: PityRoll, hitId: string | null, at: number): void {
+export function recordRoll(
+  kind: PityKind, itemId: string, roll: PityRoll, hitId: string | null, at: number, source: string,
+): void {
   const gapBase = ctx.state.gaps[kind];
-  const entry = { t: at, k: kind, i: itemId, r: roll, h: hitId, g: gapBase };
+  const entry = { t: at, k: kind, i: itemId, r: roll, h: hitId, g: gapBase, s: source };
   if (candidatesFor(entry).length === 0) return;
   applyRoll(ctx.state, kind, itemId, roll, hitId, at, gapBase);
   appendPull(entry);

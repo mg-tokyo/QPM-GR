@@ -27,6 +27,7 @@ import { isRecord } from '../utils/typeGuards';
 import { createForeignEpisodeGate, formatSendChainLine, type SendChainReport } from './sendChain';
 import { onRoomConnectionChange } from './roomConnectionEvents';
 import { createSequencerAttach, type RoomFrameLike, type SequencerConnection } from './sequencerAttach';
+import { emitCommandResult, emitEnvelopeSequenced } from './wireEvents';
 
 const log = createNamedLogger('websocket');
 
@@ -63,7 +64,7 @@ interface PendingEntry {
 }
 
 let started = false;
-const resultBinder = createResultBinder((res) => handleResult(res));
+const resultBinder = createResultBinder((res) => { handleResult(res); emitCommandResult(res); });
 let stopEvents: (() => void) | null = null;
 let idleResyncTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -120,6 +121,7 @@ const attach = createSequencerAttach({
   observeOutbound,
   skipPreSession,
   rewrite,
+  onSequenced: emitEnvelopeSequenced,
   rollback,
   onFrame,
   onWelcome,

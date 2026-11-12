@@ -2,7 +2,7 @@
 // Shared utility functions for the pet picker modal.
 
 import { getPetSpriteDataUrlWithMutations, isSpritesReady } from '../../../sprite-v2/compat';
-import { getAbilityDefinition } from '../../../features/pets/data/petAbilities';
+import { getAbilityDefinition, getAbilityRateContext, type AbilityRateContext } from '../../../features/pets/data/petAbilities';
 import { getPetRarityRankSafe } from '../../../utils/game/catalogHelpers';
 import type { MutationTier } from './types';
 import type { PooledPet } from '../../../types/petTeams';
@@ -62,6 +62,12 @@ export function getAbilityDisplayName(value: string): string {
   const raw = String(value || '').trim();
   if (!raw) return '';
   return getAbilityDefinition(raw)?.name ?? raw;
+}
+
+/** Game card (spec F19): crystal bonus for every pet, the live stage only for active slots. */
+export function getPooledPetRateContext(pet: PooledPet): AbilityRateContext {
+  const context = getAbilityRateContext(pet.species);
+  return pet.location === 'active' ? context : { ...context, stage: null };
 }
 
 export function stripTierSuffix(value: string): string {

@@ -4,35 +4,30 @@ import { EXPORT_EXCLUDE_KEYS, EXPORT_EXCLUDE_PREFIXES, QPM_DYNAMIC_KEY_PREFIXES,
 import {
   hydrateMirror,
   isMirrorAvailable,
-  mirrorGet,
   mirrorHas,
   mirrorIsDeleted,
-  mirrorKeys,
-  mirrorRemove,
   mirrorSet,
   pruneMirrorDeletions,
   setMirrorFailureHandler,
 } from './storageMirror';
+import {
+  deserialize,
+  getLegacyGmApi,
+  getModernGmApi,
+  listLocalKeys,
+  mirrorDelete,
+  mirrorKeyList,
+  mirrorRead,
+  mirrorWrite,
+  readLocalRaw,
+  removeLocalKey,
+  serialize,
+  writeLocalRaw,
+  type LegacyGmStorageApi,
+  type ModernGmStorageApi,
+} from './storageBackends';
 export { QPM_STORAGE_KEYS, SHOP_ENHANCER_MODE_KEY, SHOP_ENHANCER_MODES, type ShopEnhancerMode } from './storageKeys';
-
-type LegacyGmGetValue = (key: string) => string | undefined;
-type LegacyGmSetValue = (key: string, value: string) => void;
-type LegacyGmDeleteValue = (key: string) => void;
-type LegacyGmListValues = () => string[];
-
-interface LegacyGmStorageApi {
-  getValue: LegacyGmGetValue;
-  setValue: LegacyGmSetValue;
-  deleteValue: LegacyGmDeleteValue;
-  listValues?: LegacyGmListValues;
-}
-
-interface ModernGmStorageApi {
-  getValue: <T = unknown>(key: string, defaultValue?: T) => Promise<T>;
-  setValue: (key: string, value: string) => Promise<void>;
-  deleteValue: (key: string) => Promise<void>;
-  listValues?: () => Promise<string[]>;
-}
+export { readLocalRaw } from './storageBackends';
 
 type StorageRuntime = 'legacy-gm' | 'modern-gm' | 'local-storage';
 
@@ -57,7 +52,6 @@ export function registerDynamicKey(key: string): void {
   dynamicKeys.add(key);
 }
 
-const globalScope = globalThis as Record<string, unknown>;
 const READ_CACHE_MISSING = Symbol('storage.read.missing');
 const readCache = new Map<string, unknown>();
 
@@ -68,144 +62,6 @@ let storageInitialized = false;
 let storageInitPromise: Promise<void> | null = null;
 let modernWriteQueue: Promise<void> = Promise.resolve();
 let mirrorFailureReported = false;
-
-function getLocalStorageSafe(): globalThis.Storage | null {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    return localStorage;
-  } catch {
-    return null;
-  }
-}
-
-export function readLocalRaw(key: string): string | null {
-  const ls = getLocalStorageSafe();
-  if (!ls) return null;
-  try {
-    return ls.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalRaw(key: string, raw: string): boolean {
-  const ls = getLocalStorageSafe();
-  if (!ls) return false;
-  try {
-    ls.setItem(key, raw);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function removeLocalKey(key: string): void {
-  const ls = getLocalStorageSafe();
-  if (!ls) return;
-  try {
-    ls.removeItem(key);
-  } catch {}
-}
-
-function listLocalKeys(): string[] {
-  const ls = getLocalStorageSafe();
-  if (!ls) return [];
-  try {
-    return Object.keys(ls);
-  } catch {
-    return [];
-  }
-}
-
-// Mirror facade. The in-memory map always serves reads; IndexedDB persists it. Without
-// IDB the persistence falls back to localStorage, where a failed (quota) write must
-// remove the stale copy rather than leave it to be read back on the next load.
-function mirrorWrite(key: string, raw: string): void {
-  mirrorSet(key, raw);
-  if (!isMirrorAvailable() && !writeLocalRaw(key, raw)) removeLocalKey(key);
-}
-
-function mirrorDelete(key: string): void {
-  mirrorRemove(key);
-  removeLocalKey(key);
-}
-
-function mirrorRead(key: string): string | null {
-  const raw = mirrorGet(key);
-  if (raw != null || isMirrorAvailable()) return raw;
-  return readLocalRaw(key);
-}
-
-function mirrorKeyList(): string[] {
-  return Array.from(new Set([...mirrorKeys(), ...listLocalKeys()]));
-}
-
-function serialize(value: unknown): string {
-  return JSON.stringify(value);
-}
-
-function deserialize<T>(raw: string | null | undefined, fallback: T): T {
-  if (raw == null) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return raw as T;
-  }
-}
-
-function getLegacyGmApi(): LegacyGmStorageApi | null {
-  const getValue = globalScope.GM_getValue;
-  const setValue = globalScope.GM_setValue;
-  const deleteValue = globalScope.GM_deleteValue;
-  const listValues = globalScope.GM_listValues;
-
-  if (
-    typeof getValue === 'function' &&
-    typeof setValue === 'function' &&
-    typeof deleteValue === 'function'
-  ) {
-    const api: LegacyGmStorageApi = {
-      getValue: getValue as LegacyGmGetValue,
-      setValue: setValue as LegacyGmSetValue,
-      deleteValue: deleteValue as LegacyGmDeleteValue,
-    };
-    if (typeof listValues === 'function') {
-      api.listValues = listValues as LegacyGmListValues;
-    }
-    return api;
-  }
-
-  return null;
-}
-
-function getModernGmApi(): ModernGmStorageApi | null {
-  const gm = globalScope.GM;
-  if (!gm || typeof gm !== 'object') return null;
-
-  const gmRecord = gm as Record<string, unknown>;
-  const getValue = gmRecord.getValue;
-  const setValue = gmRecord.setValue;
-  const deleteValue = gmRecord.deleteValue;
-  const listValues = gmRecord.listValues;
-
-  if (
-    typeof getValue === 'function' &&
-    typeof setValue === 'function' &&
-    typeof deleteValue === 'function'
-  ) {
-    const api: ModernGmStorageApi = {
-      getValue: getValue as <T = unknown>(key: string, defaultValue?: T) => Promise<T>,
-      setValue: setValue as (key: string, value: string) => Promise<void>,
-      deleteValue: deleteValue as (key: string) => Promise<void>,
-    };
-    if (typeof listValues === 'function') {
-      api.listValues = listValues as () => Promise<string[]>;
-    }
-    return api;
-  }
-
-  return null;
-}
 
 function refreshRuntime(): void {
   legacyGm = getLegacyGmApi();
@@ -237,6 +93,28 @@ function readGmRaw(key: string): string | null {
     } catch {}
   }
   return null;
+}
+
+/**
+ * The script manager's copy, shared across origins (web and Discord), bypassing the
+ * per-origin mirror that `storage.get` prefers. Under `local-storage` nothing is shared,
+ * so the origin's own copy is returned. A removal on this origin still wins.
+ */
+export async function readDurable<T = unknown>(key: string, fallback: T = null as T): Promise<T> {
+  refreshRuntime();
+  if (mirrorIsDeleted(key)) return fallback;
+  let raw: string | null = null;
+  if (runtime === 'legacy-gm') {
+    raw = readGmRaw(key);
+  } else if (runtime === 'modern-gm' && modernGm) {
+    const gm = modernGm;
+    await modernWriteQueue;
+    const value = await gm.getValue<string | null>(key, null).catch(() => null);
+    raw = typeof value === 'string' ? value : null;
+  } else {
+    raw = mirrorRead(key) ?? readLocalRaw(key);
+  }
+  return deserialize(raw, fallback);
 }
 
 async function hydrateFromModernGm(): Promise<void> {

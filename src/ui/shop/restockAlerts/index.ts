@@ -73,7 +73,7 @@ function handleAlertSocketClose(): void {
     return;
   }
   debugLog('Socket close detected — failing all pending confirmations', { generation: alertState.socketCloseGeneration });
-  failAllPendingConfirmations('Connection lost \u2014 retry purchase');
+  failAllPendingConfirmations('Connection lost \u2014 retry purchase', 'connectionLost');
 }
 
 function bindAlertSocketIfNeeded(): void {
@@ -95,7 +95,7 @@ function bindAlertSocketIfNeeded(): void {
     alertState.socketCloseGeneration++;
     debugLog('Socket replaced — failing pending confirmations', { generation: alertState.socketCloseGeneration });
     if (pendingOwnershipConfirmations.size > 0) {
-      failAllPendingConfirmations('Connection lost \u2014 retry purchase');
+      failAllPendingConfirmations('Connection lost \u2014 retry purchase', 'connectionLost');
     }
   }
   debugLog('Bound alert socket close listener');

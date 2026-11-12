@@ -12,7 +12,7 @@ function toFinitePositiveNumber(value: unknown): number | null {
 }
 
 function getStrengthScaleFactor(strength: number): number {
-  return Math.max(0.25, strength / 100);
+  return Math.max(0, strength) / 100;
 }
 
 export function resolveCatalogFamilyKey(abilityId: string): string | null {

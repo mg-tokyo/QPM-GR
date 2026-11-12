@@ -450,7 +450,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         genBefore: socketGenBefore,
         genNow: alertState.socketCloseGeneration,
       });
-      failPendingConfirmation(active.model.key, 'Connection lost during purchase \u2014 retry');
+      failPendingConfirmation(active.model.key, 'Connection lost during purchase \u2014 retry', 'connectionLost');
       return;
     }
 

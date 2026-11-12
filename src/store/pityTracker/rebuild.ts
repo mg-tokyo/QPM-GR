@@ -1,5 +1,5 @@
-import type { PityKind } from '../../catalogs/pityThresholds';
-import { MAX_HITS, ctx, migrateCounters, notify, persist, type PityCounter, type PityHit } from './state';
+import { getPityOutcomes, type PityKind } from '../../catalogs/pityThresholds';
+import { MAX_HITS, ctx, migrateCounters, notify, persist, publishPityRow, type PityCounter, type PityHit } from './state';
 import { applyRoll } from './rolls';
 
 function keyPrefix(kind: PityKind, itemId: string): string {
@@ -33,4 +33,25 @@ export function rebuildPityItem(kind: PityKind, itemId: string): void {
 
 export function rebuildPityAll(): void {
   rebuildKeys(() => true, () => true);
+}
+
+/**
+ * Replays a merged log once every logged item has outcomes: `applyRoll` takes hits and corrections
+ * from the catalog, so an earlier replay would drop them. Seeds need the plant catalog, eggs the egg catalog.
+ */
+export function applyPendingRebuild(): boolean {
+  if (!ctx.pendingRebuild) return false;
+  const checked = new Set<string>();
+  for (const e of ctx.log) {
+    const id = `${e.k}:${e.i}`;
+    if (checked.has(id)) continue;
+    checked.add(id);
+    if (getPityOutcomes({ kind: e.k, id: e.i }).length === 0) return false;
+  }
+  ctx.pendingRebuild = null;
+  // The cleared flag lives in the log envelope.
+  ctx.logDirty = true;
+  rebuildPityAll();
+  publishPityRow();
+  return true;
 }

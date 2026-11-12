@@ -10,10 +10,20 @@ import { unwrapQuinoaCommand } from './envelope';
 import { ensureCommandSequencerAttached } from './commandSequencer';
 import { notifyChainChanged, onRoomConnectionChange } from './roomConnectionEvents';
 import { brandWrapper } from './sendChain';
+import { isQpmOriginSend } from './transport';
 
 const diagLog = createNamedLogger('websocket');
 
-export type NativeSendListener = (type: string, payload: Record<string, unknown>) => void;
+/** Fields of the outer message, before unwrapping. `scopePath` is a copy. */
+export interface NativeSendMeta {
+  outerType: string;
+  requestId?: string;
+  successorItemId?: unknown;
+  scopePath?: unknown[];
+  qpmOrigin: boolean;
+}
+
+export type NativeSendListener = (type: string, payload: Record<string, unknown>, meta: NativeSendMeta) => void;
 
 interface RoomConnection {
   sendMessage: (payload: unknown) => void;
@@ -34,23 +44,32 @@ let patchedTryWrapper: ((payload: unknown) => boolean) | null = null;
 let stopEvents: (() => void) | null = null;
 let started = false;
 
-function notifyListeners(type: string, payload: Record<string, unknown>): void {
+function notifyListeners(type: string, payload: Record<string, unknown>, meta: NativeSendMeta): void {
   for (const cb of listeners) {
     try {
-      cb(type, payload);
+      cb(type, payload, meta);
     } catch {
       // ignore listener errors
     }
   }
 }
 
+function buildMeta(outerType: string, rec: Record<string, unknown>): NativeSendMeta {
+  const meta: NativeSendMeta = { outerType, qpmOrigin: isQpmOriginSend() };
+  if (typeof rec.requestId === 'string') meta.requestId = rec.requestId;
+  if (rec.successorItemId !== undefined) meta.successorItemId = rec.successorItemId;
+  if (Array.isArray(rec.scopePath)) meta.scopePath = [...(rec.scopePath as unknown[])];
+  return meta;
+}
+
 function observe(payload: unknown): void {
+  if (listeners.size === 0) return;
   if (!payload || typeof payload !== 'object') return;
   const rec = payload as Record<string, unknown>;
   const outerType = typeof rec.type === 'string' ? rec.type : null;
   if (!outerType) return;
   const { actionType, payload: inner } = unwrapQuinoaCommand(outerType, rec);
-  notifyListeners(actionType, inner);
+  notifyListeners(actionType, inner, buildMeta(outerType, rec));
 }
 
 function restorePatch(): void {

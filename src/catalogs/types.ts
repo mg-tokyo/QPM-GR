@@ -110,6 +110,7 @@ export interface PetCatalogEntry {
    * an ability that is always granted, not "no weight".
    */
   innateAbilityWeights?: Record<string, number | null>;
+  isNocturnal?: boolean;   // gets the day-stage STR bonus; non-nocturnal entries omit it
   [key: string]: unknown;
 }
 

@@ -157,6 +157,8 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     getSendChainReport,
   } = await import('../../websocket/commandSequencer');
   const { transportAudit, resolveTransport, getSendBudgetStats } = await import('../../websocket/transport');
+  const wireEvents = await import('../../websocket/wireEvents');
+  const { onNativeSend, getNativeSendObserverStatus } = await import('../../websocket/nativeSendObserver');
   const { sendToggleLockItem, sendToggleLockItemResult } = await import('../../features/pets/teamActions');
   const commandSequencer = {
     stats: getCommandSequencerStats,
@@ -172,6 +174,14 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     // Same send returning transport + awaitResult, for live sequencer checks.
     debugToggleLockResult: sendToggleLockItemResult,
     chain: getSendChainReport,
+    // Read-only subscriptions; each returns an unsubscribe.
+    events: {
+      onCommandResult: wireEvents.onCommandResult,
+      onEnvelopeSequenced: wireEvents.onEnvelopeSequenced,
+      onInboundHeartbeat: wireEvents.onInboundHeartbeat,
+      onNativeSend,
+      listenerCounts: () => ({ ...wireEvents.getWireEventListenerCounts(), nativeSend: getNativeSendObserverStatus().listenerCount }),
+    },
   };
   const { getRiveRules, reapplyAllRiveRules } = await import('../../features/standalone/riveControl');
   const riveControl = {

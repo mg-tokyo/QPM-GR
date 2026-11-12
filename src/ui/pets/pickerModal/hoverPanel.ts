@@ -2,7 +2,17 @@
 // Hover detail panel for the pet picker modal.
 
 import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
-import { getAbilityDefinition, computeAbilityStats, computeEffectPerHour, type AbilityDefinition } from '../../../features/pets/data/petAbilities';
+import {
+  getAbilityDefinition,
+  computeAbilityStats,
+  computeEffectPerHour,
+  computeDayAverageEffectPerHour,
+  stageStrengthBonus,
+  type AbilityDefinition,
+  type AbilityRateContext,
+  type AbilityStats,
+} from '../../../features/pets/data/petAbilities';
+import { t } from '../../../i18n';
 import { findAbilityHistoryForIdentifiers } from '../../../store/abilityLogs';
 import { computeObservedMetrics } from '../../stats/abilityAnalysis';
 import { calculateMaxStrength, getSpeciesXpPerLevel } from '../../../store/xpTracker';
@@ -11,28 +21,50 @@ import { getPetMetadata } from '../../../features/pets/data/petMetadata';
 import { getHungerDepletionTime } from '../../../features/pets/data/petHungerDepletion';
 import { buildAbilityValuationContext, resolveDynamicAbilityEffect, type AbilityValuationContext } from '../../../features/pets/abilityValuation';
 import type { PooledPet } from '../../../types/petTeams';
-import { getMutationTier, getTierLabel, getLocationLabel, getSpriteSrc } from './helpers';
+import { getMutationTier, getTierLabel, getLocationLabel, getSpriteSrc, getPooledPetRateContext } from './helpers';
 import { isEventTriggeredAbility, getTriggerLabel, formatProcValue } from './comparePanel';
 
 // ---------------------------------------------------------------------------
 // Ability metric summary
 // ---------------------------------------------------------------------------
 
+function isEffectRate(def: AbilityDefinition, effectPerHour: number): boolean {
+  return effectPerHour > 0
+    && (def.effectUnit === 'coins' || def.category === 'plantGrowth' || def.category === 'eggGrowth' || def.category === 'xp');
+}
+
+function formatContinuousRate(def: AbilityDefinition, effectPerHour: number, procsPerHour: number): string {
+  if (isEffectRate(def, effectPerHour)) {
+    if (def.effectUnit === 'coins') return `${formatCoinsAbbreviated(Math.round(effectPerHour))} $/hr`;
+    if (def.category === 'xp') return `${formatCoinsAbbreviated(Math.round(effectPerHour))} xp/hr`;
+    return `${effectPerHour.toFixed(1)} min/hr`;
+  }
+  return procsPerHour > 0 ? `${procsPerHour.toFixed(1)} proc/hr` : '';
+}
+
+/** PD2 full-day rate for a continuous ability, same units as the headline; '' when unavailable. */
+export function getAbilityDayAverageMetric(def: AbilityDefinition, stats: AbilityStats): string {
+  if (isEventTriggeredAbility(def) || !stats.dayAverage) return '';
+  return formatContinuousRate(def, computeDayAverageEffectPerHour(def, stats) ?? 0, stats.dayAverage.procsPerHour);
+}
+
 export function getAbilityMetric(
   abilityId: string,
   strength: number | null | undefined,
   valuationContext: AbilityValuationContext | null,
+  rateContext?: AbilityRateContext,
 ): string {
   const def = getAbilityDefinition(abilityId);
   if (!def) return '';
-  const stats = computeAbilityStats(def, strength ?? null);
-  if (!stats) return '';
+  const stats = computeAbilityStats(def, strength ?? null, rateContext);
+  // STR incl. crystal and stage bonus, as in the ability tracker (user 2026-11-12, "Effective STR").
+  const effectiveStrength = stats.multiplier * 100;
 
   if (isEventTriggeredAbility(def)) {
     const triggerChance = Math.max(0, Math.min(100, stats.chancePerMinute));
     let valuePerProc = 0;
     if (valuationContext) {
-      const dynamic = resolveDynamicAbilityEffect(abilityId, valuationContext, strength ?? null);
+      const dynamic = resolveDynamicAbilityEffect(abilityId, valuationContext, effectiveStrength);
       if (dynamic && Number.isFinite(dynamic.effectPerProc) && dynamic.effectPerProc > 0) {
         valuePerProc = dynamic.effectPerProc;
       }
@@ -46,20 +78,9 @@ export function getAbilityMetric(
     return `${getTriggerLabel(def)} ${triggerChance.toFixed(1)}%`;
   }
 
-  const effectPerHour = computeEffectPerHour(def, stats, strength);
-  if (def.effectUnit === 'coins' && effectPerHour > 0) {
-    return `~${formatCoinsAbbreviated(Math.round(effectPerHour))} $/hr`;
-  }
-  if ((def.category === 'plantGrowth' || def.category === 'eggGrowth') && effectPerHour > 0) {
-    return `~${effectPerHour.toFixed(1)} min/hr`;
-  }
-  if (def.category === 'xp' && effectPerHour > 0) {
-    return `~${formatCoinsAbbreviated(Math.round(effectPerHour))} xp/hr`;
-  }
-  if (stats.procsPerHour > 0) {
-    return `${stats.procsPerHour.toFixed(1)} proc/hr`;
-  }
-  return '';
+  const effectPerHour = computeEffectPerHour(def, stats, effectiveStrength);
+  const text = formatContinuousRate(def, effectPerHour, stats.procsPerHour);
+  return isEffectRate(def, effectPerHour) ? `~${text}` : text;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +128,7 @@ export function buildHoverPanel(pet: PooledPet, panel: HTMLElement): void {
   } catch {
     valuationContext = null;
   }
+  const rateContext = getPooledPetRateContext(pet);
 
   // --- Sprite section ---
   const spriteSection = document.createElement('div');
@@ -194,6 +216,16 @@ export function buildHoverPanel(pet: PooledPet, panel: HTMLElement): void {
     statsSection.appendChild(row);
   }
 
+  // PD2 stage note, e.g. "Midnight +20 STR"; stage is null for pets outside the active slots.
+  if (rateContext.isNocturnal && rateContext.stage !== null) {
+    const stage = rateContext.stage.charAt(0).toUpperCase() + rateContext.stage.slice(1);
+    const bonus = stageStrengthBonus(true, rateContext.stage, rateContext.dayCycle.nocturnalBonus);
+    const stageNote = document.createElement('div');
+    stageNote.className = 'qpm-hover__xp-note';
+    stageNote.textContent = t('feature.xpTracker.stageBonus', { stage, bonus: String(bonus) });
+    statsSection.appendChild(stageNote);
+  }
+
   // XP bar
   if (pet.xp != null && maxStr != null && pet.strength != null && pet.strength < maxStr) {
     const xpPerLevel = getSpeciesXpPerLevel(pet.species);
@@ -272,21 +304,20 @@ export function buildHoverPanel(pet: PooledPet, panel: HTMLElement): void {
       name.textContent = def?.name ?? abilityId;
       row.appendChild(name);
 
+      const stats = def ? computeAbilityStats(def, pet.strength ?? null, rateContext) : null;
+
       // Key metric: observed first, then estimated
       let metric = '';
-      if (observed?.procsPerHour != null && def && !isEventTriggeredAbility(def)) {
-        const stats = computeAbilityStats(def, pet.strength ?? null);
-        if (stats) {
-          const eph = computeEffectPerHour(def, { ...stats, procsPerHour: observed.procsPerHour }, pet.strength);
-          if (def.effectUnit === 'coins' && eph > 0) {
-            metric = `~${formatCoinsAbbreviated(Math.round(eph))} $/hr`;
-          } else if (stats.procsPerHour > 0) {
-            metric = `${observed.procsPerHour.toFixed(1)}/hr`;
-          }
+      if (observed?.procsPerHour != null && def && stats && !isEventTriggeredAbility(def)) {
+        const eph = computeEffectPerHour(def, { ...stats, procsPerHour: observed.procsPerHour }, stats.multiplier * 100);
+        if (def.effectUnit === 'coins' && eph > 0) {
+          metric = `~${formatCoinsAbbreviated(Math.round(eph))} $/hr`;
+        } else if (stats.procsPerHour > 0) {
+          metric = `${observed.procsPerHour.toFixed(1)}/hr`;
         }
       }
       if (!metric) {
-        metric = getAbilityMetric(abilityId, pet.strength, valuationContext);
+        metric = getAbilityMetric(abilityId, pet.strength, valuationContext, rateContext);
       }
 
       if (metric) {
@@ -297,6 +328,16 @@ export function buildHoverPanel(pet: PooledPet, panel: HTMLElement): void {
       }
 
       abilSection.appendChild(row);
+
+      // PD2: muted full-day line only when it differs from the headline.
+      const dayAverage = def && stats ? getAbilityDayAverageMetric(def, stats) : '';
+      if (dayAverage && dayAverage !== metric.replace(/^~/, '')) {
+        const averageEl = document.createElement('div');
+        averageEl.className = 'qpm-hover__xp-note';
+        averageEl.style.paddingLeft = '16px';
+        averageEl.textContent = t('feature.petPicker.dayAverage', { value: dayAverage });
+        abilSection.appendChild(averageEl);
+      }
     }
 
     panel.appendChild(abilSection);

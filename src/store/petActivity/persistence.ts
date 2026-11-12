@@ -32,3 +32,20 @@ export function parseEnvelope(raw: unknown): PetActivityEvent[] {
 export function buildEnvelope(events: PetActivityEvent[]): PetActivityEnvelope {
   return { version: 1, events };
 }
+
+/** Union by `id`; the newer `updatedAt` wins, a tie keeps `a`. Returns `a` itself when `b` adds nothing. */
+export function mergePetActivity(a: PetActivityEvent[], b: PetActivityEvent[], now = Date.now()): PetActivityEvent[] {
+  const cutoff = now - MAX_AGE_MS;
+  const byId = new Map(a.map((e) => [e.id, e]));
+  let changed = false;
+  for (const e of b) {
+    if (e.ts < cutoff) continue;
+    const prev = byId.get(e.id);
+    if (prev && prev.updatedAt >= e.updatedAt) continue;
+    byId.set(e.id, e);
+    changed = true;
+  }
+  if (!changed) return a;
+  const merged = [...byId.values()].sort((x, y) => x.ts - y.ts);
+  return pruneEvents(merged, now, { maxEvents: MAX_EVENTS, maxAgeMs: MAX_AGE_MS });
+}

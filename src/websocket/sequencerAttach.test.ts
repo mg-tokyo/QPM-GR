@@ -38,6 +38,12 @@ class NoChokepointRoom {
   writeB(message: unknown): void { void message; }
 }
 
+class RefusingTryRoom {
+  sendMessage(message: unknown): void { this.writeA(message); }
+  trySendMessageNow(message: unknown): boolean { void message; return false; }
+  writeA(message: unknown): void { void message; }
+}
+
 function makeHooks(room: object | null): { hooks: SequencerAttachHooks; rewritten: Env[]; observed: unknown[] } {
   const rewritten: Env[] = [];
   const observed: unknown[] = [];
@@ -198,6 +204,42 @@ describe('createSequencerAttach — chokepoint mode', () => {
     attach.ensureAttached();
     expect(attach.describe()).toEqual({ mode: 'slot', chokepointKey: null });
     expect((room.sendMessage as unknown as { __qpmLabel?: string }).__qpmLabel).toBe('commandSequencer');
+  });
+});
+
+describe('createSequencerAttach — onSequenced hook', () => {
+  it('runs after the chokepoint send, only for a numbered envelope', () => {
+    const room = new FakeRoom();
+    const { hooks } = makeHooks(room);
+    const calls: Array<[unknown, number, number]> = [];
+    hooks.onSequenced = (payload, seq) => { calls.push([payload, seq, room.sent.length]); };
+    createSequencerAttach(hooks).ensureAttached();
+    const env = envelope();
+    room.sendMessage({ type: 'PlayerPosition' });
+    expect(room.trySendMessageNow(env)).toBe(true);
+    expect(calls).toEqual([[env, 1, 2]]);
+    room.isCommandSessionReady = false;
+    room.sendMessage(envelope());
+    expect(calls).toHaveLength(1);
+  });
+
+  it('slot mode: skipped for a refused trySendMessageNow, and the rollback still runs', () => {
+    const room = new RefusingTryRoom();
+    const { hooks } = makeHooks(room);
+    const seqs: number[] = [];
+    hooks.onSequenced = (_payload, seq) => { seqs.push(seq); };
+    const rollback = vi.fn(hooks.rollback);
+    hooks.rollback = rollback;
+    const attach = createSequencerAttach(hooks);
+    attach.ensureAttached();
+    expect(attach.describe().mode).toBe('slot');
+    expect(room.trySendMessageNow(envelope())).toBe(false);
+    expect(seqs).toEqual([]);
+    expect(rollback).toHaveBeenCalledWith(1);
+    const sent = envelope();
+    room.sendMessage(sent);
+    expect(seqs).toEqual([1]);
+    expect(sent.commandSequence).toBe(1);
   });
 });
 

@@ -40,4 +40,48 @@ describe('showToast', () => {
     vi.advanceTimersByTime(11000);
     expect(toasts()).toHaveLength(0);
   });
+
+  it('setMessage changes the text and keeps the action button', () => {
+    const handle = showToast('refreshing in 5 s', { persist: true, action: { label: 'Cancel', onClick: () => {} } });
+    handle.setMessage('refreshing in 4 s');
+    const el = toasts()[0]!;
+    expect(el.textContent).toBe('refreshing in 4 sCancel');
+    expect(el.querySelectorAll('button')).toHaveLength(1);
+  });
+
+  it('persist keeps the toast past any duration until close(); close is safe twice', () => {
+    vi.useFakeTimers();
+    const handle = showToast('stays', { persist: true, duration: 100 });
+    vi.advanceTimersByTime(60_000);
+    expect(handle.isOpen()).toBe(true);
+    expect(toasts()).toHaveLength(1);
+    handle.close();
+    handle.close();
+    expect(handle.isOpen()).toBe(false);
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it('the action closes the toast: isOpen turns false before onClick runs', () => {
+    let openDuringClick: boolean | null = null;
+    const handle = showToast('x', { persist: true, action: { label: 'Cancel', onClick: () => { openDuringClick = handle.isOpen(); } } });
+    toasts()[0]!.querySelector('button')!.click();
+    expect(openDuringClick).toBe(false);
+    expect(handle.isOpen()).toBe(false);
+  });
+
+  it('isOpen is false once the fade starts, and when a newer toast replaces it', () => {
+    vi.useFakeTimers();
+    const faded = showToast('fades', { duration: 1000 });
+    vi.advanceTimersByTime(1000);
+    expect(faded.isOpen()).toBe(false);
+    vi.advanceTimersByTime(300);
+    expect(toasts()).toHaveLength(0);
+
+    const first = showToast('first', { persist: true });
+    const second = showToast('second');
+    expect(first.isOpen()).toBe(false);
+    expect(second.isOpen()).toBe(true);
+    first.close();
+    expect(toasts().map((el) => el.textContent)).toEqual(['second']);
+  });
 });

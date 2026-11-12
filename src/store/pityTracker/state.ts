@@ -4,12 +4,12 @@
 // 25-entry window, so nothing can be backfilled. Crop growth rolls are attributed
 // per garden slot (see pityTrackerGarden.ts) so granted mutations never count.
 
-import { storage } from '../../utils/storage';
 import { createStoreDiagnostics } from '../_storeDiagnostics';
 import { type PityKind } from '../../catalogs/pityThresholds';
 import { serverEntryKey } from '../petActivity';
 import { type SlotMap, type SlotRecord } from './garden';
-import { loadLog, saveLog, type PullLogEntry } from './log';
+import { parseLog, type PendingRebuild, type PullLogEntry } from './log';
+import type { PityCopy } from './merge';
 
 export const diag = createStoreDiagnostics('storePityTracker', 'pityTracker');
 
@@ -115,7 +115,7 @@ export interface PityTrackerState {
 
 export type ActivityEntry = { action?: unknown; timestamp?: unknown; parameters?: unknown };
 
-export interface PendingCrop { species: string; bucket: string; mutation: string | null; at: number; expires: number }
+export interface PendingCrop { species: string; bucket: string; mutation: string | null; at: number; expires: number; source: string }
 export interface PendingGone { slot: SlotRecord; expires: number }
 
 export function defaultState(): PityTrackerState {
@@ -153,6 +153,11 @@ export const ctx = {
   lastAccountAttempt: 0,
   log: [] as PullLogEntry[],
   logDirty: false,
+  /** Saves state + log to the bound player's keys; null until the player-scoped copy is bound. */
+  write: null as (() => boolean) | null,
+  pendingRebuild: null as PendingRebuild | null,
+  /** Log entries the last merge could not place this session (shown on the diagnostics row). */
+  mergeDropped: 0,
 };
 
 export function notify(): void {
@@ -161,17 +166,22 @@ export function notify(): void {
   }
 }
 
+export function publishPityRow(): void {
+  diag.publishOk('Pity tracker started', {
+    counters: Object.keys(ctx.state.counters).length,
+    observedSince: ctx.state.observedSince,
+    mergeDropped: ctx.mergeDropped,
+    rebuildPending: ctx.pendingRebuild ? 1 : 0,
+  });
+}
+
 export function persist(): void {
+  if (!ctx.write) return;
   ctx.state.seenKeys = Array.from(ctx.seen).slice(-MAX_SEEN_KEYS);
   ctx.state.meta.updatedAt = Date.now();
-  try { storage.set(STORAGE_KEY, ctx.state); } catch (error) {
-    diag.warn('QPM-STORE-004', { what: 'pity', key: STORAGE_KEY }, error);
-  }
-  if (ctx.logDirty) {
-    try { saveLog(); ctx.logDirty = false; } catch (error) {
-      diag.warn('QPM-STORE-004', { what: 'pityLog', key: LOG_STORAGE_KEY }, error);
-    }
-  }
+  // A failed save keeps the log dirty so the next persist retries it.
+  if (ctx.write()) ctx.logDirty = false;
+  else diag.warn('QPM-STORE-004', { what: 'pity', key: STORAGE_KEY });
 }
 
 export function migrateCounters(counters: Record<string, Partial<PityCounter>>): Record<string, PityCounter> {
@@ -191,12 +201,19 @@ export function migrateCounters(counters: Record<string, Partial<PityCounter>>):
   return out;
 }
 
-export function load(): void {
-  try {
-    const saved = storage.get<Partial<PityTrackerState> | null>(STORAGE_KEY, null);
-    const version = saved?.meta?.version;
-    ctx.state = saved && saved.counters && typeof version === 'number' && version >= 3 && version <= CURRENT_VERSION
-      ? {
+export interface NormalizedPity {
+  state: PityTrackerState;
+  log: PullLogEntry[];
+  /** The stored log does not belong to this state (fresh, unreadable or pre-v6 store) and must be rewritten. */
+  logReset: boolean;
+}
+
+/** Saved state + log envelope of any supported version → current shape. Pure apart from `Date.now()`. */
+export function normalizeSaved(raw: unknown, rawLog: unknown): NormalizedPity {
+  const saved = asRecord(raw) as Partial<PityTrackerState> | null;
+  const version = saved?.meta?.version;
+  const state: PityTrackerState = saved && saved.counters && typeof version === 'number' && version >= 3 && version <= CURRENT_VERSION
+    ? {
         ...defaultState(),
         ...saved,
         counters: migrateCounters(saved.counters),
@@ -214,26 +231,25 @@ export function load(): void {
           : { counters: {}, since: Date.now() },
         meta: { version: CURRENT_VERSION, updatedAt: saved.meta?.updatedAt ?? Date.now() },
       }
-      : defaultState();
-    if (typeof version === 'number' && version < 5) dropEggStreaks();
-    if (typeof version === 'number' && version < 6) {
-      // Existing counters become the checkpoint; the log starts empty from here.
-      ctx.state.checkpoint = { counters: migrateCounters(ctx.state.counters), since: Date.now() };
-      ctx.log = [];
-      ctx.logDirty = true;
-    } else if (version === CURRENT_VERSION) {
-      ctx.log = loadLog();
-    } else {
-      // Fresh or unreadable store: a leftover log would not match the empty checkpoint.
-      ctx.log = [];
-      ctx.logDirty = true;
-    }
-  } catch (error) {
-    diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
-    ctx.state = defaultState();
-    ctx.log = [];
-    ctx.logDirty = true;
+    : defaultState();
+  if (typeof version === 'number' && version < 5) dropEggStreaks(state);
+  if (typeof version === 'number' && version < 6) {
+    // Existing counters become the checkpoint; the log starts empty from here.
+    state.checkpoint = { counters: migrateCounters(state.counters), since: Date.now() };
+    return { state, log: [], logReset: true };
   }
+  if (version === CURRENT_VERSION) return { state, log: parseLog(rawLog), logReset: false };
+  // Fresh or unreadable store: a leftover log would not match the empty checkpoint.
+  return { state, log: [], logReset: true };
+}
+
+/** The bound player's copy becomes the in-memory store; the helper has already saved it. */
+export function applyCopy(copy: PityCopy): void {
+  ctx.state = copy.state;
+  ctx.log = copy.log;
+  ctx.logDirty = false;
+  ctx.pendingRebuild = copy.rebuild;
+  ctx.mergeDropped = copy.rebuild?.dropped ?? 0;
   ctx.seen.clear();
   for (const key of ctx.state.seenKeys) ctx.seen.add(key);
 }
@@ -247,9 +263,9 @@ export function hasEggStreaks(): boolean {
 }
 
 /** Pre-v5 egg streaks may be missing species rolls; the next update rebuilds them from pet-activity history. */
-function dropEggStreaks(): void {
-  for (const key of Object.keys(ctx.state.counters)) if (isEggKey(key)) delete ctx.state.counters[key];
-  ctx.state.hits = ctx.state.hits.filter((h) => !isEggKey(h.key));
+function dropEggStreaks(state: PityTrackerState): void {
+  for (const key of Object.keys(state.counters)) if (isEggKey(key)) delete state.counters[key];
+  state.hits = state.hits.filter((h) => !isEggKey(h.key));
 }
 
 export function entryKey(entry: ActivityEntry): string {

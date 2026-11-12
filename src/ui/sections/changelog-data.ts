@@ -2,6 +2,18 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.64",
+    date: "2026-11-12",
+    notes: [
+      "Added Auto reconnect: when the game updates, QPM counts down 5 seconds with a Cancel button, then refreshes through the game's own button. Turn it off in Config; on Discord it leaves the game's own notice alone",
+      "Improved the XP Tracker, Ability Tracker, pet picker, Pet Optimizer and Turtle Timer to account for the day and night strength bonus on nocturnal pets and an active Strength crystal, with a full-day average shown when it differs from the current rate",
+      "Improved pity, hatch stats, stats totals, pet activity and XP Tracker history: they are now kept separately for each account, and your existing history carries over",
+      "Fixed pet sprites and pet icons showing blank after the latest game updates",
+      "Fixed insta-harvest staying on the same fruit of multi-harvest plants instead of moving to the next one like the game does",
+      "Fixed QPM missing some game data for the rest of the session after a brief network error, it now tries again when the game loads new files",
+    ],
+  },
+  {
     version: "3.3.63",
     date: "2026-11-08",
     notes: [

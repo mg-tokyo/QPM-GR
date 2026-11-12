@@ -4,8 +4,9 @@ import { getActivePetInfos } from '../pets';
 import { buildRuns, type CollapseOptions } from './collapse';
 import { liveEnrichDeps } from './enrichLive';
 import { ServerLogIngester, subscribeServerLog } from './ingest';
-import { MAX_AGE_MS, MAX_EVENTS, pruneEvents } from './persistence';
-import { loadEvents, saveEvents } from './storageIo';
+import type { PlayerScopedHandle } from '../playerScoped';
+import { MAX_AGE_MS, MAX_EVENTS, mergePetActivity, pruneEvents } from './persistence';
+import { createEventsHandle } from './storageIo';
 import type { ActivityRun, EventValue, PetActivityChange, PetActivityEvent, PetSnap, TargetSnap } from './types';
 
 export type { ActivityRun, EventKind, EventValue, PetActivityChange, PetActivityEvent, PetSnap, TargetSnap } from './types';
@@ -33,13 +34,19 @@ const listeners = new Set<(c: PetActivityChange) => void>();
 const cleanups: Array<() => void> = [];
 let persistTimer: number | null = null;
 let ingester: ServerLogIngester | null = null;
+let handle: PlayerScopedHandle<PetActivityEvent[]> | null = null;
+/** QPM events recorded before the player's copy loads; merged into it on bind. */
+let preBind: PetActivityEvent[] = [];
 const pendingQpmFeeds: Array<{ petId: string; cropSpecies: string; at: number; event: PetActivityEvent }> = [];
 
 function notify(change: PetActivityChange): void {
   for (const cb of listeners) { try { cb(change); } catch (err) { diag.warn('QPM-STORE-003', { phase: 'notify' }, err); } }
 }
 function persistNow(): void {
-  try { saveEvents(events); } catch (err) { diag.warn('QPM-STORE-004', { what: 'events' }, err); }
+  if (!handle?.isReady()) return;
+  try {
+    if (!handle.write(events)) diag.warn('QPM-STORE-004', { what: 'events', key: handle.scopedKey() });
+  } catch (err) { diag.warn('QPM-STORE-004', { what: 'events' }, err); }
 }
 // One-shot debounce (not polling) — same shape petTeamsLogs used.
 function schedulePersist(): void {
@@ -52,6 +59,7 @@ function flushPersist(): void {
 }
 function commit(added: PetActivityEvent[], updated: PetActivityEvent[]): void {
   if (!added.length && !updated.length) return;
+  if (!handle?.isReady() && preBind.length < MAX_EVENTS) preBind.push(...added);
   for (const e of added) { events.push(e); byId.set(e.id, e); }
   for (const e of updated) { const i = events.findIndex((x) => x.id === e.id); if (i >= 0) events[i] = e; byId.set(e.id, e); }
   if (added.length) events.sort((a, b) => a.ts - b.ts);
@@ -108,15 +116,33 @@ function onQpmFeed(e: Event): void {
   commit([event], []);
 }
 
+/** The player's merged copy. The server log is ingested only from here: the ingester diffs against `byId`, so
+ *  running it on an empty list would re-add every server entry with a snapshot of today's garden. */
+function onBound(value: PetActivityEvent[]): void {
+  const replay = preBind;
+  preBind = [];
+  try {
+    events = mergePetActivity([...value], replay);
+  } catch (err) {
+    events = [];
+    diag.warn('QPM-STORE-001', { phase: 'load' }, err);
+  }
+  byId = new Map(events.map((e) => [e.id, e]));
+  if (replay.length > 0) schedulePersist();
+  const firstBind = ingester === null;
+  ingester = new ServerLogIngester((key) => byId.get(key));
+  if (firstBind) cleanups.push(subscribeServerLog(onServerLog));
+  notify({ added: [], updated: [], cleared: true });
+  diag.publishOk('Pet activity store ready', { events: events.length });
+}
+
 export function initPetActivityStore(): void {
   if (started) return;
   started = true;
-  diag.register('Loading pet activity from storage');
-  try { events = loadEvents(); } catch (err) { events = []; diag.warn('QPM-STORE-001', { phase: 'load' }, err); }
-  byId = new Map(events.map((e) => [e.id, e]));
-  ingester = new ServerLogIngester((key) => byId.get(key));
-
-  cleanups.push(subscribeServerLog(onServerLog));
+  diag.register('Waiting for the player id to load pet activity');
+  events = [];
+  byId = new Map();
+  preBind = [];
 
   let lastRidden: string | null = null;
   cleanups.push(onRiddenPetChange((petId) => {
@@ -133,7 +159,8 @@ export function initPetActivityStore(): void {
   window.addEventListener('pagehide', unload); window.addEventListener('beforeunload', unload);
   cleanups.push(() => { window.removeEventListener('pagehide', unload); window.removeEventListener('beforeunload', unload); });
 
-  diag.publishOk('Pet activity store ready', { events: events.length });
+  handle = createEventsHandle(onBound, flushPersist);
+  handle.start();
 }
 
 export function stopPetActivityStore(): void {
@@ -141,6 +168,9 @@ export function stopPetActivityStore(): void {
   started = false;
   flushPersist();
   for (const fn of cleanups.splice(0)) { try { fn(); } catch { /* teardown */ } }
+  handle?.stop();
+  handle = null;
+  preBind = [];
   ingester = null;
   listeners.clear();
 }

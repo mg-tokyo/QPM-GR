@@ -736,6 +736,13 @@ const pt: Dictionary = {
   'feature.spectator.keys.other.sellAll': '[VERIFY] Sell all pets',
   'feature.spectator.keys.other.team': '[VERIFY] Pet team {name}',
   'feature.spectator.keys.other.hutch': '[VERIFY] Pet Hutch',
+  'feature.autoReconnect.countdown': '[VERIFY] Game updated: refreshing in {seconds} s',
+  'feature.autoReconnect.cancel': '[VERIFY] Cancel',
+  'feature.autoReconnect.settingTitle': '[VERIFY] Auto reconnect',
+  'feature.autoReconnect.settingCaption': '[VERIFY] Refreshes the game by itself when a new build ships',
+  'feature.autoReconnect.enable': '[VERIFY] Refresh automatically when the game updates',
+  'feature.autoReconnect.captionWeb': '[VERIFY] Waits 5 s, then uses the game\'s own button.',
+  'feature.autoReconnect.captionDiscord': '[VERIFY] Discord: the game\'s own notice handles it; QPM does nothing.',
 };
 
 export default pt;

@@ -35,8 +35,17 @@ const bundleMarkerMisses = new Map<string, Set<string>>();
 // A failed fetch is NOT a marker miss: a transient proxy/network error must not
 // hide a chunk from every consumer for the session (2026-09-08 Firefox/Discord
 // report: weather chunk never parsed while every other chunk fetched fine).
+// Counted once per network request, not per waiter on the shared promise
+// (REL-7: one 503 shared by three callers used to give the URL up).
 const bundleFetchFailures = new Map<string, number>();
 const MAX_FETCH_FAILURES_PER_URL = 3;
+// Markers whose miss set holds a URL only because it was given up; a re-arm
+// clears exactly these entries, not fetched-and-missed ones.
+const giveUpMarkers = new Map<string, Set<string>>();
+const seenCandidateUrls = new Set<string>();
+// Real game chunks under the size floor (build 2016: 14 of 469–988 bytes) are a
+// definite answer, not a failure: fetched once, never re-armed.
+const tinyUrls = new Set<string>();
 const fetchStats = { attempted: 0, failed: 0, tooSmall: 0 };
 
 export type BundleMarker = string | RegExp;
@@ -56,18 +65,42 @@ export function getMarkerMissCount(marker: BundleMarker): number {
   return bundleMarkerMisses.get(markerKey(marker))?.size ?? 0;
 }
 
-/** Triage counters for QPM-CATALOG-003 context and supportReport. */
+const urlBasename = (u: string): string => u.split('/').pop() ?? u;
+const isGivenUp = (url: string): boolean => (bundleFetchFailures.get(url) ?? 0) >= MAX_FETCH_FAILURES_PER_URL;
+
+/** Triage counters for QPM-CATALOG-003 context and dayStageDrift(). */
 export function getBundleFetchStats(): {
-  candidates: number; cached: number; attempted: number; failed: number; tooSmall: number; failedUrls: string[];
+  candidates: number; cached: number; attempted: number; failed: number; tooSmall: number;
+  failedUrls: string[]; givenUpUrls: string[];
 } {
+  const failing = Array.from(bundleFetchFailures.keys());
   return {
     candidates: findBundleCandidateUrls().length,
     cached: bundleTextCache.size,
     attempted: fetchStats.attempted,
     failed: fetchStats.failed,
     tooSmall: fetchStats.tooSmall,
-    failedUrls: Array.from(bundleFetchFailures.keys()).map((u) => u.split('/').pop() ?? u),
+    failedUrls: failing.map(urlBasename),
+    givenUpUrls: failing.filter(isGivenUp).map(urlBasename),
   };
+}
+
+// A never-seen candidate is a real new game chunk: give every given-up URL one
+// more request (count back to one below the cap) and un-hide it (D2, PD1).
+function rearmGivenUpOnNewCandidate(urls: string[]): void {
+  let fresh = false;
+  for (const url of urls) {
+    if (seenCandidateUrls.has(url)) continue;
+    seenCandidateUrls.add(url);
+    fresh = true;
+  }
+  if (!fresh) return;
+  for (const [url, count] of bundleFetchFailures) {
+    if (count < MAX_FETCH_FAILURES_PER_URL) continue;
+    bundleFetchFailures.set(url, MAX_FETCH_FAILURES_PER_URL - 1);
+    for (const key of giveUpMarkers.get(url) ?? []) bundleMarkerMisses.get(key)?.delete(url);
+    giveUpMarkers.delete(url);
+  }
 }
 
 // Pass non-global RegExp markers only — a global regex carries lastIndex state.
@@ -193,6 +226,7 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
       const text = await res.text();
       if (!text || text.length < 1000) {
         fetchStats.tooSmall += 1;
+        tinyUrls.add(url);
         log.debug('bundle: text suspiciously small', { length: text?.length ?? 0, url });
         return null;
       }
@@ -202,7 +236,10 @@ async function fetchBundleTextOnce(url: string): Promise<string | null> {
       log.debug('bundle: fetch threw', { url });
       return null;
     }
-  })().finally(() => {
+  })().then((text) => {
+    if (!text && !tinyUrls.has(url)) bundleFetchFailures.set(url, (bundleFetchFailures.get(url) ?? 0) + 1);
+    return text;
+  }).finally(() => {
     bundleFetchInFlightByUrl.delete(url);
   });
 
@@ -216,6 +253,7 @@ async function iterateBundleHits(
 ): Promise<Array<{ url: string; text: string }>> {
   const urls = findBundleCandidateUrls();
   if (!urls.length) return [];
+  rearmGivenUpOnNewCandidate(urls);
 
   const key = markerKey(marker);
   let missed = bundleMarkerMisses.get(key);
@@ -238,13 +276,20 @@ async function iterateBundleHits(
 
   for (const url of urls) {
     if (bundleTextCache.has(url) || missed.has(url)) continue;
-    if ((bundleFetchFailures.get(url) ?? 0) >= MAX_FETCH_FAILURES_PER_URL) continue;
+    if (tinyUrls.has(url) || isGivenUp(url)) continue;
     const text = await fetchBundleTextOnce(url);
+    if (!text && tinyUrls.has(url)) {
+      missed.add(url);
+      continue;
+    }
     if (!text) {
-      const failures = (bundleFetchFailures.get(url) ?? 0) + 1;
-      bundleFetchFailures.set(url, failures);
       // Give-up on this URL still counts as fetch work for retry budgets.
-      if (failures >= MAX_FETCH_FAILURES_PER_URL) missed.add(url);
+      if (isGivenUp(url)) {
+        missed.add(url);
+        let markers = giveUpMarkers.get(url);
+        if (!markers) { markers = new Set<string>(); giveUpMarkers.set(url, markers); }
+        markers.add(key);
+      }
       continue;
     }
     if (markerHits(text, marker)) {

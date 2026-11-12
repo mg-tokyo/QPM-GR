@@ -1,4 +1,11 @@
-import { computeAbilityStats, computeEffectPerHour, getAbilityDefinition } from '../data/petAbilities';
+import {
+  averageOverDayCycle,
+  computeAbilityStats,
+  computeEffectPerHour,
+  getAbilityDefinition,
+  getAbilityRateContext,
+  type AbilityRateContext,
+} from '../data/petAbilities';
 import { buildAbilityValuationContext, type AbilityValuationContext } from '../abilityValuation';
 import { resolveCatalogScaledParameterValue } from './catalogParams';
 import {
@@ -27,6 +34,11 @@ import type {
   TeamCompareProfile,
 } from './types';
 
+type StageNumbers = Pick<
+  AbilityContribution,
+  'chancePercent' | 'procsPerHour' | 'valuePerTrigger' | 'expectedValuePerTrigger' | 'expectedValuePerHour' | 'impactPerHour'
+>;
+
 export function buildPetCompareProfile(
   pet: ComparePetInput,
   stageSnapshot: ProgressionStageSnapshot,
@@ -34,6 +46,7 @@ export function buildPetCompareProfile(
 ): PetCompareProfile {
   const stage = stageSnapshot.stage;
   const strength = getWorkingStrength(pet);
+  const rateContext = getAbilityRateContext(pet.species);
   const abilities: AbilityContribution[] = [];
   const byAbilityId = new Map<string, AbilityContribution>();
 
@@ -54,36 +67,55 @@ export function buildPetCompareProfile(
     const actionBucket = getActionBucket(definition);
     const weatherActive = isAbilityWeatherActive(definition);
 
-    const stats = definition && weatherActive ? computeAbilityStats(definition, strength) : null;
     const catalogScaled = weatherActive ? resolveCatalogScaledParameterValue(abilityId, strength) : null;
     const parameterSourceKey = catalogScaled?.sourceKey ?? null;
     const treatAsAlwaysOnAction = shouldTreatAsAlwaysOnAction(abilityId, definition, parameterSourceKey);
     const treatAsContinuousModifier = shouldTreatAsContinuousModifier(definition, parameterSourceKey);
 
-    const chancePercent = stats ? clamp(stats.chancePerMinute, 0, 100) : 0;
-    const procsPerHour = stats ? Math.max(0, stats.procsPerHour) : 0;
+    const evaluate = (stageContext: AbilityRateContext): StageNumbers => {
+      const stats = definition && weatherActive ? computeAbilityStats(definition, strength, stageContext) : null;
+      // Effective STR incl. crystal and stage bonus (REL-6.7, user "Effective STR").
+      const effectiveStrength = stats ? stats.multiplier * 100 : strength;
+      const chancePercent = stats ? clamp(stats.chancePerMinute, 0, 100) : 0;
+      const procsPerHour = stats ? Math.max(0, stats.procsPerHour) : 0;
+      const valuePerTrigger = weatherActive
+        ? resolveValuePerTrigger(abilityId, definition, effectiveStrength, valuationContext, stage)
+        : 0;
+      const expectedValuePerTrigger = treatAsAlwaysOnAction
+        ? valuePerTrigger
+        : valuePerTrigger * (chancePercent / 100);
 
-    const valuePerTrigger = weatherActive
-      ? resolveValuePerTrigger(abilityId, definition, strength, valuationContext, stage)
-      : 0;
-    const expectedValuePerTrigger = treatAsAlwaysOnAction
-      ? valuePerTrigger
-      : valuePerTrigger * (chancePercent / 100);
-    const expectedValuePerHour = expectedValuePerTrigger * procsPerHour;
-
-    let impactPerHour = 0;
-    if (definition && !actionBucket) {
-      if (valuePerTrigger > 0) {
-        if (procsPerHour > 0) {
-          impactPerHour = valuePerTrigger * procsPerHour;
-        } else if (treatAsContinuousModifier) {
-          // Passive modifiers without proc probability still contribute continuously.
-          impactPerHour = valuePerTrigger;
+      let impactPerHour = 0;
+      if (definition && !actionBucket) {
+        if (valuePerTrigger > 0) {
+          if (procsPerHour > 0) {
+            impactPerHour = valuePerTrigger * procsPerHour;
+          } else if (treatAsContinuousModifier) {
+            // Passive modifiers without proc probability still contribute continuously.
+            impactPerHour = valuePerTrigger;
+          }
+        } else if (stats) {
+          impactPerHour = computeEffectPerHour(definition, stats, effectiveStrength);
         }
-      } else if (stats) {
-        impactPerHour = computeEffectPerHour(definition, stats, strength);
       }
-    }
+      return {
+        chancePercent,
+        procsPerHour,
+        valuePerTrigger,
+        expectedValuePerTrigger,
+        expectedValuePerHour: expectedValuePerTrigger * procsPerHour,
+        impactPerHour,
+      };
+    };
+    // Full-day average so rankings do not depend on the hour they ran (REL-6.8); live until the cycle parses.
+    const {
+      chancePercent,
+      procsPerHour,
+      valuePerTrigger,
+      expectedValuePerTrigger,
+      expectedValuePerHour,
+      impactPerHour,
+    } = averageOverDayCycle(rateContext, evaluate) ?? evaluate(rateContext);
 
     if (definition && !actionBucket) {
       if (definition.category === 'coins' || definition.effectUnit === 'coins') {

@@ -6,6 +6,8 @@ export interface ConfirmDialogOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'default' | 'danger';
+  /** Focus Cancel and ignore keyboard-activated confirm clicks, so Enter or Space never confirms. */
+  pointerOnly?: boolean;
 }
 
 export function showConfirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
@@ -15,6 +17,7 @@ export function showConfirmDialog(options: ConfirmDialogOptions): Promise<boolea
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
     variant = 'default',
+    pointerOnly = false,
   } = options;
 
   return new Promise<boolean>((resolve) => {
@@ -82,7 +85,11 @@ export function showConfirmDialog(options: ConfirmDialogOptions): Promise<boolea
 
     const confirmBtn = createButton(confirmLabel, {
       variant: variant === 'danger' ? 'danger' : 'primary',
-      onClick: () => close(true),
+    });
+    // A keyboard-activated button click has detail 0; a pointer click has 1+.
+    confirmBtn.addEventListener('click', (e) => {
+      if (pointerOnly && e.detail === 0) return;
+      close(true);
     });
 
     btnRow.append(cancelBtn, confirmBtn);
@@ -100,7 +107,6 @@ export function showConfirmDialog(options: ConfirmDialogOptions): Promise<boolea
     }
     document.addEventListener('keydown', onKeyDown, true);
 
-    // Focus confirm button
-    confirmBtn.focus();
+    (pointerOnly ? cancelBtn : confirmBtn).focus();
   });
 }

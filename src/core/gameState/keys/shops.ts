@@ -23,6 +23,11 @@ export const SHOP_KEYS = {
       atomSource(/^weather(?:State)?Atom$/, 'authoritative', { project: (v) => (typeof v === 'string' ? v : v === null ? null : undefined) }),
     ],
   }),
+  // Written by the game's `dayNight` render system on stage change (REL-6 spec F15–F16); any string, so a new stage flows through.
+  dayNightStage: defineKey<string>({
+    policy: 'client', tier: 'client', doc: 'Day-cycle stage (day, sunset, midnight, sunrise on 1989; read-only)',
+    sources: [atomSource(/^dayNightStageAtom$/, 'client', { structure: (v) => typeof v === 'string' && v.length > 0 })],
+  }),
   shops: defineKey<ShopsAtomSnapshot | null>({
     policy: 'authoritative', tier: 'state', doc: 'All shops keyed by id (shopsAtom was removed by the game)',
     // The server patches every shop's countdown once a second; nothing keyed on

@@ -15,4 +15,16 @@ export const SPRITE_CODES: readonly ErrorCodeDefinition[] = [
     sinceVersion: V,
     notifyUser: false,
   },
+  {
+    code: 'QPM-SPRITE-008',
+    subsystem: 'spriteV2',
+    category: 'core',
+    severity: 'warn',
+    title: 'Pet Rive: no species discovered',
+    description: 'Neither the asset manifest nor the game\'s own .riv fetches yielded any pet species file, so every pet species sprite falls back to the emoji placeholder.',
+    userAction: 'Refresh the game tab. If it persists after a game update, report it.',
+    devNotes: 'src/sprite-v2/petRive/bundleLoader.ts discoverPetRiveSources: game ≥1973 lists bundle `pets` with alias `rive/pets/<Species>.riv` → `/runtime-assets/<Species>.<hash>.riv`; older builds list one `rive/pets` asset. Check the manifest `pets` bundle shape and `listSeenRivUrls()` from src/rive-engine/fetchInterceptor.ts.',
+    sinceVersion: '3.3.63',
+    notifyUser: false,
+  },
 ];

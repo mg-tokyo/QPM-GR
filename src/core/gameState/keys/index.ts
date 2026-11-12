@@ -11,11 +11,13 @@ import { PLAYER_KEYS } from './player';
 import { SHOP_KEYS } from './shops';
 import { STORAGE_KEYS } from './storages';
 import { UI_KEYS } from './ui';
+import { SESSION_KEYS } from './session';
 
 export const GAME_STATE_KEYS = {
   // QPM FULL PRIVATE's apply-transforms.js replaces the next line whole (gameStateKeys:add-overlay-spread): add new tables below it.
   ...PLAYER_KEYS, ...ECONOMY_KEYS, ...INVENTORY_KEYS, ...STORAGE_KEYS, ...PET_KEYS, ...GARDEN_KEYS, ...SHOP_KEYS, ...UI_KEYS,
   ...CAMERA_KEYS,
+  ...SESSION_KEYS,
 };
 
 export type GameStateKey = keyof typeof GAME_STATE_KEYS;

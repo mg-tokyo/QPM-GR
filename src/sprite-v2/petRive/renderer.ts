@@ -9,8 +9,8 @@ import {
 } from './state';
 import { cacheCanvas, clearPetRiveCache } from './cache';
 
-// Native pets.riv artboard is 600×850; render into a 850×850 square so no
-// downscale happens at source. UI downscales when needed (smoothly).
+// Native pet artboards are 600×850 (single pets.riv and the ≥1973 per-species
+// files alike); render into a 850×850 square so no downscale happens at source.
 const OUTPUT_SIZE = 850;
 const CONTAINER_ARTBOARD = 'Pets';
 
@@ -54,11 +54,10 @@ function attachContextLossListener(canvas: HTMLCanvasElement, onRestore: () => v
   };
 }
 
-export async function setupRenderer(
+export function setupRenderer(
   runtime: LowLevelRive,
-  bytes: Uint8Array,
   onContextRestore: () => void,
-): Promise<{ file: RivePetsFile; renderer: RivePetsRenderer; canvas: HTMLCanvasElement } | null> {
+): { renderer: RivePetsRenderer; canvas: HTMLCanvasElement } | null {
   const withEnums = runtime as RiveRuntimeWithEnums;
 
   const canvas = createOffscreenCanvas();
@@ -75,20 +74,20 @@ export async function setupRenderer(
     return null;
   }
 
-  let file: RivePetsFile;
+  petRiveState.cleanups.push(attachContextLossListener(canvas, onContextRestore));
+
+  return { renderer, canvas };
+}
+
+export async function loadRiveFile(runtime: LowLevelRive, bytes: Uint8Array, label: string): Promise<RivePetsFile | null> {
   try {
-    file = (await Promise.resolve(runtime.load(bytes))) as RivePetsFile;
+    return (await Promise.resolve(runtime.load(bytes))) as RivePetsFile;
   } catch (error) {
-    canvas.remove();
-    spriteLog('warn', 'pet-rive-load-failed', 'runtime.load(pets.riv) failed', {
+    spriteLog('warn', 'pet-rive-load-failed', `runtime.load failed for '${label}'`, {
       error: String((error as Error)?.message ?? error),
     });
     return null;
   }
-
-  petRiveState.cleanups.push(attachContextLossListener(canvas, onContextRestore));
-
-  return { file, renderer, canvas };
 }
 
 function renderArtboardToWorkCanvas(
@@ -205,7 +204,8 @@ function extractSpeciesCanvas(source: HTMLCanvasElement): HTMLCanvasElement | nu
   }
 }
 
-export function warmupAllSpecies(
+/** Renders and caches every artboard of `file`: the whole legacy pets.riv, or one per-species file. */
+export function renderFileArtboards(
   runtime: LowLevelRive,
   file: RivePetsFile,
   renderer: RivePetsRenderer,
@@ -257,4 +257,19 @@ export function notifySpritesRefresh(): void {
   } catch {
     // event dispatch is best-effort — UIs will re-render naturally on next redraw
   }
+}
+
+/** One refresh per animation frame however many species land in it. */
+export function scheduleSpritesRefresh(): void {
+  if (petRiveState.refreshFrame !== null) return;
+  petRiveState.refreshFrame = requestAnimationFrame(() => {
+    petRiveState.refreshFrame = null;
+    notifySpritesRefresh();
+  });
+}
+
+export function cancelScheduledRefresh(): void {
+  if (petRiveState.refreshFrame === null) return;
+  cancelAnimationFrame(petRiveState.refreshFrame);
+  petRiveState.refreshFrame = null;
 }

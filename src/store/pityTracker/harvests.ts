@@ -1,5 +1,5 @@
 import { GROWTH_PITY_THRESHOLDS, pityBucketFor } from '../../catalogs/pityThresholds';
-import { MAX_PENDING_GRANTS, asRecord, ctx } from './state';
+import { MAX_PENDING_GRANTS, asRecord, ctx, type PendingCrop } from './state';
 import { recordRoll } from './rolls';
 import { type SlotRecord } from './garden';
 
@@ -30,9 +30,9 @@ function consumeGrant(cropSpecies: string, mutation: string | null): boolean {
 }
 
 /** Game guide: granted mutations neither reset a counter nor count as misses; unknown origins are skipped, never guessed. */
-function applyGrowthRoll(bucket: string, slot: SlotRecord, at: number): boolean {
+function applyGrowthRoll(bucket: string, slot: SlotRecord, crop: PendingCrop): boolean {
   if (slot.origin === 'granted' || slot.origin === 'unknown') return false;
-  recordRoll('seed', bucket, 'mutation', slot.origin === 'natural' ? slot.mutation : null, at);
+  recordRoll('seed', bucket, 'mutation', slot.origin === 'natural' ? slot.mutation : null, crop.at, crop.source);
   return true;
 }
 
@@ -45,7 +45,7 @@ export function matchHarvests(now: number): boolean {
     if (idx === -1) continue;
     const crop = ctx.pendingCrops.splice(idx, 1)[0];
     gone.expires = 0;
-    if (crop && applyGrowthRoll(bucket, gone.slot, crop.at)) changed = true;
+    if (crop && applyGrowthRoll(bucket, gone.slot, crop)) changed = true;
   }
   ctx.pendingGone = ctx.pendingGone.filter((g) => g.expires > now);
   // Crops with no slot to attribute them to (slot unseen before this session) fall back to the granter-log ledger.
@@ -53,7 +53,7 @@ export function matchHarvests(now: number): boolean {
   ctx.pendingCrops = ctx.pendingCrops.filter((c) => c.expires > now);
   for (const crop of stale) {
     if (consumeGrant(crop.species, crop.mutation)) continue;
-    recordRoll('seed', crop.bucket, 'mutation', crop.mutation, crop.at);
+    recordRoll('seed', crop.bucket, 'mutation', crop.mutation, crop.at, crop.source);
     changed = true;
   }
   return changed;

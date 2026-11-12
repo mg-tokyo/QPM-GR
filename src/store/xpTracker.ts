@@ -1,15 +1,26 @@
 import { storage } from '../utils/storage';
-import { debounce } from '../utils/scheduling/debounce';
+import { debounce, debounceCancelable } from '../utils/scheduling/debounce';
 import type { ActivePetInfo } from './pets';
 import { getAllPetXpEstimates, inferXpPerLevel } from '../utils/xpInference';
 import { areCatalogsReady, onCatalogsReady, getPetMaxScale } from '../catalogs/gameCatalogs';
 import { createStoreDiagnostics } from './_storeDiagnostics';
+import { createPlayerScoped, type PlayerScopedHandle, type PlayerScopedLayout } from './playerScoped';
+import {
+  computeAbilityStats,
+  computeDayAverageEffectPerHour,
+  computeEffectPerHour,
+  compoundingChancePerSecond,
+  getAbilityRateContext,
+  type AbilityDefinition,
+  type AbilityRateContext,
+} from '../features/pets/data/petAbilities';
 
 const diag = createStoreDiagnostics('storeXp', 'xp');
 
 const STORAGE_KEY_PROCS = 'qpm.xpTrackerProcs.v1';
 const STORAGE_KEY_CONFIG = 'qpm.xpTrackerConfig.v1';
 const SAVE_DEBOUNCE_MS = 2500;
+const MAX_PROCS = 1000;
 
 export interface XpProcEntry {
   petId: string;
@@ -31,10 +42,14 @@ export interface XpAbilityStats {
   actualXpPerProc: number;
   baseChancePerMinute: number;
   actualChancePerMinute: number;
-  baseChancePerSecond: number; // Per-second chance (game checks every second)
-  actualChancePerSecond: number; // Scaled by strength
+  baseChancePerSecond: number;   // percent, compounding over the 1 s server tick
+  actualChancePerSecond: number; // percent, after strength, crystal and stage terms
   expectedProcsPerHour: number;
   expectedXpPerHour: number;
+  dayAverageXpPerHour: number | null;   // null until the day cycle is parsed
+  stage: string | null;
+  stageBonus: number;
+  isNocturnal: boolean;
   lastProcAt: number | null;
   procCount: number;
   level: number | null;
@@ -80,16 +95,72 @@ function rebuildProcIndex(): void {
 
 let updateCallbacks: Array<() => void> = [];
 
-const scheduleSaveProcs = debounce(() => {
+const procIdentity = (entry: XpProcEntry): string => `${entry.petId}\u0000${entry.abilityId}\u0000${entry.timestamp}`;
+
+/** Union by `(petId, abilityId, timestamp)`, oldest first, newest `cap` kept. Returns `a` itself when `b` adds nothing. */
+export function mergeXpProcs(a: XpProcEntry[], b: XpProcEntry[], cap = MAX_PROCS): XpProcEntry[] {
+  const seen = new Set(a.map(procIdentity));
+  const extra: XpProcEntry[] = [];
+  for (const entry of b) {
+    const id = procIdentity(entry);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    extra.push(entry);
+  }
+  if (extra.length === 0) return a;
+  const merged = [...a, ...extra].sort((x, y) => x.timestamp - y.timestamp);
+  return merged.length > cap ? merged.slice(merged.length - cap) : merged;
+}
+
+function isProcEntry(value: unknown): value is XpProcEntry {
+  if (!value || typeof value !== 'object') return false;
+  const entry = value as Record<string, unknown>;
+  return typeof entry.petId === 'string' && typeof entry.abilityId === 'string'
+    && typeof entry.timestamp === 'number' && Number.isFinite(entry.timestamp)
+    && typeof entry.petName === 'string' && typeof entry.species === 'string' && typeof entry.xpAmount === 'number';
+}
+
+const procsLayout: PlayerScopedLayout<XpProcEntry[]> = {
+  parts: [STORAGE_KEY_PROCS],
+  join: ([raw]) => {
+    const procs = raw && typeof raw === 'object' ? (raw as { procs?: unknown }).procs : undefined;
+    return Array.isArray(procs) ? procs.filter(isProcEntry) : undefined;
+  },
+  split: (procs) => [{ procs, savedAt: Date.now() }],
+};
+
+let procsHandle: PlayerScopedHandle<XpProcEntry[]> | null = null;
+let procsBoundOnce = false;
+
+function saveProcsNow(): void {
+  if (!procsHandle) return;
   try {
-    storage.set(STORAGE_KEY_PROCS, {
-      procs: procHistory,
-      savedAt: Date.now(),
-    });
+    if (!procsHandle.write([...procHistory])) diag.warn('QPM-STORE-004', { what: 'procs', key: procsHandle.scopedKey() ?? STORAGE_KEY_PROCS });
   } catch (error) {
     diag.warn('QPM-STORE-004', { what: 'procs', key: STORAGE_KEY_PROCS }, error);
   }
-}, SAVE_DEBOUNCE_MS);
+}
+
+const scheduleSaveProcs = debounceCancelable(saveProcsNow, SAVE_DEBOUNCE_MS);
+
+function flushProcs(): void {
+  scheduleSaveProcs.cancel();
+  saveProcsNow();
+}
+
+/** First bind keeps this session's procs (recorded before the id); an account change replaces them. */
+function onProcsBound(value: XpProcEntry[]): void {
+  const next = procsBoundOnce ? value : mergeXpProcs(value, procHistory);
+  procsBoundOnce = true;
+  procHistory.splice(0, procHistory.length, ...next);
+  rebuildProcIndex();
+  if (next !== value) flushProcs();
+  diag.publishOk(`${procHistory.length} proc(s) restored`, {
+    procCount: procHistory.length,
+    speciesEstimates: Object.keys(configData.speciesXpPerLevel).length,
+  });
+  notifyListeners();
+}
 
 const scheduleSaveConfig = debounce(() => {
   try {
@@ -118,7 +189,7 @@ export function recordXpProc(
   procHistory.push(entry);
   indexIncrement(entry);
 
-  if (procHistory.length > 1000) {
+  if (procHistory.length > MAX_PROCS) {
     const dropped = procHistory.shift();
     if (dropped) indexDecrement(dropped);
   }
@@ -127,53 +198,29 @@ export function recordXpProc(
   notifyListeners();
 }
 
-/**
- * @param currentWeather Current weather state (for weather-dependent abilities like SnowyPetXpBoost)
- */
+/** Rates come from the shared ability maths (REL-6); a weather-gated ability off its weather gives 0 for both rates (PD3). */
 export function calculateXpStats(
   pet: ActivePetInfo,
-  abilityId: string,
+  definition: AbilityDefinition,
   abilityName: string,
-  baseChance: number, // Base probability percentage per minute (e.g., 30 for XP Boost I)
-  baseXp: number, // Base XP per proc (e.g., 300 for XP Boost I)
-  requiredWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | null,
-  currentWeather?: 'sunny' | 'rain' | 'snow' | 'dawn' | 'amber' | 'thunderstorm' | 'unknown' | null,
+  currentWeather?: string | null,
+  context: AbilityRateContext = getAbilityRateContext(pet.species),
 ): XpAbilityStats {
   const strength = pet.strength ?? 100;
   const petId = pet.petId ?? '';
   const species = pet.species ?? 'Unknown';
+  const abilityId = definition.id;
+  const baseChance = definition.baseProbability ?? 0;
+  const baseXp = definition.effectValuePerProc ?? 0;
 
+  const requiredWeather = definition.requiredWeather;
   const isWeatherSatisfied = !requiredWeather || !currentWeather || currentWeather === 'unknown'
-    ? true // No requirement or weather unknown - assume active
-    : currentWeather === requiredWeather;
+    || currentWeather === requiredWeather;
 
-  // Wiki formula: "X% × STR" means STR acts as a percentage multiplier
-  // STR=100 → 100% = 1.0x, STR=89 → 89% = 0.89x
-  const MIN_MULTIPLIER = 0.25;
-  const MAX_CHANCE_PER_SECOND = 0.95 / 60; // Max 95% per minute = ~1.58% per second
-
-  const multiplier = Math.max(MIN_MULTIPLIER, strength / 100);
-
-  // Game checks every SECOND, so divide per-minute chance by 60
-  const baseChancePerMinute = baseChance;
-  const baseChancePerSecond = baseChance / 60; // e.g., 30% per minute = 0.5% per second
-
-  const actualChancePerMinute = baseChancePerMinute * multiplier;
-  const actualChancePerSecond = baseChancePerSecond * multiplier;
-
-  const baseChancePerSecondDecimal = Math.max(0, baseChancePerSecond / 100);
-  const chancePerSecondDecimal = Math.min(MAX_CHANCE_PER_SECOND, baseChancePerSecondDecimal * multiplier);
-
-  // Abilities roll every SECOND, so 3600 rolls per hour (60 seconds × 60 minutes)
-  const rollsPerHour = 3600;
-  const expectedProcsPerHour = rollsPerHour * chancePerSecondDecimal;
-
-  const actualXpPerProc = baseXp * multiplier;
-
-  // If weather requirement not met, ability doesn't proc (XP = 0)
-  const expectedXpPerHour = isWeatherSatisfied
-    ? expectedProcsPerHour * actualXpPerProc
-    : 0;
+  const stats = computeAbilityStats(definition, strength, context);
+  const dayAverageXp = computeDayAverageEffectPerHour(definition, stats);
+  const expectedXpPerHour = isWeatherSatisfied ? computeEffectPerHour(definition, stats, strength) : 0;
+  const dayAverageXpPerHour = dayAverageXp === null ? null : (isWeatherSatisfied ? dayAverageXp : 0);
 
   const indexEntry = xpStatsIndex.get(procIndexKey(petId, abilityId));
   const procCount = indexEntry?.count ?? 0;
@@ -187,13 +234,17 @@ export function calculateXpStats(
     abilityName,
     strength,
     baseXpPerProc: baseXp,
-    actualXpPerProc,
+    actualXpPerProc: baseXp * stats.multiplier,
     baseChancePerMinute: baseChance,
-    actualChancePerMinute,
-    baseChancePerSecond,
-    actualChancePerSecond,
-    expectedProcsPerHour,
+    actualChancePerMinute: stats.chancePerMinute,
+    baseChancePerSecond: compoundingChancePerSecond(Math.min(1, Math.max(0, baseChance / 100))) * 100,
+    actualChancePerSecond: stats.chancePerSecond,
+    expectedProcsPerHour: stats.procsPerHour,
     expectedXpPerHour,
+    dayAverageXpPerHour,
+    stage: stats.stage,
+    stageBonus: stats.stageBonus,
+    isNocturnal: context.isNocturnal,
     lastProcAt,
     procCount,
     level: pet.level ?? null,
@@ -204,6 +255,7 @@ export function calculateXpStats(
 /** Abilities roll independently in game logic; the combined chance below is for display only. */
 export function getCombinedXpStats(stats: XpAbilityStats[]): {
   totalXpPerHour: number;
+  totalDayAverageXpPerHour: number | null;   // null when any row lacks a day average
   totalProcsPerHour: number;
   combinedChancePerSecond: number; // For display only
   combinedChancePerMinute: number; // For display only
@@ -212,12 +264,18 @@ export function getCombinedXpStats(stats: XpAbilityStats[]): {
 } {
   const totalXpPerHour = stats.reduce((sum, s) => sum + s.expectedXpPerHour, 0);
   const totalProcsPerHour = stats.reduce((sum, s) => sum + s.expectedProcsPerHour, 0);
+  let totalDayAverageXpPerHour: number | null = 0;
+  for (const s of stats) {
+    totalDayAverageXpPerHour = s.dayAverageXpPerHour === null || totalDayAverageXpPerHour === null
+      ? null
+      : totalDayAverageXpPerHour + s.dayAverageXpPerHour;
+  }
 
   // Display-only: statistical chance of at least one proc/sec; game rolls each ability independently
   const individualChancesPerSecond = stats.map((s) => s.actualChancePerSecond / 100);
-  const combinedChancePerSecondDecimal = 1 - individualChancesPerSecond.reduce((prod, p) => prod * (1 - p), 1);
-  const combinedChancePerSecond = combinedChancePerSecondDecimal * 100;
-  const combinedChancePerMinute = combinedChancePerSecond * 60;
+  const noProcPerSecond = individualChancesPerSecond.reduce((prod, p) => prod * (1 - p), 1);
+  const combinedChancePerSecond = (1 - noProcPerSecond) * 100;
+  const combinedChancePerMinute = (1 - Math.pow(noProcPerSecond, 60)) * 100;
 
   const lastProcTimes = stats.map((s) => s.lastProcAt).filter((t): t is number => t !== null);
   const lastProcAt = lastProcTimes.length > 0 ? Math.max(...lastProcTimes) : null;
@@ -226,6 +284,7 @@ export function getCombinedXpStats(stats: XpAbilityStats[]): {
 
   return {
     totalXpPerHour,
+    totalDayAverageXpPerHour,
     totalProcsPerHour,
     combinedChancePerSecond,
     combinedChancePerMinute,
@@ -329,15 +388,20 @@ function autoPopulateXpEstimates(): void {
   scheduleSaveConfig();
 }
 
+/** Procs are kept per player (`<key>.<playerId>`) and load once the id resolves; the config stays global. */
 export function initializeXpTracker(): void {
-  diag.register('Restoring XP tracker from storage');
+  if (!procsHandle) {
+    diag.register('Waiting for the player id to load XP procs');
+    procsHandle = createPlayerScoped<XpProcEntry[]>({
+      baseKey: STORAGE_KEY_PROCS,
+      fallback: [],
+      merge: (a, b) => mergeXpProcs(a, b),
+      onReady: onProcsBound,
+      flush: flushProcs,
+    }, procsLayout);
+    procsHandle.start();
+  }
   try {
-    const savedProcs = storage.get<{ procs: XpProcEntry[] } | null>(STORAGE_KEY_PROCS, null);
-    if (savedProcs?.procs) {
-      procHistory.splice(0, procHistory.length, ...savedProcs.procs);
-    }
-    rebuildProcIndex();
-
     const savedConfig = storage.get<XpTrackerConfig | null>(STORAGE_KEY_CONFIG, null);
     if (savedConfig?.speciesXpPerLevel) {
       Object.assign(configData.speciesXpPerLevel, savedConfig.speciesXpPerLevel);
@@ -353,11 +417,17 @@ export function initializeXpTracker(): void {
       autoPopulateXpEstimates();
     });
   }
+}
 
-  diag.publishOk(`${procHistory.length} proc(s) restored`, {
-    procCount: procHistory.length,
-    speciesEstimates: Object.keys(configData.speciesXpPerLevel).length,
-  });
+/** Saves pending procs to the bound player's key, then forgets them so a later start cannot hand them to another account. */
+export function stopXpTracker(): void {
+  if (!procsHandle) return;
+  flushProcs();
+  procsHandle.stop();
+  procsHandle = null;
+  procsBoundOnce = false;
+  procHistory.length = 0;
+  xpStatsIndex.clear();
 }
 
 export function getXpProcHistory(): XpProcEntry[] {

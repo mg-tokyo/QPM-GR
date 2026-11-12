@@ -1,6 +1,7 @@
 // src/rive-engine/instanceTracker.ts
 
 import { getPixiCapture } from '../core/pixiCapture';
+import { walkScene } from '../core/pixiScene';
 import type {
   RiveInstance, RiveArtboard, RiveStateMachine, RiveViewModelInstance,
 } from './types';
@@ -106,7 +107,20 @@ function findBatchRenderer(): BatchRendererInfo | null {
     }
   }
 
-  return null;
+  return findBatchRendererViaSprite(app.stage);
+}
+
+// Game 1995 keeps the batch renderer off the app; every Rive sprite holds it as `batchRenderer`.
+// Stops at the first Rive sprite; runs only until the hook lands.
+function findBatchRendererViaSprite(stage: unknown): BatchRendererInfo | null {
+  let found: Record<string, unknown> | null = null;
+  walkScene(stage, (node) => {
+    const candidate = (node as Record<string, unknown>).batchRenderer;
+    if (!isBatchRenderer(candidate)) return;
+    found = candidate as Record<string, unknown>;
+    return true;
+  });
+  return found ? toBatchRendererInfo(found) : null;
 }
 
 function isBatchRenderer(val: unknown): boolean {

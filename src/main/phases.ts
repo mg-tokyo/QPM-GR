@@ -45,10 +45,12 @@ import { startInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOv
 import { startNpcDialogue } from '../features/npcDialogue';
 import { startCamera3d } from '../features/camera3d';
 import { startSpectator } from '../features/spectator';
+import { startGameUpdateRefresh } from '../features/standalone/gameUpdateRefresh';
 import { initTextureSwapper, TEXTURE_MANIPULATOR_ENABLED } from '../features/standalone/textureSwapper';
 import { exposeAriesBridge } from '../integrations/ariesBridge';
 import { startNativeCardViewDiagnostics } from '../integrations/nativeCardView';
 import { initTDCustomDesigns } from '../features/towerDefense/customDesigns/store';
+import { startDayCycleSource } from '../catalogs/logic/dayCycleCatalog';
 import type { QpmConfig } from './config';
 
 // Store/feature init ladder (init phases 1–9). Sequencing and yield points
@@ -99,6 +101,7 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
 
   // Phase 2: XP tracking and inventory
   initializeXpTracker();
+  startDayCycleSource();
   initializeMutationValueTracking();
   const { initHatchStatsStore } = await import('../store/hatchStatsStore');
   initHatchStatsStore();
@@ -199,6 +202,11 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   startNpcDialogue();
   startCamera3d();
   startSpectator();
+  try {
+    startGameUpdateRefresh();
+  } catch (error) {
+    warnCore('QPM-INIT-001', { what: 'phase:gameUpdateRefresh' }, error);
+  }
   // RiveEngine: started in init(), right after initCatalogLoader, to race
   // ahead of the game's first rive.load(). Texture swapper depends on the
   // engine being initialized — it is, by this phase.

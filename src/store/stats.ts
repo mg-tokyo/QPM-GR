@@ -1,113 +1,34 @@
-import { storage } from '../utils/storage';
 import { startWeatherHub, onWeatherSnapshot, getWeatherSnapshot, type WeatherSnapshot } from './weatherHub';
 import { visibleInterval } from '../utils/scheduling/timerManager';
 import { createStoreDiagnostics } from './_storeDiagnostics';
+import { createPlayerScoped, type PlayerScopedHandle, type PlayerScopedLayout } from './playerScoped';
+import {
+  MAX_HISTORY,
+  createDefaultStatsState,
+  mergeStats,
+  normalizeStats,
+  pruneShopItems,
+  type ShopCategoryKey,
+  type StatsSnapshot,
+  type StatsState,
+} from './statsMerge';
+
+export type { ShopCategoryKey, StatsSnapshot } from './statsMerge';
 
 const diag = createStoreDiagnostics('storeStats', 'stats');
-export type ShopCategoryKey = 'seeds' | 'eggs' | 'tools' | 'decor' | 'dawn';
-
-interface FeedEntry {
-  count: number;
-  lastFeedAt: number | null;
-}
-
-interface ShopItemEntry {
-  count: number;
-  coins: number;
-  credits: number;
-  magicDust: number;
-  lastPurchasedAt: number;
-}
-
-export interface StatsSnapshot {
-  feed: {
-    totalFeeds: number;
-    perPet: Record<string, FeedEntry>;
-    lastFeedAt: number | null;
-    sessionStart: number;
-  };
-  weather: {
-    timeByKind: Record<string, number>;
-    activeKind: string;
-  };
-  shop: {
-    totalPurchases: number;
-    totalSpentCoins: number;
-    totalSpentCredits: number;
-    totalSpentMagicDust: number;
-    purchasesByCategory: Record<ShopCategoryKey, number>;
-    items: Record<string, ShopItemEntry>;
-    history: Array<{
-      itemName: string;
-      category: ShopCategoryKey;
-      count: number;
-      coins: number;
-      credits: number;
-      magicDust: number;
-      timestamp: number;
-      success: boolean;
-      failureReason?: string;
-    }>;
-    lastPurchase: {
-      itemName: string;
-      category: ShopCategoryKey;
-      count: number;
-      coins: number;
-      credits: number;
-      magicDust: number;
-      timestamp: number;
-    } | null;
-  };
-  garden: {
-    totalPlanted: number;
-    totalHarvested: number;
-    totalDestroyed: number;
-    totalWateringCans: number;
-    lastPlantedAt: number | null;
-    lastHarvestedAt: number | null;
-    lastDestroyedAt: number | null;
-    lastWateredAt: number | null;
-  };
-  pets: {
-    totalHatched: number;
-    hatchedByRarity: {
-      normal: number;
-      gold: number;
-      rainbow: number;
-    };
-    lastHatchedAt: number | null;
-    lastHatchedRarity: 'normal' | 'gold' | 'rainbow' | null;
-  };
-  abilities: {
-    totalProcs: number;
-    totalEstimatedValue: number; // Sum of all ability values in coins
-    procsByAbility: Record<string, number>; // abilityId -> count
-    valueByAbility: Record<string, number>; // abilityId -> estimated total value
-    lastProcAt: number | null;
-    lastProcAbility: string | null;
-  };
-  meta: {
-    initializedAt: number;
-    updatedAt: number;
-    version: number;
-  };
-}
-
-interface StatsState extends StatsSnapshot {
-  weather: StatsSnapshot['weather'] & {
-    lastSnapshotAt: number;
-  };
-}
 
 const STORAGE_KEY = 'quinoa:stats:v1';
 const SAVE_DEBOUNCE_MS = 1200;
 const WEATHER_TICK_INTERVAL = 5000;
 const WEATHER_COMMIT_MIN_INTERVAL_MS = 60_000;
-const MAX_SHOP_ITEMS = 40;
-const MAX_HISTORY = 1000;
+const MAX_PENDING = 500;
 
 let state: StatsState;
 let initialized = false;
+let stopped = false;
+let handle: PlayerScopedHandle<StatsState> | null = null;
+/** Record calls made before the player id resolves; replayed onto the player's copy, since a PD3 max merge would drop them. */
+let pending: Array<() => void> = [];
 let saveTimer: number | null = null;
 let weatherUnsubscribe: (() => void) | null = null;
 let weatherTickTimerCleanup: (() => void) | null = null;
@@ -116,209 +37,14 @@ let lastWeatherCommit = 0;
 
 const listeners = new Set<(snapshot: StatsSnapshot) => void>();
 
-function createDefaultState(now: number): StatsState {
-  return {
-    feed: {
-      totalFeeds: 0,
-      perPet: {},
-      lastFeedAt: null,
-      sessionStart: now,
-    },
-    weather: {
-      timeByKind: {},
-      activeKind: 'unknown',
-      lastSnapshotAt: now,
-    },
-    shop: {
-      totalPurchases: 0,
-      totalSpentCoins: 0,
-      totalSpentCredits: 0,
-      totalSpentMagicDust: 0,
-      purchasesByCategory: {
-        seeds: 0,
-        eggs: 0,
-        tools: 0,
-        decor: 0,
-        dawn: 0,
-      },
-      items: {},
-      history: [],
-      lastPurchase: null,
-    },
-    garden: {
-      totalPlanted: 0,
-      totalHarvested: 0,
-      totalDestroyed: 0,
-      totalWateringCans: 0,
-      lastPlantedAt: null,
-      lastHarvestedAt: null,
-      lastDestroyedAt: null,
-      lastWateredAt: null,
-    },
-    pets: {
-      totalHatched: 0,
-      hatchedByRarity: {
-        normal: 0,
-        gold: 0,
-        rainbow: 0,
-      },
-      lastHatchedAt: null,
-      lastHatchedRarity: null,
-    },
-    abilities: {
-      totalProcs: 0,
-      totalEstimatedValue: 0,
-      procsByAbility: {},
-      valueByAbility: {},
-      lastProcAt: null,
-      lastProcAbility: null,
-    },
-    meta: {
-      initializedAt: now,
-      updatedAt: now,
-      version: 1,
-    },
-  };
-}
-
-function hydrateState(): StatsState {
-  const now = Date.now();
-  const stored = storage.get<Partial<StatsState> | null>(STORAGE_KEY, null);
-  if (!stored || typeof stored !== 'object') {
-    return createDefaultState(now);
-  }
-
-  const base = createDefaultState(stored.meta?.initializedAt ?? now);
-
-  if (stored.feed) {
-    base.feed.totalFeeds = Number(stored.feed.totalFeeds ?? base.feed.totalFeeds);
-    base.feed.lastFeedAt = stored.feed.lastFeedAt ?? null;
-    base.feed.sessionStart = stored.feed.sessionStart ?? base.feed.sessionStart;
-    if (stored.feed.perPet && typeof stored.feed.perPet === 'object') {
-      for (const [key, value] of Object.entries(stored.feed.perPet)) {
-        const entry = value as FeedEntry;
-        if (!entry) continue;
-        base.feed.perPet[key] = {
-          count: Number(entry.count ?? 0),
-          lastFeedAt: entry.lastFeedAt ?? null,
-        };
-      }
-    }
-  }
-
-  if (stored.weather) {
-    base.weather.activeKind = stored.weather.activeKind ?? base.weather.activeKind;
-    base.weather.lastSnapshotAt = stored.weather.lastSnapshotAt ?? now;
-
-    if (stored.weather.timeByKind && typeof stored.weather.timeByKind === 'object') {
-      for (const [kind, value] of Object.entries(stored.weather.timeByKind)) {
-        base.weather.timeByKind[kind] = Number(value ?? 0);
-      }
-    }
-  }
-
-  if (stored.shop) {
-    base.shop.totalPurchases = Number(stored.shop.totalPurchases ?? 0);
-    base.shop.totalSpentCoins = Number(stored.shop.totalSpentCoins ?? 0);
-    base.shop.totalSpentCredits = Number(stored.shop.totalSpentCredits ?? 0);
-    base.shop.totalSpentMagicDust = Number((stored.shop as Record<string, unknown>).totalSpentMagicDust ?? 0);
-    if (stored.shop.purchasesByCategory) {
-      for (const key of ['seeds', 'eggs', 'tools', 'decor', 'dawn'] as ShopCategoryKey[]) {
-        const value = stored.shop.purchasesByCategory[key];
-        base.shop.purchasesByCategory[key] = Number(value ?? 0);
-      }
-    }
-    if (stored.shop.items && typeof stored.shop.items === 'object') {
-      for (const [item, entry] of Object.entries(stored.shop.items)) {
-        const snapshot = entry as ShopItemEntry;
-        if (!snapshot) continue;
-        base.shop.items[item] = {
-          count: Number(snapshot.count ?? 0),
-          coins: Number(snapshot.coins ?? 0),
-          credits: Number(snapshot.credits ?? 0),
-          magicDust: Number((snapshot as unknown as Record<string, unknown>).magicDust ?? 0),
-          lastPurchasedAt: snapshot.lastPurchasedAt ?? now,
-        };
-      }
-    }
-    if (Array.isArray(stored.shop.history)) {
-      base.shop.history = stored.shop.history
-        .map((row: any) => ({
-          itemName: row.itemName,
-          category: (row.category ?? 'seeds') as ShopCategoryKey,
-          count: Number(row.count ?? 0),
-          coins: Number(row.coins ?? 0),
-          credits: Number(row.credits ?? 0),
-          magicDust: Number(row.magicDust ?? 0),
-          timestamp: row.timestamp ?? now,
-          success: row.success ?? true, // backward compatibility: assume old entries were successful
-          failureReason: row.failureReason,
-        }))
-        .slice(-MAX_HISTORY);
-    }
-    if (stored.shop.lastPurchase) {
-      base.shop.lastPurchase = {
-        itemName: stored.shop.lastPurchase.itemName,
-        category: (stored.shop.lastPurchase.category ?? 'seeds') as ShopCategoryKey,
-        count: Number(stored.shop.lastPurchase.count ?? 0),
-        coins: Number(stored.shop.lastPurchase.coins ?? 0),
-        credits: Number(stored.shop.lastPurchase.credits ?? 0),
-        magicDust: Number((stored.shop.lastPurchase as Record<string, unknown>).magicDust ?? 0),
-        timestamp: stored.shop.lastPurchase.timestamp ?? now,
-      };
-    }
-  }
-
-  if (stored.garden) {
-    base.garden.totalPlanted = Number(stored.garden.totalPlanted ?? 0);
-    base.garden.totalHarvested = Number(stored.garden.totalHarvested ?? 0);
-    base.garden.totalDestroyed = Number(stored.garden.totalDestroyed ?? 0);
-    base.garden.totalWateringCans = Number(stored.garden.totalWateringCans ?? 0);
-    base.garden.lastPlantedAt = stored.garden.lastPlantedAt ?? null;
-    base.garden.lastHarvestedAt = stored.garden.lastHarvestedAt ?? null;
-    base.garden.lastDestroyedAt = stored.garden.lastDestroyedAt ?? null;
-    base.garden.lastWateredAt = stored.garden.lastWateredAt ?? null;
-  }
-
-  if (stored.pets) {
-    base.pets.totalHatched = Number(stored.pets.totalHatched ?? 0);
-    if (stored.pets.hatchedByRarity) {
-      base.pets.hatchedByRarity.normal = Number(stored.pets.hatchedByRarity.normal ?? 0);
-      base.pets.hatchedByRarity.gold = Number(stored.pets.hatchedByRarity.gold ?? 0);
-      base.pets.hatchedByRarity.rainbow = Number(stored.pets.hatchedByRarity.rainbow ?? 0);
-    }
-    base.pets.lastHatchedAt = stored.pets.lastHatchedAt ?? null;
-    base.pets.lastHatchedRarity = stored.pets.lastHatchedRarity ?? null;
-  }
-
-  if (stored.abilities) {
-    base.abilities.totalProcs = Number(stored.abilities.totalProcs ?? 0);
-    base.abilities.totalEstimatedValue = Number(stored.abilities.totalEstimatedValue ?? 0);
-    if (stored.abilities.procsByAbility && typeof stored.abilities.procsByAbility === 'object') {
-      for (const [abilityId, count] of Object.entries(stored.abilities.procsByAbility)) {
-        base.abilities.procsByAbility[abilityId] = Number(count ?? 0);
-      }
-    }
-    if (stored.abilities.valueByAbility && typeof stored.abilities.valueByAbility === 'object') {
-      for (const [abilityId, value] of Object.entries(stored.abilities.valueByAbility)) {
-        base.abilities.valueByAbility[abilityId] = Number(value ?? 0);
-      }
-    }
-    base.abilities.lastProcAt = stored.abilities.lastProcAt ?? null;
-    base.abilities.lastProcAbility = stored.abilities.lastProcAbility ?? null;
-  }
-
-  if (stored.meta) {
-    base.meta.initializedAt = stored.meta.initializedAt ?? base.meta.initializedAt;
-    base.meta.updatedAt = stored.meta.updatedAt ?? base.meta.updatedAt;
-    base.meta.version = stored.meta.version ?? base.meta.version;
-  }
-
-  return base;
-}
+const statsLayout: PlayerScopedLayout<StatsState> = {
+  parts: [STORAGE_KEY],
+  join: ([raw]) => normalizeStats(raw),
+  split: (value) => [value],
+};
 
 function ensureInitialized(): void {
-  if (!initialized) {
+  if (!initialized && !stopped) {
     initializeStatsStore();
   }
 }
@@ -385,18 +111,24 @@ function emitSnapshot(): void {
   }
 }
 
+function saveNow(): void {
+  if (saveTimer != null) {
+    window.clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (!handle?.isReady()) return;
+  try {
+    if (!handle.write(state)) diag.warn('QPM-STORE-004', { what: 'stats', key: handle.scopedKey() ?? STORAGE_KEY });
+  } catch (error) {
+    diag.warn('QPM-STORE-003', { phase: 'save' }, error);
+  }
+}
+
 function scheduleSave(): void {
   if (saveTimer != null) {
     window.clearTimeout(saveTimer);
   }
-  saveTimer = window.setTimeout(() => {
-    saveTimer = null;
-    try {
-      storage.set(STORAGE_KEY, state);
-    } catch (error) {
-      diag.warn('QPM-STORE-003', { phase: 'save' }, error);
-    }
-  }, SAVE_DEBOUNCE_MS) as unknown as number;
+  saveTimer = window.setTimeout(saveNow, SAVE_DEBOUNCE_MS) as unknown as number;
 }
 
 function commitState(): void {
@@ -412,14 +144,12 @@ function commitWeatherIfDue(kindChanged: boolean): void {
   }
 }
 
-function pruneShopItems(): void {
-  const entries = Object.entries(state.shop.items);
-  if (entries.length <= MAX_SHOP_ITEMS) return;
-  entries.sort((a, b) => (a[1].lastPurchasedAt ?? 0) - (b[1].lastPurchasedAt ?? 0));
-  const excess = entries.length - MAX_SHOP_ITEMS;
-  for (let i = 0; i < excess; i++) {
-    delete state.shop.items[entries[i]![0]];
-  }
+/** Applies now; before the bind it is also queued so the bound copy gets it too. */
+function record(apply: () => void): void {
+  ensureInitialized();
+  apply();
+  if (handle && !handle.isReady() && pending.length < MAX_PENDING) pending.push(apply);
+  commitState();
 }
 
 function recordWeatherDuration(targetTimestamp: number): boolean {
@@ -437,13 +167,14 @@ function recordWeatherDuration(targetTimestamp: number): boolean {
   return true;
 }
 
+/** Weather time counts from the bind on, so time before the id resolves is not credited to a default copy. */
 function attachWeatherTracking(): void {
-  startWeatherHub();
   const current = getWeatherSnapshot();
   state.weather.activeKind = current.kind ?? 'unknown';
   state.weather.lastSnapshotAt = current.timestamp;
   lastWeatherTickAt = Date.now();
   lastWeatherCommit = Date.now();
+  if (weatherUnsubscribe) return;
 
   weatherUnsubscribe = onWeatherSnapshot((snapshot: WeatherSnapshot) => {
     const durationChanged = recordWeatherDuration(snapshot.timestamp);
@@ -459,27 +190,63 @@ function attachWeatherTracking(): void {
   }, WEATHER_TICK_INTERVAL);
 }
 
+function onBound(value: StatsState): void {
+  try {
+    state = value;
+    const replay = pending;
+    pending = [];
+    for (const apply of replay) apply();
+    attachWeatherTracking();
+    if (replay.length > 0) saveNow();
+  } catch (error) {
+    diag.warn('QPM-STORE-001', { phase: 'load', key: STORAGE_KEY }, error);
+  }
+  emitSnapshot();
+  diag.publishOk(
+    `${state.feed.totalFeeds} feeds, ${state.shop.totalPurchases} purchases`,
+    {
+      totalFeeds: state.feed.totalFeeds,
+      totalPurchases: state.shop.totalPurchases,
+      totalPlanted: state.garden.totalPlanted,
+      totalHarvested: state.garden.totalHarvested,
+    },
+  );
+}
+
+/** Totals are kept per player (`<key>.<playerId>`) and load once the id resolves. */
 export function initializeStatsStore(): void {
   if (initialized) return;
-  diag.register('Hydrating from localStorage');
-  try {
-    state = hydrateState();
-    initialized = true;
-    attachWeatherTracking();
-    emitSnapshot();
-    diag.publishOk(
-      `${state.feed.totalFeeds} feeds, ${state.shop.totalPurchases} purchases`,
-      {
-        totalFeeds: state.feed.totalFeeds,
-        totalPurchases: state.shop.totalPurchases,
-        totalPlanted: state.garden.totalPlanted,
-        totalHarvested: state.garden.totalHarvested,
-      },
-    );
-  } catch (err) {
-    diag.warn('QPM-STORE-001', { phase: 'initializeStatsStore' }, err);
-    throw err;
-  }
+  initialized = true;
+  stopped = false;
+  diag.register('Waiting for the player id to load stats');
+  state = createDefaultStatsState(Date.now());
+  pending = [];
+  startWeatherHub();
+  const fallback = createDefaultStatsState(Date.now());
+  handle = createPlayerScoped<StatsState>({
+    baseKey: STORAGE_KEY,
+    fallback,
+    merge: mergeStats,
+    // The fallback is shared across binds and the store mutates its state in place.
+    onReady: (value) => onBound(value === fallback ? createDefaultStatsState(Date.now()) : value),
+    flush: saveNow,
+  }, statsLayout);
+  handle.start();
+}
+
+/** Saves pending totals to the bound player's key; later record calls no longer restart the store. */
+export function stopStatsStore(): void {
+  if (!initialized) return;
+  saveNow();
+  handle?.stop();
+  handle = null;
+  weatherUnsubscribe?.();
+  weatherUnsubscribe = null;
+  weatherTickTimerCleanup?.();
+  weatherTickTimerCleanup = null;
+  pending = [];
+  initialized = false;
+  stopped = true;
 }
 
 export function subscribeToStats(listener: (snapshot: StatsSnapshot) => void): () => void {
@@ -551,31 +318,28 @@ export function getStatsSnapshot(): StatsSnapshot {
 }
 
 export function recordAbilityProc(abilityId: string, estimatedValue: number = 0, timestamp = Date.now()): void {
-  ensureInitialized();
-
-  state.abilities.totalProcs += 1;
-  state.abilities.totalEstimatedValue += estimatedValue;
-  state.abilities.procsByAbility[abilityId] = (state.abilities.procsByAbility[abilityId] ?? 0) + 1;
-  state.abilities.valueByAbility[abilityId] = (state.abilities.valueByAbility[abilityId] ?? 0) + estimatedValue;
-  state.abilities.lastProcAt = timestamp;
-  state.abilities.lastProcAbility = abilityId;
-
-  commitState();
+  record(() => {
+    state.abilities.totalProcs += 1;
+    state.abilities.totalEstimatedValue += estimatedValue;
+    state.abilities.procsByAbility[abilityId] = (state.abilities.procsByAbility[abilityId] ?? 0) + 1;
+    state.abilities.valueByAbility[abilityId] = (state.abilities.valueByAbility[abilityId] ?? 0) + estimatedValue;
+    state.abilities.lastProcAt = timestamp;
+    state.abilities.lastProcAbility = abilityId;
+  });
 }
 
 export function recordFeedEvent(petName: string, timestamp = Date.now()): void {
-  ensureInitialized();
   const key = (petName || '').trim() || 'Unknown Pet';
-  if (!state.feed.perPet[key]) {
-    state.feed.perPet[key] = { count: 0, lastFeedAt: null };
-  }
-  state.feed.perPet[key].count += 1;
-  state.feed.perPet[key].lastFeedAt = timestamp;
-  state.feed.totalFeeds += 1;
-  state.feed.lastFeedAt = timestamp;
-  commitState();
+  record(() => {
+    if (!state.feed.perPet[key]) {
+      state.feed.perPet[key] = { count: 0, lastFeedAt: null };
+    }
+    state.feed.perPet[key].count += 1;
+    state.feed.perPet[key].lastFeedAt = timestamp;
+    state.feed.totalFeeds += 1;
+    state.feed.lastFeedAt = timestamp;
+  });
 }
-
 
 export function recordShopPurchase(
   category: ShopCategoryKey,
@@ -586,106 +350,107 @@ export function recordShopPurchase(
   magicDust = 0,
   timestamp = Date.now(),
 ): void {
-  ensureInitialized();
   const safeCount = Math.max(0, Math.round(count));
   const safeCoins = Math.max(0, Math.round(coins));
   const safeCredits = Math.max(0, Math.round(credits));
   const safeDust = Math.max(0, Math.round(magicDust));
   const label = itemName || 'Unknown Item';
 
-  state.shop.totalPurchases += safeCount;
-  state.shop.totalSpentCoins += safeCoins;
-  state.shop.totalSpentCredits += safeCredits;
-  state.shop.totalSpentMagicDust += safeDust;
-  state.shop.purchasesByCategory[category] = (state.shop.purchasesByCategory[category] ?? 0) + safeCount;
+  record(() => {
+    state.shop.totalPurchases += safeCount;
+    state.shop.totalSpentCoins += safeCoins;
+    state.shop.totalSpentCredits += safeCredits;
+    state.shop.totalSpentMagicDust += safeDust;
+    state.shop.purchasesByCategory[category] = (state.shop.purchasesByCategory[category] ?? 0) + safeCount;
 
-  if (!state.shop.items[label]) {
-    state.shop.items[label] = {
-      count: 0,
-      coins: 0,
-      credits: 0,
-      magicDust: 0,
-      lastPurchasedAt: timestamp,
+    if (!state.shop.items[label]) {
+      state.shop.items[label] = {
+        count: 0,
+        coins: 0,
+        credits: 0,
+        magicDust: 0,
+        lastPurchasedAt: timestamp,
+      };
+    }
+
+    const entry = state.shop.items[label]!;
+    entry.count += safeCount;
+    entry.coins += safeCoins;
+    entry.credits += safeCredits;
+    entry.magicDust += safeDust;
+    entry.lastPurchasedAt = timestamp;
+
+    pruneShopItems(state.shop.items);
+
+    state.shop.lastPurchase = {
+      itemName: label,
+      category,
+      count: safeCount,
+      coins: safeCoins,
+      credits: safeCredits,
+      magicDust: safeDust,
+      timestamp,
     };
-  }
 
-  const entry = state.shop.items[label]!;
-  entry.count += safeCount;
-  entry.coins += safeCoins;
-  entry.credits += safeCredits;
-  entry.magicDust += safeDust;
-  entry.lastPurchasedAt = timestamp;
-
-  pruneShopItems();
-
-  state.shop.lastPurchase = {
-    itemName: label,
-    category,
-    count: safeCount,
-    coins: safeCoins,
-    credits: safeCredits,
-    magicDust: safeDust,
-    timestamp,
-  };
-
-  state.shop.history.push({
-    itemName: label,
-    category,
-    count: safeCount,
-    coins: safeCoins,
-    credits: safeCredits,
-    magicDust: safeDust,
-    timestamp,
-    success: true,
+    state.shop.history.push({
+      itemName: label,
+      category,
+      count: safeCount,
+      coins: safeCoins,
+      credits: safeCredits,
+      magicDust: safeDust,
+      timestamp,
+      success: true,
+    });
+    if (state.shop.history.length > MAX_HISTORY) {
+      state.shop.history.splice(0, state.shop.history.length - MAX_HISTORY);
+    }
   });
-  if (state.shop.history.length > MAX_HISTORY) {
-    state.shop.history.splice(0, state.shop.history.length - MAX_HISTORY);
-  }
-
-  commitState();
 }
 
 export function recordGardenPlant(count: number = 1, timestamp = Date.now()): void {
-  ensureInitialized();
-  state.garden.totalPlanted += count;
-  state.garden.lastPlantedAt = timestamp;
-  commitState();
+  record(() => {
+    state.garden.totalPlanted += count;
+    state.garden.lastPlantedAt = timestamp;
+  });
 }
 
 export function recordGardenHarvest(count: number = 1, timestamp = Date.now()): void {
-  ensureInitialized();
-  state.garden.totalHarvested += count;
-  state.garden.lastHarvestedAt = timestamp;
-  commitState();
+  record(() => {
+    state.garden.totalHarvested += count;
+    state.garden.lastHarvestedAt = timestamp;
+  });
 }
 
 export function recordGardenDestroy(count: number = 1, timestamp = Date.now()): void {
-  ensureInitialized();
-  state.garden.totalDestroyed += count;
-  state.garden.lastDestroyedAt = timestamp;
-  commitState();
+  record(() => {
+    state.garden.totalDestroyed += count;
+    state.garden.lastDestroyedAt = timestamp;
+  });
 }
 
 export function recordWateringCan(timestamp = Date.now()): void {
-  ensureInitialized();
-  state.garden.totalWateringCans += 1;
-  state.garden.lastWateredAt = timestamp;
-  commitState();
+  record(() => {
+    state.garden.totalWateringCans += 1;
+    state.garden.lastWateredAt = timestamp;
+  });
 }
 
 export function recordPetHatch(rarity: 'normal' | 'gold' | 'rainbow', timestamp = Date.now()): void {
-  ensureInitialized();
-  state.pets.totalHatched += 1;
-  state.pets.hatchedByRarity[rarity] += 1;
-  state.pets.lastHatchedAt = timestamp;
-  state.pets.lastHatchedRarity = rarity;
-  commitState();
+  record(() => {
+    state.pets.totalHatched += 1;
+    state.pets.hatchedByRarity[rarity] += 1;
+    state.pets.lastHatchedAt = timestamp;
+    state.pets.lastHatchedRarity = rarity;
+  });
 }
 
+/** Before the bind a reset only clears this session; the player's copy replaces it at the bind. */
 export function resetStats(): void {
   ensureInitialized();
   const now = Date.now();
-  state = createDefaultState(now);
+  state = createDefaultStatsState(now);
+  pending = [];
   const current = getWeatherSnapshot();
   state.weather.activeKind = current.kind ?? 'unknown';
   state.weather.lastSnapshotAt = current.timestamp;

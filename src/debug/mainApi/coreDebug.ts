@@ -17,12 +17,13 @@ import {
   setOptimizerConfig,
 } from '../../features/pets/optimizer';
 import type { OptimizerConfig } from '../../features/pets/optimizer';
-import { getAbilityCatalogDrift, getCropSizeBoostDrift } from '../../features/pets/data/petAbilities/drift';
+import { getAbilityCatalogDrift, getAbilityRateReport, getCropSizeBoostDrift, getDayStageDrift } from '../../features/pets/data/petAbilities/drift';
 import { isHighValueAbility, isLowValueAbility } from '../../features/pets/data/petAbilities';
 import { getAllAbilities, waitForPetAbilities } from '../../catalogs/gameCatalogs';
 import { testPetData, testComparePets, testAbilityDefinitions } from '../../utils/petDataTester';
 import { toggleWindow } from '../../ui/core/modalWindow';
 import { togglePetsWindow } from '../../ui/pets/petsWindow';
+import { readDurable } from '../../utils/storage';
 
 declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 declare const GM_info: unknown;
@@ -45,6 +46,8 @@ export const coreDebugApi = {
     getOptimizerDebugExplain(petIdOrName, mode),
   abilityCatalogDrift: () => getAbilityCatalogDrift(),
   cropSizeBoostDrift: () => getCropSizeBoostDrift(),
+  dayStageDrift: () => getDayStageDrift(),
+  abilityRates: () => getAbilityRateReport(),
   abilityClassification: () => {
     const ids = getAllAbilities();
     return {
@@ -55,6 +58,7 @@ export const coreDebugApi = {
   },
   waitForPetAbilities: (ms?: number) => waitForPetAbilities(ms),
   setOptimizerConfig: (partial: Partial<OptimizerConfig>) => setOptimizerConfig(partial),
+  storageReadDurable: (key: string) => readDurable(key),
   activityLogEnabled: async (enabled?: boolean) => {
     if (typeof enabled === 'boolean') {
       await setActivityLogEnhancerEnabled(enabled);

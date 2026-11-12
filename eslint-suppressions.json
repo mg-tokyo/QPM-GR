@@ -1790,17 +1790,6 @@
       "count": 15
     }
   },
-  "src/ui/stats/trackerWindow.ts": {
-    "qpm/no-hardcoded-colors": {
-      "count": 3
-    },
-    "qpm/no-inline-ui-strings": {
-      "count": 2
-    },
-    "qpm/polling-needs-justification": {
-      "count": 1
-    }
-  },
   "src/ui/superCleanser/floatingPanel.ts": {
     "no-restricted-imports": {
       "count": 1

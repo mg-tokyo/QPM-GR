@@ -11,6 +11,7 @@ let stockByKey: Map<string, Partial<ShopStockItem>>;
 let balances: { coinsBalance: number | null; magicDustBalance: number | null };
 let stackCap: number | null;
 let catalogPricing: { coinPrice: number | null; dustPrice: number | null; rarity: string | null } | null;
+let ownershipSource: boolean;
 
 vi.mock('../../../catalogs/shopEligibility', () => ({ getItemCatalogPricing: () => catalogPricing }));
 vi.mock('../../../websocket/api', () => ({
@@ -33,7 +34,7 @@ vi.mock('./ownershipTracker', () => ({
     inventoryKeyItemQuantities: new Map(),
   }),
   debugLog: vi.fn(),
-  hasOwnershipSource: () => true,
+  hasOwnershipSource: () => ownershipSource,
   processPendingOwnershipConfirmations: vi.fn(),
   scheduleMaxConfirmationTimeout: vi.fn(),
   waitForOwnershipBaselines: async () => { /* baselines ready */ },
@@ -46,7 +47,8 @@ vi.mock('./purchaseActions', () => ({
 vi.mock('./autoStore', () => ({ resolveAutoStoreTarget: () => null }));
 vi.mock('./shopViewMode', () => ({ resolveShopViewMode: () => 'grid' }));
 
-const { buildPurchasePayload, sendPurchaseBatch } = await import('./purchasePipeline');
+const { buildPurchasePayload, purchaseAndConfirm, sendPurchaseBatch } = await import('./purchasePipeline');
+const { pendingOwnershipConfirmations } = await import('./alertState');
 
 const KEY = 'seed:Carrot';
 const model: AlertModel = { key: KEY, shopType: 'seed', itemId: 'Carrot', stockCycleId: null, label: 'Carrot', quantity: 5, priceCoins: 10 };
@@ -59,6 +61,7 @@ beforeEach(() => {
   balances = { coinsBalance: 1_000_000, magicDustBalance: 0 };
   stackCap = null;
   catalogPricing = null;
+  ownershipSource = true;
 });
 
 describe('buildPurchasePayload', () => {
@@ -150,5 +153,25 @@ describe('sendPurchaseBatch', () => {
     const calls: number[] = [];
     await sendPurchaseBatch(model, 9, { send: (_s, _i, _h, _f, quantity) => { calls.push(quantity); return { ok: true }; } });
     expect(calls).toEqual([4]);
+  });
+});
+
+describe('purchaseAndConfirm outcome status', () => {
+  const request = { shopType: 'seed' as const, itemId: 'Carrot', key: KEY, label: 'Carrot', quantity: 1, stockCycleId: null, autoStore: false };
+
+  it('reports notSent when a purchase for the key is already pending', async () => {
+    pendingOwnershipConfirmations.set(KEY, {} as never);
+    try {
+      const outcome = await purchaseAndConfirm(request);
+      expect(outcome).toMatchObject({ sent: 0, error: 'purchase already pending', status: 'notSent' });
+    } finally {
+      pendingOwnershipConfirmations.delete(KEY);
+    }
+  });
+
+  it('reports noConfirmationSource when no ownership source can confirm the send', async () => {
+    ownershipSource = false;
+    const outcome = await purchaseAndConfirm(request);
+    expect(outcome).toMatchObject({ sent: 1, confirmed: 0, status: 'noConfirmationSource' });
   });
 });

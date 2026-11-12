@@ -85,6 +85,9 @@ export interface SequencerAttachHooks {
   // CS-3: true when the payload must go out without a rewrite (counts and warns itself).
   skipPreSession: (room: SequencerConnection, payload: unknown) => boolean;
   rewrite: (payload: unknown) => number | null;
+  // Read-only: called after the inner send returned, for a numbered envelope
+  // that was not refused. Must not throw.
+  onSequenced?: (payload: unknown, seq: number) => void;
   rollback: (seq: number) => void;
   onFrame: (frame: RoomFrameLike) => void;
   onWelcome: (seq: unknown) => void;
@@ -261,8 +264,10 @@ export function createSequencerAttach(hooks: SequencerAttachHooks): SequencerAtt
       if (!record.live) return sendSlot.bound(payload);
       hooks.observeOutbound(payload);
       if (hooks.skipPreSession(room, payload)) return sendSlot.bound(payload);
-      hooks.rewrite(payload);
-      return sendSlot.bound(payload);
+      const seq = hooks.rewrite(payload);
+      const result = sendSlot.bound(payload);
+      if (seq !== null) hooks.onSequenced?.(payload, seq);
+      return result;
     }, 'commandSequencer', sendSlot.inner);
     record.wrappedSend = wrappedSend;
     const wrappedTry = trySlot
@@ -272,6 +277,7 @@ export function createSequencerAttach(hooks: SequencerAttachHooks): SequencerAtt
           const seq = hooks.rewrite(payload);
           const sent = trySlot.bound(payload);
           if (seq !== null && sent !== true) hooks.rollback(seq);
+          if (seq !== null && sent === true) hooks.onSequenced?.(payload, seq);
           return sent === true;
         }, 'commandSequencer', trySlot.inner)
       : null;
@@ -379,11 +385,14 @@ export function createSequencerAttach(hooks: SequencerAttachHooks): SequencerAtt
     // The game reaches this only for a message it is writing now
     // (trySendMessageNow returns false before it), so there is no rollback.
     const wrapped = brandWrapper((payload: unknown, ...rest: unknown[]): unknown => {
+      let seq: number | null = null;
       if (record.live) {
         hooks.observeOutbound(payload);
-        if (!hooks.skipPreSession(room, payload)) hooks.rewrite(payload);
+        if (!hooks.skipPreSession(room, payload)) seq = hooks.rewrite(payload);
       }
-      return original.call(room, payload, ...rest);
+      const result = original.call(room, payload, ...rest);
+      if (seq !== null) hooks.onSequenced?.(payload, seq);
+      return result;
     }, 'commandSequencer', original);
     record.wrapped = wrapped;
     const rec = room as unknown as Record<string, unknown>;

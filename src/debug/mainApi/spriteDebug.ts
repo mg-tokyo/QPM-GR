@@ -8,6 +8,7 @@ import {
   loadTrackedSpriteSheets,
 } from '../../sprite-v2/compat';
 import { getSpriteBootReport, spriteProbe } from '../../sprite-v2/index';
+import { getPetRiveStats } from '../../sprite-v2/petRive';
 
 export const spriteDebugApi = {
   spriteLogs: (enabled?: boolean) => {
@@ -27,6 +28,7 @@ export const spriteDebugApi = {
   listSpriteResources: (category: 'plants' | 'pets' | 'unknown' | 'all' = 'all') => listTrackedSpriteResources(category),
   loadTrackedSpriteSheets: (maxSheets = 8, category: 'plants' | 'pets' | 'unknown' | 'all' = 'all') => loadTrackedSpriteSheets(maxSheets, category),
   spriteBootReport: () => getSpriteBootReport(),
+  petRiveStats: () => getPetRiveStats(),
   spriteProbe: (keys?: Array<string | { key?: string; category?: string; id?: string; mutations?: string[] }>) => {
     const rows = spriteProbe(keys as any);
     console.table(rows.map((r) => ({

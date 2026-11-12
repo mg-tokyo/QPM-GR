@@ -1,5 +1,11 @@
 import type { ActivePetInfo } from '../../../store/pets';
-import { computeAbilityStats, getAbilityDefinition } from '../data/petAbilities';
+import {
+  averageOverDayCycle,
+  computeAbilityStats,
+  getAbilityDefinition,
+  getAbilityRateContext,
+  type AbilityRateContext,
+} from '../data/petAbilities';
 import { getManualOverride } from './overrides';
 import { config } from './state';
 import type { ResolvedGrowthAbility, TurtleContribution, TurtlePetStats } from './types';
@@ -66,18 +72,21 @@ export function computeContribution(
   const petStats = resolveTurtlePetStats(pet);
   const { xp, targetScale, baseScore, missingStats } = petStats;
 
-  // Use the catalog-sourced ability definition to compute stats via the linear model
   const def = getAbilityDefinition(resolved.abilityId);
-  const strengthValue = baseScore > 0 ? baseScore : null;
-  const abilityStats = def ? computeAbilityStats(def, strengthValue) : null;
-
-  // Strength-scaled effect: minutes removed per proc
-  const strengthScale = baseScore > 0 ? baseScore / 100 : 0;
-  const reductionPerProc = resolved.effectMinutesPerProc * strengthScale;
-
-  // procsPerHour from the linear model (p / 60 / 100 per second × 3600 seconds)
-  const procsPerHour = abilityStats ? abilityStats.procsPerHour : 0;
-  const perHourReduction = procsPerHour * reductionPerProc;
+  const context = getAbilityRateContext(pet.species);
+  // Minutes removed per hour at the stage's effective STR (crystal + nocturnal bonus), averaged
+  // over the day cycle: a timer often spans stages (REL-6.8). Live until the cycle parses.
+  const evaluate = (stageContext: AbilityRateContext): { procsPerHour: number; perHourReduction: number } => {
+    const stats = def && baseScore > 0 ? computeAbilityStats(def, baseScore, stageContext) : null;
+    if (!stats) return { procsPerHour: 0, perHourReduction: 0 };
+    return {
+      procsPerHour: stats.procsPerHour,
+      perHourReduction: stats.procsPerHour * resolved.effectMinutesPerProc * stats.multiplier,
+    };
+  };
+  const { procsPerHour, perHourReduction } = averageOverDayCycle(context, evaluate) ?? evaluate(context);
+  // Kept as the ratio so turtleTimerLogic's variance maths sees one consistent procs/min.
+  const reductionPerProc = procsPerHour > 0 ? perHourReduction / procsPerHour : 0;
   const rateContribution = perHourReduction / 60; // per-minute rate for compatibility
 
   return {
