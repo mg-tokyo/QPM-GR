@@ -17,7 +17,7 @@ import {
   type ActiveAlert,
 } from './types';
 import {
-  activeAlerts,
+  activeAlerts, hubCards,
   alertSpriteUrlCache,
   alertPurchaseWatchers,
   dismissedInStockKeys,
@@ -181,7 +181,7 @@ export function getAlertRoot(): HTMLDivElement {
 }
 
 export function removeAlertRootIfEmpty(): void {
-  if (activeAlerts.size > 0) return;
+  if (activeAlerts.size > 0 || hubCards.size > 0) return;
   document.getElementById(ALERT_ROOT_ID)?.remove();
 }
 

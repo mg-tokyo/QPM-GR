@@ -3,7 +3,8 @@
 // Cosmetics live in index-*.js, NOT the main bundle — so we fetch separately.
 
 import {
-  convertBacktickStrings, extractBalancedArray, fetchBundleContaining, findAllIndices, markBundleConsumerDone, registerBundleConsumer,
+  MAX_FETCH_FAILURES_PER_URL, convertBacktickStrings, extractBalancedArray, fetchBundleContaining, findAllIndices,
+  markBundleConsumerDone, registerBundleConsumer,
 } from './bundleParser';
 import { pageWindow } from '../../core/pageContext';
 import { createNamedLogger } from '../../diagnostics/logger';
@@ -32,9 +33,11 @@ export interface CosmeticCatalogLoadResult {
 
 let cosmeticCatalogCache: RuntimeCosmeticCatalog | null = null;
 let cosmeticCatalogInFlight: Promise<CosmeticCatalogLoadResult> | null = null;
-let cosmeticBundleCache: string | null = null;
 // Chunk URLs are content-hashed, so a fetched-and-rejected URL never needs a retry.
+// A failed request is not an answer: the URL counts as tried only at the cap (REL-7).
 const triedCosmeticUrls = new Set<string>();
+const cosmeticFetchFailures = new Map<string, number>();
+const seenCosmeticCandidates = new Set<string>();
 const CURRENCY_CONSUMER = 'cosmetic-currency';
 
 const COSMETIC_ANCHORS = [
@@ -96,12 +99,35 @@ function findCosmeticBundleUrls(): string[] {
   return urls;
 }
 
-async function fetchCosmeticBundle(): Promise<{ text: string | null; triedNewChunks: boolean }> {
-  if (cosmeticBundleCache) return { text: cosmeticBundleCache, triedNewChunks: false };
+function recordCosmeticFetchFailure(url: string): void {
+  const count = (cosmeticFetchFailures.get(url) ?? 0) + 1;
+  cosmeticFetchFailures.set(url, count);
+  if (count >= MAX_FETCH_FAILURES_PER_URL) triedCosmeticUrls.add(url);
+}
 
+// A never-seen candidate gives every given-up URL one more request (REL-7 PD1).
+function rearmGivenUpOnNewCandidate(urls: string[]): void {
+  let fresh = false;
+  for (const url of urls) {
+    if (seenCosmeticCandidates.has(url)) continue;
+    seenCosmeticCandidates.add(url);
+    fresh = true;
+  }
+  if (!fresh) return;
+  for (const [url, count] of cosmeticFetchFailures) {
+    if (count < MAX_FETCH_FAILURES_PER_URL) continue;
+    cosmeticFetchFailures.set(url, MAX_FETCH_FAILURES_PER_URL - 1);
+    triedCosmeticUrls.delete(url);
+  }
+}
+
+// A chunk counts only once it parses: other chunks also name the anchors (build 2016
+// seededShuffle-*.js, beta SmoothProgressBar-*.js: a sprite-bounds table keyed by filename).
+async function scanCosmeticChunks(): Promise<CosmeticCatalogLoadResult> {
   const urls = findCosmeticBundleUrls();
   let triedNewChunks = false;
-  if (!urls.length) return { text: null, triedNewChunks };
+  if (!urls.length) return { catalog: null, triedNewChunks };
+  rearmGivenUpOnNewCandidate(urls);
 
   const fetchFn = typeof pageWindow.fetch === 'function'
     ? pageWindow.fetch.bind(pageWindow)
@@ -109,21 +135,27 @@ async function fetchCosmeticBundle(): Promise<{ text: string | null; triedNewChu
 
   for (const url of urls) {
     if (triedCosmeticUrls.has(url)) continue;
-    triedCosmeticUrls.add(url);
     triedNewChunks = true;
+    let text: string;
     try {
       const res = await fetchFn(url, { credentials: 'include' });
-      if (!res.ok) continue;
-      const text = await res.text();
-      if (text.includes('HazmatSuit')) {
-        cosmeticBundleCache = text;
-        log.debug('cosmeticCatalog: found cosmetic bundle', { url });
-        return { text, triedNewChunks };
-      }
-    } catch { /* skip */ }
+      if (!res.ok) { recordCosmeticFetchFailure(url); continue; }
+      text = await res.text();
+    } catch {
+      recordCosmeticFetchFailure(url);
+      continue;
+    }
+    triedCosmeticUrls.add(url);
+    if (!text.includes('HazmatSuit')) continue;
+    const catalog = await parseCosmeticChunk(text);
+    if (catalog) {
+      log.debug('cosmeticCatalog: found cosmetic bundle', { url });
+      return { catalog, triedNewChunks };
+    }
+    log.debug('cosmeticCatalog: anchor chunk did not parse, scanning on', { url });
   }
 
-  return { text: null, triedNewChunks };
+  return { catalog: null, triedNewChunks };
 }
 
 // ---------------------------------------------------------------------------
@@ -333,10 +365,7 @@ function toStrictJson(
   return s;
 }
 
-async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
-  const { text, triedNewChunks } = await fetchCosmeticBundle();
-  if (!text) return { catalog: null, triedNewChunks };
-
+async function parseCosmeticChunk(text: string): Promise<RuntimeCosmeticCatalog | null> {
   // Every anchor usually lands in the same array; resolve its foreign currencies once.
   const foreignByStart = new Map<number, Map<string, string>>();
   for (const anchor of COSMETIC_ANCHORS) {
@@ -364,7 +393,7 @@ async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
         const entries = parsed.map(toValidEntry).filter((e): e is RuntimeCosmeticEntry => e !== null);
         if (entries.length >= 10) {
           log.debug('cosmeticCatalog: extracted cosmetics from bundle', { count: entries.length });
-          return { catalog: entries, triedNewChunks };
+          return entries;
         }
       } catch (e) {
         log.debug('cosmeticCatalog: JSON parse failed', { cause: String(e) });
@@ -372,9 +401,7 @@ async function loadFromBundle(): Promise<CosmeticCatalogLoadResult> {
       }
     }
   }
-
-  log.debug('cosmeticCatalog: failed to extract from bundle');
-  return { catalog: null, triedNewChunks };
+  return null;
 }
 
 export async function getCosmeticCatalogFromBundle(): Promise<CosmeticCatalogLoadResult> {
@@ -382,10 +409,8 @@ export async function getCosmeticCatalogFromBundle(): Promise<CosmeticCatalogLoa
   if (cosmeticCatalogInFlight) return cosmeticCatalogInFlight;
 
   cosmeticCatalogInFlight = (async () => {
-    const result = await loadFromBundle();
-    if (!result.catalog) return result;
-    cosmeticCatalogCache = result.catalog;
-    cosmeticBundleCache = null;
+    const result = await scanCosmeticChunks();
+    if (result.catalog) cosmeticCatalogCache = result.catalog;
     return result;
   })().finally(() => {
     cosmeticCatalogInFlight = null;

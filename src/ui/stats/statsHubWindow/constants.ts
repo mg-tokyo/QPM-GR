@@ -3,21 +3,6 @@
 
 export const RAINBOW_GRADIENT = 'linear-gradient(90deg,#e11d48,#f97316,#eab308,#22c55e,#3b82f6,#a855f7)';
 
-/** Base water mutations — Wet and Chilled */
-export const BASE_WATER_MUTS = new Set(['wet', 'chilled']);
-
-/** Upgraded water mutations — Frozen */
-export const UPGRADED_WATER_MUTS = new Set(['frozen']);
-
-/** Upgraded Dawn mutations — Dawncharged (display: Dawnbound) */
-export const UPGRADED_DAWN_MUTS = new Set(['dawncharged']);
-
-/** Upgraded Amber mutations — Ambercharged (display: Amberbound) */
-export const UPGRADED_AMBER_MUTS = new Set(['ambercharged']);
-
-/** Upgraded electric mutations — Thundercharged (upgrades Thunderstruck) */
-export const UPGRADED_ELECTRIC_MUTS = new Set(['thundercharged']);
-
 /** Hardcoded fallback — used when the mutation catalog isn't loaded yet */
 export const FILTER_MUTATIONS_FALLBACK: readonly string[] = [
   'Frozen', 'Wet', 'Chilled', 'Thunderstruck', 'Thundercharged',

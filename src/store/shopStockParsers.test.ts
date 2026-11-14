@@ -110,6 +110,11 @@ describe('custom restocks mirror the game', () => {
     expect(state.secondsUntilRestock).toBe(200);
   });
 
+  it('carries the selling snapshot restockId: custom while it sells, global otherwise (ALR-7.2)', () => {
+    expect(seedState(myData(null)).restockId).toBe(`seed:custom:${T}`);
+    expect(seedState(myData(null, null)).restockId).toBe('seed:5969118');
+  });
+
   it('ignores a custom inventory when customRestocks has no live entry', () => {
     const state = seedState(myData(null, null));
     expect(state.items.map((item) => item.id)).toEqual(['Carrot']);

@@ -25,6 +25,7 @@ import {
   pendingOwnershipConfirmations,
   dismissedCyclesByKey,
   dismissedInStockKeys,
+  restockShopById,
   debugLastStockStateByKey,
   fallbackCycleByKey,
   lastSeenStockQtyByKey,
@@ -47,6 +48,7 @@ import { applyAlertSprite, removeAlert } from './alertDom';
 import { stopAllLoops } from './soundEngine';
 import { startWeatherAlertProcessor, stopWeatherAlertProcessor } from './weatherAlertProcessor';
 import { ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
+import { ingestJournalSeedsMyData } from '../../../features/journalSeeds';
 
 // ---------------------------------------------------------------------------
 // Socket close detection
@@ -188,6 +190,7 @@ export function startShopRestockAlerts(): void {
 
     void subscribeAtomValue('myData', (value) => {
       handleMyDataSnapshot(value);
+      ingestJournalSeedsMyData(value);
     }).then((unsubscribe) => {
       if (!unsubscribe) return;
       if (!alertState.started) {
@@ -323,6 +326,7 @@ export function stopShopRestockAlerts(): void {
 
   dismissedInStockKeys.clear();
   dismissedCyclesByKey.clear();
+  restockShopById.clear();
   debugLastStockStateByKey.clear();
   fallbackCycleByKey.clear();
   lastSeenStockQtyByKey.clear();

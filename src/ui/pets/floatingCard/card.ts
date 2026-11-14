@@ -42,7 +42,7 @@ import {
   type FloatingCardEntry,
 } from '../../components/floatingCard';
 import { STYLES } from './styles';
-import { setSpriteContent, renderFoodCounters } from './bodyRenderers';
+import { setSpriteContent, renderFoodCounters, watchSpriteHydration } from './bodyRenderers';
 import { createFeedKeybindGearButton } from './gearButton';
 
 const STORAGE_KEY = 'qpm.petFloatingCards.v1';
@@ -494,6 +494,7 @@ function createSlotCard(slotIndex: number): SlotEntry {
   };
 
   cleanups.push(onActivePetInfos(onPetChange));
+  cleanups.push(watchSpriteHydration(spriteWrap, () => (destroyed ? null : currentPet)));
   cleanups.push(onInventoryChange(() => { scheduleRefresh(); }));
 
   const onRulesChanged = (): void => { scheduleRefresh(); };

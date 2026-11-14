@@ -2,6 +2,8 @@ import { getAbilityDef, getAllAbilities, arePetAbilitiesCaptured, areCatalogsRea
 import { getDayCycle, getDayCycleSourceStatus } from '../../../../catalogs/logic/dayCycleCatalog';
 import type { DayCycleData, DayCycleSourceStatus, StageKeyMismatch } from '../../../../catalogs/logic/dayCycleCatalog';
 import { compareStageKeys } from '../../../../catalogs/logic/dayCycleParsing';
+import { getDayCycleClock, getDayStageWindowAt, getNightfallDrift, nextMidnight, nextNightfall } from '../../../../catalogs/logic/dayCycleClock';
+import type { DayStageWindow, NightfallDriftReadout } from '../../../../catalogs/logic/dayCycleClock';
 import { getBundleFetchStats } from '../../../../catalogs/logic/bundleParser';
 import { isGameStateReady, readSync } from '../../../../core/gameState';
 import { getCapturedBuildId } from '../../../../diagnostics/gameVersionCapture';
@@ -10,6 +12,7 @@ import { canResolveParameterKey, getAbilityDefinition, getAllAbilityDefinitions 
 import { getAbilityRateContext, getActiveCrystalTypes, getCrystalStrengthBonus } from './dayStage';
 import { computeAbilityStats } from './stats';
 import { getActivePetInfos } from '../../../../store/pets';
+import { getServerNowMs } from '../../../../store/serverClock';
 import { isHighValueAbility, isLowValueAbility } from './classification';
 import { classifySizeBoostAbility, FLAT_SIZE_KEYS, PERCENT_SIZE_KEYS } from './sizeBoost';
 
@@ -161,6 +164,30 @@ export interface DayStageDrift extends DayCycleData {
   activeCrystalTypes: string[];       // placed crystals with charge left in my garden
   crystalStrengthBonus: number;
   bundleFetch: ReturnType<typeof getBundleFetchStats>;  // REL-7: failed and given-up chunk URLs
+  clock: DayClockReadout | null;      // ALR-3.2: null until stage minutes and run order are parsed
+  nightfall: NightfallDriftReadout;   // ALR-4.2: observed vs computed nightfall, re-anchors
+}
+
+export interface DayClockReadout {
+  nowMs: number;
+  serverTime: boolean;                // false: local clock, no server sample yet
+  window: DayStageWindow | null;
+  nextNightfallMs: number | null;
+  nextMidnightMs: number | null;
+}
+
+function readDayClock(data: DayCycleData): DayClockReadout | null {
+  const clock = getDayCycleClock(data);
+  if (!clock) return null;
+  const server = getServerNowMs();
+  const nowMs = server ?? Date.now();
+  return {
+    nowMs,
+    serverTime: server !== null,
+    window: getDayStageWindowAt(nowMs, clock),
+    nextNightfallMs: nextNightfall(nowMs, clock),
+    nextMidnightMs: nextMidnight(nowMs, clock),
+  };
 }
 
 export function getDayStageDrift(): DayStageDrift {
@@ -188,6 +215,8 @@ export function getDayStageDrift(): DayStageDrift {
     activeCrystalTypes: [...getActiveCrystalTypes()],
     crystalStrengthBonus: getCrystalStrengthBonus(data),
     bundleFetch: getBundleFetchStats(),
+    clock: readDayClock(data),
+    nightfall: getNightfallDrift(),
   };
 }
 

@@ -19,7 +19,20 @@ import {
 import type { OptimizerConfig } from '../../features/pets/optimizer';
 import { getAbilityCatalogDrift, getAbilityRateReport, getCropSizeBoostDrift, getDayStageDrift } from '../../features/pets/data/petAbilities/drift';
 import { isHighValueAbility, isLowValueAbility } from '../../features/pets/data/petAbilities';
-import { getAllAbilities, waitForPetAbilities } from '../../catalogs/gameCatalogs';
+import { getAllAbilities, getMutationCatalog, waitForPetAbilities } from '../../catalogs/gameCatalogs';
+import { getMutationRulesDrift } from '../../catalogs/logic/mutationRulesCatalog';
+import { getRarePatchPairsDrift } from '../../catalogs/logic/rarePatchPairsCatalog';
+import { RARE_PATCH_VARIANTS } from '../../catalogs/pityThresholds';
+import { getMutationApplicationResult } from '../../utils/mutationCompatibility';
+import { mutationDebugApi } from '../../store/mutationSummary';
+import { getMutationEtaSnapshot } from '../../features/garden/mutationEta';
+import { getMutationEtaBellState } from '../../features/garden/mutationEtaBell';
+import { getMutationGainDebugState } from '../../features/garden/mutationGain';
+import { getRecentReadyEdges } from '../../features/chargedAbilities/readyEdge';
+import { getEggReadyState, setEggReadyLeadMinutes } from '../../features/garden/eggReady';
+import { getFriendBonusState } from '../../store/friendBonus';
+import { getCropMaxSizeState, getRecentSizeEdges } from '../../features/garden/cropMaxSize';
+import { getJournalSeedsState } from '../../features/journalSeeds';
 import { testPetData, testComparePets, testAbilityDefinitions } from '../../utils/petDataTester';
 import { toggleWindow } from '../../ui/core/modalWindow';
 import { togglePetsWindow } from '../../ui/pets/petsWindow';
@@ -47,6 +60,17 @@ export const coreDebugApi = {
   abilityCatalogDrift: () => getAbilityCatalogDrift(),
   cropSizeBoostDrift: () => getCropSizeBoostDrift(),
   dayStageDrift: () => getDayStageDrift(),
+  mutationRulesDrift: () => getMutationRulesDrift(getMutationCatalog()),
+  rarePatchPairsDrift: () => getRarePatchPairsDrift(RARE_PATCH_VARIANTS),
+  mutationApply: (existing: string[], add: string) => getMutationApplicationResult(existing, add),
+  mutationSummaryDebug: mutationDebugApi,
+  mutationEta: { snapshot: () => getMutationEtaSnapshot(), bell: () => getMutationEtaBellState() },
+  mutationGain: { lastDiff: () => getMutationGainDebugState() },
+  chargedAbilities: { readyEdges: () => getRecentReadyEdges() },
+  eggReady: { state: () => getEggReadyState(), setLead: (minutes: number) => setEggReadyLeadMinutes(minutes) },
+  friendBonus: { state: () => getFriendBonusState() },
+  cropMaxSize: { lastEdges: () => getRecentSizeEdges(), state: () => getCropMaxSizeState() },
+  journalSeeds: { state: () => getJournalSeedsState() },
   abilityRates: () => getAbilityRateReport(),
   abilityClassification: () => {
     const ids = getAllAbilities();

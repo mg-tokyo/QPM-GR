@@ -93,6 +93,16 @@ export const QPM_STORAGE_KEYS = [
   'qpm.chargedAbilities.expanded.v1',
   'qpm.chargedAbilities.autoOpenOverlay.v1',
 
+  // Forecast widget (ALR-3.3)
+  'qpm.forecastWidget.panel.v1',
+  'qpm.forecastWidget.open.v1',
+
+  // Nightfall alarm (ALR-4.1)
+  'qpm.nightfallAlarm.v1',
+
+  // Mutation ETA completion bells (ALR-5.5)
+  'qpm.mutationEta.v1',
+
   // Super Cleanser (multi-slot cleanse fanout)
   'qpm.superCleanser.enabled.v1',
   'qpm.superCleanser.autoOpenPanel.v1',
@@ -109,6 +119,7 @@ export const QPM_STORAGE_KEYS = [
   'qpm.restockCache.v3',
   'qpm.restock.refreshBudget.v1',
   'qpm.restock.dismissedCycles.v1',
+  'qpm.restock.dismissedRestocks.v2',
   'qpm.restock.detailWindows.v1',
   'qpm.restock.detailScale.v1',
   'qpm.restock.soundConfig.v1',
@@ -316,6 +327,18 @@ export const QPM_STORAGE_KEYS = [
   'qpm.npcDialogue.enabled.v1',
   'qpm.npcDialogue.lines.v1',
   'qpm.npcDialogue.companionInject.v1',
+
+  // Popup silencer (game ability / level-up toasts)
+  'qpm.popupSilencer.v1',
+
+  // Alert hub (notification centre rows + master sound gate)
+  'qpm.alertHub.v1',
+
+  // Pet hunger alarm (team default + per-pet thresholds)
+  'qpm.hungerAlarm.v1',
+
+  // Feeding trough low alarm (lowAt)
+  'qpm.troughAlarm.v1',
 
   // 3D camera
   'qpm.camera3d.enabled.v1',

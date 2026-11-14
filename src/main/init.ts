@@ -366,7 +366,7 @@ async function initialize(): Promise<void> {
   // calls checkTour('panel-shell') and checkTour('panel-home'). If tours aren't
   // registered yet, the lookup silently returns undefined and those tours never
   // fire — not even on later panel opens.
-  const { initTourSystem, checkTour, watchCamera3dTour } = await import('../ui/tour');
+  const { initTourSystem, checkPanelLoadTours, watchCamera3dTour } = await import('../ui/tour');
   await initTourSystem();
 
   // Create UI (needs sprites to be ready)
@@ -454,7 +454,7 @@ async function initialize(): Promise<void> {
   setTimeout(() => {
     const panel = document.querySelector('.qpm-panel') as HTMLElement | null;
     if (panel) {
-      checkTour('welcome', panel);
+      checkPanelLoadTours(panel);
     }
     disposers.camera3dTour = watchCamera3dTour();
   }, 1500);

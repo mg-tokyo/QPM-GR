@@ -192,7 +192,7 @@ function listPlantsForSnapshot(snapshot: MutationDebugSnapshot) {
 	};
 }
 
-const mutationDebugApi = {
+export const mutationDebugApi = {
 	get(source?: MutationSummarySource) {
 		return exportDebugSnapshot(source);
 	},

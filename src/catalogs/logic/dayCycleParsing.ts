@@ -20,6 +20,13 @@ const STAGE_OBJECT = `\\{((?:${PAIR},)*day:${NUM}(?:,${PAIR})*)\\}`;
 
 // 1989: `var Ae={day:210,sunset:10,midnight:10,sunrise:10},je=Object.values(Ae).reduce(`
 export const DAY_CYCLE_MARKER = new RegExp(`(?<![\\w$])(${NAME})=${STAGE_OBJECT},${NAME}=Object\\.values\\(\\1\\)\\.reduce\\(`);
+const STAGE_ID = '[`\'"]([A-Za-z_$][\\w$]*)[`\'"]';
+const STAGE_LIST = '[`\'"][A-Za-z_$][\\w$]*[`\'"]';
+// Run order from in-game midnight; anchored on the stage-of-phase function that follows it.
+// beta pr-4669: `var Be=[`sunrise`,`day`,`sunset`,`midnight`];function Ve(e){let t=Ne(e);return t<Le?`sunrise`:`
+export const DAY_CYCLE_ORDER_MARKER = new RegExp(
+  `(?<![\\w$])${NAME}=\\[((?:${STAGE_LIST},)*${STAGE_LIST})\\];function ${NAME}\\((${NAME})\\)\\{let (${NAME})=${NAME}\\(\\2\\);return \\3<${NAME}\\?${STAGE_ID}:`,
+);
 // 1989: `var F={day:0,sunset:15,midnight:20,sunrise:10};F.midnight;function I(e){return M[e].isNocturnal===!0}`
 export const NOCTURNAL_BONUS_MARKER = new RegExp(`(?<![\\w$])${NAME}=${STAGE_OBJECT}(?:(?!=\\{)[\\s\\S]){0,160}?isNocturnal===!0`);
 // 1989: `var ct=.99;function lt(e){return Number.isNaN(e)?0:Math.min(1,Math.max(0,e))}function ut(e){return Math.min(ct,lt(e))}`
@@ -48,6 +55,16 @@ export function parseDayCycleStages(text: string): DayCycleStage[] | null {
   const pairs = parseStageBody(body);
   if (!pairs || !pairs.some(([, minutes]) => minutes > 0)) return null;
   return pairs.map(([id, minutes]) => ({ id, minutes }));
+}
+
+/** Stage ids in the order they run from in-game midnight; the first one starts at midnight. */
+export function parseDayCycleOrder(text: string): string[] | null {
+  const match = DAY_CYCLE_ORDER_MARKER.exec(text);
+  const list = match?.[1];
+  if (list === undefined) return null;
+  const ids = list.split(',').map((item) => item.slice(1, -1));
+  if (new Set(ids).size !== ids.length || ids[0] !== match?.[4]) return null;
+  return ids;
 }
 
 export function parseNocturnalBonus(text: string): Record<string, number> | null {

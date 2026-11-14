@@ -80,6 +80,7 @@ function createEmptyState(): ShopStockState {
       signature: '',
       updatedAt: now,
       raw: null,
+      restockId: null,
     };
   }
   return { updatedAt: now, categories };

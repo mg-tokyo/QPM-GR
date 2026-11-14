@@ -269,6 +269,42 @@ async function fetchEventsForId(
   }).filter((e) => Number.isFinite(e.timestamp));
 }
 
+export interface RecentWeatherEvent {
+  weatherId: string;
+  timestamp: number;
+}
+
+let recentWeatherCache: { fetchedAt: number; limit: number; events: RecentWeatherEvent[] } | null = null;
+let recentWeatherInflight: Promise<RecentWeatherEvent[] | null> | null = null;
+
+/** Newest weather_events rows across every weather (ALR-3.4 PD1); null on a failed request. Cached like item events. */
+export function fetchRecentWeatherEvents(limit = 10): Promise<RecentWeatherEvent[] | null> {
+  const n = clampEventLimit(limit);
+  const cached = recentWeatherCache;
+  if (cached && cached.limit === n && Date.now() - cached.fetchedAt <= EVENT_CACHE_TTL_MS) return Promise.resolve(cached.events);
+  if (recentWeatherInflight) return recentWeatherInflight;
+  recentWeatherInflight = (async (): Promise<RecentWeatherEvent[] | null> => {
+    const gm = resolveGmXhr();
+    if (!gm) return null;
+    const url = `${WEATHER_EVENTS_ENDPOINT}?select=weather_id,timestamp&order=timestamp.desc&limit=${n}`;
+    const result = await gmGet(gm, url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
+    if (!result.ok || !result.text) return null;
+    let rows: unknown;
+    try { rows = JSON.parse(result.text); } catch { return null; }
+    if (!Array.isArray(rows)) return null;
+    const events = rows.flatMap((row): RecentWeatherEvent[] => {
+      const r = row as Record<string, unknown>;
+      const raw = typeof r.timestamp === 'number' ? r.timestamp : Number(r.timestamp);
+      // Mixed epoch units in the backend, same guard as itemRestockDetailWindow/format.ts:63-68.
+      const ts = raw > 0 && raw < 1_000_000_000_000 ? Math.round(raw * 1000) : raw;
+      return typeof r.weather_id === 'string' && Number.isFinite(ts) && ts > 0 ? [{ weatherId: r.weather_id, timestamp: ts }] : [];
+    });
+    recentWeatherCache = { fetchedAt: Date.now(), limit: n, events };
+    return events;
+  })().finally(() => { recentWeatherInflight = null; });
+  return recentWeatherInflight;
+}
+
 /** Fetch weather occurrence events from the weather_events table. */
 async function fetchWeatherEventsFromTable(
   gm: GmXhr,

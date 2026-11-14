@@ -116,7 +116,7 @@ function resolvePerEventMutationChance(chancePerMinutePerCrop: number, durationM
   return (1 - Math.pow(1 - perMinuteChance, durationMinutes)) * 100;
 }
 
-function resolveWeatherMutationEntry(weatherType: string | undefined | null): WeatherMutationEntry {
+export function resolveWeatherMutationEntry(weatherType: string | undefined | null): WeatherMutationEntry {
   if (!weatherType) {
     return {
       mutation: null,

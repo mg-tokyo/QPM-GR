@@ -3,6 +3,20 @@
 
 export type WeatherAtomValue = string | null | undefined;
 
+/** quinoaData.weatherForecast entry; `weatherId: null` is a hidden (lunar) event. Live build 2022. */
+export interface WeatherForecastEntry {
+  groupId: string;                    // e.g., "Lunar", "Hydro"
+  weatherId: string | null;
+  startsAtMs: number;
+  endsAtMs: number;
+}
+
+/** quinoaData.weatherWindow: span of the current weather; null under clear skies. */
+export interface WeatherWindow {
+  startsAtMs: number;
+  endsAtMs: number;
+}
+
 export interface GridPosition {
   x: number;
   y: number;

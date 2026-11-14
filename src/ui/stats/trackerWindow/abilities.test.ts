@@ -5,6 +5,7 @@ import type { DayCycleData } from '../../../catalogs/logic/dayCycleCatalog';
 
 const cycle: DayCycleData = {
   stages: [{ id: 'day', minutes: 210 }, { id: 'sunset', minutes: 10 }, { id: 'midnight', minutes: 10 }, { id: 'sunrise', minutes: 10 }],
+  stageOrder: null,
   nocturnalBonus: { day: 0, sunset: 15, midnight: 20, sunrise: 10 },
   chanceCapPerMinute: 0.99,
   crystalModifiers: null,

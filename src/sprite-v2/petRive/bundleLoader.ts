@@ -1,5 +1,6 @@
 import { listSeenRivUrls } from '../../rive-engine/fetchInterceptor';
-import { getAssetManifest, getBlob, joinPath } from '../manifest';
+import { absoluteUrl, firstSrc, getAssetManifest, getBlob } from '../manifest';
+import type { ManifestLike } from '../manifest';
 import { buildAssetsBaseUrl } from '../detector';
 import { spriteLog } from '../diagnostics';
 
@@ -15,29 +16,6 @@ export type PetRiveSources =
   | { kind: 'split'; bySpecies: Map<string, string>; otherRivNames: Set<string> }
   | { kind: 'single'; url: string }
   | { kind: 'none' };
-
-type ManifestLike = {
-  bundles?: Array<{
-    assets?: Array<{
-      alias?: string[];
-      src?: Array<string | { src?: string }>;
-    }>;
-  }>;
-};
-
-function firstSrc(entries: Array<string | { src?: string }> | undefined): string | null {
-  for (const entry of entries ?? []) {
-    const src = typeof entry === 'string' ? entry : entry?.src;
-    if (typeof src === 'string' && src) return src;
-  }
-  return null;
-}
-
-function absoluteUrl(path: string, base: string, origin: string): string {
-  if (/^https?:\/\//i.test(path)) return path;
-  if (path.startsWith('/')) return `${origin}${path}`;
-  return joinPath(base, path);
-}
 
 type ManifestWalk = { bySpecies: Map<string, string>; otherRivNames: Set<string>; singlePath: string | null };
 

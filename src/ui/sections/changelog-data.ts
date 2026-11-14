@@ -2,6 +2,17 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.65",
+    date: "2026-11-15",
+    notes: [
+      "Added mutation ETAs: the Ability Tracker shows how long your pets need to reach every fruit that can still take their mutation, and the Garden Stats tab shows the same for the mutations you select",
+      "Fixed mutation counts in Garden Stats and the mutation reminder treating Wet, Chilled and Frozen as still possible on Thundercharged crops: both now follow the game's own mutation rules",
+      "Fixed dismissed restock alerts coming back after a reload, or hiding a different restock than the one you dismissed",
+      "Fixed pet sprites staying blank on the floating feed card for pets like Bats and Platypuses until you reopened it",
+      "Fixed Tower Defense sounds going silent after the latest game update",
+    ],
+  },
+  {
     version: "3.3.64",
     date: "2026-11-12",
     notes: [

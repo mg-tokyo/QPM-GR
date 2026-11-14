@@ -22,7 +22,11 @@ describe('key table', () => {
     expect(sel('hutchCapacity')).toBe(100);
     expect((sel('decorShedItems') as unknown[]).length).toBe(2);
     expect(sel('toolShackCapacity')).toBe(25);
+    expect(sel('feedingTroughItems')).toEqual([{ id: 'f1', itemType: 'Produce' }]);
+    expect(sel('feedingTroughCapacity')).toBe(9);
     expect(sel('weather')).toBeNull();
+    expect(sel('weatherWindow')).toBeNull();
+    expect((sel('weatherForecast') as { weatherId: string | null }[]).map((e) => e.weatherId)).toEqual([null, 'Rain']);
     expect(sel('shops')).toBeTruthy();
     expect(sel('eggShop')).toBeNull();
     expect(sel('petSlotInfos')).toEqual({ pet1: { motion: { kind: 'idle' } } });
@@ -39,6 +43,41 @@ describe('key table', () => {
     expect(atom.project!(selectMyData(FIXTURE_SNAPSHOT, FIXTURE_IDENTITY))).toEqual(sel('shopPurchases'));
     expect(atom.project!({ coinsCount: 1 })).toBeNull();
     expect(atom.project!(null)).toBeUndefined();
+  });
+  it('troughFedPetIds reads the game Set as an id list, seat required', () => {
+    const atom = (GAME_STATE_KEYS.troughFedPetIds.sources as readonly SourceSpec<unknown>[])
+      .find((s): s is AtomSourceSpec<unknown> => s.kind === 'atom')!;
+    expect(atom.label.test('myAuthoritativeTroughFedPetIdsAtom')).toBe(true);
+    expect(atom.requiresSeat).toBe(true);
+    expect(atom.project!(new Set(['a', 'b']))).toEqual(['a', 'b']);
+    expect(atom.project!(new Set())).toEqual([]);
+    expect(atom.project!(null)).toBeUndefined();
+    expect(atom.project!('a')).toBeUndefined();
+  });
+  it('quinoaToasts: room-scope toasts first, label second, arrays only', () => {
+    const atoms = (GAME_STATE_KEYS.quinoaToasts.sources as readonly SourceSpec<unknown>[])
+      .filter((s): s is AtomSourceSpec<unknown> => s.kind === 'atom');
+    expect(atoms.map((a) => [a.label.source, a.via ?? null, a.writable === true])).toEqual([
+      ['^currentRoomAtom$', 'toasts', true],
+      ['^quinoaToastsAtom$', null, true],
+    ]);
+    expect(atoms[0]!.structure!([])).toBe(true);
+    expect(atoms[0]!.structure!({})).toBe(false);
+  });
+  it('roomScopeId projects the scope uuid, unavailable without one', () => {
+    const atom = (GAME_STATE_KEYS.roomScopeId.sources as readonly SourceSpec<unknown>[])
+      .find((s): s is AtomSourceSpec<unknown> => s.kind === 'atom')!;
+    expect(atom.label.test('currentRoomAtom')).toBe(true);
+    expect(atom.project!({ id: 'r1', toasts: {} })).toBe('r1');
+    expect(atom.project!({ toasts: {} })).toBeUndefined();
+    expect(atom.project!(null)).toBeUndefined();
+  });
+  it('trough keys: no trough storage => [] and null', () => {
+    const noTrough = structuredClone(FIXTURE_SNAPSHOT) as typeof FIXTURE_SNAPSHOT;
+    const inv = selectMyData(noTrough, FIXTURE_IDENTITY)!.inventory!;
+    inv.storages = (inv.storages ?? []).filter((s) => s.decorId !== 'FeedingTrough');
+    expect(stateRung('feedingTroughItems')!.select(noTrough, FIXTURE_IDENTITY)).toEqual([]);
+    expect(stateRung('feedingTroughCapacity')!.select(noTrough, FIXTURE_IDENTITY)).toBeNull();
   });
   it('serverTime is unavailable without a room clock', () => {
     const noClock = { ...FIXTURE_SNAPSHOT, child: { scope: 'Quinoa', data: { shops: {} } } };

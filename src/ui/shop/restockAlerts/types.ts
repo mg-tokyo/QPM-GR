@@ -15,6 +15,7 @@ export type { RestockShopType };
 // Kept here as a local const so this file has no runtime imports — see comment above.
 export const TRACKED_KEY            = 'qpm.restock.tracked';
 export const DISMISSED_CYCLES_KEY   = 'qpm.restock.dismissedCycles.v1';
+export const DISMISSED_RESTOCKS_KEY = 'qpm.restock.dismissedRestocks.v2';
 export const TRACKED_UPDATED_EVENT  = 'qpm:restock-tracked-updated';
 export const ALERT_ROOT_ID          = 'qpm-restock-alert-root';
 export const ALERT_STYLE_ID         = 'qpm-restock-alert-style';

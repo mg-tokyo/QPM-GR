@@ -8,6 +8,7 @@ import {
   getPetSpriteDataUrlWithMutations,
   isSpritesReady,
 } from '../../../sprite-v2/compat';
+import { HYDRATION_EVENT } from '../../../sprite-v2/service/constants';
 import { HUNGER_POTION_KEY } from '../../../features/pets/hungerPotion';
 import type { ActivePetInfo } from '../../../store/pets';
 import type { EligibleFoodEntry } from '../../../features/pets/foodRules';
@@ -38,6 +39,21 @@ export function setSpriteContent(
   fallback.style.fontSize = '13px';
   fallback.style.fontWeight = '700';
   spriteWrap.appendChild(fallback);
+}
+
+// Rive pet species load only after the game fetches their .riv, so a card that
+// rendered first keeps the fallback until a hydration event re-renders it.
+export function watchSpriteHydration(
+  spriteWrap: HTMLElement,
+  getPet: () => ActivePetInfo | null,
+): () => void {
+  const onHydrated = (): void => {
+    if (spriteWrap.querySelector('img')) return;
+    const pet = getPet();
+    if (pet) setSpriteContent(spriteWrap, pet);
+  };
+  window.addEventListener(HYDRATION_EVENT, onHydrated);
+  return () => window.removeEventListener(HYDRATION_EVENT, onHydrated);
 }
 
 function resolveFoodSprite(foodKey: string): string {

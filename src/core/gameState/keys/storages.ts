@@ -7,16 +7,18 @@ const STORAGES = '/child/data/userSlots/{myIdx}/data/inventory/storages';
 const itemArray = (v: unknown): QuinoaInventoryItem[] | undefined => (Array.isArray(v) ? (v as QuinoaInventoryItem[]) : undefined);
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
-function items(storage: StorageId, itemType: string | undefined, label: RegExp, doc: string) {
+function items(storage: StorageId, itemType: string | undefined, label: RegExp | null, doc: string) {
+  const state = stateSource(STORAGES, selectStorageItems(storage, itemType));
   return defineKey<QuinoaInventoryItem[]>({
     policy: 'authoritative', tier: 'state', doc,
-    sources: [stateSource(STORAGES, selectStorageItems(storage, itemType)), atomSource(label, 'predicted', { project: itemArray, requiresSeat: true })],
+    sources: label ? [state, atomSource(label, 'predicted', { project: itemArray, requiresSeat: true })] : [state],
   });
 }
-function capacity(storage: StorageId, label: RegExp, doc: string) {
+function capacity(storage: StorageId, label: RegExp | null, doc: string) {
+  const state = stateSource(STORAGES, selectStorageCapacity(storage));
   return defineKey<number | null>({
     policy: 'authoritative', tier: 'state', doc,
-    sources: [stateSource(STORAGES, selectStorageCapacity(storage)), atomSource(label, 'predicted', { project: num, requiresSeat: true })],
+    sources: label ? [state, atomSource(label, 'predicted', { project: num, requiresSeat: true })] : [state],
   });
 }
 
@@ -39,4 +41,7 @@ export const STORAGE_KEYS = {
   decorShedCapacity: capacity('DecorShed', /^myDecorShedCapacitySlotsAtom$/, 'Shed capacitySlots'),
   toolShackItems: items('ToolShack', 'Tool', /^myToolShackToolItemsAtom$/, 'Tools in the shack'),
   toolShackCapacity: capacity('ToolShack', /^myToolShackCapacitySlotsAtom$/, 'Shack capacitySlots'),
+  // State tree only: beta myFeedingTroughProduceItemsAtom has no label on build 2022 (live 2026-11-13).
+  feedingTroughItems: items('FeedingTrough', 'Produce', null, 'Crops in the feeding trough (one crop per slot, no quantity)'),
+  feedingTroughCapacity: capacity('FeedingTrough', null, 'Trough capacitySlots'),
 };

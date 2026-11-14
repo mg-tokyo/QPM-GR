@@ -1,6 +1,19 @@
 import { atomSource, defineKey, stateSource } from '../define';
 import { isRecord } from '../../../utils/typeGuards';
-import type { QuinoaStateSnapshot, ShopCategorySnapshot, ShopsAtomSnapshot, WeatherAtomValue } from '../../../types/gameAtoms';
+import type {
+  QuinoaStateSnapshot, ShopCategorySnapshot, ShopsAtomSnapshot, WeatherAtomValue, WeatherForecastEntry, WeatherWindow,
+} from '../../../types/gameAtoms';
+
+const isMs = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+const isForecastEntry = (v: unknown): v is WeatherForecastEntry =>
+  isRecord(v) && typeof v.groupId === 'string' && (typeof v.weatherId === 'string' || v.weatherId === null)
+  && isMs(v.startsAtMs) && isMs(v.endsAtMs);
+
+const projectWindow = (v: unknown): WeatherWindow | null | undefined => {
+  if (v === null) return null;
+  return isRecord(v) && isMs(v.startsAtMs) && isMs(v.endsAtMs) ? { startsAtMs: v.startsAtMs, endsAtMs: v.endsAtMs } : undefined;
+};
 
 const shops = (s: QuinoaStateSnapshot): ShopsAtomSnapshot | null | undefined => {
   const d = s.child?.data;
@@ -21,6 +34,25 @@ export const SHOP_KEYS = {
     sources: [
       stateSource('/child/data/weather', (s) => { const d = s.child?.data; if (!d || typeof d !== 'object') return undefined; const w = d.weather; return typeof w === 'string' ? w : w === null ? null : undefined; }),
       atomSource(/^weather(?:State)?Atom$/, 'authoritative', { project: (v) => (typeof v === 'string' ? v : v === null ? null : undefined) }),
+    ],
+  }),
+  // Server-decided schedule, chronological; the bundle has no look-ahead (beta getWeatherStationForecast.ts:22-30).
+  weatherForecast: defineKey<readonly WeatherForecastEntry[]>({
+    policy: 'authoritative', tier: 'state', doc: 'Upcoming weather events (weatherId null = hidden lunar event)',
+    sources: [stateSource('/child/data/weatherForecast', (s) => {
+      const list = s.child?.data?.weatherForecast;
+      if (!Array.isArray(list)) return undefined;
+      return list.every(isForecastEntry) ? list : list.filter(isForecastEntry);
+    })],
+  }),
+  weatherWindow: defineKey<WeatherWindow>({
+    policy: 'authoritative', tier: 'state', doc: 'Span of the current weather (null when clear)',
+    sources: [
+      stateSource('/child/data/weatherWindow', (s) => {
+        const d = s.child?.data;
+        return d && typeof d === 'object' ? projectWindow(d.weatherWindow) : undefined;
+      }),
+      atomSource(/^weatherWindowAtom$/, 'authoritative', { project: projectWindow }),
     ],
   }),
   // Written by the game's `dayNight` render system on stage change (REL-6 spec F15–F16); any string, so a new stage flows through.

@@ -307,9 +307,6 @@ export function computeSlotStateFromMutationNames(mutations: string[]): PlantSlo
   let hasGold = false;
   const unknownMutations: string[] = [];
   const progress: Partial<Record<MutationStage, MutationStageProgress>> = {};
-  let wetOccurrences = 0;
-  let dawnOccurrences = 0;
-  let amberOccurrences = 0;
 
   const recordProgress = (stage: MutationStage, complete: number, total: number): void => {
     if (!Number.isFinite(complete) || !Number.isFinite(total)) return;
@@ -341,10 +338,6 @@ export function computeSlotStateFromMutationNames(mutations: string[]): PlantSlo
       letters.add('C');
     }
 
-    if (frozenLike || wetLike || chilledLike) {
-      wetOccurrences += 1;
-    }
-
     const isDawnbound = normalized.includes('dawnbound');
     if (isDawnbound) {
       hasDawnbound = true;
@@ -363,18 +356,10 @@ export function computeSlotStateFromMutationNames(mutations: string[]): PlantSlo
       letters.add('D');
     }
 
-    if (dawnLike || isDawnbound) {
-      dawnOccurrences += 1;
-    }
-
     const amberLike = (normalized.includes('amberlit') || normalized.includes('amberlight') || normalized.includes('amber')) && !isAmberbound;
     if (amberLike) {
       hasAmberlit = true;
       letters.add('A');
-    }
-
-    if (amberLike || isAmberbound) {
-      amberOccurrences += 1;
     }
 
     const rainbowLike = normalized.includes('rainbow');
@@ -412,16 +397,6 @@ export function computeSlotStateFromMutationNames(mutations: string[]): PlantSlo
 
   const orderedLetters = Array.from(letters).sort();
 
-  if (!progress.wet && wetOccurrences > 0) {
-    progress.wet = { complete: wetOccurrences, total: wetOccurrences };
-  }
-  if (!progress.dawn && dawnOccurrences > 0) {
-    progress.dawn = { complete: dawnOccurrences, total: dawnOccurrences };
-  }
-  if (!progress.amber && amberOccurrences > 0) {
-    progress.amber = { complete: amberOccurrences, total: amberOccurrences };
-  }
-
   return {
     letters: orderedLetters,
     hasFrozen,
@@ -435,6 +410,7 @@ export function computeSlotStateFromMutationNames(mutations: string[]): PlantSlo
     hasGold,
     unknownMutations,
     progress,
+    mutationNames: [...mutations],
   };
 }
 
@@ -452,5 +428,6 @@ export function cloneSlotState(slot: PlantSlotState): PlantSlotState {
     hasGold: slot.hasGold,
     unknownMutations: [...(slot.unknownMutations ?? [])],
     progress: { ...(slot.progress ?? {}) },
+    mutationNames: [...(slot.mutationNames ?? [])],
   };
 }

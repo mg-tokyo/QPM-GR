@@ -20,6 +20,7 @@ import {
 } from '../../store/mutationSummary';
 import { getWeatherSnapshot, onWeatherSnapshot, startWeatherHub, type WeatherSnapshot } from '../../store/weatherHub';
 import type { DetailedWeather } from '../../utils/game/weatherDetection';
+import { onMutationRulesChange } from '../../catalogs/logic/mutationRulesCatalog';
 import {
   ensureReminderBusRegistered,
   publishReminderOk,
@@ -29,6 +30,7 @@ import {
 let initialized = false;
 let gardenUnsubscribe: (() => void) | null = null;
 let weatherUnsubscribe: (() => void) | null = null;
+let rulesUnsubscribe: (() => void) | null = null;
 let latestSnapshot: GardenSnapshot | null = null;
 let currentWeather: WeatherType = 'unknown';
 let evaluationTimer: number | null = null;
@@ -73,6 +75,9 @@ export function startMutationTracker(): void {
     scheduleEvaluation();
   }, true);
 
+  // The rule engine answers group-only until the bundle rules parse; re-run once they land.
+  rulesUnsubscribe = onMutationRulesChange(() => { scheduleEvaluation(); });
+
   scheduleEvaluation();
   reminderDiag.debug('Garden mutation tracker ready');
   publishReminderOk('Started', { weather: currentWeather });
@@ -82,8 +87,10 @@ export function stopMutationTracker(): void {
   if (!initialized) return;
   gardenUnsubscribe?.();
   weatherUnsubscribe?.();
+  rulesUnsubscribe?.();
   gardenUnsubscribe = null;
   weatherUnsubscribe = null;
+  rulesUnsubscribe = null;
   latestSnapshot = null;
   latestWeatherSnapshot = null;
   if (evaluationTimer !== null) {

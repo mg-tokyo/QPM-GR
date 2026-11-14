@@ -2,6 +2,11 @@ import { isRecord } from '../../../utils/typeGuards';
 import { atomSource, defineKey, stateSource } from '../define';
 import { selectMyData, selectMySlot } from './selectors';
 
+const idList = (v: unknown): string[] | undefined => {
+  if (v === null || typeof v !== 'object' || typeof (v as Iterable<unknown>)[Symbol.iterator] !== 'function') return undefined;
+  return Array.from(v as Iterable<unknown>).filter((x): x is string => typeof x === 'string');
+};
+
 export const PET_KEYS = {
   activePetSlots: defineKey<unknown[]>({
     policy: 'authoritative', tier: 'state', doc: 'Authoritative active pets (myData.petSlots). Feed/swap logic must not act on predictions.',
@@ -54,5 +59,11 @@ export const PET_KEYS = {
       stateSource('/child/data/userSlots/{myIdx}/riddenPetId', (s, id) => { const slot = selectMySlot(s, id); return !slot ? undefined : (typeof slot.riddenPetId === 'string' ? slot.riddenPetId : null); }),
       atomSource(/^myAuthoritativeRiddenPetIdAtom$/, 'authoritative', { project: (v) => (typeof v === 'string' ? v : null), requiresSeat: true }),
     ],
+  }),
+  // Read on demand, never subscribe: the game derives it from the raw garden, so a subscription
+  // rescans the garden every room frame (beta client/…/atoms/troughFeedingAtoms.ts:33-40). Live on build 2022.
+  troughFedPetIds: defineKey<string[]>({
+    policy: 'client', tier: 'composite', doc: 'Active pet ids the placed trough will feed (empty while no trough is placed; ridden pet excluded)',
+    sources: [atomSource(/^myAuthoritativeTroughFedPetIdsAtom$/, 'client', { project: idList, requiresSeat: true })],
   }),
 };

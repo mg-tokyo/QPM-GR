@@ -30,6 +30,13 @@ export const ECONOMY_KEYS = {
     policy: 'client', tier: 'dynamic', defaultValue: 0, doc: 'Credits (account-level, not in room state)',
     sources: [atomSource(/^creditsBalanceAtom$/, 'client', { project: num })],
   }),
+  // Atom-only, so policy 'client' (see isSpectating). Derived by the game from the filled seats
+  // (beta client/…/atoms/miscAtoms.ts:24-31; beta also returns 1.0 to a spectator). Tier 'state':
+  // every input is room state.
+  friendBonusMultiplier: defineKey<number>({
+    policy: 'client', tier: 'state', doc: 'Friend bonus sell multiplier (friendBonusMultiplierAtom)',
+    sources: [atomSource(/^friendBonusMultiplierAtom$/, 'client', { project: num })],
+  }),
   shopPurchases: defineKey<Record<string, unknown>>({
     policy: 'authoritative', tier: 'state', doc: 'Per-shop purchase counters (myData.shopPurchases)',
     sources: [

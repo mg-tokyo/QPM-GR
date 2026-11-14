@@ -118,6 +118,52 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
 
   const { getNpcDialogueDiagnostics, restartCompanionInjector } = await import('../../features/npcDialogue');
   (QPM_DEBUG_API as any).npcDialogue = { diagnostics: getNpcDialogueDiagnostics, restartInjector: restartCompanionInjector };
+  const popupSilencer = await import('../../features/popupSilencer');
+  (QPM_DEBUG_API as any).popupSilencer = {
+    diagnostics: popupSilencer.getPopupSilencerDiagnostics,
+    settings: popupSilencer.getPopupSilencerSettings,
+    setAbilities: popupSilencer.setSilencedAbilities,
+    setLevelUps: popupSilencer.setLevelUpsSilenced,
+  };
+  const alertHub = await import('../../features/alertHub');
+  const { notify, onNotifications } = await import('../../core/notifications');
+  const readHistory = (feature?: string): Array<{ feature: string; level: string; message: string; timestamp: number }> => {
+    let snap: Array<{ feature: string; level: string; message: string; timestamp: number }> = [];
+    onNotifications((events) => { snap = events.map(({ feature: f, level, message, timestamp }) => ({ feature: f, level, message, timestamp })); })();
+    return feature ? snap.filter((e) => e.feature === feature) : snap;
+  };
+  (QPM_DEBUG_API as any).alertHub = {
+    history: readHistory,
+    // QPM's own History feed only (e.g. a versionChecker message), never game state.
+    notify: (feature: string, message: string, level: 'info' | 'success' | 'warn' | 'error' = 'info') => notify({ feature, level, message }).id,
+    state: alertHub.getAlertHubState,
+    setSoundsOn: alertHub.setAlertSoundsOn,
+    registerRow: alertHub.registerAlertRow,
+    setRowEnabled: alertHub.setAlertRowEnabled,
+    setRowSound: alertHub.setAlertRowSound,
+    raise: alertHub.raiseAlert,
+    test: alertHub.testAlertHub,
+    desktop: alertHub.getDesktopState,
+    setDesktopOn: alertHub.setDesktopOn,
+    setRowDesktop: alertHub.setRowDesktop,
+    requestDesktop: alertHub.requestDesktopPermission,
+  };
+  const hungerAlarm = await import('../../features/pets/hungerAlarm');
+  (QPM_DEBUG_API as any).hungerAlarm = {
+    state: hungerAlarm.getHungerAlarmDiagnostics,
+    setDefault: hungerAlarm.setHungerAlarmDefault,
+    setPet: hungerAlarm.setPetHungerThreshold,
+  };
+  const troughAlarm = await import('../../features/pets/troughAlarm');
+  (QPM_DEBUG_API as any).troughAlarm = {
+    state: troughAlarm.getTroughAlarmDiagnostics,
+    setLowAt: troughAlarm.setTroughLowAt,
+  };
+  const nightfallAlarm = await import('../../features/nightfallAlarm');
+  (QPM_DEBUG_API as any).nightfallAlarm = {
+    state: nightfallAlarm.getNightfallAlarmState,
+    setLead: nightfallAlarm.setNightfallLeadMinutes,
+  };
   const { loadCamera3dDebugApi } = await import('../../features/camera3d');
   (QPM_DEBUG_API as any).camera3d = await loadCamera3dDebugApi();
   const { loadSpectatorDebugApi } = await import('../../features/spectator');

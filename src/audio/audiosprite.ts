@@ -1,5 +1,8 @@
 import { pageWindow } from '../core/pageContext';
 import { createNamedLogger } from '../diagnostics/logger';
+import { buildAssetsBaseUrl } from '../sprite-v2/detector';
+import { findManifestAssetUrl, getAssetManifest } from '../sprite-v2/manifest';
+import type { ManifestLike } from '../sprite-v2/manifest';
 import type { BridgePlayOpts } from './types';
 
 const spriteLog = createNamedLogger('audio.sprite');
@@ -71,35 +74,82 @@ function extractAtlas(data: unknown): Record<string, { start: number; end: numbe
   return null;
 }
 
-export function tryInitAudiosprite(): Promise<boolean> {
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    const urls = discoverAudiospriteUrls();
-    if (!urls) { spriteLog.debug('no audiosprite URLs in resource timing'); return false; }
-    const ctx = ensureAudioContext();
-    if (!ctx) { spriteLog.debug('no AudioContext ctor'); return false; }
+// The game's asset-manifest aliases for its sfx sprite and atlas; SfxSprite derives the atlas as `<name>-atlas`.
+// Verified at scraped-data/BetaGameSourceFiles/pr-4669-gke-2911/…/client/src/audio/audioRuntime.ts:87, SfxSprite.ts:139.
+const SFX_ALIAS = 'audio/sfx/sfx';
+const SFX_ATLAS_ALIAS = 'audio/sfx/sfx-atlas';
+
+type AudiospriteUrls = { mp3: string; json: string };
+
+let manifestUrlsPromise: Promise<AudiospriteUrls | null> | null = null;
+
+export function audiospriteUrlsFromManifest(manifest: ManifestLike, base: string, origin: string): AudiospriteUrls | null {
+  const mp3 = findManifestAssetUrl(manifest, SFX_ALIAS, base, origin);
+  const json = findManifestAssetUrl(manifest, SFX_ATLAS_ALIAS, base, origin);
+  return mp3 && json ? { mp3, json } : null;
+}
+
+// The game loads its sfx only while the tab is visible and focused, so resource timing can stay empty
+// all session; since 2036 (Birdsong AudioBuffer, no @pixi/sound) the bridge cannot stand in. Read once.
+function resolveManifestAudiospriteUrls(): Promise<AudiospriteUrls | null> {
+  manifestUrlsPromise ??= (async () => {
     try {
-      const [jsonResp, mp3Resp] = await Promise.all([fetch(urls.json), fetch(urls.mp3)]);
-      if (!jsonResp.ok || !mp3Resp.ok) {
-        spriteLog.debug('fetch failed', { jsonOk: jsonResp.ok, mp3Ok: mp3Resp.ok });
-        return false;
-      }
-      const jsonData = await jsonResp.json();
-      const map = extractAtlas(jsonData);
-      if (!map) { spriteLog.debug('atlas extract failed'); return false; }
-      const buf = await mp3Resp.arrayBuffer();
-      const decoded = await ctx.decodeAudioData(buf.slice(0));
-      audioBuffer = decoded;
-      atlas = map;
-      discoveredMp3 = urls.mp3;
-      discoveredJson = urls.json;
-      return true;
+      const base = buildAssetsBaseUrl();
+      const manifest = await getAssetManifest<ManifestLike>(base);
+      const urls = audiospriteUrlsFromManifest(manifest, base, window.location.origin);
+      if (!urls) spriteLog.debug('manifest has no sfx audiosprite aliases');
+      return urls;
     } catch (err) {
-      spriteLog.debug('init threw', { error: String((err as Error)?.message ?? err) });
-      return false;
+      spriteLog.debug('manifest lookup failed', { error: String((err as Error)?.message ?? err) });
+      return null;
     }
   })();
-  return initPromise;
+  return manifestUrlsPromise;
+}
+
+const NO_URLS = Symbol('no-audiosprite-urls');
+
+export function tryInitAudiosprite(): Promise<boolean> {
+  if (initPromise) return initPromise;
+  const attempt = loadAudiosprite().then((result) => {
+    if (result !== NO_URLS) return result;
+    // Only the local resource-timing scan repeats on retry; the manifest read is memoised.
+    if (initPromise === attempt) initPromise = null;
+    return false;
+  });
+  initPromise = attempt;
+  return attempt;
+}
+
+// Fetch/decode failures stay cached in initPromise so a broken asset is not re-requested every tick.
+async function loadAudiosprite(): Promise<boolean | typeof NO_URLS> {
+  const urls = discoverAudiospriteUrls() ?? await resolveManifestAudiospriteUrls();
+  if (!urls) {
+    spriteLog.debug('no audiosprite URLs in resource timing or manifest');
+    return NO_URLS;
+  }
+  const ctx = ensureAudioContext();
+  if (!ctx) { spriteLog.debug('no AudioContext ctor'); return false; }
+  try {
+    const [jsonResp, mp3Resp] = await Promise.all([fetch(urls.json), fetch(urls.mp3)]);
+    if (!jsonResp.ok || !mp3Resp.ok) {
+      spriteLog.debug('fetch failed', { jsonOk: jsonResp.ok, mp3Ok: mp3Resp.ok });
+      return false;
+    }
+    const jsonData = await jsonResp.json();
+    const map = extractAtlas(jsonData);
+    if (!map) { spriteLog.debug('atlas extract failed'); return false; }
+    const buf = await mp3Resp.arrayBuffer();
+    const decoded = await ctx.decodeAudioData(buf.slice(0));
+    audioBuffer = decoded;
+    atlas = map;
+    discoveredMp3 = urls.mp3;
+    discoveredJson = urls.json;
+    return true;
+  } catch (err) {
+    spriteLog.debug('init threw', { error: String((err as Error)?.message ?? err) });
+    return false;
+  }
 }
 
 export function isFetchedReady(): boolean { return !!(audioBuffer && atlas); }

@@ -21,6 +21,8 @@ import { t } from '../../../i18n';
 import { startControllerStatus } from '../../panel/tileStatusesCore';
 import { startShopKeybindsStatus, startPanelShortcutStatus } from '../../panel/tileStatusesNew';
 import { getDiagnosticsCard } from '../../../diagnostics/configCard';
+import { getAlertCentreCard } from '../../../features/alertHub/centreCard';
+import { areAlertsWipEnabled } from '../../../utils/wipFeatures';
 import { getCamera3dCard } from '../../sections/camera3dSection';
 import { getSpectatorCard } from '../../sections/spectatorSection';
 import { getGameUpdateRefreshCard } from '../../sections/gameUpdateRefreshSection';
@@ -532,7 +534,7 @@ export function getConfigGroup(): HubGroupDef {
     icon: { kind: 'emoji', value: '⚙️' },
     cards: [
       controllerCard, panelShortcutCard, shopKeybindsCard, shopEnhancerCard, npcDialogueCard, getCamera3dCard(), getSpectatorCard(),
-      getGameUpdateRefreshCard(), getDiagnosticsCard(), resetToursCard,
+      getGameUpdateRefreshCard(), ...(areAlertsWipEnabled() ? [getAlertCentreCard()] : []), getDiagnosticsCard(), resetToursCard,
     ],
   };
 }

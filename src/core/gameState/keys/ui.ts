@@ -125,4 +125,17 @@ export const UI_KEYS = {
     policy: 'client', tier: 'client', defaultValue: null, doc: 'NPC the player can Talk to right now (standing on or beside it), or null',
     sources: [atomSource(/^adjacentNpcIdAtom$/, 'client', { project: (v) => (typeof v === 'string' ? v : v === null ? null : undefined) })],
   }),
+  quinoaToasts: defineKey<unknown[]>({
+    policy: 'client', tier: 'client', defaultValue: [],
+    doc: 'Game toast queue. Every add is sendQuinoaToast → set(quinoaToastsAtom, updater) (beta toastAtoms.ts:250). Live build 2022: no quinoaToastsAtom label; the room scope\'s unlabelled `toasts` atom, swapped with the room. Write-intercepted only (popupSilencer).',
+    sources: [
+      atomSource(/^currentRoomAtom$/, 'client', { via: 'toasts', writable: true, structure: Array.isArray }),
+      atomSource(/^quinoaToastsAtom$/, 'client', { writable: true, structure: Array.isArray }),
+    ],
+  }),
+  roomScopeId: defineKey<string | null>({
+    policy: 'client', tier: 'client', defaultValue: null,
+    doc: 'Id of the current room scope (RoomScope.id, a fresh UUID per scope; beta RoomScope.ts:39). Changes when the game swaps the scope on a room handoff, even when every scope-held atom is still empty.',
+    sources: [atomSource(/^currentRoomAtom$/, 'client', { project: (v) => (isRecord(v) && typeof v.id === 'string' ? v.id : undefined) })],
+  }),
 };

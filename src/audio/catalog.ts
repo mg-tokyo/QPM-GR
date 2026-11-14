@@ -58,8 +58,11 @@ export function waitForAudio(timeoutMs = HARD_DEADLINE_MS): Promise<boolean> {
   });
 }
 
+// A late audiosprite resolve may upgrade a timed-out 'none'; markNone never fired readyCbs, so they run now.
+function isSettled(): boolean { return ready && route !== 'none'; }
+
 function markReady(newRoute: AudioRoute, catalog: readonly string[], sub: AudioSubroute = null): void {
-  if (ready) return;
+  if (isSettled()) return;
   route = newRoute;
   subroute = sub;
   names = new Set(catalog);
@@ -86,7 +89,7 @@ export function markNone(): void {
 }
 
 function tryResolveBridge(): boolean {
-  if (ready) return true;
+  if (isSettled()) return true;
   const b = getAudioBridge();
   if (!b || !b.hasAtlas()) return false;
   const atlas = b.getAtlas();
@@ -98,7 +101,7 @@ function tryResolveBridge(): boolean {
 }
 
 function tryResolveFetched(): boolean {
-  if (ready) return true;
+  if (isSettled()) return true;
   if (!isFetchedReady()) return false;
   const keys = fetchedNames();
   if (keys.length === 0) return false;
@@ -142,7 +145,7 @@ function stopPollLoop(): void {
 /** Force a one-shot re-check; used by the gesture primer. Async so it can
  *  await the audiosprite fetch/decode when discovery hasn't fired yet. */
 export function retryCatalogNow(): void {
-  if (ready && route !== 'none') return;
+  if (isSettled()) return;
   if (tryResolveBridge()) return;
   if (tryResolveFetched()) return;
   void tryInitAudiosprite().then((ok) => { if (ok) tryResolveFetched(); });

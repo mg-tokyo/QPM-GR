@@ -4,6 +4,7 @@ import { formatCoinsAbbreviated } from '../../../features/economy/valueCalculato
 import { throttle } from '../../../utils/scheduling/scheduling';
 import { buildAbilityValuationContext, type AbilityValuationContext } from '../../../features/pets/abilityValuation';
 import { onGardenSnapshot } from '../../../features/garden/bridge';
+import { getMutationEtaSnapshot, subscribeMutationEta, type MutationEtaSnapshot } from '../../../features/garden/mutationEta';
 import { getWeatherSnapshot, onWeatherSnapshot } from '../../../store/weatherHub';
 import { arePetAbilitiesCaptured, onPetAbilitiesCaptured } from '../../../utils/game/catalogHelpers';
 import { visibleInterval } from '../../../utils/scheduling/timerManager';
@@ -77,6 +78,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   let latestPets: ActivePetInfo[] = [];
   let timerCells: HTMLElement[] = [];
   let lastRenderSig: string | null = null;
+  let etaSnapshot: MutationEtaSnapshot = getMutationEtaSnapshot();
 
   const buildRenderSignature = (pets: ActivePetInfo[]): string => {
     const rateContext = getAbilityRateContext(null);
@@ -86,6 +88,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
       String(arePetAbilitiesCaptured()),
       rateContext.stage ?? '',
       String(rateContext.strengthBonus),
+      etaSnapshot.entries.map((e) => `${e.mutation}:${e.remaining}:${e.etaHours?.toFixed(2) ?? '-'}:${e.granters.length}`).join(','),
     ];
     for (const pet of pets) {
       const petKey = getCardPetKey(pet);
@@ -148,7 +151,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
 
     let hasCards = false;
     for (const pet of activePets) {
-      const card = buildPetCard(pet, gardenCtx);
+      const card = buildPetCard(pet, gardenCtx, etaSnapshot.entries);
       if (card) {
         cardsContainer.appendChild(card);
         hasCards = true;
@@ -178,6 +181,7 @@ export function renderAbilityTrackerContent(container: HTMLElement): () => void 
   cleanups.push(unsubHistory);
   cleanups.push(onWeatherSnapshot(() => { throttledHistoryRender(); }, false));
   cleanups.push(onPetAbilitiesCaptured(() => { throttledHistoryRender(); }));
+  cleanups.push(subscribeMutationEta((next) => { etaSnapshot = next; throttledHistoryRender(); }, false));
 
   // Parsed cycle parts are not in the signature, so a parse forces a fresh render.
   cleanups.push(onDayCycleChange(() => { lastRenderSig = null; throttledHistoryRender(); }));

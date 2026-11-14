@@ -10,8 +10,12 @@ import type { ActiveAlert, PendingOwnershipConfirmation } from './types';
 // ---------------------------------------------------------------------------
 
 export const activeAlerts = new Map<string, ActiveAlert>();
+/** Alert-hub cards sharing the restock stack; the root stays while any is open. */
+export const hubCards = new Set<HTMLElement>();
 export const dismissedInStockKeys = new Set<string>();
 export const dismissedCyclesByKey = new Map<string, string>();
+/** restockId → shop category, so a persisted dismissal knows which shop's cycle retires it. */
+export const restockShopById = new Map<string, string>();
 export const ownershipListeners = new Set<() => void>();
 export const pendingOwnershipConfirmations = new Map<string, PendingOwnershipConfirmation>();
 export const alertSpriteUrlCache = new Map<string, string | null>();

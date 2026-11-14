@@ -3,10 +3,10 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../rive-engine/fetchInterceptor', () => ({ listSeenRivUrls: () => [] }));
-vi.mock('../manifest', () => ({
+vi.mock('../manifest', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../manifest')>()),
   getAssetManifest: async () => ({ bundles: [] }),
   getBlob: async () => new Blob(),
-  joinPath: (base: string, path: string) => base.replace(/\/?$/, '/') + String(path || '').replace(/^\//, ''),
 }));
 vi.mock('../detector', () => ({ buildAssetsBaseUrl: () => 'https://game.test/version/1973/assets/' }));
 vi.mock('../diagnostics', () => ({ spriteLog: () => {} }));

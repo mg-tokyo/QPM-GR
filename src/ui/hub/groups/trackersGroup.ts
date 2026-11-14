@@ -4,6 +4,7 @@ import type { HubGroupDef, ExpandableCardConfig, LauncherCardConfig } from '../c
 import { toggleWindow, openWindow, closeWindow, destroyWindow, isWindowOpen, windowLog } from '../../core/modalWindow';
 import { waitForCatalogs } from '../../../catalogs/gameCatalogs';
 import { t } from '../../../i18n';
+import { areAlertsWipEnabled } from '../../../utils/wipFeatures';
 import {
   startTurtleTimerStatus,
   startCropBoostStatus,
@@ -327,6 +328,37 @@ export function getTrackersGroup(): HubGroupDef {
     },
   };
 
+  const forecastCard: LauncherCardConfig = {
+    key: 'forecast-widget',
+    label: t('hub.trackers.forecast.label'),
+    description: t('hub.trackers.forecast.description'),
+    icon: {
+      kind: 'sprite', value: '',
+      bunched: [
+        { spriteKey: 'sprite/ui/RainIcon', offsetX: -6, offsetY: 0, scale: 0.85 },
+        { spriteKey: 'sprite/ui/DawnIcon', offsetX: 8, offsetY: 0, scale: 0.85 },
+      ],
+    },
+    labelColor: 'var(--qpm-accent)',
+    tier: 'launcher',
+    tile: {
+      // eslint-disable-next-line qpm/no-emoji-in-ui -- TileMeta.icon renders via textContent (src/ui/panel/tileGrid.ts:146); no sprite path exists for tile icons yet — matches every other tile in this file.
+      icon: '🌦',
+      // eslint-disable-next-line qpm/no-hardcoded-colors -- TileMeta.color is a per-feature rgba tint applied at render time (src/ui/panel/tileGrid.ts:127-129); no design token for tile tints exists.
+      color: 'rgba(192, 132, 252, 0.28)',
+      defaultStatus: '—',
+    },
+    renderSummary: (el) => {
+      el.style.cssText = 'font-size:12px;color:var(--qpm-text-muted);margin-top:2px;';
+      el.textContent = t('hub.trackers.forecast.summary');
+    },
+    onOpen: () => {
+      import('../../forecastWidget').then(({ openForecastWidget }) => {
+        openForecastWidget();
+      }).catch(e => windowLog.warn('QPM-UI-002', { what: 'lazy:forecast' }, e));
+    },
+  };
+
   return {
     id: 'trackers',
     label: t('hub.trackers.label'),
@@ -340,6 +372,6 @@ export function getTrackersGroup(): HubGroupDef {
         { spriteKey: 'sprite/pet/Turtle', offsetX: 9, offsetY: 6, scale: 0.7 },
       ],
     },
-    cards: [abilityCard, xpCard, turtleCard, cropsCard, pityCard, shopRestockCard, activityLogCard, chargedAbilitiesCard],
+    cards: [abilityCard, xpCard, turtleCard, cropsCard, pityCard, shopRestockCard, activityLogCard, chargedAbilitiesCard, ...(areAlertsWipEnabled() ? [forecastCard] : [])],
   };
 }

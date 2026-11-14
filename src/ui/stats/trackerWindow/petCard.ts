@@ -5,6 +5,9 @@ import { findAbilityHistoryForIdentifiers } from '../../../store/abilityLogs';
 import { formatCoinsAbbreviated } from '../../../features/economy/valueCalculator';
 import type { AbilityValuationContext } from '../../../features/pets/abilityValuation';
 import { t } from '../../../i18n';
+import type { MutationEtaEntry } from '../../../features/garden/mutationEta';
+import { getMutationName } from '../../../utils/game/catalogHelpers';
+import { describeEta } from '../mutationEtaText';
 import { resolvePetAbilities, type ActiveAbility } from './abilities';
 import { updateTimerCell } from './timing';
 
@@ -38,6 +41,21 @@ function buildDayAverageLine(ability: ActiveAbility, procsText: string, coinsTex
   return line;
 }
 
+/** ALR-5.4: pool-wide ETA on a granter row while this pet counts towards it (fed, weather on). */
+function buildEtaLine(pet: ActivePetInfo, ability: ActiveAbility, etaEntries: readonly MutationEtaEntry[]): HTMLElement | null {
+  const entry = etaEntries.find((e) =>
+    e.granters.some((g) => g.abilityId === ability.def.id && g.slotIndex === pet.slotIndex));
+  if (!entry) return null;
+  const line = document.createElement('span');
+  line.textContent = t('feature.mutationEta.trackerRow', {
+    mutation: getMutationName(entry.mutation),
+    eta: describeEta(entry),
+    count: String(entry.remaining),
+  });
+  line.style.cssText = 'flex-basis:100%;padding-left:16px;font-size:10px;color:var(--qpm-text-muted);';
+  return line;
+}
+
 /** e.g. "Midnight +20 STR"; shown at every stage for a nocturnal pet (PD2). */
 function stageLabelFor(abilities: readonly ActiveAbility[]): string | null {
   const first = abilities[0];
@@ -51,6 +69,7 @@ function buildAbilityRow(
   petKey: string,
   ability: ActiveAbility,
   onHide: (abilityId: string) => void,
+  etaEntries: readonly MutationEtaEntry[],
 ): HTMLElement {
   const statsKey = `${petKey}:${ability.def.id}`;
 
@@ -141,6 +160,8 @@ function buildAbilityRow(
 
   const dayAverageEl = buildDayAverageLine(ability, procsText, coinsText);
   if (dayAverageEl) row.appendChild(dayAverageEl);
+  const etaEl = buildEtaLine(pet, ability, etaEntries);
+  if (etaEl) row.appendChild(etaEl);
 
   // Stats visibility toggle — click the row to show/hide procs/coins/timer columns.
   const applyStatsVisibility = () => {
@@ -150,6 +171,7 @@ function buildAbilityRow(
     coinsChip.style.display = vis;
     timerEl.style.display = vis;
     if (dayAverageEl) dayAverageEl.style.display = vis;
+    if (etaEl) etaEl.style.display = vis;
     name.style.opacity = hidden ? '0.55' : '1';
     row.title = hidden ? t('feature.abilityTracker.statsHidden', { name: ability.def.name }) : t('feature.abilityTracker.statsVisible', { name: ability.def.name });
   };
@@ -167,7 +189,11 @@ function buildAbilityRow(
   return row;
 }
 
-export function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationContext): HTMLElement | null {
+export function buildPetCard(
+  pet: ActivePetInfo,
+  gardenCtx?: AbilityValuationContext,
+  etaEntries: readonly MutationEtaEntry[] = [],
+): HTMLElement | null {
   const petKey = getCardPetKey(pet);
   const allAbilities = resolvePetAbilities(pet, gardenCtx);
   if (!allAbilities.length) return null;
@@ -328,7 +354,7 @@ export function buildPetCard(pet: ActivePetInfo, gardenCtx?: AbilityValuationCon
           hiddenAbilities.set(petKey, set);
           buildAbilityRows();
           updateHiddenBadge();
-        }));
+        }, etaEntries));
       }
     }
   };

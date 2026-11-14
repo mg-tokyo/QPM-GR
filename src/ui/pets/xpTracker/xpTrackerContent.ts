@@ -4,22 +4,20 @@ import { formatCoins } from '../../../features/economy/valueCalculator';
 import { onActivePetInfos, type ActivePetInfo } from '../../../store/pets';
 import { getPetSpriteDataUrlWithMutations } from '../../../sprite-v2/compat';
 import {
-  calculateXpStats,
-  getCombinedXpStats,
   getSpeciesXpPerLevel,
   calculateMaxStrength,
   calculateTimeToLevel,
   onXpTrackerUpdate,
   type XpAbilityStats,
 } from '../../../store/xpTracker';
-import { getAbilityDefinition, type AbilityDefinition } from '../../../features/pets/data/petAbilities';
+import { computeTeamXpRates, minutesToMaxStr, PASSIVE_XP_PER_HOUR } from '../../../store/xpEta';
 import { getAbilityColor } from '../../../utils/rendering/petCardRenderer';
 import { getHungerCapOrDefault } from '../../../features/pets/data/petHungerCaps';
 import { calculateFeedsPerLevel } from '../../../features/pets/data/petHungerDepletion';
 import { throttle } from '../../../utils/scheduling/scheduling';
 import { getWeatherSnapshot } from '../../../store/weatherHub';
 import type { DetailedWeather } from '../../../utils/game/weatherDetection';
-import { arePetAbilitiesCaptured, getAbilityName, onPetAbilitiesCaptured } from '../../../utils/game/catalogHelpers';
+import { arePetAbilitiesCaptured, onPetAbilitiesCaptured } from '../../../utils/game/catalogHelpers';
 import { onCatalogsReady } from '../../../catalogs/gameCatalogs';
 import { onDayCycleChange } from '../../../catalogs/logic/dayCycleCatalog';
 import { isGameStateReady, subscribe } from '../../../core/gameState';
@@ -42,19 +40,6 @@ const WEATHER_ICONS: Record<string, string> = {
   snow: '❄️', rain: '🌧️', dawn: '🌅', amber: '🌕', thunderstorm: '⚡', sunny: '☀️',
 };
 
-// ============================================================================
-// ABILITY DETECTION — dynamic, catalog-driven (no hardcoded ID list)
-// ============================================================================
-
-function findXpAbilities(pet: ActivePetInfo): AbilityDefinition[] {
-  if (!pet.abilities?.length) return [];
-  return pet.abilities
-    .map(id => getAbilityDefinition(id))
-    .filter((def): def is AbilityDefinition =>
-      def?.category === 'xp' && def.trigger === 'continuous'
-    );
-}
-
 export interface XpTrackerSummaryStats {
   abilityCount: number;
   abilityXpPerHour: number;
@@ -71,23 +56,15 @@ interface XpTrackerComputedStats extends XpTrackerSummaryStats {
 
 function getXpTrackerComputedStats(pets: ActivePetInfo[]): XpTrackerComputedStats {
   const currentWeather = getWeatherSnapshot().kind;
-  const stats: XpAbilityStats[] = [];
-  for (const pet of pets) {
-    for (const def of findXpAbilities(pet)) {
-      stats.push(calculateXpStats(pet, def, getAbilityName(def.id), currentWeather));
-    }
-  }
-
-  const combined = stats.length > 0 ? getCombinedXpStats(stats) : null;
-  const abilityXpPerHour = combined?.totalXpPerHour ?? 0;
+  const rates = computeTeamXpRates(pets, currentWeather);
   return {
-    stats,
-    planningTeamXpPerHour: 3600 + (combined?.totalDayAverageXpPerHour ?? abilityXpPerHour),
-    abilityCount: stats.length,
-    abilityXpPerHour,
-    totalTeamXpPerHour: 3600 + abilityXpPerHour,
-    totalProcsPerHour: combined?.totalProcsPerHour ?? 0,
-    totalProcCount: combined?.totalProcCount ?? 0,
+    stats: rates.stats,
+    planningTeamXpPerHour: rates.planningTeamXpPerHour,
+    abilityCount: rates.stats.length,
+    abilityXpPerHour: rates.abilityXpPerHour,
+    totalTeamXpPerHour: rates.liveTeamXpPerHour,
+    totalProcsPerHour: rates.totalProcsPerHour,
+    totalProcCount: rates.totalProcCount,
     currentWeather,
   };
 }
@@ -383,9 +360,7 @@ function createPetCard(
           chips.appendChild(makeChip(`⏱ ${t('feature.xpTracker.nextLevel', { time: formatTime(timeToNext.totalMinutes) })}`, 'var(--qpm-positive)'));
         }
 
-        const levelsLeft = maxStr - pet.strength;
-        const xpToMax = (xpPerLevel - xpToNext) + xpPerLevel * (levelsLeft - 1);
-        const minsToMax = (xpToMax / teamXpPerHour) * 60;
+        const minsToMax = minutesToMaxStr({ xp: pet.xp, strength: pet.strength, maxStr, xpPerLevel }, teamXpPerHour) ?? 0;
         chips.appendChild(makeChip(`🏁 ${t('feature.xpTracker.toMax', { time: formatTime(minsToMax) })}`, 'var(--qpm-warning)'));
 
         // ── XP Potion button (3rd chip, after next + max) ──
@@ -433,7 +408,7 @@ function updateSummaryStrip(
   planningTeamXpPerHour: number,
 ): void {
   el.innerHTML = '';
-  const abilityXp = teamXpPerHour - 3600;
+  const abilityXp = teamXpPerHour - PASSIVE_XP_PER_HOUR;
   const weatherIcon = WEATHER_ICONS[weather] ?? '';
   const weatherLabel = weather === 'unknown' ? '' : weather;
 

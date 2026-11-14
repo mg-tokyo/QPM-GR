@@ -14,6 +14,11 @@ export const FIXTURE_SNAPSHOT: QuinoaStateSnapshot = {
     scope: 'Quinoa',
     data: {
       weather: null,
+      weatherWindow: null,
+      weatherForecast: [
+        { groupId: 'Lunar', weatherId: null, startsAtMs: 1794556800000, endsAtMs: 1794557400000 },
+        { groupId: 'Hydro', weatherId: 'Rain', startsAtMs: 1794559500000, endsAtMs: 1794560100000 },
+      ],
       shops: { seed: { inventory: [] } },
       spectators: [],
       currentTime: 1794116408575,
@@ -67,7 +72,7 @@ export const FIXTURE_SNAPSHOT: QuinoaStateSnapshot = {
                 {
                   decorId: 'FeedingTrough',
                   capacitySlots: 9,
-                  items: [],
+                  items: [{ id: 'f1', itemType: 'Produce' }],
                 },
               ],
             },

@@ -74,6 +74,8 @@ export interface ShopStockCategoryState {
   signature: string;
   updatedAt: number;
   raw: ShopCategorySnapshot | null;
+  /** Cycle of the snapshot the shop sells from (a bought custom restock has its own); null without one. */
+  restockId: string | null;
 }
 
 export type RestockTiming = Pick<ShopStockCategoryState, 'secondsUntilRestock' | 'nextRestockAt' | 'restockIntervalMs'>;
@@ -406,5 +408,6 @@ export function buildCategoryState(
     signature,
     updatedAt: now,
     raw: snapshot ?? null,
+    restockId: cycle?.restockId ?? null,
   };
 }

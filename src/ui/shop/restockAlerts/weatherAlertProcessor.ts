@@ -4,7 +4,8 @@
 import { onWeatherSnapshot, type WeatherSnapshot } from '../../../store/weatherHub';
 import { storage } from '../../../utils/storage';
 import { TRACKED_KEY } from './types';
-import { upsertAlert, removeAlert } from './alertDom';
+import { removeAlert } from './alertDom';
+import { upsertAlertWithDesktop } from './desktopRelay';
 import { activeAlerts } from './alertState';
 
 const WEATHER_TRACKED_PREFIX = 'weather:';
@@ -64,7 +65,7 @@ function handleWeatherChange(snapshot: WeatherSnapshot): void {
         ? Math.max(0, snapshot.expectedEndAt - Date.now())
         : 0;
 
-      upsertAlert({
+      upsertAlertWithDesktop({
         key: alertKey,
         shopType: 'weather',
         itemId: weatherId,

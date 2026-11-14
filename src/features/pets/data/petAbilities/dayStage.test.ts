@@ -10,6 +10,7 @@ const CYCLE_1989: DayCycleData = {
     { id: 'midnight', minutes: 10 },
     { id: 'sunrise', minutes: 10 },
   ],
+  stageOrder: null,
   nocturnalBonus: { day: 0, sunset: 15, midnight: 20, sunrise: 10 },
   chanceCapPerMinute: 0.99,
   crystalModifiers: {
@@ -158,6 +159,7 @@ describe('day average', () => {
   it('an extra stage in the parsed table flows through', () => {
     live.cycle = {
       stages: [...(CYCLE_1989.stages ?? []), { id: 'eclipse', minutes: 60 }],
+      stageOrder: null,
       nocturnalBonus: { ...CYCLE_1989.nocturnalBonus, eclipse: 50 },
       chanceCapPerMinute: 0.99,
       crystalModifiers: null,
@@ -170,7 +172,7 @@ describe('day average', () => {
   });
 
   it('is absent and the live rate has no stage term when day-cycle data is missing', () => {
-    live.cycle = { stages: null, nocturnalBonus: null, chanceCapPerMinute: null, crystalModifiers: null };
+    live.cycle = { stages: null, stageOrder: null, nocturnalBonus: null, chanceCapPerMinute: null, crystalModifiers: null };
     live.stage = 'midnight';
     const stats = computeAbilityStats(def(30), 80, getAbilityRateContext('Bat'));
     expect(stats.dayAverage).toBeUndefined();
@@ -275,7 +277,7 @@ describe('averageOverDayCycle', () => {
   });
 
   it('is null until the cycle is parsed', () => {
-    live.cycle = { stages: null, nocturnalBonus: null, chanceCapPerMinute: null, crystalModifiers: null };
+    live.cycle = { stages: null, stageOrder: null, nocturnalBonus: null, chanceCapPerMinute: null, crystalModifiers: null };
     expect(averageOverDayCycle(getAbilityRateContext('Bat'), procsAndValue)).toBeNull();
   });
 });

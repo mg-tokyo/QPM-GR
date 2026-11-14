@@ -107,6 +107,7 @@ describe('calculateXpStats on the shared ability maths', () => {
   // 1989 values as test data only (plan: no hardcoded game tables in src).
   const cycle: DayCycleData = {
     stages: [{ id: 'day', minutes: 210 }, { id: 'sunset', minutes: 10 }, { id: 'midnight', minutes: 10 }, { id: 'sunrise', minutes: 10 }],
+    stageOrder: null,
     nocturnalBonus: { day: 0, sunset: 15, midnight: 20, sunrise: 10 },
     chanceCapPerMinute: 0.99,
     crystalModifiers: null,

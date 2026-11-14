@@ -13,16 +13,19 @@ import {
   startChargedAbilityProjections,
   stopChargedAbilityProjections,
 } from './abilities';
+import { startReadyEdgeWatch, stopReadyEdgeWatch } from './readyEdge';
 
 export function startChargedAbilities(): void {
   startChargedAbilityProjections();
   startAbilityTargetingSelector();
+  startReadyEdgeWatch();
   startChargedAbilitiesPanel();
 }
 
 export function stopChargedAbilities(): void {
   closeChargedAbilitiesWindow();
   stopChargedAbilitiesPanel();
+  stopReadyEdgeWatch();
   stopAbilityTargetingSelector();
   stopChargedAbilityProjections();
 }

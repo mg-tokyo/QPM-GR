@@ -27,6 +27,7 @@ import {
   getCosmeticByFilename,
   isCosmeticOwned,
   isCosmeticAvailable,
+  getWeatherDef,
 } from '../../catalogs/gameCatalogs';
 import type { FloraBlueprint, SlotOffset } from '../../catalogs/gameCatalogs';
 import type { CosmeticCatalogEntry } from '../../catalogs/types';
@@ -145,4 +146,19 @@ export function isCosmeticOwnedSafe(filename: string): boolean | null {
 
 export function isCosmeticAvailableSafe(filename: string, availability: string): boolean | null {
   return isCosmeticAvailable(filename, availability);
+}
+
+export interface WeatherDefSafe {
+  id: string;
+  name: string;
+  groupId: string | null;   // e.g., "Hydro", "Lunar"
+  spriteKey: string | null;
+}
+
+/** The weather catalog loads apart from the main catalogs; null until it has this id. */
+export function getWeatherDefSafe(weatherId: string): WeatherDefSafe | null {
+  const def = getWeatherDef(weatherId);
+  if (!def) return null;
+  const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
+  return { id: weatherId, name: str(def.name) ?? weatherId, groupId: str(def.groupId), spriteKey: str(def.spriteId) ?? str(def.iconSpriteKey) };
 }

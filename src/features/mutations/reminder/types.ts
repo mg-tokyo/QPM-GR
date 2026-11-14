@@ -34,6 +34,8 @@ export interface PlantSlotState {
   progress: Partial<Record<MutationStage, MutationStageProgress>>;
   /** Any mutation names from the game catalog not matched by the known set above */
   unknownMutations: string[];
+  /** The names this state was built from, for the shared rule engine (utils/mutationCompatibility). */
+  mutationNames: string[];
 }
 
 export interface PlantData {
@@ -80,7 +82,7 @@ export interface InventoryLookups {
 }
 
 export type PlantDebugDetail =
-  | ({ strategy: 'inventory'; totalFruits: number; wetPending: number; wetFinished: number; wetNeedsSnow: number; wetProgressComplete: number; wetProgressTotal: number; domWetProgress: number; domWetNeedsSnow: number; dawnPending: number; dawnProgressComplete: number; dawnProgressTotal: number; domDawnComplete: number; amberPending: number; amberProgressComplete: number; amberProgressTotal: number; domAmberComplete: number; hasAnyDawn: boolean; hasAnyAmber: boolean; hasAnyRainbow: boolean; hasAnyGold: boolean })
+  | ({ strategy: 'inventory'; totalFruits: number; wetPending: number; wetFinished: number; wetNeedsSnow: number; wetProgressComplete: number; wetProgressTotal: number; domWetProgress: number; domWetNeedsSnow: number; dawnPending: number; dawnProgressComplete: number; dawnProgressTotal: number; domDawnComplete: number; amberPending: number; amberProgressComplete: number; amberProgressTotal: number; domAmberComplete: number; rulesRefused: number; hasAnyDawn: boolean; hasAnyAmber: boolean; hasAnyRainbow: boolean; hasAnyGold: boolean })
   | ({ strategy: 'fallback'; fruitCount: number; frozenCount: number; wetCount: number; chilledCount: number; dawnCount: number; amberCount: number; dawnBoundCount: number; amberBoundCount: number; rainbowCount: number; goldCount: number });
 
 export type MutationSummaryCollector = (

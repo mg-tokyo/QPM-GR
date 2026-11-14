@@ -1,116 +1,82 @@
+// One mutation rule engine for all of QPM (ALR-5 Task 2), modelled on the game's updateMutationList.
+// Exclusivity comes from the catalog `group`; replace / combine / clear cases from the rules parsed out
+// of the bundle (catalogs/logic/mutationRulesCatalog.ts). A mutation without a parsed rule gets the
+// group-only rule (ALR-5 PD1): blocked by any other mutation of its group, then appended.
+
+import { getMutation } from '../catalogs/gameCatalogs';
+import { getMutationRule } from '../catalogs/logic/mutationRulesCatalog';
 import { resolveMutation } from './game/cropMultipliers';
 
-const BASE_WATER_MUTS = new Set(['wet', 'chilled']);
-const UPGRADED_WATER_MUTS = new Set(['frozen']);
-const UPGRADED_DAWN_MUTS = new Set(['dawncharged']);
-const UPGRADED_AMBER_MUTS = new Set(['ambercharged']);
-const UPGRADED_THUNDER_MUTS = new Set(['thundercharged']);
-
+/** Catalog id for a mutation name or alias ('Amberlit' → 'Ambershine'); unknown names come back trimmed. */
 export function normalizeCanonicalMutation(input: string): string {
-  return resolveMutation(input)?.name.toLowerCase() ?? input.trim().toLowerCase();
+  return resolveMutation(input)?.name ?? input.trim();
 }
 
-export function canApplyMutation(
-  mutationName: string,
-  existingMutations: readonly string[],
-): boolean {
-  const canonicalMutation = normalizeCanonicalMutation(mutationName);
-  const existingCanonical = existingMutations.map(normalizeCanonicalMutation);
+function groupOf(id: string): string | null {
+  const group = getMutation(id)?.group;
+  return typeof group === 'string' ? group : null;
+}
 
-  if (existingCanonical.includes(canonicalMutation)) return false;
+function canApplyCanonical(add: string, existing: readonly string[]): boolean {
+  if (existing.includes(add)) return false;
+  const group = groupOf(add);
+  // No group known (catalog absent or a new id): nothing to check against, as the game's group test.
+  if (group === null) return true;
+  const mayReplace = getMutationRule(add)?.mayReplace ?? [];
+  return !existing.some((m) => m !== add && groupOf(m) === group && !mayReplace.includes(m));
+}
 
-  switch (canonicalMutation) {
-    case 'wet':
-    case 'chilled':
-      return !existingCanonical.includes('frozen') && !existingCanonical.includes('thunderstruck');
-    case 'frozen':
-      return !existingCanonical.includes('thunderstruck') && !existingCanonical.includes('frozen');
-    case 'thunderstruck':
-      return !existingCanonical.some((mutation) => (
-        BASE_WATER_MUTS.has(mutation)
-        || UPGRADED_WATER_MUTS.has(mutation)
-        || UPGRADED_THUNDER_MUTS.has(mutation)
-      ));
-    case 'thundercharged':
-      return !existingCanonical.some((mutation) => (
-        BASE_WATER_MUTS.has(mutation) || UPGRADED_WATER_MUTS.has(mutation)
-      ));
-    case 'dawnlit':
-    case 'ambershine':
-      return !existingCanonical.some((mutation) => (
-        mutation === 'dawnlit'
-        || mutation === 'ambershine'
-        || UPGRADED_DAWN_MUTS.has(mutation)
-        || UPGRADED_AMBER_MUTS.has(mutation)
-      ));
-    case 'dawncharged':
-      return (
-        !existingCanonical.some((mutation) => (
-          UPGRADED_DAWN_MUTS.has(mutation) || UPGRADED_AMBER_MUTS.has(mutation)
-        ))
-        && !existingCanonical.includes('ambershine')
-      );
-    case 'ambercharged':
-      return (
-        !existingCanonical.some((mutation) => (
-          UPGRADED_DAWN_MUTS.has(mutation) || UPGRADED_AMBER_MUTS.has(mutation)
-        ))
-        && !existingCanonical.includes('dawnlit')
-      );
-    case 'rainbow':
-    case 'gold':
-      return !existingCanonical.some((mutation) => mutation === 'rainbow' || mutation === 'gold');
-    default:
-      return true;
+function applyCanonical(add: string, existing: readonly string[]): string[] {
+  const rule = getMutationRule(add);
+  if (!rule) return [...existing, add];
+  if (rule.combine && existing.includes(rule.combine.with)) {
+    const combineWith = rule.combine.with;
+    return [...existing.filter((m) => m !== combineWith), rule.combine.into];
   }
+  let next = [...existing];
+  const cleared = rule.clearsGroup;
+  if (cleared !== null) next = next.filter((m) => groupOf(m) !== cleared);
+  next = next.filter((m) => !rule.removes.includes(m));
+  next.push(rule.adds);
+  return next;
 }
 
+export function canApplyMutation(mutationName: string, existingMutations: readonly string[]): boolean {
+  return canApplyCanonical(normalizeCanonicalMutation(mutationName), existingMutations.map(normalizeCanonicalMutation));
+}
+
+/** The crop's mutations after applying each of `mutationsToAdd` in order; refused ones are skipped. Catalog ids. */
 export function simulateMutationsAfterApplying(
   existingMutations: readonly string[],
   mutationsToAdd: readonly string[],
 ): string[] {
   let state = existingMutations.map(normalizeCanonicalMutation);
-
-  for (const mutationName of mutationsToAdd) {
-    const canonicalMutation = normalizeCanonicalMutation(mutationName);
-    if (!canApplyMutation(canonicalMutation, state)) continue;
-
-    switch (canonicalMutation) {
-      case 'wet':
-        state = state.includes('chilled')
-          ? [...state.filter((entry) => entry !== 'chilled'), 'frozen']
-          : [...state, 'wet'];
-        break;
-      case 'chilled':
-        state = state.includes('wet')
-          ? [...state.filter((entry) => entry !== 'wet'), 'frozen']
-          : [...state, 'chilled'];
-        break;
-      case 'frozen':
-        state = [...state.filter((entry) => !BASE_WATER_MUTS.has(entry)), 'frozen'];
-        break;
-      case 'dawncharged':
-        state = [...state.filter((entry) => entry !== 'dawnlit'), 'dawncharged'];
-        break;
-      case 'ambercharged':
-        state = [...state.filter((entry) => entry !== 'ambershine'), 'ambercharged'];
-        break;
-      case 'thundercharged':
-        state = [...state.filter((entry) => entry !== 'thunderstruck'), 'thundercharged'];
-        break;
-      default:
-        state = [...state, canonicalMutation];
-        break;
-    }
+  for (const name of mutationsToAdd) {
+    const add = normalizeCanonicalMutation(name);
+    if (canApplyCanonical(add, state)) state = applyCanonical(add, state);
   }
-
   return state;
 }
 
+/** The crop's mutations after `mutationToAdd`, or null when the game would refuse it. */
 export function getMutationApplicationResult(
   existingMutations: readonly string[],
   mutationToAdd: string,
 ): string[] | null {
-  if (!canApplyMutation(mutationToAdd, existingMutations)) return null;
-  return simulateMutationsAfterApplying(existingMutations, [mutationToAdd]);
+  const existing = existingMutations.map(normalizeCanonicalMutation);
+  const add = normalizeCanonicalMutation(mutationToAdd);
+  return canApplyCanonical(add, existing) ? applyCanonical(add, existing) : null;
+}
+
+/** The subset of `toAdd` that lands, applied in order (an earlier one can block a later one). Input names kept. */
+export function filterCompatibleMutations(existing: readonly string[], toAdd: readonly string[]): string[] {
+  let state = existing.map(normalizeCanonicalMutation);
+  const result: string[] = [];
+  for (const name of toAdd) {
+    const add = normalizeCanonicalMutation(name);
+    if (!canApplyCanonical(add, state)) continue;
+    result.push(name);
+    state = applyCanonical(add, state);
+  }
+  return result;
 }

@@ -3,7 +3,7 @@
 // Shows letter badges (R, G, F, etc.) for unlogged produce variants.
 
 import { getJournal, type Journal } from '../../journal/checker';
-import { getVariantBadges } from '../../mutations/data/variantBadges';
+import { unloggedBadges } from '../../journal/unlogged';
 import { renderBySpriteKey } from '../../../sprite-v2/compat';
 import { storage } from '../../../utils/storage';
 import { warnFeature } from './_diagnostics';
@@ -59,33 +59,6 @@ export function isBadgesEnabled(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Species key normalization (for alias lookup — simpler than helpers.ts version)
-// ---------------------------------------------------------------------------
-
-const normalizeKey = (value: string): string =>
-  (value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-const SPECIES_KEY_ALIASES: Record<string, string[]> = {
-  cacaobean: ['cacao', 'cacao bean', 'cacao fruit', 'cocoabean', 'cocoa bean'],
-  dragonfruit: ['dragon fruit'],
-  favabean: ['fava bean', 'fava-bean', 'fava', 'fava bean pod', 'fava pod'],
-  burrostail: ["burro's tail", 'burros tail', 'burro tail'],
-  passionfruit: ['passion fruit', 'passion-fruit', 'passionfruit'],
-  dawncelestial: ['dawnbinder', 'dawn binder'],
-  mooncelestial: ['moonbinder', 'moon binder'],
-  bamboo: ['bamboo shoot', 'bambooshoot'],
-};
-
-const resolveSpeciesKey = (raw: string): string => {
-  const key = normalizeKey(raw);
-  for (const [canonical, aliases] of Object.entries(SPECIES_KEY_ALIASES)) {
-    if (key === canonical) return canonical;
-    if (aliases.some((alias) => normalizeKey(alias) === key)) return canonical;
-  }
-  return key;
-};
-
-// ---------------------------------------------------------------------------
 // Journal lookup
 // ---------------------------------------------------------------------------
 
@@ -96,10 +69,6 @@ export function clearJournalCache(): void {
   cachedJournalData = null;
 }
 
-interface ProduceEntry {
-  variantsLogged?: Array<string | { variant?: string }>;
-}
-
 async function getUnloggedVariantBadges(species: string): Promise<VariantBadge[]> {
   try {
     if (!cachedJournalData) {
@@ -108,40 +77,7 @@ async function getUnloggedVariantBadges(species: string): Promise<VariantBadge[]
 
     if (!cachedJournalData?.produce) return [];
 
-    // Build lookup by normalized species key
-    const produceByKey = new Map<string, ProduceEntry>();
-    for (const [name, data] of Object.entries(cachedJournalData.produce)) {
-      produceByKey.set(resolveSpeciesKey(name), data as ProduceEntry);
-    }
-
-    const speciesKey = resolveSpeciesKey(species);
-    const speciesData = produceByKey.get(speciesKey);
-
-    if (!speciesData) {
-      // Species not in journal yet — everything counts as unlogged
-      return getVariantBadges().map(badge => ({ ...badge }));
-    }
-
-    const loggedVariants = new Set(
-      (speciesData.variantsLogged ?? [])
-        .map((v) => {
-          const name = typeof v === 'string' ? v : v?.variant;
-          return typeof name === 'string' ? name.toLowerCase() : '';
-        })
-        .filter(Boolean),
-    );
-
-    const unloggedBadges: VariantBadge[] = [];
-    for (const badge of getVariantBadges()) {
-      const isLogged = badge.matches.some(matchName =>
-        loggedVariants.has(matchName.toLowerCase()),
-      );
-      if (!isLogged) {
-        unloggedBadges.push({ ...badge });
-      }
-    }
-
-    return unloggedBadges;
+    return unloggedBadges(cachedJournalData, species);
   } catch (error) {
     warnFeature('QPM-FEATURE-004', { what: 'journal:variants', species }, error);
     return [];

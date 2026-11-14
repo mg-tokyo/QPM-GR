@@ -433,7 +433,7 @@ const weatherCatalogPoller = createEnrichmentPoller({
   run: enrichWeatherCatalog,
 });
 
-// Cosmetics keep their own cosmeticBundleCache (cosmeticCatalog.ts), never
+// Cosmetics fetch their own chunks (cosmeticCatalog.ts), never through
 // bundleTextCache, so there is no consumer hold to release.
 const cosmeticCatalogPoller = createEnrichmentPoller({
   key: 'cosmeticCatalog',

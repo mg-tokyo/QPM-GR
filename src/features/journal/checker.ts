@@ -1,61 +1,13 @@
 import { readAtomValue } from '../../core/atomRegistry';
 import { getPlayerId, getSlotOwnerId } from '../../core/playerContext';
 import { log } from '../../utils/logger';
-import { getAllPlantSpecies, getAllPetSpecies, getMutationCatalog, mergeCatalogIfIncomplete } from '../../catalogs/gameCatalogs';
+import { getAllPlantSpecies, getAllPetSpecies, mergeCatalogIfIncomplete } from '../../catalogs/gameCatalogs';
+import { findProduceLog, getProduceVariants, loggedVariantKeys, normalizeJournalKey as normalizeKey, resolveVariantKey } from './unlogged';
 
 const JOURNAL_DEBUG_LOGS = false;
 const jdbg = (...args: unknown[]): void => {
   if (!JOURNAL_DEBUG_LOGS) return;
   log(...(args as [any, ...any[]]));
-};
-
-const normalizeKey = (value: string): string => (value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-// Alias mappings for produce keys that may differ between in-game journal and catalog
-const PRODUCE_KEY_ALIASES: Record<string, string[]> = {
-  cacaobean: ['cacao', 'cacao bean', 'cacao fruit', 'cacaofruit', 'cocoa', 'cocoabean'],
-  favabean: ['fava bean', 'fava bean pod', 'favabeanpod', 'fava pod', 'favapod'],
-  passionfruit: ['passion fruit'],
-  dragonfruit: ['dragon fruit'],
-  burrostail: ["burro's tail", 'burros tail'],
-};
-
-const resolveProduceKey = (raw: string): string => {
-  const key = normalizeKey(raw);
-  for (const [canonical, aliases] of Object.entries(PRODUCE_KEY_ALIASES)) {
-    if (key === canonical) return canonical;
-    if (aliases.some((alias) => normalizeKey(alias) === key)) return canonical;
-  }
-  return key;
-};
-
-let cachedVariantAliases: Record<string, string> | null = null;
-// Keyed on catalog object identity: a completeness merge replaces the catalog
-// object (e.g. restoring the real `Ambershine` key), and a forever-cache would
-// keep resolving journal-logged ids against the stale map.
-let aliasCatalogRef: unknown = null;
-
-function getVariantKeyAliases(): Record<string, string> {
-  const mutCatalog = getMutationCatalog();
-  if (cachedVariantAliases && mutCatalog === aliasCatalogRef) return cachedVariantAliases;
-  const aliases: Record<string, string> = {};
-  if (!mutCatalog) return aliases;
-  for (const [key, entry] of Object.entries(mutCatalog)) {
-    const name = entry.name || key;
-    const nKey = normalizeKey(key);
-    const nName = normalizeKey(name);
-    aliases[nKey] = nName;
-    aliases[nName] = nName;
-  }
-  aliasCatalogRef = mutCatalog;
-  cachedVariantAliases = aliases;
-  return aliases;
-}
-
-const resolveVariantKey = (raw: string): string => {
-  const key = normalizeKey(raw);
-  const aliases = getVariantKeyAliases();
-  return aliases[key] ?? key;
 };
 
 export type ProduceVariantLog = { variant: string; createdAt?: number };
@@ -95,21 +47,11 @@ export type JournalSummary = {
 function getProduceCatalog(): Record<string, string[]> {
   const catalog: Record<string, string[]> = {};
 
-  const mutCatalog = getMutationCatalog();
+  const produceVariants = getProduceVariants();
   const species = getAllPlantSpecies(); // returns [] if plantCatalog is null
-  if (!mutCatalog || species.length === 0) return catalog;
+  if (!produceVariants || species.length === 0) return catalog;
 
-  const variants: string[] = ['Normal'];
-
-  for (const [key, entry] of Object.entries(mutCatalog)) {
-    if (key.toLowerCase().includes('maxweight')) continue;
-    const displayName = entry.name || key;
-    variants.push(displayName);
-  }
-
-  // Add max weight (always present in journal system)
-  variants.push('Max Weight');
-
+  const variants = produceVariants.map((v) => v.displayName);
   for (const speciesName of species) {
     catalog[speciesName] = variants.slice();
   }
@@ -198,7 +140,7 @@ async function fetchJournalFromState(): Promise<Journal | null> {
   }
 }
 
-function normalizeJournal(raw: any): Journal {
+export function normalizeJournal(raw: any): Journal {
   const journal: Journal = {};
 
   if (raw.produce && typeof raw.produce === 'object') {
@@ -273,11 +215,6 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
     pets: [],
   };
 
-  const produceLogByKey = new Map<string, SpeciesProduceLog>();
-  Object.entries(journal.produce ?? {}).forEach(([species, data]) => {
-    produceLogByKey.set(resolveProduceKey(species), data);
-  });
-
   const petLogByKey = new Map<string, SpeciesPetLog>();
   Object.entries(journal.pets ?? {}).forEach(([species, data]) => {
     petLogByKey.set(normalizeKey(species), data);
@@ -286,14 +223,7 @@ export async function getJournalSummary(): Promise<JournalSummary | null> {
   const produceCatalog = getProduceCatalog();
   let unresolvedLoggedVariant = false;
   for (const [species, possibleVariants] of Object.entries(produceCatalog)) {
-    const speciesLog = produceLogByKey.get(resolveProduceKey(species));
-    const loggedVariants = new Map<string, number>();
-
-    if (speciesLog?.variantsLogged) {
-      for (const log of speciesLog.variantsLogged) {
-        loggedVariants.set(resolveVariantKey(log.variant), log.createdAt || 0);
-      }
-    }
+    const loggedVariants = loggedVariantKeys(findProduceLog(journal, species));
 
     if (!Array.isArray(possibleVariants)) {
       continue;

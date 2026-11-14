@@ -9,7 +9,20 @@
 
 import { criticalInterval } from '../../../utils/scheduling/timerManager';
 import { pageWindow } from '../../../core/pageContext';
+import { areAlertSoundsOn } from '../../../features/alertHub/settings';
 import { BUILTIN_SOUND_IDS } from './soundConfig';
+
+// Master "Play alert sounds" gate (ALR-9 D3): every QPM alert sound passes here; previewSound (a click) does not.
+let gateDropped = 0;
+function gateOpen(): boolean {
+  if (areAlertSoundsOn()) return true;
+  gateDropped += 1;
+  return false;
+}
+
+export function getSoundGateStats(): { open: boolean; dropped: number } {
+  return { open: areAlertSoundsOn(), dropped: gateDropped };
+}
 
 // ---------------------------------------------------------------------------
 // Audio context (lazy singleton + priming)
@@ -179,6 +192,11 @@ const SYNTH_MAP: Record<string, (ctx: AudioContext, volume: number) => void> = {
  * may need to be created/resumed first.
  */
 export async function playSound(soundId: string, volume = 0.7): Promise<void> {
+  if (!gateOpen()) return;
+  await playBuiltin(soundId, volume);
+}
+
+async function playBuiltin(soundId: string, volume: number): Promise<void> {
   const fn = SYNTH_MAP[soundId];
   if (!fn) return;
   const ctx = await ensureAudioContext();
@@ -195,6 +213,11 @@ export async function playSound(soundId: string, volume = 0.7): Promise<void> {
  * More reliable in userscript contexts than Web Audio decodeAudioData.
  */
 export async function playCustomSound(dataUrl: string, volume = 0.7): Promise<void> {
+  if (!gateOpen()) return;
+  await playCustom(dataUrl, volume);
+}
+
+async function playCustom(dataUrl: string, volume: number): Promise<void> {
   try {
     const audio = new Audio();
     audio.src = dataUrl;
@@ -218,9 +241,9 @@ export function previewSound(
   dataUrl?: string,
 ): void {
   if (isCustom && dataUrl) {
-    void playCustomSound(dataUrl, volume);
+    void playCustom(dataUrl, volume);
   } else {
-    void playSound(soundId, volume);
+    void playBuiltin(soundId, volume);
   }
 }
 
@@ -250,6 +273,7 @@ export function startLoop(
 ): void {
   // Stop existing loop for this key if any
   stopLoop(itemKey);
+  if (!gateOpen()) return;
 
   const config: LoopConfig = dataUrl !== undefined
     ? { soundId, volume, isCustom, dataUrl }

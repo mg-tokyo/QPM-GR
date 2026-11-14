@@ -27,12 +27,20 @@ import { initializeHarvestReminder, configureHarvestReminder } from '../features
 import { initializeTurtleTimer, configureTurtleTimer } from '../features/pets/turtleTimer';
 import { startMutationReminder } from '../features/mutations/reminder';
 import { startMutationTracker } from '../features/mutations/tracker';
+import { startMutationEta } from '../features/garden/mutationEta';
+import { startMutationEtaBell } from '../features/garden/mutationEtaBell';
+import { startMutationGainTracker } from '../features/garden/mutationGain';
+import { startEggReady } from '../features/garden/eggReady';
+import { startCropMaxSize } from '../features/garden/cropMaxSize';
+import { startJournalSeeds } from '../features/journalSeeds';
 import { startMountStateTracker } from '../store/mountState';
 import { startLocker } from '../features/locker/index';
 import { startSuperCleanser } from '../features/superCleanser';
 import { startGardenQol } from '../features/gardenQol/index';
 import { startCropBoostTracker } from '../features/pets/cropBoostTracker';
 import { startPetOptimizer } from '../features/pets/optimizer';
+import { startHungerAlarm } from '../features/pets/hungerAlarm';
+import { startTroughAlarm } from '../features/pets/troughAlarm';
 import { initTooltipInjection } from '../features/standalone/tooltipInjection';
 import { startNativeFeedIntercept } from '../features/pets/nativeFeedIntercept';
 import { startController } from '../features/input/controller/index';
@@ -43,6 +51,10 @@ import { startStorageValueOverlay } from '../ui/economy/storageValueOverlay';
 import { startInventoryCapacity } from '../features/economy/inventoryCapacity';
 import { startInventoryCapacityOverlay } from '../ui/economy/inventoryCapacityOverlay';
 import { startNpcDialogue } from '../features/npcDialogue';
+import { startPopupSilencer } from '../features/popupSilencer';
+import { startForecastWidget } from '../ui/forecastWidget';
+import { startNightfallAlarm } from '../features/nightfallAlarm';
+import { startAlertHub } from '../features/alertHub';
 import { startCamera3d } from '../features/camera3d';
 import { startSpectator } from '../features/spectator';
 import { startGameUpdateRefresh } from '../features/standalone/gameUpdateRefresh';
@@ -51,6 +63,11 @@ import { exposeAriesBridge } from '../integrations/ariesBridge';
 import { startNativeCardViewDiagnostics } from '../integrations/nativeCardView';
 import { initTDCustomDesigns } from '../features/towerDefense/customDesigns/store';
 import { startDayCycleSource } from '../catalogs/logic/dayCycleCatalog';
+import { startDayClockDriftCheck } from '../catalogs/logic/dayCycleClock';
+import { startMutationRulesSource } from '../catalogs/logic/mutationRulesCatalog';
+import { startRarePatchPairsSource } from '../catalogs/logic/rarePatchPairsCatalog';
+import { getServerNowMs } from '../store/serverClock';
+import { areAlertsWipEnabled } from '../utils/wipFeatures';
 import type { QpmConfig } from './config';
 
 // Store/feature init ladder (init phases 1–9). Sequencing and yield points
@@ -102,6 +119,9 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   // Phase 2: XP tracking and inventory
   initializeXpTracker();
   startDayCycleSource();
+  startDayClockDriftCheck(() => getServerNowMs() ?? Date.now());
+  startMutationRulesSource();
+  if (areAlertsWipEnabled()) startRarePatchPairsSource();
   initializeMutationValueTracking();
   const { initHatchStatsStore } = await import('../store/hatchStatsStore');
   initHatchStatsStore();
@@ -155,8 +175,17 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   await yieldToBrowser();
 
   // Phase 6: Mutation tracking
+  if (areAlertsWipEnabled()) startAlertHub();
   startMutationReminder();
   startMutationTracker();
+  startMutationEta();
+  if (areAlertsWipEnabled()) {
+    startMutationEtaBell();
+    startMutationGainTracker();
+    startEggReady();
+    startCropMaxSize();
+    startJournalSeeds();
+  }
   await yieldToBrowser();
 
   // Phase 7: Configure features
@@ -188,6 +217,10 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   // Phase 8: Non-critical features (can load after UI is visible)
   startCropBoostTracker();
   startPetOptimizer();
+  if (areAlertsWipEnabled()) {
+    startHungerAlarm();
+    startTroughAlarm();
+  }
   initTooltipInjection();
   startNativeFeedIntercept();
   await yieldToBrowser();
@@ -200,6 +233,11 @@ export async function runFeaturePhases(cfg: QpmConfig): Promise<void> {
   startInventoryCapacity();
   startInventoryCapacityOverlay();
   startNpcDialogue();
+  if (areAlertsWipEnabled()) {
+    startPopupSilencer();
+    startForecastWidget();
+    startNightfallAlarm();
+  }
   startCamera3d();
   startSpectator();
   try {

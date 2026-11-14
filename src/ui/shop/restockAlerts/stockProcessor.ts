@@ -11,6 +11,7 @@ import { isWeatherShopType, type ShopCategory } from '../../../types/shops';
 import {
   dismissedCyclesByKey,
   dismissedInStockKeys,
+  restockShopById,
   activeAlerts,
   pendingOwnershipConfirmations,
   debugLastStockStateByKey,
@@ -29,18 +30,61 @@ import {
   getToolInventoryLimitForAlert,
   getOwnedToolCount,
 } from './purchaseActions';
-import { removeAlert, upsertAlert, updateAlertQuantity } from './alertDom';
+import { removeAlert, updateAlertQuantity } from './alertDom';
+import { upsertAlertWithDesktop } from './desktopRelay';
+import {
+  findStaleDismissals,
+  readDismissedRestocks,
+  restockCycleId,
+  restockIdFromCycle,
+  writeDismissedRestocks,
+  type DismissedRestock,
+} from './dismissedRestocks';
 
 // ---------------------------------------------------------------------------
-// Dismiss cycle management (in-memory only)
+// Dismiss cycle management (restockId cycles persist; fallback cycles are in-memory only)
 // ---------------------------------------------------------------------------
 
 export function loadDismissedCycles(): void {
   dismissedCyclesByKey.clear();
+  restockShopById.clear();
+  for (const [key, entry] of readDismissedRestocks()) {
+    dismissedCyclesByKey.set(key, restockCycleId(entry.restockId));
+    restockShopById.set(entry.restockId, entry.shop);
+  }
+}
+
+function collectDismissedRestocks(): Map<string, DismissedRestock> {
+  const entries = new Map<string, DismissedRestock>();
+  for (const [key, cycleId] of dismissedCyclesByKey) {
+    const restockId = restockIdFromCycle(cycleId);
+    const shop = restockId ? restockShopById.get(restockId) : undefined;
+    if (restockId && shop) entries.set(key, { restockId, shop });
+  }
+  return entries;
 }
 
 function saveDismissedCycles(): void {
-  // Dismissals are in-memory only; persistence caused stale suppression across refreshes.
+  writeDismissedRestocks(collectDismissedRestocks());
+}
+
+function pruneDismissedRestocks(state: ShopStockState, categories: ShopCategory[]): void {
+  const currentByShop = new Map<string, string | null>();
+  for (const category of categories) currentByShop.set(category, state.categories[category]?.restockId ?? null);
+  const stale = findStaleDismissals(collectDismissedRestocks(), currentByShop);
+  for (const key of stale) {
+    dismissedCyclesByKey.delete(key);
+    dismissedInStockKeys.delete(key);
+  }
+  if (stale.length > 0) saveDismissedCycles();
+
+  const keep = new Set<string>();
+  for (const id of currentByShop.values()) if (id) keep.add(id);
+  for (const cycleId of dismissedCyclesByKey.values()) {
+    const id = restockIdFromCycle(cycleId);
+    if (id) keep.add(id);
+  }
+  for (const id of Array.from(restockShopById.keys())) if (!keep.has(id)) restockShopById.delete(id);
 }
 
 export function markDismissedCycle(key: string, cycleId: string | null): void {
@@ -144,6 +188,7 @@ function getStockCycleId(
   currentQty: number,
 ): string | null {
   const fallbackCycle = nextFallbackCycleForKey(key, currentQty);
+  if (bucket?.restockId) return restockCycleId(bucket.restockId);
   const nextRestockAt = bucket?.nextRestockAt;
   if (typeof nextRestockAt === 'number' && Number.isFinite(nextRestockAt)) {
     return `next:${Math.floor(nextRestockAt)}:cycle:${fallbackCycle}`;
@@ -168,6 +213,7 @@ export function processShopStock(state: ShopStockState): void {
     const shopType = categoryToShopType(category);
     if (!shopType) continue;
     const bucket = state.categories[category];
+    if (bucket?.restockId) restockShopById.set(bucket.restockId, category);
     const items = Array.isArray(bucket?.items) ? bucket.items : [];
     for (const item of items) {
       const purchaseItemId = getPurchaseItemId(shopType, item);
@@ -260,7 +306,7 @@ export function processShopStock(state: ShopStockState): void {
         continue;
       }
 
-      upsertAlert({
+      upsertAlertWithDesktop({
         key: canonicalKey,
         shopType,
         itemId: purchaseItemId,
@@ -299,4 +345,5 @@ export function processShopStock(state: ShopStockState): void {
     lastSeenStockQtyByKey.delete(key);
     fallbackCycleByKey.delete(key);
   }
+  pruneDismissedRestocks(state, categories);
 }

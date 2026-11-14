@@ -5,6 +5,7 @@ import { type ActivePetInfo } from '../../../store/pets';
 import { readAtomValue } from '../../../core/atomRegistry';
 import { getPetSpriteDataUrlWithMutations } from '../../../sprite-v2/compat';
 import { getSpeciesXpPerLevel, calculateMaxStrength } from '../../../store/xpTracker';
+import { PASSIVE_XP_PER_HOUR, xpToMaxStr } from '../../../store/xpEta';
 import { formatCoins } from '../../../features/economy/valueCalculator';
 import { swapPetIntoActiveSlot, placePetIntoActiveSlot, type SwapPetFailureReason } from '../../../features/pets/swap';
 import { makePillButton } from './xpTrackerContent';
@@ -274,10 +275,8 @@ async function getAllPets(activePets: ActivePetInfo[]): Promise<PetWithLevel[]> 
     const levelsGained = Math.min(30, Math.floor(pet.xp / xpPerLevel));
     const hatchLevel = pet.strength - levelsGained;
     const maxStr = Math.min(hatchLevel + 30, 100);
-    if (pet.strength >= maxStr) continue;
-    const xpToNext = pet.xp % xpPerLevel;
-    const levelsLeft = maxStr - pet.strength;
-    const xpNeeded = (xpPerLevel - xpToNext) + xpPerLevel * (levelsLeft - 1);
+    const xpNeeded = xpToMaxStr({ xp: pet.xp, strength: pet.strength, maxStr, xpPerLevel });
+    if (xpNeeded === null) continue;
     allPets.push({
       name: pet.name || pet.species,
       species: pet.species,
@@ -345,10 +344,8 @@ async function getAllPets(activePets: ActivePetInfo[]): Promise<PetWithLevel[]> 
         currentStr = (maxStr - 30) + Math.min(30, Math.floor(xp / xpPerLevel));
       }
 
-      if (currentStr >= maxStr) continue;
-      const xpToNext = xp % xpPerLevel;
-      const levelsLeft = maxStr - currentStr;
-      const xpNeeded = (xpPerLevel - xpToNext) + xpPerLevel * (levelsLeft - 1);
+      const xpNeeded = xpToMaxStr({ xp, strength: currentStr, maxStr, xpPerLevel });
+      if (xpNeeded === null) continue;
       allPets.push({
         name: ((i.name ?? nested?.name) as string | undefined) || species,
         species,
@@ -537,7 +534,7 @@ async function updateNearMaxDisplay(
       lvlEl.textContent = `${pet.level}->${pet.maxStr}`;
       lvlEl.style.cssText = 'font-size:10px;color:var(--qpm-text-muted);font-family:monospace;flex-shrink:0;width:44px;text-align:right;';
 
-      const xpRate = pet.source === 'active' ? totalTeamXpPerHour : 3600;
+      const xpRate = pet.source === 'active' ? totalTeamXpPerHour : PASSIVE_XP_PER_HOUR;
       const minsToMax = xpRate > 0 ? (pet.xpNeeded / xpRate) * 60 : 0;
       const timeEl = document.createElement('div');
       timeEl.textContent = xpRate > 0 ? formatTime(minsToMax) : '--';

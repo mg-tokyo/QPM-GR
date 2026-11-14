@@ -1,3 +1,5 @@
+import { canApplyMutation } from '../../../utils/mutationCompatibility';
+import { resolveWeatherMutationEntry } from '../../garden/cropMutationAnalytics';
 import { DEBUG_MUTATION_DECISIONS } from './constants';
 import { reminderDiag } from './_diagnostics';
 import type { PlantData, PlantDebugDetail, PlantMutationEvaluation, PlantSlotState, WeatherType } from './types';
@@ -157,26 +159,30 @@ function evaluatePlantFromInventory(
   let dawnProgressComplete = 0;
   let amberProgressTotal = 0;
   let amberProgressComplete = 0;
+  let rulesRefused = 0;
+  // The game refuses this weather's mutation on some fruit (Wet on Thunderstruck, Dawnlit on
+  // Ambershine): those count as done. The flags stay, so an absent catalog changes nothing.
+  const granted = resolveWeatherMutationEntry(weather).mutation;
 
   for (const slot of slotStates) {
-    const wetMutated = slot.hasWet || slot.hasFrozen;
-    if (wetMutated) {
+    const refused = granted !== null && !canApplyMutation(granted, slot.mutationNames ?? []);
+    if (refused) rulesRefused += 1;
+    if (slot.hasWet || slot.hasFrozen || (weather === 'rain' && refused)) {
       wetFinished += 1;
     }
     if (slot.hasWet && !slot.hasFrozen) {
       wetNeedsSnow += 1;
     }
-    const chilledMutated = slot.hasChilled || slot.hasFrozen;
-    if (chilledMutated) {
+    if (slot.hasChilled || slot.hasFrozen || (weather === 'snow' && refused)) {
       chilledFinished += 1;
     }
     if (slot.hasChilled && !slot.hasFrozen) {
       chilledNeedsRain += 1;
     }
-    if (slot.hasDawnlit || slot.hasDawnbound) {
+    if (slot.hasDawnlit || slot.hasDawnbound || (weather === 'dawn' && refused)) {
       dawnFinished += 1;
     }
-    if (slot.hasAmberlit || slot.hasAmberbound) {
+    if (slot.hasAmberlit || slot.hasAmberbound || (weather === 'amber' && refused)) {
       amberFinished += 1;
     }
 
@@ -252,6 +258,7 @@ function evaluatePlantFromInventory(
     amberProgressComplete,
     amberProgressTotal,
     domAmberComplete,
+    rulesRefused,
     hasAnyDawn,
     hasAnyAmber,
     hasAnyRainbow,

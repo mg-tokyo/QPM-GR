@@ -1,76 +1,74 @@
-// Friend bonus formula (from game source): min(2.0, 1.0 + max(0, floor(filledSlots-1)) * 0.1)
+// Friend bonus from the game's own derived atom (ALR-12.1). While the atom is unresolved the
+// pre-ALR-12 userSlots formula stands in, labelled 'fallback' with a degraded diagnostic (PD1).
 
-import { readAtomValue, subscribeAtomValue } from '../core/atomRegistry';
-import { criticalInterval, timerManager } from '../utils/scheduling/timerManager';
+import { explain, readSync, subscribe } from '../core/gameState';
 import { createStoreDiagnostics } from './_storeDiagnostics';
 
 const diag = createStoreDiagnostics('storeFriendBonus', 'friendBonus');
 
-const RETRY_TIMER_ID = 'friendBonus:atomRetry';
-const RETRY_MAX = 30;
+export interface RoomOccupancy {
+  filled: number;
+  /** userSlots length: the room's seat count, read from the game rather than a literal. */
+  seats: number;
+}
+
+export type FriendBonusSource = 'atom' | 'fallback';
+
+export function occupancyOf(userSlots: unknown): RoomOccupancy {
+  if (!Array.isArray(userSlots)) return { filled: 0, seats: 0 };
+  return { filled: userSlots.filter((slot) => slot != null).length, seats: userSlots.length };
+}
+
+/** The pre-ALR-12 formula: min(2.0, 1.0 + max(0, floor(filled − 1)) × 0.1). */
+export function fallbackMultiplier(filled: number): number {
+  return Math.min(2.0, 1.0 + Math.max(0, Math.floor(filled - 1)) * 0.1);
+}
 
 let started = false;
 let multiplier = 1.0;
-let atomUnsub: (() => void) | null = null;
-let stopRetryTimer: (() => void) | null = null;
-let retryCount = 0;
+let atomMultiplier: number | null = null;
+let occupancy: RoomOccupancy = { filled: 0, seats: 0 };
+let degraded = false;
+const unsubs: Array<() => void> = [];
 
 const listeners = new Set<(multiplier: number) => void>();
+const occupancyListeners = new Set<(occupancy: RoomOccupancy) => void>();
 
-function countFilledSlots(userSlots: unknown): number {
-  if (!Array.isArray(userSlots)) return 0;
-  return userSlots.filter((slot) => slot != null).length;
+function atomBound(): boolean {
+  try { return explain('friendBonusMultiplier').boundVia !== null; } catch { return false; }
 }
 
-function computeMultiplier(filledSlots: number): number {
-  return Math.min(2.0, 1.0 + Math.max(0, Math.floor(filledSlots - 1)) * 0.1);
+function recompute(): void {
+  if (atomMultiplier === null && !degraded && occupancy.seats > 0 && !atomBound()) {
+    degraded = true;
+    diag.warn('QPM-STORE-002', { atom: 'friendBonusMultiplierAtom', fallback: 'userSlots formula' });
+  }
+  const next = atomMultiplier ?? fallbackMultiplier(occupancy.filled);
+  if (next === multiplier) return;
+  multiplier = next;
+  for (const cb of listeners) {
+    try { cb(multiplier); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notify' }, error); }
+  }
 }
 
-function applySlotData(value: unknown): void {
-  // userSlotsAtom shape varies: direct array, or { child: { data: { userSlots: [...] } } }
-  let slots: unknown = value;
-  if (!Array.isArray(slots) && slots && typeof slots === 'object') {
-    const rec = slots as Record<string, unknown>;
-    const nested =
-      (rec.userSlots as unknown) ??
-      ((rec.child as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined)?.userSlots;
-    if (Array.isArray(nested)) {
-      slots = nested;
+function applyOccupancy(userSlots: unknown): void {
+  const next = occupancyOf(userSlots);
+  if (next.filled !== occupancy.filled || next.seats !== occupancy.seats) {
+    occupancy = next;
+    for (const cb of occupancyListeners) {
+      try { cb(occupancy); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notifyOccupancy' }, error); }
     }
   }
-
-  const filled = countFilledSlots(slots);
-  const next = computeMultiplier(filled);
-  if (next !== multiplier) {
-    multiplier = next;
-    for (const cb of listeners) {
-      try { cb(multiplier); } catch (error) { diag.warn('QPM-STORE-003', { phase: 'notify' }, error); }
-    }
-  }
+  recompute();
 }
 
-async function trySubscribe(): Promise<boolean> {
-  if (atomUnsub) return true;
-
-  try {
-    const unsub = await subscribeAtomValue('userSlots', applySlotData);
-    if (!unsub) return false;
-
-    atomUnsub = unsub;
-
-    const initial = await readAtomValue('userSlots');
-    applySlotData(initial);
-
-    timerManager.unregister(RETRY_TIMER_ID);
-    stopRetryTimer = null;
-
-    diag.log.debug('Subscribed to userSlotsAtom', { multiplier });
-    diag.publishOk('Friend bonus subscribed', { multiplier });
-    return true;
-  } catch (err) {
-    diag.warn('QPM-STORE-002', { atom: 'userSlots', phase: 'subscribe' }, err);
-    return false;
+function applyAtom(value: unknown): void {
+  atomMultiplier = typeof value === 'number' && Number.isFinite(value) && value >= 1 ? value : null;
+  if (atomMultiplier !== null) {
+    degraded = false;
+    diag.publishOk('Friend bonus from the game atom', { multiplier: atomMultiplier });
   }
+  recompute();
 }
 
 /** Current friend bonus multiplier (1.0 – 2.0). */
@@ -84,45 +82,62 @@ export function onFriendBonusChange(cb: (multiplier: number) => void): () => voi
   return () => { listeners.delete(cb); };
 }
 
+export function getRoomOccupancy(): RoomOccupancy {
+  return occupancy;
+}
+
+/** Fires only when the filled or seat count changes. */
+export function onRoomOccupancyChange(cb: (occupancy: RoomOccupancy) => void): () => void {
+  occupancyListeners.add(cb);
+  return () => { occupancyListeners.delete(cb); };
+}
+
 export function startFriendBonusStore(): void {
   if (started) return;
   started = true;
   diag.register('Starting friend bonus store');
-
-  void trySubscribe();
-
-  stopRetryTimer = criticalInterval(RETRY_TIMER_ID, () => {
-    if (atomUnsub) {
-      timerManager.unregister(RETRY_TIMER_ID);
-      stopRetryTimer = null;
-      return;
-    }
-    retryCount++;
-    if (retryCount >= RETRY_MAX) {
-      timerManager.unregister(RETRY_TIMER_ID);
-      stopRetryTimer = null;
-      diag.warn('QPM-STORE-002', { atom: 'userSlots', gaveUp: true, retries: retryCount });
-      return;
-    }
-    void trySubscribe();
-  }, 1000);
-
-  diag.log.debug('Friend bonus store started');
+  // A key with no source yet stays pending in the registry and delivers once it binds, so no retry.
+  try {
+    unsubs.push(subscribe('friendBonusMultiplier', applyAtom));
+    unsubs.push(subscribe('userSlots', applyOccupancy));
+  } catch (error) {
+    diag.error('QPM-STORE-001', { phase: 'subscribe' }, error);
+    return;
+  }
+  if (!degraded) diag.publishOk('Friend bonus subscribed', { multiplier, source: atomMultiplier !== null ? 'atom' : 'fallback' });
 }
 
 export function stopFriendBonusStore(): void {
   if (!started) return;
   started = false;
-
-  timerManager.unregister(RETRY_TIMER_ID);
-  stopRetryTimer = null;
-
-  atomUnsub?.();
-  atomUnsub = null;
-
+  for (const off of unsubs.splice(0)) off();
   listeners.clear();
+  occupancyListeners.clear();
   multiplier = 1.0;
-  retryCount = 0;
+  atomMultiplier = null;
+  occupancy = { filled: 0, seats: 0 };
+  degraded = false;
+}
 
-  diag.log.debug('Friend bonus store stopped');
+export function getFriendBonusState(): {
+  multiplier: number;
+  source: FriendBonusSource;
+  atomMultiplier: number | null;
+  fallbackMultiplier: number;
+  filled: number;
+  seats: number;
+  spectating: boolean | null;
+  degraded: boolean;
+} {
+  let spectating: boolean | null = null;
+  try { spectating = readSync('isSpectating'); } catch { /* registry down: unknown */ }
+  return {
+    multiplier,
+    source: atomMultiplier !== null ? 'atom' : 'fallback',
+    atomMultiplier,
+    fallbackMultiplier: fallbackMultiplier(occupancy.filled),
+    ...occupancy,
+    spectating,
+    degraded,
+  };
 }

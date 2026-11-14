@@ -24,6 +24,7 @@ import {
 } from './mutationCompat';
 import { closePopover } from './gardenPopover';
 import { buildTileSection } from './gardenTileCard';
+import { createGardenEtaStrip } from './gardenEta';
 
 // ---------------------------------------------------------------------------
 // Filter persistence
@@ -377,6 +378,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
 
   // Seeded immediately from the bridge cache
   let currentSnapshot: GardenSnapshot = getGardenSnapshot();
+  const etaStrip = createGardenEtaStrip();
 
   function updateValueSummary(tiles: TileEntry[], selected: string[], maxSize = false): void {
     const { current, potential } = computeGardenValue(tiles, selected, maxSize);
@@ -417,6 +419,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
     readyBadgeEntries = [];
     const allTiles = extractTiles(currentSnapshot);
     const selected = Array.from(activeFilters);
+    etaStrip.setSelected(selected);
 
     if (filterRemainingActive) {
       if (selected.length > 0) {
@@ -486,6 +489,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
       const remainingLabel = remainingFruits !== remaining.length
         ? t('feature.statsHub.garden.remainingFruits', { fruits: String(remainingFruits), fruitWord, plants: String(remaining.length) })
         : t('feature.statsHub.garden.remaining', { count: String(remaining.length) });
+      content.appendChild(etaStrip.el);
       content.appendChild(buildTileSection(
         remainingLabel, remaining, selected, false,
         {
@@ -557,6 +561,7 @@ export function buildGardenTab(container: HTMLElement): () => void {
   return () => {
     unsubscribe();
     readyCleanup();
+    etaStrip.destroy();
     closePlantDropdown();
     disableGardenFilter();
     setStatsHubExcludeMutationsOverride(null);

@@ -163,6 +163,43 @@ export function joinPath(base: string, path: string): string {
   return base.replace(/\/?$/, '/') + String(path || '').replace(/^\//, '');
 }
 
+export type ManifestSrcEntry = string | { src?: string };
+
+export type ManifestLike = {
+  bundles?: Array<{
+    assets?: Array<{
+      alias?: string[];
+      src?: ManifestSrcEntry[];
+    }>;
+  }>;
+};
+
+export function firstSrc(entries: ManifestSrcEntry[] | undefined): string | null {
+  for (const entry of entries ?? []) {
+    const src = typeof entry === 'string' ? entry : entry?.src;
+    if (typeof src === 'string' && src) return src;
+  }
+  return null;
+}
+
+/** Manifest srcs are absolute URLs, origin-rooted (`/runtime-assets/…`) or relative to the assets base. */
+export function absoluteUrl(path: string, base: string, origin: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith('/')) return `${origin}${path}`;
+  return joinPath(base, path);
+}
+
+export function findManifestAssetUrl(manifest: ManifestLike, alias: string, base: string, origin: string): string | null {
+  for (const bundle of manifest.bundles ?? []) {
+    for (const asset of bundle.assets ?? []) {
+      if (!asset.alias?.includes(alias)) continue;
+      const src = firstSrc(asset.src);
+      if (src) return absoluteUrl(src, base, origin);
+    }
+  }
+  return null;
+}
+
 export function dirOf(path: string): string {
   return path.lastIndexOf('/') >= 0 ? path.slice(0, path.lastIndexOf('/') + 1) : '';
 }

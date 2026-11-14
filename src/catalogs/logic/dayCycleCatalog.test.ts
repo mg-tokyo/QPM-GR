@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const CYCLE = 'var Ae={day:210,sunset:10,midnight:10,sunrise:10},je=Object.values(Ae).reduce((e,t)=>e+t,0)';
 const BONUS = 'var F={day:0,sunset:15,midnight:20,sunrise:10};F.midnight;function I(e){return M[e].isNocturnal===!0}';
+const ORDER = 'var Be=[`sunrise`,`day`,`sunset`,`midnight`];function Ve(e){let t=Ne(e);return t<Le?`sunrise`:t<Fe?`day`:`sunset`}';
 const CAP = 'var ct=.99;function lt(e){return Number.isNaN(e)?0:Math.min(1,Math.max(0,e))}function ut(e){return Math.min(ct,lt(e))}';
 const CRYSTAL = 'function dt(e){let t=new Set;for(let{crystal:n}of ct(e))n.remainingActiveSeconds>0&&t.add(n.crystalType);return{strengthBonus:t.has(`Strength`)?10:0}}';
 
@@ -43,7 +44,7 @@ beforeEach(() => {
 
 describe('dayCycleCatalog', () => {
   it('resolves every part from loaded chunks and releases the chunk retry', async () => {
-    chunks = [CYCLE, BONUS, CAP, CRYSTAL];
+    chunks = [CYCLE, ORDER, BONUS, CAP, CRYSTAL];
     const m = await load();
     const changed = vi.fn();
     m.onDayCycleChange(changed);
@@ -51,6 +52,7 @@ describe('dayCycleCatalog', () => {
     await settle();
     expect(m.getDayCycle()).toEqual({
       stages: [{ id: 'day', minutes: 210 }, { id: 'sunset', minutes: 10 }, { id: 'midnight', minutes: 10 }, { id: 'sunrise', minutes: 10 }],
+      stageOrder: ['sunrise', 'day', 'sunset', 'midnight'],
       nocturnalBonus: { day: 0, sunset: 15, midnight: 20, sunrise: 10 },
       chanceCapPerMinute: 0.99,
       crystalModifiers: { strengthBonus: { crystalType: 'Strength', active: 10, inactive: 0 } },
@@ -63,7 +65,7 @@ describe('dayCycleCatalog', () => {
   });
 
   it('keeps missing parts null and retries them on the next chunk only', async () => {
-    chunks = [CYCLE, BONUS, CRYSTAL];
+    chunks = [CYCLE, ORDER, BONUS, CRYSTAL];
     const m = await load();
     m.startDayCycleSource();
     await settle();
@@ -86,12 +88,12 @@ describe('dayCycleCatalog', () => {
     chunkCb?.();
     chunkCb?.();
     await settle();
-    expect(fetchBundleContaining).toHaveBeenCalledTimes(8);
+    expect(fetchBundleContaining).toHaveBeenCalledTimes(10);
     expect(m.getDayCycleSourceStatus().parts.cycle.attempts).toBe(2);
   });
 
   it('counts a marker hit that fails to parse', async () => {
-    chunks = [CYCLE.replace('day:210,sunset:10,midnight:10,sunrise:10', 'day:0'), BONUS, CAP, CRYSTAL];
+    chunks = [CYCLE.replace('day:210,sunset:10,midnight:10,sunrise:10', 'day:0'), ORDER, BONUS, CAP, CRYSTAL];
     const m = await load();
     m.startDayCycleSource();
     await settle();
@@ -124,6 +126,22 @@ describe('dayCycleCatalog', () => {
     gameStateReady = false;
     m.startDayCycleSource();
     expect(m.getDayCycleSourceStatus().stageWatchActive).toBe(false);
+    m.stopDayCycleSource();
+  });
+
+  it('fans out stage changes with the previous value, deduped, and restarts from null', async () => {
+    const m = await load();
+    const seen: Array<[string, string | null]> = [];
+    m.onDayStageChange((stage, prev) => { seen.push([stage, prev]); });
+    m.startDayCycleSource();
+    stageCb?.('day');
+    stageCb?.('day');
+    stageCb?.('sunset');
+    stageCb?.(null);
+    m.stopDayCycleSource();
+    m.startDayCycleSource();
+    stageCb?.('midnight');
+    expect(seen).toEqual([['day', null], ['sunset', 'day'], ['midnight', null]]);
     m.stopDayCycleSource();
   });
 });

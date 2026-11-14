@@ -38,7 +38,7 @@ const bundleMarkerMisses = new Map<string, Set<string>>();
 // Counted once per network request, not per waiter on the shared promise
 // (REL-7: one 503 shared by three callers used to give the URL up).
 const bundleFetchFailures = new Map<string, number>();
-const MAX_FETCH_FAILURES_PER_URL = 3;
+export const MAX_FETCH_FAILURES_PER_URL = 3;
 // Markers whose miss set holds a URL only because it was given up; a re-arm
 // clears exactly these entries, not fetched-and-missed ones.
 const giveUpMarkers = new Map<string, Set<string>>();

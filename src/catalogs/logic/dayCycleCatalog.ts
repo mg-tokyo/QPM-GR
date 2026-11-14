@@ -6,8 +6,8 @@ import { fetchBundleContaining, getMarkerMissCount, markBundleConsumerDone, onNe
 import { CRYSTAL_MODIFIER_MARKER, parseCrystalModifiers } from './crystalModifierParsing';
 import type { CrystalModifierTable } from './crystalModifierParsing';
 import {
-  CHANCE_CAP_MARKER, DAY_CYCLE_MARKER, NOCTURNAL_BONUS_MARKER,
-  parseChanceCap, parseDayCycleStages, parseNocturnalBonus,
+  CHANCE_CAP_MARKER, DAY_CYCLE_MARKER, DAY_CYCLE_ORDER_MARKER, NOCTURNAL_BONUS_MARKER,
+  parseChanceCap, parseDayCycleOrder, parseDayCycleStages, parseNocturnalBonus,
 } from './dayCycleParsing';
 import type { DayCycleStage } from './dayCycleParsing';
 import { isGameStateReady, subscribe } from '../../core/gameState';
@@ -18,6 +18,7 @@ export type { CrystalModifier, CrystalModifierTable } from './crystalModifierPar
 
 export interface DayCycleData {
   stages: readonly DayCycleStage[] | null;
+  stageOrder: readonly string[] | null;   // run order from in-game midnight (ALR-3.2)
   nocturnalBonus: Readonly<Record<string, number>> | null;
   chanceCapPerMinute: number | null;
   crystalModifiers: CrystalModifierTable | null;
@@ -35,7 +36,7 @@ export interface DayCycleSourceStatus {
   complete: boolean;
   chunkRetryActive: boolean;
   stageWatchActive: boolean;
-  parts: { cycle: DayCyclePartStatus; bonus: DayCyclePartStatus; cap: DayCyclePartStatus; crystal: DayCyclePartStatus };
+  parts: { cycle: DayCyclePartStatus; order: DayCyclePartStatus; bonus: DayCyclePartStatus; cap: DayCyclePartStatus; crystal: DayCyclePartStatus };
   stagesSeen: string[];
 }
 
@@ -52,19 +53,22 @@ const MAX_STAGES_SEEN = 32;
 const log = createNamedLogger('catalogs');
 
 const cycle: Part<readonly DayCycleStage[]> = { marker: DAY_CYCLE_MARKER, parse: parseDayCycleStages, value: null, attempts: 0, parseFailures: 0 };
+const order: Part<readonly string[]> = { marker: DAY_CYCLE_ORDER_MARKER, parse: parseDayCycleOrder, value: null, attempts: 0, parseFailures: 0 };
 const bonus: Part<Readonly<Record<string, number>>> = { marker: NOCTURNAL_BONUS_MARKER, parse: parseNocturnalBonus, value: null, attempts: 0, parseFailures: 0 };
 const cap: Part<number> = { marker: CHANCE_CAP_MARKER, parse: parseChanceCap, value: null, attempts: 0, parseFailures: 0 };
 const crystal: Part<CrystalModifierTable> = { marker: CRYSTAL_MODIFIER_MARKER, parse: parseCrystalModifiers, value: null, attempts: 0, parseFailures: 0 };
 
 const listeners = new Set<() => void>();
+const stageListeners = new Set<(stage: string, prev: string | null) => void>();
 const stagesSeen = new Set<string>();
+let lastStage: string | null = null;
 let started = false;
 let inFlight: Promise<void> | null = null;
 let rerun = false;
 let chunkRetry: (() => void) | null = null;
 let stageUnsub: (() => void) | null = null;
 
-const isComplete = (): boolean => cycle.value !== null && bonus.value !== null && cap.value !== null && crystal.value !== null;
+const isComplete = (): boolean => cycle.value !== null && order.value !== null && bonus.value !== null && cap.value !== null && crystal.value !== null;
 
 async function loadPart<T>(part: Part<T>): Promise<boolean> {
   if (part.value !== null) return false;
@@ -95,11 +99,12 @@ function loadMissing(): Promise<void> {
     registerBundleConsumer(CONSUMER);
     try {
       const gotCycle = await loadPart(cycle);
+      const gotOrder = await loadPart(order);
       const gotBonus = await loadPart(bonus);
       const gotCap = await loadPart(cap);
       const gotCrystal = await loadPart(crystal);
       if (isComplete()) releaseChunkRetry();
-      if (gotCycle || gotBonus || gotCap || gotCrystal) emitChange();
+      if (gotCycle || gotOrder || gotBonus || gotCap || gotCrystal) emitChange();
     } catch (error) {
       log.debug('dayCycle: load failed', { error: String(error) });
     } finally {
@@ -115,7 +120,14 @@ function loadMissing(): Promise<void> {
 }
 
 function recordStage(stage: string | null): void {
-  if (typeof stage === 'string' && stagesSeen.size < MAX_STAGES_SEEN) stagesSeen.add(stage);
+  if (typeof stage !== 'string') return;
+  if (stagesSeen.size < MAX_STAGES_SEEN) stagesSeen.add(stage);
+  if (stage === lastStage) return;
+  const prev = lastStage;
+  lastStage = stage;
+  for (const cb of Array.from(stageListeners)) {
+    try { cb(stage, prev); } catch (error) { log.debug('dayCycle: stage listener threw', { error: String(error) }); }
+  }
 }
 
 export function startDayCycleSource(): void {
@@ -131,16 +143,23 @@ export function stopDayCycleSource(): void {
   rerun = false;
   releaseChunkRetry();
   if (stageUnsub) { stageUnsub(); stageUnsub = null; }
+  lastStage = null;
 }
 
 export function getDayCycle(): DayCycleData {
-  return { stages: cycle.value, nocturnalBonus: bonus.value, chanceCapPerMinute: cap.value, crystalModifiers: crystal.value };
+  return { stages: cycle.value, stageOrder: order.value, nocturnalBonus: bonus.value, chanceCapPerMinute: cap.value, crystalModifiers: crystal.value };
 }
 
 /** Fires when a part resolves. */
 export function onDayCycleChange(cb: () => void): () => void {
   listeners.add(cb);
   return () => { listeners.delete(cb); };
+}
+
+/** Each change of the game's `dayNightStage`; the first value after start arrives with `prev` null. */
+export function onDayStageChange(cb: (stage: string, prev: string | null) => void): () => void {
+  stageListeners.add(cb);
+  return () => { stageListeners.delete(cb); };
 }
 
 function partStatus<T>(part: Part<T>): DayCyclePartStatus {
@@ -153,7 +172,7 @@ export function getDayCycleSourceStatus(): DayCycleSourceStatus {
     complete: isComplete(),
     chunkRetryActive: chunkRetry !== null,
     stageWatchActive: stageUnsub !== null,
-    parts: { cycle: partStatus(cycle), bonus: partStatus(bonus), cap: partStatus(cap), crystal: partStatus(crystal) },
+    parts: { cycle: partStatus(cycle), order: partStatus(order), bonus: partStatus(bonus), cap: partStatus(cap), crystal: partStatus(crystal) },
     stagesSeen: [...stagesSeen],
   };
 }

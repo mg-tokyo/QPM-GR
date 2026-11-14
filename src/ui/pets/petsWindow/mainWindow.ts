@@ -23,6 +23,8 @@ import { WINDOW_ID, PETS_WINDOW_SWITCH_TAB_EVENT, DEFAULT_KEYBIND, PETS_TAB_KEY 
 import { ensureStyles } from './styles';
 import { btn, showToast, normalizeKeybind, isEditableTarget, createKeybindButton } from './helpers';
 import { buildManagerTab } from './managerTab';
+import { createTroughChip } from './troughChip';
+import { areAlertsWipEnabled } from '../../../utils/wipFeatures';
 import { startFeedKeybinds, stopFeedKeybinds } from '../../../features/pets/feedKeybinds';
 import { t } from '../../../i18n';
 import { createNamedLogger } from '../../../diagnostics/logger';
@@ -469,7 +471,13 @@ function renderPetsWindow(root: HTMLElement): void {
     // pet-optimizer is lazy-loaded on first click
   }
   settingsWrap.appendChild(settingsBtn);
-  tabsRight.append(compareStageBadge, settingsWrap);
+  tabsRight.append(compareStageBadge);
+  if (areAlertsWipEnabled()) {
+    const troughChip = createTroughChip();
+    allCleanups.push(troughChip.destroy);
+    tabsRight.append(troughChip.el);
+  }
+  tabsRight.append(settingsWrap);
   tabs.appendChild(tabsRight);
 
   // Map tab IDs to tour window IDs for discovery / help panel.

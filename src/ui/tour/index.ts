@@ -7,6 +7,7 @@ import { check, replayTour, teardown, isActive } from './engine';
 import { registerTour, hasTour, getAllTours, hasHelp, getAllDiscoveryWindowIds } from './registry';
 import { clearTourProgress, clearDiscoveryProgress, migrateLegacyTutorial } from './persistence';
 import { ensureTourStyles } from './styles';
+import { areAlertsWipEnabled } from '../../utils/wipFeatures';
 import type { TourDefinition } from './types';
 
 export type { TourDefinition, TourStep, TourProgress, TourCategory } from './types';
@@ -42,6 +43,7 @@ export async function initTourSystem(): Promise<void> {
     { turtleTimerTour },
     { battleshipTour },
     { camera3dTour },
+    { alertsTour },
   ] = await Promise.all([
     import('./tours/welcome'),
     import('./tours/panel/shell'),
@@ -58,6 +60,7 @@ export async function initTourSystem(): Promise<void> {
     import('./tours/trackers/turtleTimer'),
     import('./tours/garden/battleship'),
     import('./tours/garden/camera3d'),
+    import('./tours/config/alerts'),
   ]);
 
   registerTour(welcomeTour);
@@ -75,6 +78,7 @@ export async function initTourSystem(): Promise<void> {
   registerTour(turtleTimerTour);
   registerTour(battleshipTour);
   registerTour(camera3dTour);
+  if (areAlertsWipEnabled()) registerTour(alertsTour);
 
   migrateLegacyTutorial(welcomeTour.version);
 
@@ -117,6 +121,12 @@ export async function initTourSystem(): Promise<void> {
   regHelp(cropBoostHelp);
   regHelp(xpTrackerHelp);
   regHelp(turtleTimerHelp);
+}
+
+/** First-load panel tours. The engine queues the alerts opt-in behind the welcome tour when both are due. */
+export function checkPanelLoadTours(panel: HTMLElement): void {
+  check('welcome', panel);
+  if (areAlertsWipEnabled()) check('alerts', panel);
 }
 
 /**
