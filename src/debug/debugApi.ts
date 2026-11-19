@@ -5,6 +5,7 @@
 import { storage } from '../utils/storage';
 import { getCatalogs, areCatalogsReady, logCatalogStatus } from '../catalogs/gameCatalogs';
 import type { GameStateKey } from '../core/gameState';
+import { pageWindow } from '../core/pageContext';
 
 // These imports are only used by debug functions, so they're fine to load here
 // when the debug API is actually accessed
@@ -67,8 +68,6 @@ type DebugApiType = {
   currentTile?: () => any;
   verifyBulkFavorite: () => Promise<any>;
 };
-
-declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
 /**
  * Creates the full debug API object.
@@ -387,7 +386,7 @@ export async function createDebugApi(): Promise<DebugApiType> {
     },
 
     searchPageWindow: () => {
-      const pageWin = (window as any).unsafeWindow || window;
+      const pageWin: any = pageWindow;
       const locations = ['myData', 'myPets', 'activePets', 'petData', 'pets', 'gameState'];
       const found: Record<string, any> = {};
       for (const loc of locations) {

@@ -33,8 +33,8 @@ let notificationAllButton: HTMLButtonElement | null = null;
 const notificationFeatureButtons = new Map<string, HTMLButtonElement>();
 const notificationItemElements = new Map<string, HTMLButtonElement>();
 let notificationSelectedId: string | null = null;
-let notificationSectionCollapsed = storage.get<boolean>(NOTIFICATIONS_COLLAPSED_KEY, false) ?? false;
-let notificationDetailExpanded = storage.get<boolean>(NOTIFICATIONS_DETAIL_EXPANDED_KEY, false) ?? false;
+let notificationSectionCollapsed = false;
+let notificationDetailExpanded = false;
 let lastNotificationFilteredCount = 0;
 
 export function createNotificationSection(state: UIState): HTMLElement {
@@ -42,6 +42,9 @@ export function createNotificationSection(state: UIState): HTMLElement {
   if (uiState.notificationsSection) {
     return uiState.notificationsSection;
   }
+  // Read here, not at module load: before storage init a read gets the GM copy, not the mirror.
+  notificationSectionCollapsed = storage.get<boolean>(NOTIFICATIONS_COLLAPSED_KEY, false) ?? false;
+  notificationDetailExpanded = storage.get<boolean>(NOTIFICATIONS_DETAIL_EXPANDED_KEY, false) ?? false;
 
   const section = document.createElement('div');
   section.className = 'qpm-card';

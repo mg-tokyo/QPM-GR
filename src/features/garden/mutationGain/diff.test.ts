@@ -16,7 +16,7 @@ describe('createMutationGainDiffer', () => {
     const d = createMutationGainDiffer();
     d.step([s()]);
     expect(d.step([s({ mutations: ['Gold'] })])).toEqual([
-      { mutation: 'Gold', tileKey: 'g:5', slotId: 0, species: 'Carrot' },
+      { mutation: 'Gold', tileKey: 'g:5', slotId: 0, species: 'Carrot', mutations: ['Gold'] },
     ]);
   });
 

@@ -26,7 +26,8 @@ import {
   type LegacyGmStorageApi,
   type ModernGmStorageApi,
 } from './storageBackends';
-export { QPM_STORAGE_KEYS, SHOP_ENHANCER_MODE_KEY, SHOP_ENHANCER_MODES, type ShopEnhancerMode } from './storageKeys';
+import { reconcileGmStore, seedGmStore, type ReconcileGm } from './storageReconcile';
+export { QPM_STORAGE_KEYS } from './storageKeys';
 export { readLocalRaw } from './storageBackends';
 
 type StorageRuntime = 'legacy-gm' | 'modern-gm' | 'local-storage';
@@ -39,7 +40,7 @@ export interface Storage {
 }
 
 /** Keys whose owning code is gone; deleted once at init so they stop occupying quota. */
-const ORPHANED_KEYS: readonly string[] = ['qpm.petTeams.logs.v1'];
+const ORPHANED_KEYS: readonly string[] = ['qpm.petTeams.logs.v1', 'qpm.shopEnhancer.mode'];
 
 /** Runtime-registered dynamic (e.g. player-scoped) keys — fallback discovery for exportAllValues(). */
 const dynamicKeys = new Set<string>();
@@ -54,6 +55,13 @@ export function registerDynamicKey(key: string): void {
 
 const READ_CACHE_MISSING = Symbol('storage.read.missing');
 const readCache = new Map<string, unknown>();
+// Before the mirror hydrates, get() under a GM runtime returns the GM copy, which can be older.
+const readsBeforeInit = new Set<string>();
+
+/** Keys read before initializeStorage finished; each one may have been served an old GM value. */
+export function storageReadsBeforeInit(): string[] {
+  return Array.from(readsBeforeInit);
+}
 
 let runtime: StorageRuntime = 'local-storage';
 let legacyGm: LegacyGmStorageApi | null = null;
@@ -132,6 +140,44 @@ async function hydrateFromModernGm(): Promise<void> {
   }
 }
 
+function reconcileBackend(): ReconcileGm | null {
+  if (runtime === 'legacy-gm' && legacyGm) {
+    const gm = legacyGm;
+    const backend: ReconcileGm = {
+      get: async (key) => {
+        const raw = gm.getValue(key);
+        return typeof raw === 'string' ? raw : null;
+      },
+      set: async (key, raw) => { gm.setValue(key, raw); },
+    };
+    const listValues = gm.listValues;
+    if (listValues) backend.list = async () => listValues();
+    return backend;
+  }
+  if (runtime === 'modern-gm' && modernGm) {
+    const gm = modernGm;
+    const backend: ReconcileGm = {
+      get: async (key) => {
+        const raw = await gm.getValue<unknown>(key, null);
+        return typeof raw === 'string' ? raw : null;
+      },
+      set: (key, raw) => gm.setValue(key, raw),
+    };
+    const listValues = gm.listValues;
+    if (listValues) backend.list = () => listValues();
+    return backend;
+  }
+  return null;
+}
+
+function currentOrigin(): string {
+  try {
+    return typeof location !== 'undefined' && typeof location.origin === 'string' ? location.origin : '';
+  } catch {
+    return '';
+  }
+}
+
 /**
  * One-time move of the old localStorage mirrors into IndexedDB. A localStorage copy may be
  * stale (quota-blocked writes), so it is only adopted when neither the mirror nor GM holds
@@ -168,6 +214,9 @@ export function initializeStorage(): Promise<void> {
     try {
       await hydrateMirror();
       if (runtime === 'modern-gm') await hydrateFromModernGm();
+      const gmBackend = reconcileBackend();
+      await seedGmStore(gmBackend, isQpmKey, currentOrigin());
+      await reconcileGmStore(gmBackend, isQpmKey);
       migrateLocalMirrors();
       for (const key of ORPHANED_KEYS) storage.remove(key);
       // Modern GM has no sync read to confirm the old value is gone, so its markers stay.
@@ -235,6 +284,7 @@ export function removeStorageKeysByPrefix(prefixes: readonly string[]): number {
 
 export const storage: Storage = {
   get<T = unknown>(key: string, fallback: T = null as T): T {
+    if (!storageInitialized) readsBeforeInit.add(key);
     if (readCache.has(key)) {
       const cached = readCache.get(key);
       return cached === READ_CACHE_MISSING ? fallback : (cached as T);

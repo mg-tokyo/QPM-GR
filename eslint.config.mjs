@@ -17,6 +17,35 @@ const jotaiBridgeRestriction = {
     'See .claude/rules/state/atoms.md. Debug-only dynamic-label code is exempt by file override.',
 };
 
+// Every userscript API name a manager can hand the script (SMM's wrapper parameter list,
+// Starweaver-Mod-Manager src/mods/bundle.ts GM_BINDINGS). Only src/utils/gm.ts may name them:
+// SMM passes them as parameters, so a property lookup or a second declaration misses them.
+const GM_NAMES = [
+  'GM', 'GM_info', 'GM_addStyle', 'GM_addElement', 'GM_getResourceText', 'GM_getResourceURL',
+  'GM_setValue', 'GM_getValue', 'GM_deleteValue', 'GM_listValues', 'GM_setValues', 'GM_getValues',
+  'GM_deleteValues', 'GM_xmlhttpRequest', 'GM_openInTab', 'GM_registerMenuCommand',
+  'GM_unregisterMenuCommand', 'GM_download', 'GM_addValueChangeListener',
+  'GM_removeValueChangeListener', 'unsafeWindow',
+];
+const GM_MESSAGE =
+  'Userscript APIs go through the GM access layer (src/utils/gm.ts): gmLegacyStorage, gmXhr/gmHttpRequest, ' +
+  'gmOpenInTab, gmInfo, gmUnsafeWindow (pageWindow from src/core/pageContext.ts for the page). Storage goes through src/utils/storage.ts.';
+const gmGlobalRestrictions = GM_NAMES.map((name) => ({ name, message: GM_MESSAGE }));
+const GM_NAME_RE = '/^(GM|GM_\\w+|unsafeWindow)$/';
+const gmSyntaxRestrictions = [
+  // globalThis.GM_x, window.GM_x, (x as any).GM_x, x.unsafeWindow
+  { selector: `MemberExpression > Identifier.property[name=${GM_NAME_RE}]`, message: GM_MESSAGE },
+  // window['GM_x']
+  { selector: `MemberExpression[computed=true] > Literal.property[value=${GM_NAME_RE}]`, message: GM_MESSAGE },
+  // A local `declare const GM_x` turns the global into a module binding no-restricted-globals cannot see.
+  { selector: `VariableDeclarator > Identifier.id[name=${GM_NAME_RE}]`, message: GM_MESSAGE },
+  { selector: `TSDeclareFunction > Identifier.id[name=${GM_NAME_RE}]`, message: GM_MESSAGE },
+];
+const setIntervalRestriction = {
+  name: 'setInterval',
+  message: 'Use visibleInterval/criticalInterval from src/utils/timerManager.ts — never raw setInterval.',
+};
+
 export default [
   { ignores: ['dist/**', 'scraped-data/**', 'scripts/**', '.claude/**'] },
   {
@@ -28,14 +57,8 @@ export default [
     },
     plugins: { qpm },
     rules: {
-      'no-restricted-globals': [
-        'error',
-        { name: 'setInterval', message: 'Use visibleInterval/criticalInterval from src/utils/timerManager.ts — never raw setInterval.' },
-        { name: 'GM_getValue', message: 'Use the storage wrapper (src/utils/storage.ts) — never raw GM_* calls.' },
-        { name: 'GM_setValue', message: 'Use the storage wrapper (src/utils/storage.ts) — never raw GM_* calls.' },
-        { name: 'GM_deleteValue', message: 'Use the storage wrapper (src/utils/storage.ts) — never raw GM_* calls.' },
-        { name: 'GM_listValues', message: 'Use the storage wrapper (src/utils/storage.ts) — never raw GM_* calls.' },
-      ],
+      'no-restricted-globals': ['error', setIntervalRestriction, ...gmGlobalRestrictions],
+      'no-restricted-syntax': ['error', ...gmSyntaxRestrictions],
       'no-restricted-properties': [
         'error',
         { object: 'window', property: 'setInterval', message: 'Use visibleInterval/criticalInterval from src/utils/timerManager.ts.' },
@@ -84,19 +107,25 @@ export default [
     rules: {
       'no-restricted-globals': [
         'error',
-        { name: 'fetch', message: 'Aries/service HTTP goes through GM_xmlhttpRequest (integrations.md §2) — never fetch.' },
-        { name: 'setInterval', message: 'Use visibleInterval/criticalInterval from src/utils/timerManager.ts.' },
+        { name: 'fetch', message: 'Aries/service HTTP goes through gmHttpRequest in src/utils/gm.ts (integrations.md §2) — never fetch.' },
+        setIntervalRestriction,
+        ...gmGlobalRestrictions,
       ],
     },
   },
   // ---- Exemptions (later objects win for matching files) ----
   {
     files: ['src/utils/timerManager.ts'],
-    rules: { 'no-restricted-globals': 'off', 'no-restricted-properties': 'off', 'qpm/polling-needs-justification': 'off' },
+    rules: {
+      'no-restricted-globals': ['error', ...gmGlobalRestrictions],
+      'no-restricted-properties': 'off',
+      'qpm/polling-needs-justification': 'off',
+    },
   },
   {
-    files: ['src/utils/storage.ts', 'src/services/storage.ts'],
-    rules: { 'no-restricted-globals': 'off' },
+    // The GM access layer and its wrapper-simulation test are the only files that name the userscript API.
+    files: ['src/utils/gm.ts', 'src/utils/gm.test.ts'],
+    rules: { 'no-restricted-globals': ['error', setIntervalRestriction], 'no-restricted-syntax': 'off' },
   },
   {
     files: ['src/websocket/**/*.ts'],

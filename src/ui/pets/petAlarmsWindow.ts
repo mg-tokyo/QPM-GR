@@ -1,15 +1,19 @@
+import { getAlertRow } from '../../features/alertHub';
 import {
   getHungerAlarmSettings,
+  HUNGER_ALARM_ROW,
   petIcon,
   petName,
   setHungerAlarmDefault,
   setPetHungerThreshold,
 } from '../../features/pets/hungerAlarm';
-import { getTroughAlarmSettings, setTroughLowAt } from '../../features/pets/troughAlarm';
+import { getTroughAlarmSettings, setTroughLowAt, TROUGH_ALARM_ROW } from '../../features/pets/troughAlarm';
 import { t } from '../../i18n';
 import { onActivePetInfos, type ActivePetInfo } from '../../store/pets';
-import { createButton, createEmptyState, createNumberInput, createSectionHeader } from '../components';
+import { mountAlertSettings } from '../alertCentre/settingsShell';
+import { createButton, createEmptyState, createNumberInput } from '../components';
 import { closeWindow, destroyWindow, isWindowOpen, openWindow } from '../core/modalWindow';
+import { createIconBox } from '../shop/restockAlerts/cardShell';
 
 export const PET_ALARMS_WINDOW_ID = 'qpm-pet-alarms';
 
@@ -37,14 +41,7 @@ function petRow(p: ActivePetInfo, petId: string): PetRow {
   const root = el('div', ROW_CSS);
   root.dataset.qpmPetAlarmRow = petId;
   const icon = petIcon(p);
-  if (icon) {
-    const img = el('img', 'width:32px;height:32px;object-fit:contain;flex:none;');
-    img.src = icon;
-    img.alt = '';
-    root.append(img);
-  } else {
-    root.append(el('span', 'width:32px;flex:none;'));
-  }
+  root.append(icon ? createIconBox(icon, '', 'sm') : el('span', 'width:28px;flex:none;'));
   const name = petName(p);
   const text = el('div', 'flex:1;min-width:0;display:flex;flex-direction:column;');
   const hunger = el('span', NOTE_CSS, hungerText(p));
@@ -80,10 +77,11 @@ function petRow(p: ActivePetInfo, petId: string): PetRow {
 }
 
 function renderPetAlarms(root: HTMLElement): () => void {
-  root.style.cssText = 'display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+  const hungerLook = getAlertRow(HUNGER_ALARM_ROW);
+  const shell = mountAlertSettings(root, t('feature.petAlarms.title'), hungerLook);
   const rows = new Map<string, PetRow>();
 
-  root.append(createSectionHeader(t('feature.petAlarms.hungerHeader'), { size: 'compact' }).root);
+  const hunger = shell.addSection(t('feature.petAlarms.hungerHeader'), hungerLook);
   const defaultRow = el('div', ROW_CSS);
   const defaultInput = createNumberInput({
     min: 0,
@@ -95,21 +93,24 @@ function renderPetAlarms(root: HTMLElement): () => void {
       setHungerAlarmDefault(v);
       const perPet = getHungerAlarmSettings().perPet;
       for (const [id, row] of rows) if (perPet[id] === undefined) row.setThreshold(v);
+      shell.refresh();
     },
   });
   // The component's <label> is not tied to its input.
   defaultInput.input.setAttribute('aria-label', t('feature.petAlarms.defaultLabel'));
   defaultRow.append(defaultInput.root);
-  root.append(defaultRow, el('div', NOTE_CSS, t('feature.petAlarms.perPetNote')));
+  hunger.append(defaultRow, el('div', NOTE_CSS, t('feature.petAlarms.perPetNote')));
 
   const list = el('div', 'display:flex;flex-direction:column;');
-  root.append(list);
+  hunger.append(list);
   let idsKey: string | null = null;
 
   const stopPets = onActivePetInfos((infos) => {
     const pets = infos.filter((p): p is ActivePetInfo & { petId: string } => !!p.petId);
     const nextKey = pets.map((p) => p.petId).join('|');
     if (nextKey !== idsKey) {
+      // The header and hunger icons show the first active pet.
+      shell.refresh();
       // Rebuild only when the team changes, so an input being edited keeps its focus.
       idsKey = nextKey;
       rows.clear();
@@ -130,7 +131,7 @@ function renderPetAlarms(root: HTMLElement): () => void {
     }
   }, true);
 
-  root.append(createSectionHeader(t('feature.petAlarms.troughHeader'), { size: 'compact' }).root);
+  const trough = shell.addSection(t('feature.petAlarms.troughHeader'), getAlertRow(TROUGH_ALARM_ROW));
   const troughRow = el('div', ROW_CSS);
   const troughInput = createNumberInput({
     min: 0,
@@ -142,9 +143,12 @@ function renderPetAlarms(root: HTMLElement): () => void {
   });
   troughInput.input.setAttribute('aria-label', t('feature.petAlarms.troughAria'));
   troughRow.append(troughInput.root);
-  root.append(troughRow);
+  trough.append(troughRow);
 
-  return stopPets;
+  return () => {
+    stopPets();
+    shell.destroy();
+  };
 }
 
 export function openPetAlarmsWindow(): void {

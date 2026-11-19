@@ -43,6 +43,13 @@ function resolveIconUrl(icon: CardIcon): string {
   return resolveSpriteUrl(icon.spriteKey, icon.spriteMutations);
 }
 
+/** One sprite for a card icon (a bunched icon gives its first sprite); '' when none is loaded. */
+export function cardIconUrl(icon: CardIcon): string {
+  if (icon.kind === 'sprite' && icon.spriteKey) return resolveIconUrl(icon);
+  const first = icon.bunched?.[0];
+  return first ? resolveSpriteUrl(first.spriteKey, first.mutations) : '';
+}
+
 // `data-qpm-sprite` descriptor (`kind:id:mut1,mut2`) read by compat.ts
 // refreshMarkedSpriteElements, which fills `src` when a lazily rendered
 // sprite (per-species pet Rive) lands after this element was built.

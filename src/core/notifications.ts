@@ -7,6 +7,8 @@ export type NotificationLevel = 'info' | 'success' | 'warn' | 'error';
 export interface NotificationAction {
   label: string;
   onClick: () => void;
+  /** Alert cards close after an action unless this is set (e.g. stepping through crops). */
+  keepOpen?: boolean;
 }
 
 export interface NotificationEvent {
@@ -16,6 +18,11 @@ export interface NotificationEvent {
   message: string;
   timestamp: number;
   actions?: NotificationAction[];
+  /** Set by the alert hub beside `message` (= "title — body") so History can draw a card. */
+  title?: string;
+  body?: string;
+  /** Sprite data URL of the exact entity the alert is about. */
+  iconUrl?: string;
 }
 
 type NotificationSubscriber = (events: NotificationEvent[]) => void;

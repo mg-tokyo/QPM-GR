@@ -364,6 +364,7 @@ const pt: Dictionary = {
   'feature.chargedAbilities.window.autoOpenOverlay': '[VERIFY] Auto-open overlay',
   'feature.chargedAbilities.close': '[VERIFY] Close',
   'feature.chargedAbilities.noActivePets': '[VERIFY] No charged-ability pets active. Mount a Thunder Wolf, Hedgehog, or Ostrich to use this panel.',
+  'feature.chargedAbilities.rulesUnreadable': "[VERIFY] Couldn't read charged-ability rules from this game version. QPM will keep trying as the game loads.",
 
   // ── Super Cleanser ─────────────────────────────────────────────────────────
   'hub.garden.superCleanser.label': '[VERIFY] Super Cleanser',
@@ -735,7 +736,6 @@ const pt: Dictionary = {
   'feature.spectator.keys.other.feed': '[VERIFY] Feed pet {n}',
   'feature.spectator.keys.other.sellAll': '[VERIFY] Sell all pets',
   'feature.spectator.keys.other.team': '[VERIFY] Pet team {name}',
-  'feature.spectator.keys.other.hutch': '[VERIFY] Pet Hutch',
   'feature.autoReconnect.countdown': '[VERIFY] Game updated: refreshing in {seconds} s',
   'feature.autoReconnect.cancel': '[VERIFY] Cancel',
   'feature.autoReconnect.settingTitle': '[VERIFY] Auto reconnect',
@@ -743,6 +743,8 @@ const pt: Dictionary = {
   'feature.autoReconnect.enable': '[VERIFY] Refresh automatically when the game updates',
   'feature.autoReconnect.captionWeb': '[VERIFY] Waits 5 s, then uses the game\'s own button.',
   'feature.autoReconnect.captionDiscord': '[VERIFY] Discord: the game\'s own notice handles it; QPM does nothing.',
+  'feature.keybinds.noWeatherShop': '[VERIFY] Nenhuma loja do clima está aberta agora.',
+  'feature.keybinds.notInBag': '[VERIFY] Nenhum {item} no seu inventário.',
 };
 
 export default pt;

@@ -1,5 +1,6 @@
 import type { Manifest, AtlasData } from './types';
 import { pageWindow } from '../core/pageContext';
+import { gmHttpRequest } from '../utils/gm';
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -35,34 +36,19 @@ function fetchRequest(url: string, type: 'text' | 'blob'): Promise<any> {
  * blocked UI creation. GM path is kept for cross-origin only, with a real
  * `timeout` value — without it ontimeout never fires.
  */
-function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
+async function gmRequest(url: string, type: 'text' | 'blob'): Promise<any> {
   if (isSameOrigin(url)) {
     return fetchRequest(url, type);
   }
 
-  if (typeof GM_xmlhttpRequest !== 'undefined') {
-    return new Promise((resolve, reject) => {
-      const reqConfig: any = {
-        method: 'GET',
-        url,
-        timeout: REQUEST_TIMEOUT_MS,
-        onload: (r: any) =>
-          r.status >= 200 && r.status < 300
-            ? resolve(r)
-            : reject(new Error(`HTTP ${r.status} (${url})`)),
-        onerror: () => reject(new Error(`Network error (${url})`)),
-        ontimeout: () => reject(new Error(`Timeout (${url})`)),
-      };
-
-      if (type === 'blob') {
-        reqConfig.responseType = 'blob';
-      }
-
-      GM_xmlhttpRequest(reqConfig);
-    });
-  }
-
-  return fetchRequest(url, type);
+  const r = await gmHttpRequest(url, type === 'blob'
+    ? { timeoutMs: REQUEST_TIMEOUT_MS, responseType: 'blob' }
+    : { timeoutMs: REQUEST_TIMEOUT_MS });
+  if (r.kind === 'unavailable') return fetchRequest(url, type);
+  if (r.kind === 'error') throw new Error(`Network error (${url})`);
+  if (r.kind === 'timeout') throw new Error(`Timeout (${url})`);
+  if (r.status < 200 || r.status >= 300) throw new Error(`HTTP ${r.status} (${url})`);
+  return r;
 }
 
 export async function getJSON<T = any>(url: string): Promise<T> {
@@ -72,11 +58,13 @@ export async function getJSON<T = any>(url: string): Promise<T> {
 }
 
 // Game ≥1973 serves `manifest.<gpu-format>.json` (bc7/astc/…, picked from GPU caps) and 404s
-// the plain `manifest.json`; follow whichever one the game itself fetched.
+// the plain `manifest.json`; follow whichever one the game itself fetched. The devs' fallback is
+// rgba8: works on any GPU, same aliases (live 2082: 370/370), raw RGBA8 KTX2 pages.
 const FORMAT_MANIFEST_RE = /\/manifest\.[a-z0-9]+\.json(?:[?#]|$)/i;
-const LEGACY_MANIFEST = 'manifest.json';
+const FALLBACK_MANIFEST = 'manifest.rgba8.json';
 const GAME_MANIFEST_WAIT_MS = 15000;
 const resolvedManifestUrls = new Map<string, string>();
+const pendingManifests = new Map<string, Promise<unknown>>();
 
 function findGameManifestUrl(base: string): string | null {
   const prefix = joinPath(base, '');
@@ -116,21 +104,29 @@ function waitForGameManifestUrl(base: string, ms: number): Promise<string | null
   });
 }
 
-/** Filename the current base's manifest resolved to; legacy name before the first resolve. */
+/** Filename the current base's manifest resolved to; the rgba8 fallback before the first resolve. */
 export function resolvedManifestFilename(base: string): string {
   const url = resolvedManifestUrls.get(base);
-  return url ? url.slice(url.lastIndexOf('/') + 1).replace(/[?#].*$/, '') : LEGACY_MANIFEST;
+  return url ? url.slice(url.lastIndexOf('/') + 1).replace(/[?#].*$/, '') : FALLBACK_MANIFEST;
 }
 
-export async function getAssetManifest<T = Manifest>(base: string): Promise<T> {
+// Sprites, pet Rive and audio all ask at boot; share one lookup so a failure is one request, not four.
+export function getAssetManifest<T = Manifest>(base: string): Promise<T> {
   const cached = resolvedManifestUrls.get(base);
   if (cached) return getJSON<T>(cached);
 
-  const gameUrl = findGameManifestUrl(base) ?? await waitForGameManifestUrl(base, GAME_MANIFEST_WAIT_MS);
-  const url = gameUrl ?? joinPath(base, LEGACY_MANIFEST);
-  const manifest = await getJSON<T>(url);
-  resolvedManifestUrls.set(base, url);
-  return manifest;
+  const pending = pendingManifests.get(base);
+  if (pending) return pending as Promise<T>;
+
+  const lookup = (async () => {
+    const gameUrl = findGameManifestUrl(base) ?? await waitForGameManifestUrl(base, GAME_MANIFEST_WAIT_MS);
+    const url = gameUrl ?? joinPath(base, FALLBACK_MANIFEST);
+    const manifest = await getJSON<T>(url);
+    resolvedManifestUrls.set(base, url);
+    return manifest;
+  })().finally(() => pendingManifests.delete(base));
+  pendingManifests.set(base, lookup);
+  return lookup;
 }
 
 export async function getBlob(url: string): Promise<Blob> {

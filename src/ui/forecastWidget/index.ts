@@ -9,11 +9,10 @@ import { fetchRecentWeatherEvents } from '../../utils/itemEventService';
 import { getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
 import { storage } from '../../utils/storage';
-import { formatRestockCountdown } from '../core/panelHelpers';
 import { t } from '../../i18n';
 import { buildForecastLines, collapseWeatherHistory, forecastLinesSignature, upcomingEntries } from './model';
-import type { ForecastLine } from './model';
-import { renderExpanded, type HistoryState } from './expanded';
+import { buildForecastView, heroSpriteKey, lookSignature, type ForecastView } from './hero';
+import { expandedLookSignature, renderExpanded, type HistoryState } from './expanded';
 import { EMPTY_WEATHER_LOG, stepWeatherLog, type WeatherLogState } from './weatherLog';
 import { injectForecastWidgetStyles } from './styles';
 import type { WeatherForecastEntry, WeatherWindow } from '../../types/gameAtoms';
@@ -41,7 +40,8 @@ let logState: WeatherLogState = EMPTY_WEATHER_LOG;
 let history: HistoryState = 'loading';
 let signature = '';
 let expandedSignature = '';
-let timeCells: Array<{ line: ForecastLine; el: HTMLElement }> = [];
+let view: ForecastView | null = null;
+let headerIcon: HTMLImageElement | null = null;
 const spriteUrls = new Map<string, string>();
 const openListeners = new Set<(open: boolean) => void>();
 
@@ -56,58 +56,36 @@ function spriteUrl(key: string | null): string | null {
   return url || null;
 }
 
-function lineLabel(line: ForecastLine): string {
-  if (line.kind === 'night') return t(line.active ? 'feature.forecastWidget.night' : 'feature.forecastWidget.nightfall');
-  if (line.kind === 'hidden') return t('feature.forecastWidget.hiddenEvent', { group: line.groupId ?? '' });
-  return line.label ?? '';
-}
+const viewDeps = { spriteUrl, weatherDef: getWeatherDefSafe };
 
-function timeText(line: ForecastLine, now: number): string {
-  if (line.atMs === null) return '—';
-  const ms = line.atMs - now;
-  if (ms <= 0) return t('feature.forecastWidget.now');
-  const time = formatRestockCountdown(ms);
-  return t(line.active ? 'feature.forecastWidget.endsIn' : 'feature.forecastWidget.in', { time });
-}
-
-function buildRow(line: ForecastLine): { row: HTMLElement; time: HTMLElement } {
-  const row = document.createElement('div');
-  row.className = `qpm-forecast-widget__row${line.active ? ' qpm-forecast-widget__row--active' : ''}`;
-  const url = spriteUrl(line.spriteKey);
-  const icon = document.createElement(url ? 'img' : 'span');
-  icon.className = 'qpm-forecast-widget__icon';
-  if (url && icon instanceof HTMLImageElement) { icon.src = url; icon.alt = ''; }
-  const label = document.createElement('span');
-  label.className = 'qpm-forecast-widget__label';
-  label.textContent = lineLabel(line);
-  const time = document.createElement('span');
-  time.className = 'qpm-forecast-widget__time';
-  row.append(icon, label, time);
-  return { row, time };
+function setHeaderIcon(key: string | null): void {
+  if (!headerIcon) return;
+  const url = spriteUrl(key);
+  headerIcon.hidden = !url;
+  if (url && headerIcon.src !== url) headerIcon.src = url;
 }
 
 function renderLines(now: number): void {
   if (!body) return;
   const lines = buildForecastLines({ forecast, weather, window: weatherWindow, nowMs: now, clock: getDayCycleClock(), weatherDef: getWeatherDefSafe });
   const waiting = forecast === null && weather === null;
-  const sig = `${forecastLinesSignature(lines)}|${lines.map((l) => (spriteUrl(l.spriteKey) ? 'i' : '-')).join('')}|${waiting ? 'w' : ''}`;
+  const sig = `${forecastLinesSignature(lines)}|${lookSignature(lines, viewDeps)}|${weatherWindow?.startsAtMs ?? ''}|${waiting ? 'w' : ''}`;
   if (sig !== signature) {
     signature = sig;
-    timeCells = [];
+    view = null;
     body.replaceChildren();
+    setHeaderIcon(waiting ? null : heroSpriteKey(lines));
     if (waiting) {
       const empty = document.createElement('div');
       empty.className = 'qpm-forecast-widget__empty';
       empty.textContent = t('feature.forecastWidget.waiting');
       body.appendChild(empty);
-    }
-    for (const line of lines) {
-      const { row, time } = buildRow(line);
-      body.appendChild(row);
-      timeCells.push({ line, el: time });
+    } else {
+      view = buildForecastView(lines, weatherWindow, viewDeps);
+      body.append(...view.nodes);
     }
   }
-  for (const cell of timeCells) cell.el.textContent = timeText(cell.line, now);
+  view?.tick(now);
 }
 
 // Rebuilt only when its content changes: its times are clock times, not countdowns.
@@ -116,11 +94,12 @@ function renderExpandedView(now: number): void {
   expandedEl.hidden = !expanded;
   if (!expanded) return;
   const upcoming = upcomingEntries({ forecast, weather, window: weatherWindow, nowMs: now, weatherDef: getWeatherDefSafe });
+  const input = { ...viewDeps, upcoming, log: logState.past, history, nowMs: now };
   const historySig = typeof history === 'string' ? history : history.map((e) => `${e.weatherId}@${e.startsAtMs}`).join(',');
-  const sig = JSON.stringify([upcoming, logState.past, historySig]);
+  const sig = JSON.stringify([upcoming, logState.past, historySig, expandedLookSignature(input)]);
   if (sig === expandedSignature) return;
   expandedSignature = sig;
-  renderExpanded(expandedEl, { upcoming, log: logState.past, history, nowMs: now, weatherDef: getWeatherDefSafe, spriteUrl });
+  renderExpanded(expandedEl, input);
 }
 
 function render(): void {
@@ -179,7 +158,8 @@ function teardown(): void {
   expandedEl = null;
   expandBtn = null;
   expanded = false;
-  timeCells = [];
+  view = null;
+  headerIcon = null;
   signature = '';
   expandedSignature = '';
   notifyOpen(false);
@@ -204,10 +184,14 @@ function buildHeader(): HTMLElement {
   const title = document.createElement('div');
   title.className = 'qpm-forecast-widget__title';
   title.textContent = t('feature.forecastWidget.title');
+  headerIcon = document.createElement('img');
+  headerIcon.className = 'qpm-forecast-widget__head-icon';
+  headerIcon.alt = '';
+  headerIcon.hidden = true;
   expandBtn = headerButton('qpm-forecast-widget__btn', '▾', t('feature.forecastWidget.expand'), () => { setExpanded(!expanded); });
   expandBtn.setAttribute('aria-expanded', 'false');
   const close = headerButton('qpm-forecast-widget__btn', '×', t('feature.forecastWidget.close'), closeForecastWidget);
-  header.append(title, expandBtn, close);
+  header.append(headerIcon, title, expandBtn, close);
   return header;
 }
 
@@ -230,7 +214,7 @@ function mountCard(): void {
     body: wrap,
     persistKey: FORECAST_WIDGET_POSITION_KEY,
     defaultPosition: DEFAULT_POSITION,
-    baseWidth: 220,
+    baseWidth: 240,
     retainPosition: true,
     dragExcludeSelectors: ['.qpm-forecast-widget__btn', '.qpm-forecast-widget__expanded'],
     onDestroy: teardown,

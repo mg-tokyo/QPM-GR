@@ -13,13 +13,13 @@ import {
 } from '../../../features/pets/sellAll';
 import {
   getTeamsConfig,
-  applyTeam,
   getKeybinds,
 } from '../../../store/petTeams';
+import { applyTeamWithToasts } from './teamApplyToast';
 import { initFloatingCards } from '../floatingCard';
 import type { CompareStage } from '../../../features/pets/data/petCompareRules';
 import type { ManagerState } from './types';
-import { WINDOW_ID, PETS_WINDOW_SWITCH_TAB_EVENT, DEFAULT_KEYBIND, PETS_TAB_KEY } from './constants';
+import { WINDOW_ID, PETS_WINDOW_SWITCH_TAB_EVENT, PETS_TAB_KEY } from './constants';
 import { ensureStyles } from './styles';
 import { btn, showToast, normalizeKeybind, isEditableTarget, createKeybindButton } from './helpers';
 import { buildManagerTab } from './managerTab';
@@ -31,12 +31,6 @@ import { createNamedLogger } from '../../../diagnostics/logger';
 import type { ActivityTabHandle } from './activityTab';
 
 const uiLog = createNamedLogger('ui.window');
-
-// ---------------------------------------------------------------------------
-// Module-level state
-// ---------------------------------------------------------------------------
-
-let currentKeybind = DEFAULT_KEYBIND;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -566,13 +560,6 @@ export function initPetsWindow(): void {
     if (isEditableTarget(e.target)) return;
     if (e.repeat) return;
 
-    // Window open/close keybind
-    if (currentKeybind && e.key.toLowerCase() === currentKeybind && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      togglePetsWindow();
-      return;
-    }
-
     const combo = normalizeKeybind(e);
     if (!combo) return;
 
@@ -620,17 +607,7 @@ export function initPetsWindow(): void {
 
     e.preventDefault();
     e.stopPropagation();
-    showToast(t('feature.petsWindow.applyingTeam', { name: team.name }));
-    applyTeam(team.id)
-      .then(result => {
-        if (result.errors.length === 0) {
-          showToast(t('feature.petsWindow.appliedTeam', { name: team.name }), 'success');
-        } else {
-          const summary = result.errorSummary ? `: ${result.errorSummary}` : '';
-          showToast(t('feature.petsWindow.appliedWithErrors', { name: team.name, count: String(result.errors.length), summary }), 'error');
-        }
-      })
-      .catch(() => showToast(t('feature.petsWindow.teamApplyFailed'), 'error'));
+    void applyTeamWithToasts(team);
   };
 
   document.addEventListener('keydown', keybindHandler);

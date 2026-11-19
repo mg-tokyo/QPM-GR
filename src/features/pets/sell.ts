@@ -5,7 +5,6 @@ import { sendRoomAction, type RoomActionType, type WebSocketSendResult } from '.
 import { delay } from '../../utils/scheduling/scheduling';
 import { warnFeature } from './_diagnostics';
 import type { CollectedPet } from './optimizer';
-import { ensureJournalLogged } from '../journal/guard';
 
 export interface SellPipelineResult {
   ok: boolean;
@@ -85,9 +84,6 @@ export async function executeSellPipeline(
   }
 
   try {
-    // Step 0: Auto-log unlogged journal variants before selling
-    await ensureJournalLogged([pet]);
-
     // Step 1: Fresh atom read to avoid stale cache — unfavorite/unlock if needed
     const freshInventory = await readInventoryDirect();
     const freshFavorites = new Set(freshInventory?.favoritedItemIds ?? []);

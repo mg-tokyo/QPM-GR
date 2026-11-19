@@ -31,7 +31,9 @@ import {
   getOwnedToolCount,
 } from './purchaseActions';
 import { removeAlert, updateAlertQuantity } from './alertDom';
+import { isOwnedOneTimeItem, readOwnershipData } from './oneTimeOwnership';
 import { upsertAlertWithDesktop } from './desktopRelay';
+import { isSeedEntry, resolveJournalCard } from './journalSeedCard';
 import {
   findStaleDismissals,
   readDismissedRestocks,
@@ -164,6 +166,21 @@ export function getPurchaseItemId(shopType: RestockShopType, item: ShopStockItem
   return item.id;
 }
 
+/** Seed ids on sale in any shop now, read the way `processShopStock` reads them (ALR-16.6). */
+export function listStockedSeedIds(state: ShopStockState): Set<string> {
+  const out = new Set<string>();
+  for (const category of Object.keys(state.categories) as ShopCategory[]) {
+    const shopType = categoryToShopType(category);
+    if (!shopType) continue;
+    for (const item of state.categories[category]?.items ?? []) {
+      const raw = item.raw as Record<string, unknown> | undefined;
+      const itemType = getShopEntryIdentity(raw)?.itemType ?? (raw?.itemType as string | undefined);
+      if (isSeedEntry(shopType, itemType) && getItemQuantity(item) > 0) out.add(getPurchaseItemId(shopType, item));
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Fallback cycle tracking
 // ---------------------------------------------------------------------------
@@ -208,6 +225,7 @@ export function processShopStock(state: ShopStockState): void {
   const tracked = loadTrackedSet();
   const seenKeys = new Set<string>();
   const categories = Object.keys(state.categories) as ShopCategory[];
+  const ownershipData = readOwnershipData();
 
   for (const category of categories) {
     const shopType = categoryToShopType(category);
@@ -234,6 +252,11 @@ export function processShopStock(state: ShopStockState): void {
       const dismissedForCycle     = isDismissedForCycle(canonicalKey, stockCycleId);
       const hasActiveAlert        = activeAlerts.has(canonicalKey);
       const hasPendingConfirmation = pendingOwnershipConfirmations.has(canonicalKey);
+      // A card mid-purchase keeps its own success/failure display; the next pass removes it.
+      const midPurchase = hasPendingConfirmation || activeAlerts.get(canonicalKey)?.busy === true;
+      // A journal card mid-purchase stays until it settles, though the bought seed leaves the watched list.
+      const journal = (isSeedEntry(shopType, resolvedItemType) ? resolveJournalCard(purchaseItemId, trackedNow) : null)
+        ?? (midPurchase ? activeAlerts.get(canonicalKey)?.model.journal ?? null : null);
 
       if (trackedNow || hasActiveAlert || hasPendingConfirmation) {
         debugLogStockStateIfChanged(canonicalKey, {
@@ -269,9 +292,15 @@ export function processShopStock(state: ShopStockState): void {
         dismissedInStockKeys.add(canonicalKey);
       }
 
-      if (!trackedNow) {
+      if (!trackedNow && !journal) {
         dismissedInStockKeys.delete(canonicalKey);
         clearDismissedCycle(canonicalKey);
+        removeAlert(canonicalKey);
+        continue;
+      }
+
+      if (!midPurchase && isOwnedOneTimeItem(purchaseItemId, ownershipData)) {
+        debugLog('Suppressing alert because the one-time item is already owned', { key: canonicalKey, itemId: purchaseItemId });
         removeAlert(canonicalKey);
         continue;
       }
@@ -317,6 +346,7 @@ export function processShopStock(state: ShopStockState): void {
         priceCoins: item.priceCoins ?? null,
         ...(resolvedItemType != null ? { itemType: resolvedItemType } : {}),
         ...(identity ? { idField: identity.idField } : {}),
+        ...(journal ? { journal } : {}),
       });
 
       const active = activeAlerts.get(canonicalKey);

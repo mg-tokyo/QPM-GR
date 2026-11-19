@@ -12,6 +12,7 @@ import { renderWindowPetCard } from './windowCard';
 import { renderHutchSidebar } from './hutchSidebar';
 import { renderGardenTotals } from './gardenTotals';
 import { groupSnapshots } from '../../features/chargedAbilities/grouping';
+import { areChargedAbilityRulesUnreadable } from '../../features/chargedAbilities/abilities';
 import {
   getAutoOpenOverlay,
   setAutoOpenOverlay,
@@ -33,6 +34,11 @@ function buildEmptyState(): HTMLElement {
   wrap.className = 'qpm-charged-abilities__wempty';
   const heading = document.createElement('div');
   heading.className = 'qpm-charged-abilities__wempty-heading';
+  if (areChargedAbilityRulesUnreadable()) {
+    heading.textContent = t('feature.chargedAbilities.rulesUnreadable');
+    wrap.append(heading);
+    return wrap;
+  }
   heading.textContent = t('feature.chargedAbilities.window.emptyHeading');
   const body = document.createElement('div');
   body.className = 'qpm-charged-abilities__wempty-body';

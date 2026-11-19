@@ -1,43 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeIndexedDb, type FakeMirrorRow } from './storageTestFakes';
 
-interface Row { key: string; raw: string; savedAt: number; deleted?: boolean }
-
-let idbRows: Map<string, Row>;
+let idbRows: Map<string, FakeMirrorRow>;
 // `persisted` is what the script manager has stored; `served` is what GM_getValue returns on this
 // load. SMM bakes values into the script and re-bakes a few seconds after the last write, so a quick
 // reload is served an older snapshot.
 let persisted: Map<string, string>;
 let served: Map<string, string>;
-
-function fakeIndexedDb(): unknown {
-  const later = (fn: () => void): void => { queueMicrotask(fn); };
-  return {
-    open: () => {
-      const req: { result?: unknown; onsuccess?: () => void } = {};
-      req.result = {
-        objectStoreNames: { contains: () => true },
-        createObjectStore: () => {},
-        close: () => {},
-        transaction: () => {
-          const tx: { oncomplete?: () => void; objectStore?: () => unknown } = {};
-          tx.objectStore = () => ({
-            getAll: () => {
-              const r: { result?: unknown; onsuccess?: () => void } = {};
-              later(() => { r.result = [...idbRows.values()].map((row) => ({ ...row })); r.onsuccess?.(); });
-              return r;
-            },
-            put: (row: Row) => { idbRows.set(row.key, { ...row }); },
-            delete: (key: string) => { idbRows.delete(key); },
-          });
-          later(() => tx.oncomplete?.());
-          return tx;
-        },
-      };
-      later(() => req.onsuccess?.());
-      return req;
-    },
-  };
-}
 
 async function load(): Promise<{ s: typeof import('./storage'); m: typeof import('./storageMirror') }> {
   vi.resetModules();
@@ -53,7 +22,7 @@ beforeEach(() => {
   idbRows = new Map();
   persisted = new Map();
   served = new Map();
-  vi.stubGlobal('indexedDB', fakeIndexedDb());
+  vi.stubGlobal('indexedDB', fakeIndexedDb(idbRows));
   vi.stubGlobal('GM_getValue', (k: string) => served.get(k));
   vi.stubGlobal('GM_setValue', (k: string, v: string) => { persisted.set(k, v); served.set(k, v); });
   vi.stubGlobal('GM_deleteValue', (k: string) => { persisted.delete(k); served.delete(k); });

@@ -16,6 +16,10 @@ export function registerHubGroups(groups: ReadonlyArray<HubGroupDef>): void {
   registeredGroups = groups;
 }
 
+export function getHubGroups(): ReadonlyArray<HubGroupDef> {
+  return registeredGroups;
+}
+
 export function toggleHub(): void {
   // Hub is now integrated into the panel nav — this is a no-op.
   // Kept for backwards compatibility with any code that calls it.

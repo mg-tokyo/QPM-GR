@@ -1,9 +1,5 @@
-// src/integrations/ariesDetection.ts
 // Detects whether Aries Mod (github.com/Ariedam64/MG-AriesMod) is installed
-// alongside QPM. Used by src/features/shop/enhancer to gate startup when
-// Aries is already providing the same Buy-All + shop-reorder features
-// (verified upstream at src/utils/shopUtility.ts:33 RESCAN_MS=20 + doc-root
-// observers at 720 & 867 in shopUtility.ts@main).
+// alongside QPM.
 //
 // Detection signals (all realm-shared, so this works identically on
 // magicgarden.gg and on <appId>.discordsays.com):
@@ -123,51 +119,6 @@ function ariesNodePredicate(el: unknown): boolean {
       el.matches?.('[data-aries-value-row],[data-aries-coin-value]') === true ||
       el.querySelector?.('.qws2,[data-aries-value-row],[data-aries-coin-value]') !== null
     );
-}
-
-/**
- * Keep watching for Aries AFTER a negative one-shot resolve — the 3s window
- * loses the race when Aries loads late in the userscript order. On late
- * detection the session cache is updated and `cb` fires once. Returns a
- * cleanup; also self-cleans after `windowMs` or on detection.
- */
-export function watchForLateAries(windowMs: number, cb: () => void): () => void {
-  let handle: { disconnect(): void } | null = null;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let done = false;
-
-  const cleanup = (): void => {
-    if (done) return;
-    done = true;
-    if (handle) { handle.disconnect(); handle = null; }
-    if (timer !== null) { clearTimeout(timer); timer = null; }
-  };
-
-  const fire = (source: DetectionSource): void => {
-    commit(source);
-    cleanup();
-    try { cb(); } catch { /* isolate callback failures */ }
-  };
-
-  const immediate = checkSignals();
-  if (immediate !== null) {
-    // Fire async so the caller finishes registration before the callback runs.
-    timer = setTimeout(() => { timer = null; fire(immediate); }, 0);
-    return cleanup;
-  }
-
-  handle = onAdded(
-    ariesNodePredicate,
-    () => {
-      if (done) return;
-      const s = checkSignals();
-      if (s !== null) fire(s);
-    },
-    { callForExisting: false },
-  );
-
-  timer = setTimeout(cleanup, windowMs);
-  return cleanup;
 }
 
 /** For the healthBus subsystem publish. */

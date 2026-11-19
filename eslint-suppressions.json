@@ -9,11 +9,6 @@
       "count": 1
     }
   },
-  "src/core/pageContext.ts": {
-    "@typescript-eslint/ban-ts-comment": {
-      "count": 2
-    }
-  },
   "src/core/reactive/manager.ts": {
     "no-restricted-globals": {
       "count": 1
@@ -164,16 +159,6 @@
       "count": 4
     },
     "qpm/no-literal-domain-lists": {
-      "count": 1
-    }
-  },
-  "src/features/shop/enhancer/detection.ts": {
-    "qpm/polling-needs-justification": {
-      "count": 1
-    }
-  },
-  "src/features/shop/enhancer/index.ts": {
-    "qpm/polling-needs-justification": {
       "count": 1
     }
   },
@@ -731,13 +716,13 @@
   },
   "src/ui/hub/groups/configGroup.ts": {
     "qpm/no-emoji-in-ui": {
-      "count": 14
+      "count": 5
     },
     "qpm/no-hardcoded-colors": {
-      "count": 42
+      "count": 16
     },
     "qpm/no-inline-ui-strings": {
-      "count": 3
+      "count": 2
     }
   },
   "src/ui/hub/groups/gardenGroup.ts": {
@@ -933,7 +918,7 @@
   },
   "src/ui/panel/tileStatusesNew.ts": {
     "qpm/polling-needs-justification": {
-      "count": 3
+      "count": 2
     }
   },
   "src/ui/pets/cropBoostTrackerWindow.ts": {
@@ -976,17 +961,6 @@
   "src/ui/pets/hubWindow.ts": {
     "qpm/no-hardcoded-colors": {
       "count": 17
-    }
-  },
-  "src/ui/pets/hutchWindow.ts": {
-    "qpm/no-emoji-in-ui": {
-      "count": 4
-    },
-    "qpm/no-hardcoded-colors": {
-      "count": 10
-    },
-    "qpm/no-inline-ui-strings": {
-      "count": 1
     }
   },
   "src/ui/pets/optimizerWindow/card.ts": {
@@ -1366,11 +1340,6 @@
       "count": 3
     }
   },
-  "src/ui/sections/shopEnhancerSection.ts": {
-    "qpm/no-hardcoded-colors": {
-      "count": 11
-    }
-  },
   "src/ui/shop/itemRestockDetailWindow/cardShared.ts": {
     "qpm/no-emoji-in-ui": {
       "count": 1
@@ -1429,14 +1398,11 @@
   "src/ui/shop/restockAlerts/alertDom.ts": {
     "qpm/no-emoji-in-ui": {
       "count": 2
-    },
-    "qpm/no-hardcoded-colors": {
-      "count": 15
     }
   },
   "src/ui/shop/restockAlerts/purchaseActions.ts": {
     "qpm/no-hardcoded-colors": {
-      "count": 22
+      "count": 8
     },
     "qpm/no-inline-ui-strings": {
       "count": 15

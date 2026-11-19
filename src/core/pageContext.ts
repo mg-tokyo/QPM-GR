@@ -1,20 +1,10 @@
-// src/core/pageContext.ts
-// Minimal helpers to interact with the page window regardless of sandboxing.
-
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// Some userscript environments still expose unsafeWindow while others do not.
-// We defensively rely on a declared global so the bundler does not complain.
-// @ts-ignore
-declare const unsafeWindow: (Window & typeof globalThis & Record<string, unknown>) | undefined;
-/* eslint-enable @typescript-eslint/ban-ts-comment */
+import { gmUnsafeWindow } from '../utils/gm';
 
 const sandboxWindow = window;
 
 function resolvePageWindow(): Window & typeof globalThis & Record<string, unknown> {
-  // Tampermonkey / Violentmonkey standard
-  if (typeof unsafeWindow !== 'undefined' && unsafeWindow) {
-    return unsafeWindow;
-  }
+  const unsafe = gmUnsafeWindow();
+  if (unsafe) return unsafe;
 
   // Greasemonkey / Firefox bridge
   const wrapped = (sandboxWindow as unknown as { wrappedJSObject?: unknown }).wrappedJSObject;

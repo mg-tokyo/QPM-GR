@@ -21,6 +21,7 @@ interface MirrorRow {
 
 const cache = new Map<string, string>();
 const deleted = new Set<string>();
+const savedAtByKey = new Map<string, number>();
 let available = false;
 let hydrated = false;
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -83,6 +84,7 @@ export async function hydrateMirror(): Promise<boolean> {
     });
     for (const row of rows) {
       if (typeof row?.key !== 'string') continue;
+      if (typeof row.savedAt === 'number') savedAtByKey.set(row.key, row.savedAt);
       if (row.deleted === true) deleted.add(row.key);
       else if (typeof row.raw === 'string') cache.set(row.key, row.raw);
     }
@@ -118,16 +120,25 @@ export function mirrorKeys(): string[] {
   return Array.from(cache.keys());
 }
 
+/** When the key's current row (value or removal) was written; null when the mirror has none. */
+export function mirrorSavedAt(key: string): number | null {
+  return mirrorHas(key) ? savedAtByKey.get(key) ?? null : null;
+}
+
 export function mirrorSet(key: string, raw: string): void {
+  const savedAt = Date.now();
   cache.set(key, raw);
   deleted.delete(key);
-  enqueue(key, (store) => { store.put({ key, raw, savedAt: Date.now() } satisfies MirrorRow); });
+  savedAtByKey.set(key, savedAt);
+  enqueue(key, (store) => { store.put({ key, raw, savedAt } satisfies MirrorRow); });
 }
 
 export function mirrorRemove(key: string): void {
+  const savedAt = Date.now();
   cache.delete(key);
   deleted.add(key);
-  enqueue(key, (store) => { store.put({ key, raw: '', savedAt: Date.now(), deleted: true } satisfies MirrorRow); });
+  savedAtByKey.set(key, savedAt);
+  enqueue(key, (store) => { store.put({ key, raw: '', savedAt, deleted: true } satisfies MirrorRow); });
 }
 
 /** Drops removal markers once `isStale` says nothing durable still serves the old value. */

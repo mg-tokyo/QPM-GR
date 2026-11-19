@@ -36,5 +36,5 @@ export function openAlertCentre(): void {
   }
   // Close ran the content cleanup; re-showing the hidden window would keep dead subscriptions.
   destroyWindow(ALERT_CENTRE_WINDOW_ID);
-  openWindow(ALERT_CENTRE_WINDOW_ID, t('feature.alertCentre.title'), renderAlertCentre, '560px', '75vh');
+  openWindow(ALERT_CENTRE_WINDOW_ID, t('feature.alertCentre.title'), renderAlertCentre, '640px', '80vh');
 }

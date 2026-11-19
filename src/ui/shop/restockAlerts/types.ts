@@ -5,6 +5,8 @@
 // re-exported (type-only, erased at runtime) so this file stays free of runtime
 // imports and existing UI-side test mocks keep working.
 import type { RestockShopType } from '../../../store/restockTracked';
+import type { AlertChip } from '../../../features/alertHub/raise';
+import type { CardMetaRow } from './cardShell';
 export type { RestockShopType };
 
 // ---------------------------------------------------------------------------
@@ -21,9 +23,9 @@ export const ALERT_ROOT_ID          = 'qpm-restock-alert-root';
 export const ALERT_STYLE_ID         = 'qpm-restock-alert-style';
 export const COINS_CONFIRM_MODAL_ID = 'qpm-restock-coins-confirm';
 export const ALERT_SUCCESS_HIDE_MS      = 1_300;
+export const ALERT_FAILURE_SHOW_MS      = 4_000;
 export const ALERT_ENTER_MS             = 300;
 export const ALERT_EXIT_MS              = 180;
-export const BUY_SEND_DELAY_MS          = 100;
 export const BUY_ACTION_THROTTLE_MS     = 80;
 export const OWNERSHIP_BASELINE_WAIT_MS = 1_500;
 // Reactive signals (shopPurchases delta / cycle rollover / envelope reject /
@@ -41,9 +43,6 @@ export const TOOL_SHACK_STORAGE_ID    = 'toolshack';
 export const SEED_SILO_WS_STORAGE_ID  = 'SeedSilo';
 export const DECOR_SHED_WS_STORAGE_ID = 'DecorShed';
 export const TOOL_SHACK_WS_STORAGE_ID = 'ToolShack';
-/** Fallback tool caps, used only while the item catalog (`maxInventoryQuantity`) is unavailable. */
-export const TOOL_STACK_LIMIT   = 99;
-export const TOOL_LIMITED_IDS   = new Set(['cropcleanser', 'wateringcan', 'replenishpotion', 'xppotion']);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,11 +65,26 @@ export interface AlertModel {
   isWeatherAlert?: boolean;
   /** Remaining duration for weather alerts (ms). */
   weatherDurationMs?: number;
+  /** A seed the journal still needs (ALR-16.4). */
+  journal?: JournalCardInfo;
+}
+
+export interface JournalCardInfo {
+  /** The centre row that let the card through: its sound and Desktop tick serve journal-only cards. */
+  rowId: string;
+  /** Pinned too: the pin's title and sound win, the journal lines are added. */
+  pinned: boolean;
+  line: string;
+  weatherLine: string | null;
+  chips: AlertChip[];
 }
 
 export interface ActiveAlert {
   model: AlertModel;
   root: HTMLDivElement;
+  captionEl?: HTMLDivElement;
+  journalEl?: HTMLDivElement;
+  journalMeta?: CardMetaRow;
   itemEl: HTMLDivElement;
   iconImg: HTMLImageElement;
   iconFallbackEl: HTMLSpanElement;
@@ -141,6 +155,8 @@ export interface PendingPresenter {
   showProgress(confirmed: number, sent: number): void;
   showCompletion(info: PendingCompletionInfo): void;
   showFailure(reason: string): void;
+  /** Shows the refusal, then dismisses the card for `stockCycleId`. False when no card is open (caller dismisses now). */
+  showRefusal(reason: string, stockCycleId: string | null): boolean;
 }
 
 /** Fields whose change signals a cycle rollover (server-side stock reset). */

@@ -11,6 +11,7 @@ vi.mock('../../../utils/storage', () => ({
   },
 }));
 vi.mock('./alertDom', () => ({ upsertAlert: vi.fn(), removeAlert: vi.fn(), updateAlertQuantity: vi.fn() }));
+vi.mock('./journalSeedCard', () => ({ isSeedEntry: () => false, resolveJournalCard: () => null }));
 vi.mock('./purchaseActions', () => ({
   applyInventoryCapToQuantity: (_s: string, _i: string, _k: string, qty: number) => qty,
   getToolInventoryLimitForAlert: () => null,
@@ -29,6 +30,11 @@ vi.mock('../../../catalogs/shopEligibility', () => ({ getItemCatalogName: () => 
 vi.mock('../../../utils/restock/dataService', () => ({ canonicalItemId: (_s: string, id: string) => id }));
 vi.mock('../../../store/shopStockParsers', () => ({ getShopEntryIdentity: () => null }));
 vi.mock('../../../types/shops', () => ({ isWeatherShopType: () => false }));
+const ownedOneTime = vi.hoisted(() => new Set<string>());
+vi.mock('./oneTimeOwnership', () => ({
+  readOwnershipData: () => ({}),
+  isOwnedOneTimeItem: (id: string) => ownedOneTime.has(id),
+}));
 
 const KEY = 'qpm.restock.dismissedRestocks.v2';
 
@@ -136,5 +142,26 @@ describe('restock dismissals keyed by restockId (ALR-7.2)', () => {
     const reloaded = await boot();
     reloaded.sp.processShopStock(state(category('seeds', null, ['Carrot'])));
     expect(reloaded.shown()).toEqual(['seed:carrot']);
+  });
+});
+
+describe('owned one-time items raise no card (ALR-7.1)', () => {
+  beforeEach(() => { store.clear(); ownedOneTime.clear(); });
+
+  it('a pinned owned one-time item shows no card; an unowned one still does', async () => {
+    ownedOneTime.add('SeedSilo');
+    const run = await boot();
+    run.sp.processShopStock(state(category('decor', 'decor:1', ['SeedSilo', 'PetHutch'])));
+    expect(run.shown()).toEqual(['decor:pethutch']);
+  });
+
+  it('a card mid-purchase is left to finish its own display', async () => {
+    const run = await boot();
+    const st = await import('./alertState');
+    st.pendingOwnershipConfirmations.set('decor:seedsilo', {} as never);
+    ownedOneTime.add('SeedSilo');
+    run.sp.processShopStock(state(category('decor', 'decor:1', ['SeedSilo'])));
+    expect(run.shown()).toEqual(['decor:seedsilo']);
+    st.pendingOwnershipConfirmations.clear();
   });
 });

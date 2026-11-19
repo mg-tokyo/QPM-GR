@@ -1,16 +1,14 @@
 // src/ui/shopRestockAlerts/alertDom.ts
-// Alert DOM component — creation, upsert, removal, and sprite resolution.
+// Alert DOM component — creation, upsert, removal; sprite and rarity lookup live in itemLook.ts.
 
 import { t } from '../../../i18n';
-import { getItemIdVariants } from '../../../utils/restock/dataService';
-import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../../sprite-v2/compat';
-import { canvasToDataUrl } from '../../../utils/dom/canvasHelpers';
-import { canonicalItemId } from '../../../utils/restock/dataService';
-import { getItemCatalogSpriteKey } from '../../../catalogs/shopEligibility';
+// Direct module, not the barrel: the barrel's graph makes the restock tests time out under the full run.
+import { createButton } from '../../components/button';
+import { applyCardColor, applyCardScale, el, ensureCardShellStyles } from './cardShell';
+import { getRestockCardSize } from './cardSize';
+import { getAlertSpriteUrl, getItemRarityLook } from './itemLook';
 import {
   ALERT_ROOT_ID,
-  ALERT_STYLE_ID,
-  ALERT_ENTER_MS,
   ALERT_EXIT_MS,
   type RestockShopType,
   type AlertModel,
@@ -18,7 +16,6 @@ import {
 } from './types';
 import {
   activeAlerts, hubCards,
-  alertSpriteUrlCache,
   alertPurchaseWatchers,
   dismissedInStockKeys,
   pendingOwnershipConfirmations,
@@ -29,91 +26,8 @@ import { markDismissedCycle } from './stockProcessor';
 import { getShopStockItemByKey, onShopStockItemChange } from '../../../store/shopStock';
 import { getSoundConfig, getCustomSounds, DEFAULT_LOOP_INTERVAL_MS } from './soundConfig';
 import { playSound, playCustomSound, startLoop, stopLoop, isLooping, isBuiltinSound } from './soundEngine';
-
-// ---------------------------------------------------------------------------
-// Sprite resolution
-// ---------------------------------------------------------------------------
-
-function toCompactId(value: string): string {
-  return value.trim().replace(/\s+/g, '');
-}
-
-function toSingularToolId(value: string): string {
-  if (value.endsWith('s') && value.length > 1) return value.slice(0, -1);
-  return value;
-}
-
-function tryResolveSpriteFromCanvas(candidateId: string): string | null {
-  try {
-    const petUrl = canvasToDataUrl(getPetSpriteCanvas(candidateId));
-    if (petUrl) return petUrl;
-  } catch { /* continue */ }
-  try {
-    const cropUrl = canvasToDataUrl(getCropSpriteCanvas(candidateId));
-    if (cropUrl) return cropUrl;
-  } catch { /* continue */ }
-  return null;
-}
-
-function getAlertSpriteCandidates(shopType: RestockShopType, itemId: string, label: string): string[] {
-  const ordered = new Set<string>();
-  const add = (value: string): void => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    ordered.add(trimmed);
-    const compact = toCompactId(trimmed);
-    if (compact && compact !== trimmed) ordered.add(compact);
-  };
-
-  add(itemId);
-  add(label);
-  for (const variant of getItemIdVariants(shopType, itemId)) add(variant);
-
-  if (shopType === 'tool') {
-    const toolCandidates = Array.from(ordered.values());
-    for (const candidate of toolCandidates) {
-      const singular = toSingularToolId(candidate);
-      add(singular);
-      if (singular === candidate) add(`${singular}s`);
-    }
-  }
-  return Array.from(ordered.values());
-}
-
-function getAlertSpriteUrl(shopType: RestockShopType, itemId: string, label: string): string | null {
-  const cacheKey = `${shopType}:${canonicalItemId(shopType, itemId).trim().toLowerCase()}`;
-  if (alertSpriteUrlCache.has(cacheKey)) return alertSpriteUrlCache.get(cacheKey) ?? null;
-
-  const candidates = getAlertSpriteCandidates(shopType, itemId, label);
-  const SEED_PREFIXES  = ['sprite/seed/', 'seed/', 'sprite/crop/', 'crop/', 'sprite/plant/', 'plant/'];
-  const EGG_PREFIXES   = ['sprite/egg/', 'egg/', 'sprite/pet/', 'pet/'];
-  const DECOR_PREFIXES = ['sprite/decor/', 'decor/', 'sprite/item/', 'item/'];
-  const TOOL_PREFIXES  = ['sprite/item/', 'item/', 'sprite/tool/', 'tool/'];
-  // Weather shops mix item types — try every family.
-  const keyPrefixes =
-    shopType === 'seed'  ? SEED_PREFIXES :
-    shopType === 'egg'   ? EGG_PREFIXES :
-    shopType === 'decor' ? DECOR_PREFIXES :
-    shopType === 'tool'  ? TOOL_PREFIXES :
-                           [...SEED_PREFIXES, ...EGG_PREFIXES, ...DECOR_PREFIXES, ...TOOL_PREFIXES];
-
-  for (const candidate of candidates) {
-    const canvasUrl = tryResolveSpriteFromCanvas(candidate);
-    if (canvasUrl) { alertSpriteUrlCache.set(cacheKey, canvasUrl); return canvasUrl; }
-
-    // Blueprint atlas key beats prefix guessing (e.g. HungerShard → sprite/item/HungerCrystalShard).
-    const catalogUrl = getAnySpriteDataUrl(getItemCatalogSpriteKey(candidate));
-    if (catalogUrl) { alertSpriteUrlCache.set(cacheKey, catalogUrl); return catalogUrl; }
-
-    for (const prefix of keyPrefixes) {
-      const directUrl = getAnySpriteDataUrl(`${prefix}${candidate}`);
-      if (directUrl) { alertSpriteUrlCache.set(cacheKey, directUrl); return directUrl; }
-    }
-  }
-
-  alertSpriteUrlCache.set(cacheKey, null);
-  return null;
-}
+import { applyJournalLook, createJournalParts } from './journalSeedCard';
+import { playAlertRowSound } from '../../../features/alertHub/raise';
 
 export function applyAlertSprite(active: ActiveAlert, model: AlertModel): void {
   const spriteUrl  = getAlertSpriteUrl(model.shopType, model.itemId, model.label);
@@ -129,46 +43,21 @@ export function applyAlertSprite(active: ActiveAlert, model: AlertModel): void {
   }
   active.iconImg.removeAttribute('src');
   active.iconImg.style.display = 'none';
-  active.iconFallbackEl.style.display = 'inline-flex';
+  active.iconFallbackEl.style.display = '';
 }
 
-// ---------------------------------------------------------------------------
-// Alert root / styles
-// ---------------------------------------------------------------------------
+/** Border, icon tint and caption in the item's `--qpm-rarity-*` token; weather and unknown items keep the plain border. */
+export function applyAlertRarity(active: ActiveAlert, model: AlertModel): void {
+  if (model.isWeatherAlert) return;
+  const look = getItemRarityLook(model.shopType, model.itemId, model.label);
+  if (!look) return;
+  applyCardColor(active.root, look.color, undefined);
+  active.root.dataset.qpmRarity = look.rarity;
+}
 
+// The stack root and every card style live in the card shell stylesheet.
 export function ensureAlertStyles(): void {
-  if (document.getElementById(ALERT_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = ALERT_STYLE_ID;
-  style.textContent = [
-    '#qpm-restock-alert-root{position:fixed;top:18px;right:18px;z-index:2147483600;display:flex;flex-direction:column;gap:8px;max-width:min(80vw,260px);max-height:90vh;overflow:visible;pointer-events:none;}',
-    '.qpm-restock-alert{pointer-events:auto;border:1px solid rgba(143,130,255,0.35);border-radius:10px;background:rgba(18,20,28,0.96);backdrop-filter:blur(2px);box-shadow:0 8px 22px rgba(0,0,0,0.35);padding:8px 10px;display:flex;flex-direction:column;gap:6px;}',
-    '.qpm-restock-alert__top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;}',
-    '.qpm-restock-alert__identity{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}',
-    '.qpm-restock-alert__icon-shell{width:30px;height:30px;border-radius:7px;border:1px solid rgba(229,231,235,0.16);background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}',
-    '.qpm-restock-alert__icon{width:22px;height:22px;object-fit:contain;image-rendering:pixelated;display:none;}',
-    '.qpm-restock-alert__icon-fallback{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;font-size:12px;font-weight:700;color:rgba(229,231,235,0.82);}',
-    '.qpm-restock-alert__title-wrap{min-width:0;display:flex;flex-direction:column;gap:2px;}',
-    '.qpm-restock-alert__title{font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:rgba(200,192,255,0.72);}',
-    '.qpm-restock-alert__item{font-size:13px;font-weight:700;color:#e9e7ff;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
-    '.qpm-restock-alert__qty-row{display:flex;justify-content:space-between;align-items:center;gap:6px;}',
-    '.qpm-restock-alert__qty{font-size:11px;color:rgba(229,231,235,0.8);}',
-    '.qpm-restock-alert__status{font-size:10px;color:rgba(200,192,255,0.72);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;}',
-    '.qpm-restock-alert__actions{display:flex;gap:6px;align-items:center;}',
-    '.qpm-restock-alert__btn{border:1px solid rgba(143,130,255,0.35);background:rgba(143,130,255,0.14);color:#ddd7ff;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer;}',
-    '.qpm-restock-alert__btn:hover{background:rgba(143,130,255,0.24);}',
-    '.qpm-restock-alert__btn--ghost{background:rgba(255,255,255,0.04);border-color:rgba(229,231,235,0.18);color:rgba(229,231,235,0.72);}',
-    '.qpm-restock-alert__close{border:none;background:none;color:rgba(229,231,235,0.7);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;}',
-    '.qpm-restock-alert__close:hover{color:#ffffff;}',
-    '.qpm-restock-alert__btn:disabled,.qpm-restock-alert__close:disabled{opacity:0.55;cursor:default;}',
-    '.qpm-restock-alert__mute{border:none;background:none;color:rgba(229,231,235,0.6);font-size:14px;line-height:1;cursor:pointer;padding:2px 4px;border-radius:4px;flex-shrink:0;}',
-    '.qpm-restock-alert__mute:hover{color:#fff;background:rgba(255,255,255,0.08);}',
-    `@keyframes qpm-alert-enter{0%{opacity:0;transform:translateY(-100%)}70%{opacity:1;transform:translateY(6px)}85%{transform:translateY(-2px)}100%{transform:translateY(0)}}`,
-    `@keyframes qpm-alert-exit{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-100%)}}`,
-    `.qpm-restock-alert{animation:qpm-alert-enter ${ALERT_ENTER_MS}ms cubic-bezier(0.22,1,0.36,1) both;will-change:transform,opacity;}`,
-    `.qpm-restock-alert--exit{animation:qpm-alert-exit ${ALERT_EXIT_MS}ms cubic-bezier(0.55,0,1,0.45) both;pointer-events:none;}`,
-  ].join('');
-  document.head.appendChild(style);
+  ensureCardShellStyles();
 }
 
 export function getAlertRoot(): HTMLDivElement {
@@ -214,11 +103,12 @@ export function removeAlert(key: string): void {
     stockCycleId: active.model.stockCycleId,
   });
   setAlertPendingConfirmation(active, false);
+  active.journalMeta?.dispose();
   // Remove from map immediately so duplicate removals are no-ops
   activeAlerts.delete(key);
   // Animate out, then remove DOM
   const card = active.root;
-  card.classList.add('qpm-restock-alert--exit');
+  card.classList.add('qpm-alert-card--exit');
   const cleanup = (): void => { card.remove(); removeAlertRootIfEmpty(); };
   card.addEventListener('animationend', cleanup, { once: true });
   // Safety fallback if animationend never fires (e.g. display:none, detached)
@@ -338,43 +228,31 @@ export function createAlert(model: AlertModel): ActiveAlert {
   debugLog('Creating alert', { key: model.key, label: model.label, quantity: model.quantity, shopType: model.shopType, itemId: model.itemId, stockCycleId: model.stockCycleId });
   ensureAlertStyles();
   const root = getAlertRoot();
-  const card = document.createElement('div');
-  card.className = 'qpm-restock-alert';
+  const card = el('div', 'qpm-alert-card qpm-restock-alert');
+  card.dataset.qpmRestockKey = model.key;
 
-  const top = document.createElement('div');
-  top.className = 'qpm-restock-alert__top';
-  const identity = document.createElement('div');
-  identity.className = 'qpm-restock-alert__identity';
-  const iconShell = document.createElement('div');
-  iconShell.className = 'qpm-restock-alert__icon-shell';
-  const iconImg = document.createElement('img');
-  iconImg.className = 'qpm-restock-alert__icon';
+  const top = el('div', 'qpm-alert-card__top');
+  const iconBox = el('div', 'qpm-alert-card__icon');
+  const iconImg = el('img', '');
   iconImg.loading = 'eager';
   iconImg.decoding = 'async';
-  const iconFallbackEl = document.createElement('span');
-  iconFallbackEl.className = 'qpm-restock-alert__icon-fallback';
+  const iconFallbackEl = el('span', 'qpm-alert-card__icon-fallback');
   iconFallbackEl.textContent = '?';
-  iconShell.append(iconImg, iconFallbackEl);
-  const titleWrap = document.createElement('div');
-  titleWrap.className = 'qpm-restock-alert__title-wrap';
-  const titleEl = document.createElement('div');
-  titleEl.className = 'qpm-restock-alert__title';
-  titleEl.textContent = model.isWeatherAlert ? t('feature.restockAlert.weatherActive') : t('feature.restockAlert.pinnedRestocked');
-  const itemEl = document.createElement('div');
-  itemEl.className = 'qpm-restock-alert__item';
+  iconBox.append(iconImg, iconFallbackEl);
+  const text = el('div', 'qpm-alert-card__text');
+  const captionEl = el('div', 'qpm-alert-card__caption');
+  captionEl.textContent = model.isWeatherAlert ? t('feature.restockAlert.weatherActive') : t('feature.restockAlert.pinnedRestocked');
+  const itemEl = el('div', 'qpm-alert-card__title');
   itemEl.textContent = model.label;
-  titleWrap.append(titleEl, itemEl);
-  identity.append(iconShell, titleWrap);
+  text.append(captionEl, itemEl);
 
-  const closeBtn = document.createElement('button');
+  const closeBtn = el('button', 'qpm-alert-card__close');
   closeBtn.type = 'button';
-  closeBtn.className = 'qpm-restock-alert__close';
-  closeBtn.textContent = 'x';
+  closeBtn.textContent = '×';
   closeBtn.title = t('feature.restockAlert.dismiss');
-  top.append(identity, closeBtn);
+  top.append(iconBox, text, closeBtn);
 
-  const qtyEl = document.createElement('span');
-  qtyEl.className = 'qpm-restock-alert__qty';
+  const qtyEl = el('span', 'qpm-alert-card__qty');
   if (model.isWeatherAlert && model.weatherDurationMs) {
     const dMin = Math.round(model.weatherDurationMs / 60_000);
     qtyEl.textContent = t('feature.restockAlert.minEvent', { min: dMin });
@@ -382,36 +260,30 @@ export function createAlert(model: AlertModel): ActiveAlert {
     qtyEl.textContent = t('feature.restockAlert.available', { qty: model.quantity });
   }
 
-  const statusEl = document.createElement('span');
-  statusEl.className = 'qpm-restock-alert__status';
+  const statusEl = el('span', 'qpm-alert-card__status');
   statusEl.textContent = model.isWeatherAlert ? t('feature.restockAlert.activeNow') : t('feature.restockAlert.readyToBuy');
 
-  const qtyRow = document.createElement('div');
-  qtyRow.className = 'qpm-restock-alert__qty-row';
-  qtyRow.append(qtyEl, statusEl);
+  const lines = el('div', 'qpm-alert-card__lines');
+  const { journalEl, journalMeta } = createJournalParts();
+  lines.append(qtyEl, statusEl);
 
-  const actions = document.createElement('div');
-  actions.className = 'qpm-restock-alert__actions';
-  const buyBtn = document.createElement('button');
+  const actions = el('div', 'qpm-alert-card__actions');
+  const buyBtn = createButton(t('feature.restockAlert.buyAll'), { variant: 'tonal', size: 'sm' });
   buyBtn.type = 'button';
-  buyBtn.className = 'qpm-restock-alert__btn';
-  buyBtn.textContent = t('feature.restockAlert.buyAll');
-  const dismissBtn = document.createElement('button');
+  const dismissBtn = createButton(t('feature.restockAlert.dismiss'), { variant: 'ghost', size: 'sm' });
   dismissBtn.type = 'button';
-  dismissBtn.className = 'qpm-restock-alert__btn qpm-restock-alert__btn--ghost';
-  dismissBtn.textContent = t('feature.restockAlert.dismiss');
-  // Mute button (only shown when sound config exists)
-  const soundCfg = getSoundConfig(model.key);
-  const muteBtn = document.createElement('button');
+  // A journal-only card sounds its centre row once; a pin's own config (and its loop) never applies to it.
+  const journalOnly = model.journal !== undefined && !model.journal.pinned;
+  const soundCfg = journalOnly ? null : getSoundConfig(model.key);
+  const muteBtn = el('button', 'qpm-alert-card__icon-btn');
   muteBtn.type = 'button';
-  muteBtn.className = 'qpm-restock-alert__mute';
   muteBtn.title = t('feature.restockAlert.muteSound');
   muteBtn.style.display = soundCfg ? '' : 'none';
 
   if (model.isWeatherAlert) buyBtn.style.display = 'none';
   actions.append(buyBtn, muteBtn, dismissBtn);
 
-  card.append(top, qtyRow, actions);
+  card.append(top, lines, journalEl, journalMeta.row, actions);
   card.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
   card.addEventListener('click', (e) => { e.stopPropagation(); });
   root.prepend(card);
@@ -419,6 +291,9 @@ export function createAlert(model: AlertModel): ActiveAlert {
   const active: ActiveAlert = {
     model,
     root: card,
+    captionEl,
+    journalEl,
+    journalMeta,
     itemEl,
     iconImg,
     iconFallbackEl,
@@ -432,6 +307,10 @@ export function createAlert(model: AlertModel): ActiveAlert {
     pendingConfirmation: false,
   };
   applyAlertSprite(active, model);
+  applyAlertRarity(active, model);
+  applyJournalLook(active);
+  applyCardScale(card, getRestockCardSize());
+  if (journalOnly && model.journal) playAlertRowSound(model.journal.rowId);
 
   // Trigger sound on alert creation
   if (soundCfg) {
@@ -488,13 +367,17 @@ export function upsertAlert(model: AlertModel): void {
     existing.model.stockCycleId = model.stockCycleId;
     existing.model.label        = model.label;
     existing.model.priceCoins   = model.priceCoins;
+    if (model.journal) existing.model.journal = model.journal;
+    else delete existing.model.journal;
     applyAlertSprite(existing, existing.model);
+    applyAlertRarity(existing, existing.model);
+    applyJournalLook(existing);
     if (existing.model.quantity !== model.quantity) {
       debugLog('Updating alert quantity', { key: model.key, prevQuantity: existing.model.quantity, nextQuantity: model.quantity, busy: existing.busy, pendingConfirmation: existing.pendingConfirmation });
     }
     updateAlertQuantity(existing, model.quantity);
     if (!existing.busy && !existing.pendingConfirmation) {
-      existing.statusEl.style.color = 'rgba(200,192,255,0.72)';
+      existing.statusEl.style.color = 'var(--qpm-text-muted)';
       existing.statusEl.textContent = t('feature.restockAlert.readyToBuy');
     }
     if (prevCycleId !== model.stockCycleId) {

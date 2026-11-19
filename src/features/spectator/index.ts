@@ -39,6 +39,7 @@ export {
 export type { SpectatorAction, SpectatorSettings } from './settings';
 export { findKeyClashes, holdKeyOf, isHoldAction, refuseKey, type KeyClash, type KeyRefusal, type OtherKeybind } from './input/keyRules';
 export type { PauseReason, SpectatorMode, SpectatorPose, SpectatorState, SpectatorViewKind } from './state';
+export { sameGrid, stepAsideReason } from './stepAside';
 
 // camera3d's policy: three failures in one page session keep it off until reload.
 const MAX_FAILS = 3;

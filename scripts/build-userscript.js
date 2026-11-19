@@ -125,29 +125,36 @@ const LEXICAL_GLOBALS = [
   "Uint8Array", "Uint16Array", "Uint32Array", "Int32Array", "Infinity", "NaN",
 ].join(", ");
 
+// One host list for `@connect` here and the weavermod manifest's `connectionOverrides`.
+const CONNECT_HOSTS = [
+  "magicgarden.gg",
+  "magiccircle.gg",
+  "starweaver.org",
+  "1227719606223765687.discordsays.com",
+  "ariesmod-api.ariedam.fr",
+  "mg-api.ariedam.fr",
+  "xjuvryjgrjchbhjixwzh.supabase.co",
+  "raw.githubusercontent.com",
+];
+
+const CONNECT_LINES = CONNECT_HOSTS.map((host) => `// @connect      ${host}`).join("\n");
+
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         QPM (ALPHA)
 // @namespace    Quinoa
-// @version      3.3.65
+// @version      3.3.66
 // @description  Quality-of-life enhancements for Magic Garden: crop type locking, mutation tracking, value calculator, harvest reminders, journal species checker, and persistent feed statistics.
 // @author       TOKYO.#6464
 // @match        https://1227719606223765687.discordsays.com/*
 // @match        https://magiccircle.gg/r/*
 // @match        https://magicgarden.gg/r/*
 // @match        https://starweaver.org/r/*
-// @connect      magicgarden.gg
-// @connect      magiccircle.gg
-// @connect      starweaver.org
-// @connect      1227719606223765687.discordsays.com
-// @connect      ariesmod-api.ariedam.fr
-// @connect      mg-api.ariedam.fr
-// @connect      xjuvryjgrjchbhjixwzh.supabase.co
+${CONNECT_LINES}
 // @updateURL    https://raw.githubusercontent.com/mg-tokyo/QPM-GR/master/dist/QPM.user.js
 // @downloadURL  https://raw.githubusercontent.com/mg-tokyo/QPM-GR/master/dist/QPM.user.js
 // @run-at       document-start
 // @inject-into  page
 // @grant        GM_xmlhttpRequest
-// @grant        GM_registerMenuCommand
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
@@ -156,8 +163,8 @@ const USERSCRIPT_HEADER = `// ==UserScript==
 // @grant        GM.getValue
 // @grant        GM.deleteValue
 // @grant        GM.listValues
-// @connect      raw.githubusercontent.com
 // @grant        GM_openInTab
+// @grant        GM_info
 // @grant        unsafeWindow
 // ==/UserScript==
 
@@ -212,7 +219,7 @@ function buildUserscript() {
     // by the time src/diagnostics/bundleInfo.ts reads it during boot.
     const bundleInfoLine =
       `window.__QPM_BUNDLE_INFO__={version:${jsStringLiteral(packageVersion)},` +
-      `iifeBytes:${builtCode.length},builtAt:${jsStringLiteral(builtAt)}};\n`;
+      `iifeBytes:${builtCode.length},builtAt:${jsStringLiteral(builtAt)},packaging:"userscript"};\n`;
 
     const userscript =
       USERSCRIPT_HEADER +
@@ -234,4 +241,6 @@ function buildUserscript() {
   }
 }
 
-buildUserscript();
+module.exports = { CONNECT_HOSTS, USERSCRIPT_HEADER };
+
+if (require.main === module) buildUserscript();

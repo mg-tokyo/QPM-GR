@@ -2,12 +2,15 @@ import {
   getPetAbilitiesCatalog,
   getPetCatalog,
   getMutation,
-  getAllMutations,
   getItemCatalog,
 } from '../../../catalogs/gameCatalogs';
-import { computeSlotSellValue, valueIfMutationReplaced } from '../projection';
+import { getChargedAbilityRules } from '../../../catalogs/logic/chargedAbilityRulesCatalog';
+import type { CaptureRule, ChargerRule } from '../../../catalogs/logic/chargedAbilityRulesCatalog';
+import { getMutationApplicationResult } from '../../../utils/mutationCompatibility';
+import { computeSlotSellValue } from '../projection';
 import { getAbilityCooldownRemainingMs } from '../liveCooldown';
-import type { AbilityProjection } from './types';
+import { ABILITY_FOOTPRINT_RADIUS } from '../constants';
+import type { AbilityProjection, PlantSlotMinimal } from './types';
 
 const CHARGED_SUFFIX = 'charged';
 
@@ -17,23 +20,11 @@ const THEME_ACCENT_FALLBACK: Record<string, string> = {
   thunder: 'var(--qpm-gold)',
 };
 
-function isChargedVariant(mutationId: string): boolean {
-  return mutationId.toLowerCase().endsWith(CHARGED_SUFFIX);
-}
-
 function themeOf(mutationId: string): string {
   const lower = mutationId.toLowerCase();
   if (lower.endsWith(CHARGED_SUFFIX)) return lower.slice(0, -CHARGED_SUFFIX.length);
   const stripped = lower.match(/^([a-z]+?)(lit|shine|struck|bound|glow|kiss|frost)$/);
   return stripped ? stripped[1]! : lower;
-}
-
-function findChargedVariantFor(baseMutation: string): string | null {
-  const target = `${themeOf(baseMutation)}${CHARGED_SUFFIX}`;
-  for (const id of getAllMutations()) {
-    if (id.toLowerCase() === target) return id;
-  }
-  return null;
 }
 
 function readAbilityAccentBg(def: unknown): string | null {
@@ -58,14 +49,11 @@ function accentColorFor(
   return THEME_ACCENT_FALLBACK[theme] ?? 'var(--qpm-gold)';
 }
 
-function findCapsuleSpriteKey(theme: string): string | null {
+function capsuleSpriteKeyFor(capsuleToolId: string): string | null {
   const catalog = getItemCatalog();
-  if (!catalog) return null;
-  const target = `${theme}capsule`;
-  for (const key of Object.keys(catalog)) {
-    if (key.toLowerCase() === target) return `sprite/item/${key}`;
-  }
-  return null;
+  return catalog && Object.prototype.hasOwnProperty.call(catalog, capsuleToolId)
+    ? `sprite/item/${capsuleToolId}`
+    : null;
 }
 
 function findCarriers(abilityId: string): string[] {
@@ -85,96 +73,94 @@ function readNumber(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 }
 
-function readTargetMutations(bp: Record<string, unknown>): string[] {
-  const raw = bp.targetMutations;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((m): m is string => typeof m === 'string');
+type ProjectionBase = Pick<AbilityProjection, 'abilityId' | 'abilityName' | 'cooldownMs' | 'tileRadius' | 'requiredSpecies' | 'getCooldownRemainingMs'>;
+
+function baseFor(abilityId: string, def: { name?: unknown; baseParameters?: unknown }): ProjectionBase {
+  const bp = (def.baseParameters && typeof def.baseParameters === 'object'
+    ? def.baseParameters
+    : {}) as Record<string, unknown>;
+  return {
+    abilityId,
+    abilityName: typeof def.name === 'string' && def.name.length > 0 ? def.name : abilityId,
+    cooldownMs: readNumber(bp.cooldownSeconds, 300) * 1000,
+    tileRadius: readNumber(bp.tileRadius, ABILITY_FOOTPRINT_RADIUS),
+    requiredSpecies: findCarriers(abilityId),
+    getCooldownRemainingMs(petSlotId) {
+      return getAbilityCooldownRemainingMs(petSlotId, abilityId);
+    },
+  };
 }
 
+// Game rule (beta utils/chargedAbilityProjections.ts:134-144,157-163): an unpreserved crop is a target
+// when the capture removes at least one of its mutations; each removed mutation yields its table count.
+function captureProjection(rule: CaptureRule, def: object, base: ProjectionBase): AbilityProjection {
+  const yields = rule.capsulesByMutation;
+  const targetMutations = Object.keys(yields);
+  let colourMutation: string | null = null;
+  for (const m of targetMutations) {
+    if (colourMutation === null || (yields[m] ?? 0) > (yields[colourMutation] ?? 0)) colourMutation = m;
+  }
+  const theme = colourMutation ? themeOf(colourMutation) : '';
+  const yieldOf = (m: string): number => (Object.prototype.hasOwnProperty.call(yields, m) ? yields[m] ?? 0 : 0);
+  return {
+    ...base,
+    targetMutations,
+    replacementMutation: null,
+    yieldKind: 'capsule',
+    capsuleSpriteKey: capsuleSpriteKeyFor(rule.capsuleToolId),
+    accentColor: accentColorFor(def, colourMutation, theme),
+    applies(slot) {
+      return !slot.preserved && slot.mutations.some((m) => Object.prototype.hasOwnProperty.call(yields, m));
+    },
+    projectGain(slot) {
+      if (slot.preserved) return { coin: 0, capsule: 0 };
+      let capsule = 0;
+      for (const m of slot.mutations) capsule += yieldOf(m);
+      return { coin: 0, capsule };
+    },
+  };
+}
+
+// Game rule (beta :325-330): `includes(target) ? updateMutationList(replacement, list) ?? null : null`.
+function chargedMutations(rule: ChargerRule, slot: PlantSlotMinimal): string[] | null {
+  if (slot.preserved || !slot.mutations.includes(rule.target)) return null;
+  return getMutationApplicationResult(slot.mutations, rule.replacement);
+}
+
+function chargerProjection(rule: ChargerRule, def: object, base: ProjectionBase): AbilityProjection {
+  return {
+    ...base,
+    targetMutations: [rule.target],
+    replacementMutation: rule.replacement,
+    yieldKind: 'coin',
+    capsuleSpriteKey: null,
+    accentColor: accentColorFor(def, rule.replacement, themeOf(rule.target)),
+    applies(slot) {
+      return chargedMutations(rule, slot) !== null;
+    },
+    projectGain(slot) {
+      const after = chargedMutations(rule, slot);
+      if (!after) return { coin: 0, capsule: 0 };
+      const gain = computeSlotSellValue({ ...slot, mutations: after }) - computeSlotSellValue(slot);
+      return { coin: Math.max(0, gain), capsule: 0 };
+    },
+  };
+}
+
+/** Projections for every charged ability the game's rules name (REL-8 D1, D4); none while the rules are unread. */
 export function deriveAllChargedAbilityProjections(): AbilityProjection[] {
+  const rules = getChargedAbilityRules();
   const abilities = getPetAbilitiesCatalog();
-  if (!abilities) return [];
+  if (!rules || !abilities) return [];
 
   const out: AbilityProjection[] = [];
-  for (const [abilityId, def] of Object.entries(abilities)) {
-    if (!def || def.trigger !== 'playerActivated') continue;
-
-    const bp = (def.baseParameters && typeof def.baseParameters === 'object'
-      ? def.baseParameters
-      : {}) as Record<string, unknown>;
-    const cooldownMs = readNumber(bp.cooldownSeconds, 300) * 1000;
-    const targetMutations = readTargetMutations(bp);
-    const abilityName = typeof def.name === 'string' && def.name.length > 0 ? def.name : abilityId;
-
-    const chargedTargets = targetMutations.filter(isChargedVariant);
-    const baseTargets = targetMutations.filter((m) => !isChargedVariant(m));
-    const requiredSpecies = findCarriers(abilityId);
-
-    const isCapture = chargedTargets.length > 0 && baseTargets.length > 0;
-    const isCharger = baseTargets.length === 1 && chargedTargets.length === 0;
-    if (!isCapture && !isCharger) continue;
-
-    if (isCapture) {
-      const targetSet = new Set(targetMutations.map((m) => m.toLowerCase()));
-      const chargedSet = new Set(chargedTargets.map((m) => m.toLowerCase()));
-      const theme = themeOf(chargedTargets[0]!);
-      out.push({
-        abilityId,
-        abilityName,
-        cooldownMs,
-        targetMutations,
-        requiredSpecies,
-        replacementMutation: null,
-        yieldKind: 'capsule',
-        capsuleSpriteKey: findCapsuleSpriteKey(theme),
-        accentColor: accentColorFor(def, chargedTargets[0] ?? null, theme),
-        applies(slot) {
-          return slot.mutations.some((m) => targetSet.has(m.toLowerCase()));
-        },
-        projectGain(slot) {
-          let capsule = 0;
-          for (const m of slot.mutations) {
-            const lower = m.toLowerCase();
-            if (!targetSet.has(lower)) continue;
-            capsule += chargedSet.has(lower) ? 2 : 1;
-          }
-          return { coin: 0, capsule };
-        },
-        getCooldownRemainingMs(petSlotId) {
-          return getAbilityCooldownRemainingMs(petSlotId, abilityId);
-        },
-      });
-      continue;
-    }
-
-    const target = baseTargets[0]!;
-    const targetLower = target.toLowerCase();
-    const replacementMutation = findChargedVariantFor(target);
-    const theme = themeOf(target);
-    out.push({
-      abilityId,
-      abilityName,
-      cooldownMs,
-      targetMutations,
-      requiredSpecies,
-      replacementMutation,
-      yieldKind: 'coin',
-      capsuleSpriteKey: null,
-      accentColor: accentColorFor(def, replacementMutation, theme),
-      applies(slot) {
-        return slot.mutations.some((m) => m.toLowerCase() === targetLower);
-      },
-      projectGain(slot) {
-        if (!this.applies(slot)) return { coin: 0, capsule: 0 };
-        const before = computeSlotSellValue(slot);
-        const after = valueIfMutationReplaced(slot, target, replacementMutation);
-        return { coin: Math.max(0, after - before), capsule: 0 };
-      },
-      getCooldownRemainingMs(petSlotId) {
-        return getAbilityCooldownRemainingMs(petSlotId, abilityId);
-      },
-    });
+  for (const rule of rules.captures) {
+    const def = abilities[rule.abilityId];
+    if (def) out.push(captureProjection(rule, def, baseFor(rule.abilityId, def)));
   }
-
+  for (const rule of rules.chargers) {
+    const def = abilities[rule.abilityId];
+    if (def) out.push(chargerProjection(rule, def, baseFor(rule.abilityId, def)));
+  }
   return out;
 }

@@ -1,12 +1,15 @@
 import { getGardenSnapshot, onGardenSnapshot, type GardenSnapshot } from '../bridge';
 import { getServerNowMs } from '../../../store/serverClock';
 import { createEggSchedule, walkEggs, type EggEntry, type EggState } from './schedule';
+import { startEggReadyAlarm, stopEggReadyAlarm } from './alarm';
+import { getEggReadyLeadMinutes, writeEggReadyLeadMinutes } from './settings';
 
 export { createEggSchedule, walkEggs, EGG_BATCH_WINDOW_MS } from './schedule';
+export { buildEggReadyPayload, EGG_READY_ROW, getEggReadyAlarmState } from './alarm';
+export { EGG_READY_MAX_LEAD_MINUTES, getEggReadyLeadMinutes } from './settings';
 export type { EggEntry, EggState, EggScheduleStep } from './schedule';
 
 const TIMER_MARGIN_MS = 50;
-const MAX_LEAD_MINUTES = 180;
 
 const schedule = createEggSchedule();
 const listeners = new Set<(batch: EggEntry[]) => void>();
@@ -14,7 +17,6 @@ let started = false;
 let unsubscribe: (() => void) | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let nextWakeAt: number | null = null;
-let leadMinutes = 0;
 let lastBatch: { at: number; firedLateMs: number; eggs: EggEntry[] } | null = null;
 const counts = { steps: 0, batches: 0, arms: 0 };
 
@@ -30,7 +32,7 @@ function clearTimer(): void {
 function evaluate(snapshot: GardenSnapshot): void {
   if (!started || !snapshot) return;
   const now = nowMs();
-  const leadMs = leadMinutes * 60_000;
+  const leadMs = getEggReadyLeadMinutes() * 60_000;
   const { batch, nextFireAt } = schedule.step(walkEggs(snapshot), now, leadMs);
   counts.steps += 1;
   if (batch.length > 0) {
@@ -54,11 +56,13 @@ function evaluate(snapshot: GardenSnapshot): void {
 export function startEggReady(): void {
   if (started) return;
   started = true;
+  startEggReadyAlarm(onEggBatch);
   unsubscribe = onGardenSnapshot(evaluate);
 }
 
 export function stopEggReady(): void {
   started = false;
+  stopEggReadyAlarm();
   unsubscribe?.();
   unsubscribe = null;
   clearTimer();
@@ -76,8 +80,8 @@ export function onEggBatch(cb: (batch: EggEntry[]) => void): () => void {
 }
 
 export function setEggReadyLeadMinutes(minutes: number): boolean {
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > MAX_LEAD_MINUTES) return false;
-  leadMinutes = minutes;
+  if (!writeEggReadyLeadMinutes(minutes)) return false;
+  // A raised lead fires an egg already inside the new window on this step.
   evaluate(getGardenSnapshot());
   return true;
 }
@@ -96,7 +100,7 @@ export function getEggReadyState(): {
   const now = nowMs();
   return {
     running: started,
-    leadMinutes,
+    leadMinutes: getEggReadyLeadMinutes(),
     serverNowMs: now,
     nextWakeAt,
     eggs: schedule.entries().map((e) => ({ ...e, msLeft: e.maturedAt - now })),

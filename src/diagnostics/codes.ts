@@ -22,6 +22,9 @@ import { SPRITE_CODES } from './codes/sprite';
 import { NPC_DIALOGUE_CODES } from './codes/npcDialogue';
 import { CAMERA3D_CODES } from './codes/camera3d';
 import { SPECTATOR_CODES } from './codes/spectator';
+import { MULTI_STORAGE_CODES } from './codes/multiStorage';
+import { MULTI_SHOP_CODES } from './codes/multiShop';
+import { SELECT_ITEM_CODES } from './codes/selectItem';
 
 const REGISTRY: Record<ErrorCode, ErrorCodeDefinition> = Object.create(null);
 
@@ -54,3 +57,6 @@ for (const def of SPRITE_CODES) register(def);
 for (const def of NPC_DIALOGUE_CODES) register(def);
 for (const def of CAMERA3D_CODES) register(def);
 for (const def of SPECTATOR_CODES) register(def);
+for (const def of MULTI_STORAGE_CODES) register(def);
+for (const def of MULTI_SHOP_CODES) register(def);
+for (const def of SELECT_ITEM_CODES) register(def);

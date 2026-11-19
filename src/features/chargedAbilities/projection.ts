@@ -11,15 +11,3 @@ export function computeSlotSellValue(slot: PlantSlotMinimal): number {
   const { totalMultiplier } = computeMutationMultiplier(slot.mutations);
   return Math.round(stats.baseSellPrice * slot.targetScale * totalMultiplier);
 }
-
-/** Sell value if mutation `from` were replaced by `to` — used by Thundercharger's post-fire projection. */
-export function valueIfMutationReplaced(
-  slot: PlantSlotMinimal,
-  from: string,
-  to: string | null,
-): number {
-  const fromLower = from.toLowerCase();
-  const filtered = slot.mutations.filter((m) => m.toLowerCase() !== fromLower);
-  const next = to ? [...filtered, to] : filtered;
-  return computeSlotSellValue({ ...slot, mutations: next });
-}

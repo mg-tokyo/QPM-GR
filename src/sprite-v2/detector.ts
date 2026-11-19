@@ -74,10 +74,6 @@ export function buildAssetsBaseUrl(origin?: string, version?: string): string {
   return `${resolveAssetsOrigin(origin)}/version/${resolvedVersion}/assets/`;
 }
 
-export function isUserscriptEnv(): boolean {
-  return typeof GM_xmlhttpRequest !== 'undefined';
-}
-
 export function getRuntimeWindow(): Window & typeof globalThis {
   return pageWindow as Window & typeof globalThis;
 }

@@ -34,8 +34,14 @@ vi.mock('../../ui/shop/restockAlerts/soundEngine', () => ({
   playCustomSound: () => Promise.resolve(),
 }));
 vi.mock('../../ui/shop/restockAlerts/soundConfig', () => ({ getCustomSounds: () => ({}) }));
+let spritesReady = true;
+vi.mock('../../sprite-v2/compat', () => ({
+  isSpritesReady: () => spritesReady,
+  getAnySpriteDataUrl: (key: string) => `data:${key}`,
+}));
 
 import { getAlertBridgeStats, HARVEST_ROW, LOCKER_ROW, startAlertBridge, stopAlertBridge, VERSION_ROW } from './bridge';
+import { getAlertRow, resolveRowAccent, resolveRowIcon, resolveRowSummary } from './registry';
 import { closeAllAlertCards, setAlertPresenter, type AlertPresenter } from './raise';
 import { writeAlertRowSettings } from './settings';
 
@@ -44,7 +50,7 @@ const shown: Shown[] = [];
 const updates: string[] = [];
 const presenter: AlertPresenter = (card) => {
   shown.push({ rowId: card.rowId, title: card.title, body: card.body });
-  return { update: (b) => { updates.push(b); }, close: () => { card.onClose(); } };
+  return { update: (p) => { updates.push(p.body ?? ''); }, close: () => { card.onClose(); } };
 };
 
 describe('silent-path bridge', () => {
@@ -113,6 +119,17 @@ describe('silent-path bridge', () => {
     expect(shown).toEqual([{ rowId: HARVEST_ROW, title: 'feature.alertHub.harvest.title', body: 'Carrot is ready' }]);
     expect(buffer.map((e) => e.feature)).toEqual([HARVEST_ROW]);
     expect(getAlertBridgeStats()).toMatchObject({ started: true, harvestCards: 1 });
+  });
+
+  it('bridged rows declare a game UI sprite, a summary and a token colour', () => {
+    startAlertBridge();
+    const look = (id: string): unknown[] => { const d = getAlertRow(id); return [resolveRowIcon(d), resolveRowSummary(d), resolveRowAccent(d)]; };
+    expect(look(VERSION_ROW)).toEqual(['data:sprite/ui/ToastStatusInfoIcon', 'feature.alertHub.version.summary', 'var(--qpm-info)']);
+    expect(look(LOCKER_ROW)).toEqual(['data:sprite/ui/Locked', 'feature.alertHub.locker.summary', 'var(--qpm-warning)']);
+    expect(look(HARVEST_ROW)).toEqual(['data:sprite/ui/PatchHarvest', 'feature.alertHub.harvest.summary', 'var(--qpm-positive)']);
+    spritesReady = false;
+    expect(resolveRowIcon(getAlertRow(LOCKER_ROW))).toBeNull();
+    spritesReady = true;
   });
 
   it('stop detaches both listeners', () => {

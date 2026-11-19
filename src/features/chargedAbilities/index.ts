@@ -30,6 +30,14 @@ export function stopChargedAbilities(): void {
   stopChargedAbilityProjections();
 }
 
+export {
+  CHARGED_READY_ROW_PREFIX,
+  chargedReadyRowId,
+  getChargedReadyAlarmDiagnostics,
+  startChargedReadyAlarm,
+  stopChargedReadyAlarm,
+} from './readyAlarm';
+
 /** Manual launcher — opens the full Charged Abilities window. The floating
  *  HUD overlay auto-opens reactively whenever charged-ability pets are active. */
 export { openChargedAbilitiesPanel, openChargedAbilitiesWindow };

@@ -35,6 +35,11 @@ describe('clampPurchaseQuantity', () => {
     expect(clampPurchaseQuantity(4, { remainingStock: 4, affordable: 100, stackRoom: 4 })).toEqual({ quantity: 4, limitedBy: null });
   });
 
+  it('a full bag stops the buy; sold out still reads first', () => {
+    expect(clampPurchaseQuantity(5, { remainingStock: 6, affordable: 9, stackRoom: null, bagRoom: 0 })).toEqual({ quantity: 0, limitedBy: 'bag' });
+    expect(clampPurchaseQuantity(5, { remainingStock: 0, affordable: 9, stackRoom: null, bagRoom: 0 })).toEqual({ quantity: 0, limitedBy: 'stock' });
+  });
+
   it('floors fractional inputs and ignores non-finite caps', () => {
     expect(clampPurchaseQuantity(3.9, { ...OPEN, stackRoom: Infinity })).toEqual({ quantity: 3, limitedBy: null });
   });

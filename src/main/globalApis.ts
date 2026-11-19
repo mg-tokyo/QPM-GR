@@ -1,4 +1,4 @@
-import { shareGlobal } from '../core/pageContext';
+import { pageWindow, shareGlobal } from '../core/pageContext';
 import { writeShimConsole } from '../diagnostics/logger';
 import { storage } from '../utils/storage';
 import { DEBUG_GLOBALS_OPT_IN_KEY } from '../utils/debugGlobals';
@@ -6,8 +6,6 @@ import { resetFriendsCache } from '../services/ariesPlayers';
 import { openInspectorDirect } from '../ui/standalone/publicRoomsWindow';
 import { QPM_DEBUG_API, QPM_ACTIVITY_LOG_API } from '../debug/mainApi';
 import { diag, warnCore } from './_diagnostics';
-
-declare const unsafeWindow: (Window & typeof globalThis) | undefined;
 
 export function initializeGlobalApis(debugGlobalsEnabled: boolean): void {
   try {
@@ -25,9 +23,8 @@ export function initializeGlobalApis(debugGlobalsEnabled: boolean): void {
   if (debugGlobalsEnabled) {
     shareGlobal('QPM', QPM_DEBUG_API);
     shareGlobal('QPM_DEBUG_API', QPM_DEBUG_API);
-    const globalDebugTarget = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-    (globalDebugTarget as any).QPM_DEBUG_API = QPM_DEBUG_API;
-    (globalDebugTarget as any).QPM = QPM_DEBUG_API;
+    (pageWindow as any).QPM_DEBUG_API = QPM_DEBUG_API;
+    (pageWindow as any).QPM = QPM_DEBUG_API;
     diag.debug('QPM debug API registered');
   } else {
     diag.debug('Debug globals disabled', { optInKey: DEBUG_GLOBALS_OPT_IN_KEY });

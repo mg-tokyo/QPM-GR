@@ -1,3 +1,4 @@
+import { gmLegacyStorage, gmModernStorage } from './gm';
 import { isMirrorAvailable, mirrorGet, mirrorKeys, mirrorRemove, mirrorSet } from './storageMirror';
 
 type LegacyGmGetValue = (key: string) => string | undefined;
@@ -18,8 +19,6 @@ export interface ModernGmStorageApi {
   deleteValue: (key: string) => Promise<void>;
   listValues?: () => Promise<string[]>;
 }
-
-const globalScope = globalThis as Record<string, unknown>;
 
 function getLocalStorageSafe(): globalThis.Storage | null {
   try {
@@ -106,55 +105,9 @@ export function deserialize<T>(raw: string | null | undefined, fallback: T): T {
 }
 
 export function getLegacyGmApi(): LegacyGmStorageApi | null {
-  const getValue = globalScope.GM_getValue;
-  const setValue = globalScope.GM_setValue;
-  const deleteValue = globalScope.GM_deleteValue;
-  const listValues = globalScope.GM_listValues;
-
-  if (
-    typeof getValue === 'function' &&
-    typeof setValue === 'function' &&
-    typeof deleteValue === 'function'
-  ) {
-    const api: LegacyGmStorageApi = {
-      getValue: getValue as LegacyGmGetValue,
-      setValue: setValue as LegacyGmSetValue,
-      deleteValue: deleteValue as LegacyGmDeleteValue,
-    };
-    if (typeof listValues === 'function') {
-      api.listValues = listValues as LegacyGmListValues;
-    }
-    return api;
-  }
-
-  return null;
+  return gmLegacyStorage();
 }
 
 export function getModernGmApi(): ModernGmStorageApi | null {
-  const gm = globalScope.GM;
-  if (!gm || typeof gm !== 'object') return null;
-
-  const gmRecord = gm as Record<string, unknown>;
-  const getValue = gmRecord.getValue;
-  const setValue = gmRecord.setValue;
-  const deleteValue = gmRecord.deleteValue;
-  const listValues = gmRecord.listValues;
-
-  if (
-    typeof getValue === 'function' &&
-    typeof setValue === 'function' &&
-    typeof deleteValue === 'function'
-  ) {
-    const api: ModernGmStorageApi = {
-      getValue: getValue as <T = unknown>(key: string, defaultValue?: T) => Promise<T>,
-      setValue: setValue as (key: string, value: string) => Promise<void>,
-      deleteValue: deleteValue as (key: string) => Promise<void>,
-    };
-    if (typeof listValues === 'function') {
-      api.listValues = listValues as () => Promise<string[]>;
-    }
-    return api;
-  }
-
-  return null;
+  return gmModernStorage();
 }

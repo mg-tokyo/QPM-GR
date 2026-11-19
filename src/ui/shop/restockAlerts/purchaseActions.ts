@@ -7,12 +7,11 @@ import { getItemIdVariants } from '../../../utils/restock/dataService';
 import { isRoomSessionReady, isRoomSocketOpen } from '../../../websocket/api';
 import { getShopStockState } from '../../../store/shopStock';
 import { isWeatherShopType } from '../../../types/shops';
-import { findCatalogIdCaseInsensitive, getToolMaxInventoryQuantity, isItemCatalogLoaded } from '../../../catalogs/shopEligibility';
+import { findCatalogIdCaseInsensitive, getToolMaxInventoryQuantity } from '../../../catalogs/shopEligibility';
 import {
   ALERT_SUCCESS_HIDE_MS,
+  ALERT_FAILURE_SHOW_MS,
   COINS_CONFIRM_MODAL_ID,
-  TOOL_STACK_LIMIT,
-  TOOL_LIMITED_IDS,
   type RestockShopType,
   type AlertModel,
   type ActiveAlert,
@@ -40,7 +39,8 @@ import {
 } from './ownershipTracker';
 import { removeAlert, setAlertBusy, setAlertPendingConfirmation } from './alertDom';
 import { clearDismissedCycle, markDismissedCycle, processShopStock } from './stockProcessor';
-import { sendPurchaseBatch } from './purchasePipeline';
+import { isBagFullForModel, sendPurchaseBatch } from './purchasePipeline';
+import { t } from '../../../i18n';
 import { resolveAutoStoreTarget } from './autoStore';
 import { describeConfirmationSourceGaps } from './sourceGaps';
 export { sendPurchase, explainSendFailure, sendItemToStorage } from './purchasePipeline';
@@ -55,15 +55,12 @@ export function normalizeToolId(value: string): string {
   return compact;
 }
 
-/** Cap comes from the tool blueprint's `maxInventoryQuantity`; the literal set is only a catalog-unavailable fallback. */
+/** Cap from the tool blueprint's `maxInventoryQuantity`; with no catalog entry there is no cap (no guessed data). */
 export function getToolInventoryLimitFromKey(key: string): number | null {
   if (!key.startsWith('tool:')) return null;
   const rawToolId = key.slice('tool:'.length);
-  const normalized = normalizeToolId(rawToolId);
-  const catalogId = findCatalogIdCaseInsensitive('item', rawToolId) ?? findCatalogIdCaseInsensitive('item', normalized);
-  if (catalogId) return getToolMaxInventoryQuantity(catalogId);
-  if (isItemCatalogLoaded()) return null;
-  return TOOL_LIMITED_IDS.has(normalized) ? TOOL_STACK_LIMIT : null;
+  const catalogId = findCatalogIdCaseInsensitive('item', rawToolId) ?? findCatalogIdCaseInsensitive('item', normalizeToolId(rawToolId));
+  return catalogId ? getToolMaxInventoryQuantity(catalogId) : null;
 }
 
 export function getOwnedToolCount(itemId: string, canonicalKey: string): number {
@@ -255,19 +252,19 @@ function createAlertPresenter(key: string): PendingPresenter {
     showStaleNotice(sent: number): void {
       const current = activeAlerts.get(key);
       if (!current || current.busy || !current.pendingConfirmation) return;
-      current.statusEl.style.color = '#fde68a';
+      current.statusEl.style.color = 'var(--qpm-warning)';
       current.statusEl.textContent = `Sent ${sent} — confirming (slow)…`;
     },
     showProgress(confirmed: number, sent: number): void {
       const current = activeAlerts.get(key);
       if (!current) return;
-      current.statusEl.style.color = '#fde68a';
+      current.statusEl.style.color = 'var(--qpm-warning)';
       current.statusEl.textContent = `Purchased ${confirmed}/${sent} confirmed`;
     },
     showCompletion(info: PendingCompletionInfo): void {
       const current = activeAlerts.get(key);
       if (current) {
-        current.statusEl.style.color = '#86efac';
+        current.statusEl.style.color = 'var(--qpm-positive)';
         current.statusEl.textContent = `Purchased ${info.confirmed}${info.storedNote}${info.completionSuffix}`;
         setAlertPendingConfirmation(current, false);
       }
@@ -284,15 +281,31 @@ function createAlertPresenter(key: string): PendingPresenter {
       const current = activeAlerts.get(key);
       if (!current) return;
       setAlertPendingConfirmation(current, false);
-      current.statusEl.style.color = '#fca5a5';
+      current.statusEl.style.color = 'var(--qpm-danger)';
       current.statusEl.textContent = reason;
       window.setTimeout(() => {
         const later = activeAlerts.get(key);
         if (!later) return;
         if (later.busy || later.pendingConfirmation) return;
-        later.statusEl.style.color = 'rgba(200,192,255,0.72)';
+        later.statusEl.style.color = 'var(--qpm-text-muted)';
         later.statusEl.textContent = 'Ready to buy';
-      }, 4_000);
+      }, ALERT_FAILURE_SHOW_MS);
+    },
+    showRefusal(reason: string, stockCycleId: string | null): boolean {
+      const current = activeAlerts.get(key);
+      if (!current) return false;
+      setAlertPendingConfirmation(current, false);
+      // Busy keeps the stock pass from rewriting the status; the dismiss lands
+      // when the card goes, or the next pass would remove it before it is read.
+      setAlertBusy(current, true);
+      current.statusEl.style.color = 'var(--qpm-danger)';
+      current.statusEl.textContent = reason;
+      window.setTimeout(() => {
+        dismissedInStockKeys.add(key);
+        markDismissedCycle(key, stockCycleId);
+        if (activeAlerts.get(key) === current) removeAlert(key);
+      }, ALERT_FAILURE_SHOW_MS);
+      return true;
     },
   };
 }
@@ -316,7 +329,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
   });
 
   setAlertBusy(active, true);
-  active.statusEl.style.color = 'rgba(200,192,255,0.72)';
+  active.statusEl.style.color = 'var(--qpm-text-muted)';
   active.statusEl.textContent = 'Buying...';
 
   try {
@@ -334,7 +347,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         limit,
       });
       setAlertPendingConfirmation(active, false);
-      active.statusEl.style.color = '#fde68a';
+      active.statusEl.style.color = 'var(--qpm-warning)';
       active.statusEl.textContent = `Inventory full (${owned}/${limit ?? owned})`;
       setAlertBusy(active, false);
       processShopStock(getShopStockState());
@@ -349,8 +362,15 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         ...hasReachedToolInventoryCap(buyModel.key, buyModel.itemId, buyModel.itemType),
       });
       requested = cappedRequested;
-      active.statusEl.style.color = '#fde68a';
+      active.statusEl.style.color = 'var(--qpm-warning)';
       active.statusEl.textContent = `Buying ${requested} (inventory cap)`;
+    }
+    if (isBagFullForModel(buyModel)) {
+      debugLog('Buy-all skipped because the bag has no free slot', { key: buyModel.key, label: buyModel.label, requested });
+      active.statusEl.style.color = 'var(--qpm-danger)';
+      active.statusEl.textContent = t('feature.restockAlert.bagFull');
+      setAlertBusy(active, false);
+      return;
     }
 
     if (alertState.hasCoinsBaseline && buyModel.priceCoins != null && buyModel.priceCoins > 0) {
@@ -359,7 +379,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         const modalResult = await showCoinsConfirmModal(buyModel.label, buyModel.priceCoins, requested, alertState.currentCoinsCount);
         if (!modalResult.confirmed) {
           debugLog('Buy-all canceled in insufficient balance modal', { key: buyModel.key, requested, affordableQty: modalResult.affordableQty });
-          active.statusEl.style.color = 'rgba(200,192,255,0.72)';
+          active.statusEl.style.color = 'var(--qpm-text-muted)';
           active.statusEl.textContent = 'Ready to buy';
           setAlertBusy(active, false);
           return;
@@ -367,7 +387,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         requested = modalResult.affordableQty;
         debugLog('Buy-all adjusted from insufficient balance modal', { key: buyModel.key, adjustedRequested: requested });
         if (requested <= 0) {
-          active.statusEl.style.color = '#fca5a5';
+          active.statusEl.style.color = 'var(--qpm-danger)';
           active.statusEl.textContent = 'Cannot afford any items';
           setAlertBusy(active, false);
           return;
@@ -379,7 +399,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     const result = await sendPurchaseBatch(buyModel, requested);
     if (result.error || result.sent <= 0) {
       debugLog('Buy-all request failed', { key: buyModel.key, requested, sent: result.sent, error: result.error });
-      active.statusEl.style.color = '#fca5a5';
+      active.statusEl.style.color = 'var(--qpm-danger)';
       active.statusEl.textContent = result.error ?? 'Purchase failed';
       setAlertBusy(active, false);
       return;
@@ -391,7 +411,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
         : '';
       debugLog('Buy-all sent but confirmation source unavailable', { key: buyModel.key, requested, sent: result.sent, confirmationAvailable: result.confirmationAvailable, hasEnvelope: result.hasEnvelope ?? false });
       setAlertPendingConfirmation(active, false);
-      active.statusEl.style.color = '#fca5a5';
+      active.statusEl.style.color = 'var(--qpm-danger)';
       active.statusEl.textContent = `Sent ${result.sent} \u2014 no confirmation source${gapText}`;
       setAlertBusy(active, false);
       return;
@@ -435,7 +455,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     pendingOwnershipConfirmations.set(active.model.key, pending);
     armReactiveConfirmation(pending, result.awaitResults ? { rejectionAwaits: result.awaitResults } : {});
     setAlertPendingConfirmation(active, true);
-    active.statusEl.style.color = '#fde68a';
+    active.statusEl.style.color = 'var(--qpm-warning)';
     active.statusEl.textContent = `Sent ${result.sent} \u2014 confirming\u2026`;
     setAlertBusy(active, false);
     schedulePendingStaleNotice(active.model.key);
@@ -459,7 +479,7 @@ export async function handleBuyAll(active: ActiveAlert): Promise<void> {
     warnFeature('QPM-FEATURE-004', { what: 'buyAll', key: buyModel.key, requested }, error);
     debugLogError('Buy-all threw exception', error, { key: buyModel.key, requested });
     setAlertPendingConfirmation(active, false);
-    active.statusEl.style.color = '#fca5a5';
+    active.statusEl.style.color = 'var(--qpm-danger)';
     active.statusEl.textContent = 'Purchase failed';
     setAlertBusy(active, false);
   }

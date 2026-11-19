@@ -9,9 +9,19 @@ export interface AlertRowSettings {
   soundId: string;
 }
 
-/** The row's Desktop tick (ALR-13) sits in the same stored row, outside the public row shape. */
+/** The row's Desktop tick (ALR-13) and card size (ALR-17.11) sit in the same stored row, outside the public row shape. */
 interface StoredRow extends AlertRowSettings {
   desktop?: boolean;
+  size?: number;
+}
+
+/** Card scale per row; 1 is the compact default (user 2026-11-16: 70–130 % in 10 % steps). */
+export const ALERT_CARD_SIZE = { min: 0.7, max: 1.3, step: 0.1, default: 1 } as const;
+
+export function clampCardSize(value: number): number {
+  if (!Number.isFinite(value)) return ALERT_CARD_SIZE.default;
+  const stepped = Math.round(value / ALERT_CARD_SIZE.step) * ALERT_CARD_SIZE.step;
+  return Math.round(Math.min(ALERT_CARD_SIZE.max, Math.max(ALERT_CARD_SIZE.min, stepped)) * 100) / 100;
 }
 
 interface StoredSettings {
@@ -27,7 +37,12 @@ function readStored(): StoredSettings {
   if (isRecord(r.rows)) {
     for (const [id, row] of Object.entries(r.rows)) {
       if (isRecord(row) && typeof row.enabled === 'boolean' && typeof row.soundId === 'string') {
-        rows[id] = { enabled: row.enabled, soundId: row.soundId, ...(row.desktop === true ? { desktop: true } : {}) };
+        rows[id] = {
+          enabled: row.enabled,
+          soundId: row.soundId,
+          ...(row.desktop === true ? { desktop: true } : {}),
+          ...(typeof row.size === 'number' ? { size: clampCardSize(row.size) } : {}),
+        };
       }
     }
   }
@@ -73,4 +88,17 @@ export function writeRowDesktop(id: string, desktop: boolean, defaults: AlertRow
   const base = stored.rows[id] ?? defaults;
   const { desktop: _old, ...rest } = base as StoredRow;
   storage.set(SETTINGS_KEY, { ...stored, rows: { ...stored.rows, [id]: desktop ? { ...rest, desktop: true } : rest } });
+}
+
+export function getRowCardSize(id: string): number {
+  return readStored().rows[id]?.size ?? ALERT_CARD_SIZE.default;
+}
+
+/** A row never saved is written with its defaults so the size has a row to live on; the default size is not stored. */
+export function writeRowCardSize(id: string, size: number, defaults: AlertRowSettings): number {
+  const next = clampCardSize(size);
+  const stored = readStored();
+  const { size: _old, ...rest }: StoredRow = stored.rows[id] ?? defaults;
+  storage.set(SETTINGS_KEY, { ...stored, rows: { ...stored.rows, [id]: next === ALERT_CARD_SIZE.default ? rest : { ...rest, size: next } } });
+  return next;
 }

@@ -5,6 +5,8 @@ export interface MutationGain {
   tileKey: string;
   slotId: number;
   species: string;
+  /** The slot's full list after the gain, for the crop sprite. */
+  mutations: string[];
 }
 
 interface KnownSlot {
@@ -39,7 +41,7 @@ export function createMutationGainDiffer(): MutationGainDiffer {
         if (!prev || slot.startTime > prev.startTime || slot.species !== prev.species) continue;
         for (const mutation of mutations) {
           if (!prev.mutations.has(mutation)) {
-            gains.push({ mutation, tileKey: slot.tileKey, slotId: slot.slotId, species: slot.species });
+            gains.push({ mutation, tileKey: slot.tileKey, slotId: slot.slotId, species: slot.species, mutations: [...slot.mutations] });
           }
         }
       }

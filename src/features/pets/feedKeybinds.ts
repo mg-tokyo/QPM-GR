@@ -47,6 +47,14 @@ export function clearFeedKeybind(slotIndex: number): void {
   saveState(state);
 }
 
+/** Leaves the slot with no key; `clearFeedKeybind` restores the default. */
+export function unbindFeedKeybind(slotIndex: number): void {
+  if (slotIndex < 0 || slotIndex >= MAX_SLOTS) return;
+  const state = loadState();
+  state.slots[slotIndex] = '';
+  saveState(state);
+}
+
 export function getAllFeedKeybinds(): Record<number, string> {
   const state = loadState();
   const result: Record<number, string> = {};

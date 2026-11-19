@@ -47,6 +47,14 @@ export const alertsTour: TourDefinition = {
       placement: 'right',
     },
     {
+      id: 'desktop',
+      // The switch itself: clicking it asks the browser's permission (ALR-13 PD3); Next skips.
+      resolve: () => alertsPane()?.querySelector<HTMLElement>('[data-qpm-alert-centre-desktop] [role="switch"]') ?? null,
+      title: 'Desktop notifications',
+      body: 'Get alerts on your desktop while the game tab is in the background. Switch it on to be asked by your browser, or press Next.',
+      placement: 'bottom',
+    },
+    {
       id: 'launcher',
       resolve: (body) => {
         const panel = body.closest<HTMLElement>('.qpm-panel') ?? body;

@@ -1,4 +1,5 @@
 import { log, ctx } from './types';
+import { pageWindow } from '../../../core/pageContext';
 
 // ---------------------------------------------------------------------------
 // Rive filter shaders — ported from beta game source
@@ -169,12 +170,9 @@ let capturedGlProgramCtor: any | null = null;
  */
 export function tryCaptureFilterCtors(): boolean {
   if (capturedFilterCtor && capturedGlProgramCtor) return true;
-  // Use the same window resolution as sprite-v2/utils.ts:getCtors — that
-  // unsafeWindow path is verified to expose PIXI.{Texture,Sprite,...} in this
-  // bundle, so Filter / GlProgram are sibling exports on the same object.
-  const root: any = (typeof (globalThis as any).unsafeWindow !== 'undefined'
-    ? (globalThis as any).unsafeWindow
-    : (window as any));
+  // Same root as sprite-v2/utils.ts:getCtors, which finds PIXI.{Texture,Sprite,...}
+  // there, so Filter / GlProgram are sibling exports on the same object.
+  const root: any = pageWindow;
   // Path 1 — global PIXI namespace.
   try {
     const P = root?.PIXI ?? root?.__PIXI__ ?? null;

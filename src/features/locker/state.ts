@@ -153,7 +153,12 @@ function sanitizeConfig(raw: unknown): LockerConfig {
   };
 }
 
-let config: LockerConfig = sanitizeConfig(storage.get<unknown>(STORAGE_KEY, null));
+// Loaded on first use: a read at module load runs before storage init and gets the GM copy, not the mirror.
+let config: LockerConfig | null = null;
+
+function current(): LockerConfig {
+  return config ??= sanitizeConfig(storage.get<unknown>(STORAGE_KEY, null));
+}
 
 const listeners = new Set<() => void>();
 
@@ -176,7 +181,7 @@ function notifyListeners(): void {
 }
 
 function persist(): void {
-  storage.set(STORAGE_KEY, config);
+  storage.set(STORAGE_KEY, current());
   notifyListeners();
 }
 
@@ -197,6 +202,7 @@ function deepCopyCropOverrides(overrides: Record<string, CropOverride>): Record<
 }
 
 export function getLockerConfig(): LockerConfig {
+  const config = current();
   return {
     ...config,
     inventoryReserve: { ...config.inventoryReserve },
@@ -211,7 +217,7 @@ export function getLockerConfig(): LockerConfig {
 }
 
 export function updateLockerConfig(partial: Partial<LockerConfig>): LockerConfig {
-  const merged = { ...config, ...partial };
+  const merged = { ...current(), ...partial };
   config = sanitizeConfig(merged);
   persist();
   return getLockerConfig();

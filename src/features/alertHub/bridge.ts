@@ -1,5 +1,6 @@
 import { onNotifications, type NotificationEvent } from '../../core/notifications';
 import { onHarvestToast } from '../garden/harvestReminder';
+import { getAnySpriteDataUrl, isSpritesReady } from '../../sprite-v2/compat';
 import { t } from '../../i18n';
 import { raiseAlert } from './raise';
 import { registerAlertRow, type AlertRowDef } from './registry';
@@ -19,21 +20,39 @@ function openTile(tileId: string): () => void {
   return () => { void import('../../ui/panel/tileRegistry').then((m) => { m.getTileDefinition(tileId)?.action(); }); };
 }
 
+/** Row look: a game UI sprite (keys checked live in the atlas 2026-11-15), a summary and a token. */
+function look(spriteKey: string, summaryKey: string, accent: string): Pick<AlertRowDef, 'icon' | 'summary' | 'accent'> {
+  return {
+    icon: () => (isSpritesReady() ? getAnySpriteDataUrl(spriteKey) || null : null),
+    summary: () => t(summaryKey),
+    accent,
+  };
+}
+
 // ALR-9 PD1: QPM's own rare messages default on; harvest stays off like every new alert.
 const NOTIFY_SOURCES: Record<string, BridgedFeature> = {
   versionChecker: {
-    row: { id: VERSION_ROW, group: 'qpm', labelKey: 'feature.alertHub.version.row', defaultSound: 'bell', defaultEnabled: true },
+    row: {
+      id: VERSION_ROW, group: 'qpm', labelKey: 'feature.alertHub.version.row', defaultSound: 'bell', defaultEnabled: true,
+      ...look('sprite/ui/ToastStatusInfoIcon', 'feature.alertHub.version.summary', 'var(--qpm-info)'),
+    },
     titleKey: 'feature.alertHub.version.title',
     cardKey: 'qpm:version',
   },
   Locker: {
-    row: { id: LOCKER_ROW, group: 'qpm', labelKey: 'feature.alertHub.locker.row', defaultSound: 'ping', defaultEnabled: true, settingsAction: openTile('locker') },
+    row: {
+      id: LOCKER_ROW, group: 'qpm', labelKey: 'feature.alertHub.locker.row', defaultSound: 'ping', defaultEnabled: true, settingsAction: openTile('locker'),
+      ...look('sprite/ui/Locked', 'feature.alertHub.locker.summary', 'var(--qpm-warning)'),
+    },
     titleKey: 'feature.alertHub.locker.title',
     cardKey: 'locker:block',
   },
 };
 const HARVEST: BridgedFeature = {
-  row: { id: HARVEST_ROW, group: 'garden', labelKey: 'feature.alertHub.harvest.row', defaultSound: 'chime', settingsAction: openTile('reminders') },
+  row: {
+    id: HARVEST_ROW, group: 'garden', labelKey: 'feature.alertHub.harvest.row', defaultSound: 'chime', settingsAction: openTile('reminders'),
+    ...look('sprite/ui/PatchHarvest', 'feature.alertHub.harvest.summary', 'var(--qpm-positive)'),
+  },
   titleKey: 'feature.alertHub.harvest.title',
   cardKey: 'harvest:ready',
 };

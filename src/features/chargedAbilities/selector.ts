@@ -7,9 +7,9 @@ import { subscribeAtomValue } from '../../core/atomRegistry';
 import { getPlayerPosition } from '../../core/playerContext';
 import { getRiddenPetId, onRiddenPetChange } from '../../store/mountState';
 import { visibleInterval } from '../../utils/scheduling/timerManager';
-import { getAbilityProjection } from './abilities';
+import { areChargedAbilityRulesUnreadable, getAbilityProjection, onAbilityProjectionsRebuilt } from './abilities';
 import { getQualifyingCropsInFootprint, findBestPatchForAbility } from './footprintScan';
-import { ABILITY_FOOTPRINT_RADIUS, SELECTOR_RECOMPUTE_DEBOUNCE_MS } from './constants';
+import { SELECTOR_RECOMPUTE_DEBOUNCE_MS } from './constants';
 import type { PetAbilityTargetSnapshot, OptimalityResult } from './types';
 import type { TilePosition } from '../garden/tileRadius';
 import { createNamedLogger } from '../../diagnostics/logger';
@@ -36,6 +36,22 @@ function publishOk(message: string, metrics?: Record<string, number | string>): 
     status: 'ok',
     message,
     ...(metrics ? { metrics } : {}),
+  });
+}
+
+let rulesDegraded = false;
+
+function publishRulesHealth(): void {
+  const unreadable = areChargedAbilityRulesUnreadable();
+  if (unreadable === rulesDegraded) return;
+  rulesDegraded = unreadable;
+  ensureBusRegistered();
+  // Recovery publishes 'recovering'; the bus owns the step back to 'ok' (diagnostics §7.2).
+  healthBus.publish({
+    subsystem: FEATURE_SUBSYSTEM,
+    category: 'feature',
+    status: unreadable ? 'degraded' : 'recovering',
+    message: unreadable ? 'Charged-ability rules not found in game code' : 'Charged-ability rules read from game code',
   });
 }
 
@@ -90,10 +106,10 @@ async function recompute(): Promise<void> {
 
     const cd = ability.getCooldownRemainingMs(pet.slotId);
     const footprint = playerPos
-      ? getQualifyingCropsInFootprint(playerPos, ABILITY_FOOTPRINT_RADIUS, ability)
+      ? getQualifyingCropsInFootprint(playerPos, ability.tileRadius, ability)
       : { slots: [], totalGain: { coin: 0, capsule: 0 } };
 
-    const best = findBestPatchForAbility(ability, ABILITY_FOOTPRINT_RADIUS);
+    const best = findBestPatchForAbility(ability, ability.tileRadius);
     const currentScore = ability.yieldKind === 'coin' ? footprint.totalGain.coin : footprint.totalGain.capsule;
     const bestScore = best
       ? (ability.yieldKind === 'coin' ? best.totalGain.coin : best.totalGain.capsule)
@@ -165,8 +181,11 @@ export function startAbilityTargetingSelector(): void {
     if (cached.some((s) => !s.ready)) scheduleRecompute();
   }, 1000));
 
+  cleanups.push(onAbilityProjectionsRebuilt(() => { publishRulesHealth(); scheduleRecompute(); }));
+
   scheduleRecompute();
   publishOk('Started', { pets: cached.length });
+  publishRulesHealth();
 }
 
 export function stopAbilityTargetingSelector(): void {
@@ -178,6 +197,7 @@ export function stopAbilityTargetingSelector(): void {
   listeners.clear();
   cached = [];
   cachedPlayerPos = null;
+  rulesDegraded = false;
 }
 
 export function subscribeAbilityTargets(cb: Listener): () => void {

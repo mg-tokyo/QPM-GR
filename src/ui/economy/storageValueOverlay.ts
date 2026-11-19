@@ -7,6 +7,8 @@ import {
   getStorageValueState,
   type StorageValueState,
 } from '../../features/economy/storageValue';
+import { formatStorageValue as formatValue } from '../../features/economy/storageValueById';
+import { isStoragesOpen } from '../../features/multiStorage';
 import { getAnySpriteDataUrl } from '../../sprite-v2/compat';
 import { getPixiRefs } from '../../core/pixiCapture';
 import { visibleInterval, timerManager } from '../../utils/scheduling/timerManager';
@@ -14,20 +16,6 @@ import { visibleInterval, timerManager } from '../../utils/scheduling/timerManag
 const OVERLAY_ID = 'qpm-storage-value-overlay';
 const POS_SYNC_TIMER_ID = 'storageValueOverlay:posSync';
 const POS_SYNC_MS = 200;
-
-// ---------------------------------------------------------------------------
-// Value formatting — 2dp k/M/B/T
-// ---------------------------------------------------------------------------
-
-function formatValue(value: number): string {
-  if (!Number.isFinite(value)) return '—';
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000_000_000) return `${(value / 1_000_000_000_000).toFixed(2)}T`;
-  if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
-  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${(value / 1_000).toFixed(2)}k`;
-  return value.toFixed(0);
-}
 
 // ---------------------------------------------------------------------------
 // Pixi types
@@ -280,6 +268,11 @@ let resizeHandler: (() => void) | null = null;
 function syncPosition(): void {
   const el = document.getElementById(OVERLAY_ID) as HTMLDivElement | null;
   if (!el || !currentModalId) return;
+  // Multi-storage panels carry their own labels; this one would land on whichever panel a stage walk meets first.
+  if (isStoragesOpen()) {
+    el.style.opacity = '0';
+    return;
+  }
 
   // All modals: anchor to the content grid (InventoryContent / StorageContent).
   // The modal header (title + close button) sits directly above this node.

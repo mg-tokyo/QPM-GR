@@ -234,6 +234,18 @@ export const CORE_CODES: readonly ErrorCodeDefinition[] = [
     sinceVersion: '3.3.43',
     notifyUser: true,
   },
+  {
+    code: 'QPM-INIT-003',
+    subsystem: 'init',
+    category: 'core',
+    severity: 'error',
+    title: 'QPM cannot reach the game page',
+    description: 'QPM runs in an isolated script world: the game rendered, but none of its page globals are visible to QPM, so store, sprite and room hooks cannot attach. No workaround is attempted.',
+    userAction: 'In Starweaver Mod Manager, set QPM\'s execution world back to Main, then refresh the game tab.',
+    devNotes: 'src/main/pageReach.ts — checked once after waitForGame: a canvas is in the DOM (shared between worlds) but pageWindow has neither jotaiAtomCache nor __jotaiStore (page globals, invisible from another world). If the game ever drops both, this fires on every host together with QPM-JOTAI-001.',
+    sinceVersion: '3.3.65',
+    notifyUser: true,
+  },
   // Core: Timer manager (row 6.23). The RAF tick loop catches per-callback throws
   // so one broken timer never breaks the loop; that catch previously logged via
   // raw console.error, now routed through the named logger for buffer + bus

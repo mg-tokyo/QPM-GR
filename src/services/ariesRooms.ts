@@ -1,25 +1,8 @@
 // Aries public rooms client using GM_xmlhttpRequest
 import type { Room, RoomUserSlot, ApiResponse } from '../types/publicRooms';
+import { gmHttpRequest } from '../utils/gm';
 
 const API_BASE_URL = 'https://ariesmod-api.ariedam.fr/';
-
-type HttpMethod = 'GET' | 'POST';
-
-type GmXhr = (details: {
-  method: HttpMethod;
-  url: string;
-  headers?: Record<string, string>;
-  data?: string;
-  onload?: (response: { status: number; responseText: string }) => void;
-  onerror?: (error: any) => void;
-}) => void;
-
-function resolveGmXhr(): GmXhr | undefined {
-  if (typeof GM_xmlhttpRequest === 'function') return GM_xmlhttpRequest as unknown as GmXhr;
-  const gm = (globalThis as any).GM;
-  if (gm?.xmlHttpRequest) return gm.xmlHttpRequest.bind(gm) as GmXhr;
-  return undefined;
-}
 
 function buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
   const url = new URL(path, API_BASE_URL);
@@ -32,46 +15,28 @@ function buildUrl(path: string, query?: Record<string, string | number | undefin
   return url.toString();
 }
 
-function httpGet<T>(path: string, query?: Record<string, string | number | undefined>): Promise<ApiResponse<T>> {
-  return new Promise(resolve => {
-    const url = buildUrl(path, query);
-    const gm = resolveGmXhr();
+async function httpGet<T>(path: string, query?: Record<string, string | number | undefined>): Promise<ApiResponse<T>> {
+  const res = await gmHttpRequest(buildUrl(path, query), { headers: {} });
+  if (res.kind === 'unavailable') return { status: 0, data: null, error: 'GM_xmlhttpRequest unavailable' };
+  if (res.kind === 'error') return { status: 0, data: null, error: String(res.error ?? 'Network error') };
+  if (res.kind === 'timeout') return { status: 0, data: null, error: 'Timeout' };
 
-    if (!gm) {
-      resolve({ status: 0, data: null, error: 'GM_xmlhttpRequest unavailable' });
-      return;
+  let parsed: T | null = null;
+  let error: string | undefined;
+
+  if (res.responseText) {
+    try {
+      parsed = JSON.parse(res.responseText) as T;
+    } catch (e) {
+      error = `Failed to parse JSON: ${(e as Error).message}`;
     }
+  }
 
-    gm({
-      method: 'GET',
-      url,
-      headers: {},
-      onload: res => {
-        let parsed: T | null = null;
-        let error: string | undefined;
+  if ((res.status < 200 || res.status >= 300) && !error) {
+    error = `HTTP ${res.status}`;
+  }
 
-        if (res.responseText) {
-          try {
-            parsed = JSON.parse(res.responseText) as T;
-          } catch (e) {
-            error = `Failed to parse JSON: ${(e as Error).message}`;
-          }
-        }
-
-        if ((res.status < 200 || res.status >= 300) && !error) {
-          error = `HTTP ${res.status}`;
-        }
-
-        const result: ApiResponse<T> = error
-          ? { status: res.status, data: parsed, error }
-          : { status: res.status, data: parsed };
-        resolve(result);
-      },
-      onerror: err => {
-        resolve({ status: 0, data: null, error: String(err ?? 'Network error') });
-      },
-    });
-  });
+  return error ? { status: res.status, data: parsed, error } : { status: res.status, data: parsed };
 }
 
 export async function listRooms(limit = 50): Promise<ApiResponse<Room[]>> {

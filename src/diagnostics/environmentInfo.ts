@@ -1,21 +1,11 @@
 import { isIsolatedContext, readSharedGlobal } from '../core/pageContext';
 import { hasGmApis, isDiscordSurface } from '../utils/environment';
+import { gmInfo } from '../utils/gm';
 import { getStorageRuntime, storage } from '../utils/storage';
+import { readBundlePackaging } from './bundleInfo';
 import { getMutedSubsystems, isDotEnabled } from './dotPreferences';
 import { errorBuffer } from './errorBuffer';
 import { isVerboseLogsEnabled } from './logger';
-
-declare const GM_info: unknown;
-declare const GM: unknown;
-
-function readGmInfo(): { scriptHandler?: unknown; version?: unknown } | null {
-  if (typeof GM_info !== 'undefined' && GM_info) return GM_info as { scriptHandler?: unknown; version?: unknown };
-  if (typeof GM !== 'undefined' && GM && typeof GM === 'object') {
-    const info = (GM as { info?: unknown }).info;
-    if (info && typeof info === 'object') return info as { scriptHandler?: unknown; version?: unknown };
-  }
-  return null;
-}
 
 export interface EnvironmentInfo {
   readonly scriptHandler: string | null;
@@ -35,15 +25,16 @@ function readDuplicateVersion(): string | null {
   return null;
 }
 
-// Starweaver Mod Manager provides GM_* storage but no GM_info, so a missing
-// handler name with GM APIs present is "unknown manager", not "no manager".
+// SMM leaves GM_info undefined without `@grant GM_info` and never grants it to a weavermod,
+// and its `origin/main` build has no scriptHandler: GM storage with no handler name is an
+// unknown manager, not "no manager". Only SMM loads the weavermod package.
 function readScriptHandler(): string | null {
   try {
-    const gi = readGmInfo();
-    const handler = gi && typeof gi.scriptHandler === 'string' ? gi.scriptHandler : null;
-    if (!handler) return hasGmApis ? 'GM:unknown-handler' : null;
-    const version = gi && typeof gi.version === 'string' ? gi.version : '';
-    return version ? `${handler} ${version}` : handler;
+    const info = gmInfo();
+    const handler = info?.handler ?? null;
+    if (!handler && readBundlePackaging() === 'weavermod') return 'SMM weavermod';
+    if (!handler) return hasGmApis() ? 'GM:unknown-handler' : null;
+    return info?.handlerVersion ? `${handler} ${info.handlerVersion}` : handler;
   } catch {
     return null;
   }

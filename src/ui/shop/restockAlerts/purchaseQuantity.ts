@@ -1,15 +1,17 @@
 // Quantity for one batched PurchaseShopItem. Mirrors the checks of the game's
 // Buy All (v1361 installPlayerSystems `hQ`): remaining stock, balance in the
-// item's price currency, and tool stack room. The game refuses when a check
-// fails; QPM buys as many units as every limit allows.
+// item's price currency, tool stack room, and a free bag slot. The game refuses
+// when a check fails; QPM buys as many units as every limit allows.
 
-export type PurchaseLimit = 'stock' | 'balance' | 'stack';
+export type PurchaseLimit = 'stock' | 'balance' | 'stack' | 'bag';
 
 /** Each cap is a unit count; null means unknown or uncapped and never limits. */
 export interface PurchaseLimits {
   remainingStock: number | null;
   affordable: number | null;
   stackRoom: number | null;
+  /** 0 when the bag has no slot for the item (bagRoom.ts), else null. */
+  bagRoom?: number | null;
 }
 
 export interface ClampedPurchaseQuantity {
@@ -30,6 +32,7 @@ export function clampPurchaseQuantity(requested: number, limits: PurchaseLimits)
     ['stock', limits.remainingStock],
     ['balance', limits.affordable],
     ['stack', limits.stackRoom],
+    ['bag', limits.bagRoom ?? null],
   ];
   for (const [limit, cap] of caps) {
     if (cap == null || !Number.isFinite(cap)) continue;

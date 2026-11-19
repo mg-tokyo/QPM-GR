@@ -1,5 +1,6 @@
 // src/ui/originalPanel.ts - Main panel orchestrator
 import { storage } from '../../utils/storage';
+import { gmOpenInTab } from '../../utils/gm';
 import { t } from '../../i18n';
 
 import { startVersionChecker, onVersionChange, getCurrentVersion, type VersionInfo, type VersionStatus } from '../../utils/versionChecker';
@@ -94,18 +95,13 @@ export async function createOriginalUI(): Promise<HTMLElement> {
     const freshUrl = `${VERSION_SCRIPT_URL}?t=${Date.now()}`;
     versionBubble.href = freshUrl;
 
-    const gmOpen = (globalThis as any).GM_openInTab || (globalThis as any).GM?.openInTab;
-    if (typeof gmOpen === 'function') {
-      try {
-        gmOpen(freshUrl, { active: true, insert: true, setParent: true });
-        return;
-      } catch { /* defensive multi-tier fallback — window.open() below */ }
-    }
-
-    const win = window.open(freshUrl, '_blank', 'noopener,noreferrer');
-    if (!win) {
-      window.location.href = freshUrl;
-    }
+    void gmOpenInTab(freshUrl, { active: true, insert: true, setParent: true }).then((opened) => {
+      if (opened) return;
+      const win = window.open(freshUrl, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        window.location.href = freshUrl;
+      }
+    });
   };
 
   versionBubble.addEventListener('click', (event) => {

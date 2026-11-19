@@ -1,5 +1,8 @@
 // Key registry for the storage layer: every known QPM key, dynamic-key prefixes, export exclusions.
 
+/** GM-only marker of the storage reconcile; read and written straight through the GM backend, never the mirror. */
+export const STORAGE_RECONCILE_KEY = 'qpm.storage.reconcile.v1';
+
 /**
  * All QPM storage keys (for comprehensive clearing)
  */
@@ -136,6 +139,7 @@ export const QPM_STORAGE_KEYS = [
 
   // Dev mode
   'qpm.dev.enabled',
+  'qpm.dev.alertsWip',
 
   // Activity Log Enhancer
   'qpm.activityLogEnhanced.entries.v1',
@@ -195,7 +199,7 @@ export const QPM_STORAGE_KEYS = [
   // Journal
   'journal:notes',
 
-  // Pet Hutch keybind
+  // Old Pet Hutch window's key (window removed); kept so clearing still removes it from old installs.
   'petHutch:keybind',
 
   // Public Rooms
@@ -250,6 +254,7 @@ export const QPM_STORAGE_KEYS = [
   'qpm.ariedam.gamedata',
   'qpm.restock.tracked',
   'qpm.restock.ui.v1',
+  'qpm.restock.phonePush.made.v1',
 
   // Shop registry (runtime-discovered shop ids + observed shop→weather)
   'qpm.shopRegistry.discovered.v1',
@@ -285,6 +290,9 @@ export const QPM_STORAGE_KEYS = [
   // Shop Keybinds
   'qpm.shop-keybinds.v1',
   'qpm.panelHotkey.v1',
+  'qpm.keybinds.actions.v1',
+  'qpm.keybinds.myItems.v1',
+  'qpm.keybinds.fetchFromStorage.v1',
 
   // Hub State
   'qpm.hub.state.v1',
@@ -298,9 +306,6 @@ export const QPM_STORAGE_KEYS = [
   'qpm.diagnostics.errorBuffer.migration.v1',
   'qpm.diagnostics.dot.enabled.v1',
   'qpm.diagnostics.dot.mutedSubsystems.v1',
-
-  // Shop Enhancer (Aries co-existence gate)
-  'qpm.shopEnhancer.mode',
 
   // Reactive rollout kill switches (design §5b). Default false; per-tier so
   // regressions can be bisected without a rebuild.
@@ -340,6 +345,34 @@ export const QPM_STORAGE_KEYS = [
   // Feeding trough low alarm (lowAt)
   'qpm.troughAlarm.v1',
 
+  // Crop max-size alert (unlogged-journal mode + picked species)
+  'qpm.cropMaxSizeAlert.v1',
+
+  // Mutation gained alert (watched mutation ids)
+  'qpm.mutationGainAlert.v1',
+
+  // Egg ready alert (lead minutes)
+  'qpm.eggReadyAlert.v1',
+
+  // Room full alert (minPlayers: 'full' or a player count)
+  'qpm.roomFullAlert.v1',
+
+  // Max STR pre-alarm (lead minutes)
+  'qpm.maxStrAlert.v1',
+
+  // Charged-ability ready alarm (repeat-until-used ability ids + interval)
+  'qpm.chargedReadyAlert.v1',
+
+  // Multi-storage panels (on/off, picked storage ids, per-storage layout as screen fractions)
+  'qpm.multiStorage.enabled.v1',
+  'qpm.multiStorage.pick.v1',
+  'qpm.multiStorage.layout.v1',
+
+  // Multi-shop panels (on/off, picked shop panel ids, per-shop layout as screen fractions)
+  'qpm.multiShop.enabled.v1',
+  'qpm.multiShop.pick.v1',
+  'qpm.multiShop.layout.v1',
+
   // 3D camera
   'qpm.camera3d.enabled.v1',
   'qpm.camera3d.firstPerson.v1',
@@ -370,12 +403,10 @@ export const QPM_STORAGE_KEYS = [
   'qpm.ws.sequencer.staleGraceMs',
   'qpm.ws.transport.v1',
   'qpm.ws.chainSafetyPoll.enabled',
-];
 
-/** Shop enhancer mode key. Values: 'auto' | 'force-on' | 'force-off'. */
-export const SHOP_ENHANCER_MODE_KEY = 'qpm.shopEnhancer.mode';
-export type ShopEnhancerMode = 'auto' | 'force-on' | 'force-off';
-export const SHOP_ENHANCER_MODES: readonly ShopEnhancerMode[] = ['auto', 'force-on', 'force-off'];
+  // Storage reconcile marker (GM store only)
+  STORAGE_RECONCILE_KEY,
+];
 
 /**
  * Dynamic key prefixes for window position/size/state keys that are generated at runtime.
@@ -403,6 +434,9 @@ export const EXPORT_EXCLUDE_KEYS: readonly string[] = [
 
   // Turtle completion log
   'qpm-turtle-completion-log',
+
+  // Storage reconcile marker: the shared GM copy's write stamps, never a setting
+  STORAGE_RECONCILE_KEY,
 
   // Caches (regenerated from network/game)
   'qpm.petHatchingTracker.knownPetIds.v1',

@@ -10,6 +10,7 @@ export interface ForecastLine {
   key: string;
   kind: ForecastLineKind;
   label: string | null;      // weather name; null for hidden events (labelled by group) and night
+  weatherId: string | null;  // null for hidden events and night
   groupId: string | null;
   spriteKey: string | null;
   active: boolean;           // running now: atMs is its end, else its start
@@ -43,6 +44,22 @@ export function upcomingEntries(input: UpcomingInput, activeGroup = activeGroupO
     .filter((entry) => entry.endsAtMs > nowMs && !isRunning(entry));
 }
 
+/** A not-running entry as a line; a null weatherId is a hidden event of its group, a null groupId comes from the catalog. */
+export function forecastEntryLine(
+  weatherId: string | null,
+  groupId: string | null,
+  atMs: number,
+  weatherDef: (weatherId: string) => WeatherDefSafe | null,
+): ForecastLine {
+  const def = weatherId ? weatherDef(weatherId) : null;
+  const group = groupId ?? def?.groupId ?? null;
+  return {
+    key: `group:${group ?? ''}`, kind: weatherId ? 'weather' : 'hidden',
+    label: weatherId ? def?.name ?? weatherId : null, weatherId, groupId: group,
+    spriteKey: def?.spriteKey ?? null, active: false, atMs,
+  };
+}
+
 export function buildForecastLines(input: ForecastInput): ForecastLine[] {
   const { weather, window, nowMs, clock, weatherDef } = input;
   const lines: ForecastLine[] = [];
@@ -50,7 +67,7 @@ export function buildForecastLines(input: ForecastInput): ForecastLine[] {
   if (weather && window && nowMs < window.endsAtMs) {
     const def = weatherDef(weather);
     lines.push({
-      key: `active:${activeGroup ?? weather}`, kind: 'weather', label: def?.name ?? weather,
+      key: `active:${activeGroup ?? weather}`, kind: 'weather', label: def?.name ?? weather, weatherId: weather,
       groupId: activeGroup, spriteKey: def?.spriteKey ?? null, active: true, atMs: window.endsAtMs,
     });
   }
@@ -58,19 +75,31 @@ export function buildForecastLines(input: ForecastInput): ForecastLine[] {
   for (const entry of upcomingEntries(input, activeGroup)) {
     if (seen.has(entry.groupId)) continue;
     seen.add(entry.groupId);
-    const def = entry.weatherId ? weatherDef(entry.weatherId) : null;
-    lines.push({
-      key: `group:${entry.groupId}`, kind: entry.weatherId ? 'weather' : 'hidden',
-      label: entry.weatherId ? def?.name ?? entry.weatherId : null, groupId: entry.groupId,
-      spriteKey: def?.spriteKey ?? null, active: false, atMs: entry.startsAtMs,
-    });
+    lines.push(forecastEntryLine(entry.weatherId, entry.groupId, entry.startsAtMs, weatherDef));
   }
   const night = getNightWindowAt(nowMs, clock);
   lines.push({
-    key: 'night', kind: 'night', label: null, groupId: null, spriteKey: null,
+    key: 'night', kind: 'night', label: null, weatherId: null, groupId: null, spriteKey: null,
     active: night !== null, atMs: night ? night.endsAtMs : nextNightfall(nowMs, clock),
   });
   return lines;
+}
+
+export interface WeatherLook {
+  mutation: string;
+  color: string | null;     // solid catalog colour; null when the badge has none (a gradient is no tint)
+  iconKey: string | null;
+}
+
+/** Weather → its catalog `mutator.mutation` → that mutation's badge colour and icon. */
+export function weatherLook(
+  def: WeatherDefSafe | null,
+  badgeOf: (mutation: string) => { color?: string; iconKey?: string } | undefined,
+): WeatherLook | null {
+  const mutation = def?.mutation;
+  if (!mutation) return null;
+  const badge = badgeOf(mutation);
+  return { mutation, color: badge?.color ?? null, iconKey: badge?.iconKey ?? null };
 }
 
 /** Changes only when a line's identity or target changes, not as time passes. */

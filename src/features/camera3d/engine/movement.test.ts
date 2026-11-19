@@ -17,17 +17,22 @@ import { installCameraRelativeMovement, quarterOf, rotateDirKeys } from './movem
 const D = Math.PI / 180;
 const OFFSET: Readonly<Record<string, XY>> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 
-/** The game's MovementSystem as far as the wrapper sees it: movePlayer on the prototype, its own collision check. */
+/** The game's MovementSystem as far as the wrapper sees it (live 2026-11-19): attemptMove on the prototype steps toward
+ * the first held direction getMoveTarget (its collision check) passes; `calls` logs the first direction it was given. */
 class FakeMover {
   pos: XY = { x: 0, y: 0 };
   calls: string[] = [];
   open: (x: number, y: number) => boolean = () => true;
-  movePlayer(dir: string, p: XY): boolean {
-    this.calls.push(dir);
+  getMoveTarget(dir: string, p: XY): XY | null {
     const o = OFFSET[dir]!;
-    if (!this.open(p.x + o.x, p.y + o.y)) return false;
-    this.pos = { x: p.x + o.x, y: p.y + o.y };
-    return true;
+    return this.open(p.x + o.x, p.y + o.y) ? { x: p.x + o.x, y: p.y + o.y } : null;
+  }
+  attemptMove(_timeMs: number, held: readonly string[], p: XY): void {
+    this.calls.push(held[0]!);
+    for (const d of held) {
+      const t = this.getMoveTarget(d, p);
+      if (t) { this.pos = t; return; }
+    }
   }
 }
 
@@ -56,10 +61,14 @@ function rig(withMover = true): Rig {
   };
 }
 
-/** The game's input tick calling its own movePlayer `n` times with whatever direction its key state holds. */
+/** The game's input tick calling its own attemptMove `n` times with whatever direction its key state holds. */
 function tick(r: Rig, n: number, gameDir = 'up'): number {
   let stepped = 0;
-  for (let i = 0; i < n; i++) if (r.mover.movePlayer(gameDir, r.mover.pos)) stepped++;
+  for (let i = 0; i < n; i++) {
+    const was = r.mover.pos;
+    r.mover.attemptMove(i, [gameDir], r.mover.pos);
+    if (r.mover.pos !== was) stepped++;
+  }
   return stepped;
 }
 
@@ -169,24 +178,24 @@ describe('camera-steered steps (P15 a; M1, M2)', () => {
   it('uninstall puts the game\'s step back; one displaced by another script passes through and stays theirs', () => {
     const r = rig();
     const off = installCameraRelativeMovement(r.rt);
-    expect(Object.prototype.hasOwnProperty.call(r.mover, 'movePlayer')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(r.mover, 'attemptMove')).toBe(true);
     off();
-    expect(Object.prototype.hasOwnProperty.call(r.mover, 'movePlayer')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(r.mover, 'attemptMove')).toBe(false);
     expect(r.steer()).toBeNull();
 
     const r2 = rig();
     const off2 = installCameraRelativeMovement(r2.rt);
-    const ours = r2.mover.movePlayer;
-    const theirs = function (this: unknown, d: string, p: XY): boolean { return ours.call(this, d, p); };
-    r2.mover.movePlayer = theirs;
+    const ours = r2.mover.attemptMove;
+    const theirs = function (this: FakeMover, t: number, held: readonly string[], p: XY): void { ours.call(this, t, held, p); };
+    r2.mover.attemptMove = theirs;
     off2();
-    expect(r2.mover.movePlayer).toBe(theirs);
+    expect(r2.mover.attemptMove).toBe(theirs);
     r2.di.keysPressed = ['KeyD'];
     tick(r2, 1, 'up');
     expect(r2.mover.calls).toEqual(['up']);
   });
 
-  it('without the game\'s movePlayer, keys keep the quarter-turn snap (spec D5)', () => {
+  it('without the game\'s attemptMove, keys keep the quarter-turn snap (spec D5)', () => {
     const r = rig(false);
     let seen: string[] = [];
     const proto = { updateDirectionState(this: DirectionalInputLike) { seen = [...this.keysPressed]; } };
@@ -204,14 +213,14 @@ describe('camera-steered steps (P15 a; M1, M2)', () => {
   it('without the key stack (no seat, spectator Task 12): nothing is wrapped and the game\'s step is its own', () => {
     const r = rig();
     (r.rt.caps.systems as { directionalInput: DirectionalInputLike | null }).directionalInput = null;
-    const step = r.mover.movePlayer;
+    const step = r.mover.attemptMove;
     const off = installCameraRelativeMovement(r.rt);
-    expect(r.mover.movePlayer).toBe(step);
+    expect(r.mover.attemptMove).toBe(step);
     expect(r.steer()).toBeNull();
     expect(tick(r, 1, 'left')).toBe(1);
     expect(r.mover.calls).toEqual(['left']);
     off();
-    expect(r.mover.movePlayer).toBe(step);
+    expect(r.mover.attemptMove).toBe(step);
   });
 });
 

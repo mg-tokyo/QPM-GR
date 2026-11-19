@@ -4,28 +4,16 @@ import type { HubGroupDef, LauncherCardConfig } from '../cards/types';
 import { toggleWindow, windowLog } from '../../core/modalWindow';
 import { TEXTURE_MANIPULATOR_ENABLED } from '../../../features/standalone/textureSwapper';
 import { t } from '../../../i18n';
+import { gmOpenInTab } from '../../../utils/gm';
 import { startTextureManipulatorStatus, startBloblingCustomiserStatus } from '../../panel/tileStatusesNew';
 import { startJournalStatus } from '../../panel/tileStatusesCore';
 
 const CUSTOM_CARDS_ENABLED: boolean = false;
 
 export function openExternalUrl(url: string): void {
-  const gmOpen = (globalThis as Record<string, unknown>).GM_openInTab as
-    ((url: string, opts?: Record<string, unknown>) => unknown) | undefined;
-  if (typeof gmOpen === 'function') {
-    try {
-      const result = gmOpen(url, { active: true });
-      // Sandboxed environments (Discord Activity) return a Promise that
-      // rejects with "GM request timed out"; sync try/catch misses that.
-      if (result && typeof (result as { then?: unknown }).then === 'function') {
-        (result as Promise<unknown>).catch(() => {
-          window.open(url, '_blank', 'noopener,noreferrer');
-        });
-      }
-      return;
-    } catch { /* fallback */ }
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
+  void gmOpenInTab(url, { active: true }).then((opened) => {
+    if (!opened) window.open(url, '_blank', 'noopener,noreferrer');
+  });
 }
 
 export function getToolsGroup(): HubGroupDef {
@@ -100,6 +88,7 @@ export function getToolsGroup(): HubGroupDef {
       el.textContent = t('hub.tools.decorLayout.summary');
     },
     onOpen: () => openExternalUrl('https://mg-tokyo.github.io/MG-Decor-Layout-Customiser/'),
+    opensExternal: true,
   };
 
   const spriteCustomiserCard: LauncherCardConfig = {
@@ -119,6 +108,7 @@ export function getToolsGroup(): HubGroupDef {
       el.textContent = t('hub.tools.spriteCustomiser.summary');
     },
     onOpen: () => openExternalUrl('https://mg-tokyo.github.io/MG-Sprite-Customiser-V2/'),
+    opensExternal: true,
   };
 
   const customCardsCard: LauncherCardConfig = {
@@ -162,6 +152,7 @@ export function getToolsGroup(): HubGroupDef {
       el.textContent = t('hub.tools.celestial.summary');
     },
     onOpen: () => openExternalUrl('https://mg-tokyo.github.io/Celestial-Position-Layout-Calculator/'),
+    opensExternal: true,
   };
 
   const bloblingCard: LauncherCardConfig = {

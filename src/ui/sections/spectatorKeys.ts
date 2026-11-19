@@ -9,7 +9,6 @@ import { getAllShopKeybinds, isShopKeybindsEnabled } from '../../features/shop/k
 import { t } from '../../i18n';
 import { getKeybinds, getTeamsConfig } from '../../store/petTeams';
 import { createSectionHeader } from '../components';
-import { getKeybind as getHutchKeybind } from '../pets/hutchWindow';
 import { createKeybindButton, formatKeybind, normalizeKeybind } from '../pets/petsWindow/helpers';
 import { muted } from './sectionLayout';
 
@@ -34,8 +33,8 @@ const NOTE = 'grid-column:1 / -1;font-size:12px;line-height:1.4;margin-top:-4px;
 /** Every other QPM keybind, read fresh: only the panel shortcut has a change event. */
 function otherKeybinds(): OtherKeybind[] {
   const out: OtherKeybind[] = [];
-  const add = (name: string, combo: string, loose = false): void => {
-    if (combo) out.push(loose ? { name, combo, loose } : { name, combo });
+  const add = (name: string, combo: string): void => {
+    if (combo) out.push({ name, combo });
   };
   if (isShopKeybindsEnabled()) {
     for (const [id, combo] of Object.entries(getAllShopKeybinds())) {
@@ -50,8 +49,6 @@ function otherKeybinds(): OtherKeybind[] {
     const team = teams.find((x) => x.id === id);
     if (team) add(t('feature.spectator.keys.other.team', { name: team.name }), combo);
   }
-  // The Hutch matches event.key with any modifiers held (hutchWindow.ts:374).
-  add(t('feature.spectator.keys.other.hutch'), getHutchKeybind(), true);
   return out;
 }
 

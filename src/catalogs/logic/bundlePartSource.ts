@@ -8,6 +8,8 @@ import { createNamedLogger } from '../../diagnostics/logger';
 export interface BundlePartStatus {
   started: boolean;
   resolved: boolean;
+  /** The first load has finished, with or without a value; later chunk retries never clear it. */
+  settled: boolean;
   chunk: string | null;
   attempts: number;
   parseFailures: number;
@@ -21,6 +23,8 @@ export interface BundlePartSource<T> {
   get(): T | null;
   /** Fires once when the value resolves. */
   onChange(cb: () => void): () => void;
+  /** Fires once when the first load finishes, resolved or not. */
+  onSettled(cb: () => void): () => void;
   status(): BundlePartStatus;
 }
 
@@ -34,17 +38,20 @@ export function createBundlePartSource<T>(consumer: string, marker: BundleMarker
   let inFlight: Promise<void> | null = null;
   let rerun = false;
   let chunkRetry: (() => void) | null = null;
+  let settled = false;
   const listeners = new Set<() => void>();
+  const settleListeners = new Set<() => void>();
 
   const releaseChunkRetry = (): void => {
     if (chunkRetry) { chunkRetry(); chunkRetry = null; }
   };
 
-  const emitChange = (): void => {
-    for (const cb of Array.from(listeners)) {
+  const emit = (set: Set<() => void>): void => {
+    for (const cb of Array.from(set)) {
       try { cb(); } catch (error) { log.debug(`${consumer}: listener threw`, { error: String(error) }); }
     }
   };
+  const emitChange = (): void => { emit(listeners); };
 
   // A call during an in-flight load reruns once after it, so a chunk that landed mid-scan is still tried.
   const loadMissing = (): Promise<void> => {
@@ -69,6 +76,7 @@ export function createBundlePartSource<T>(consumer: string, marker: BundleMarker
       }
     })().finally(() => {
       inFlight = null;
+      if (!settled) { settled = true; emit(settleListeners); }
       const again = rerun && started && value === null;
       rerun = false;
       if (again) void loadMissing();
@@ -93,9 +101,14 @@ export function createBundlePartSource<T>(consumer: string, marker: BundleMarker
       listeners.add(cb);
       return () => { listeners.delete(cb); };
     },
+    onSettled(cb) {
+      settleListeners.add(cb);
+      return () => { settleListeners.delete(cb); };
+    },
     status: () => ({
       started,
       resolved: value !== null,
+      settled,
       chunk,
       attempts,
       parseFailures,

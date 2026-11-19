@@ -1,9 +1,10 @@
 import { getActivePetsDebug } from '../../store/pets';
+import { pageWindow } from '../../core/pageContext';
 
 export const domInspectorApi = {
   searchPageWindow: () => {
     try {
-      const pageWin = (window as any).unsafeWindow || window;
+      const pageWin: any = pageWindow;
       console.log('=== Searching Page Window for Pet Data ===\n');
 
       // Check common locations

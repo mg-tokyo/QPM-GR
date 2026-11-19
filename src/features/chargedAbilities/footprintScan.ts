@@ -1,6 +1,6 @@
-// Resolve crop slots inside the player's footprint and find the best patch
-// for a given ability. Position→tileIdx→dirt/boardwalk lookup mirrors
-// getGardenTileData in src/features/garden/filters/tileData.ts.
+// Resolve crop slots inside the player's footprint and find the best patch for a given ability.
+// Dirt tiles only: the game's charged-ability scan skips every other tile type (beta
+// utils/chargedAbilityProjections.ts:158), so boardwalk crops are never targets.
 
 import { getGardenSnapshot, getMapSnapshot } from '../garden/bridge';
 import { getTilesInChebyshevRadius, type TilePosition } from '../garden/tileRadius';
@@ -26,7 +26,7 @@ function readSlot(raw: unknown): PlantSlotMinimal | null {
     : [];
   const targetScale = typeof s.targetScale === 'number' ? s.targetScale : 1;
   const endTime = typeof s.endTime === 'number' ? s.endTime : 0;
-  return { species, mutations, targetScale, endTime };
+  return { species, mutations, targetScale, endTime, preserved: s.preserved === true };
 }
 
 function slotsFromTile(tileRaw: unknown): PlantSlotMinimal[] {
@@ -49,22 +49,9 @@ function tileAt(x: number, y: number): PlantSlotMinimal[] {
   if (!garden || !map || typeof map.cols !== 'number' || typeof map.rows !== 'number') return [];
   if (x < 0 || y < 0 || x >= map.cols || y >= map.rows) return [];
 
-  const globalIdx = x + y * map.cols;
-  const dirtMapping = map.globalTileIdxToDirtTile?.[globalIdx];
-  const boardwalkMapping = map.globalTileIdxToBoardwalk?.[globalIdx];
-
-  const out: PlantSlotMinimal[] = [];
-
-  if (dirtMapping?.dirtTileIdx != null && garden.tileObjects) {
-    const tile = garden.tileObjects[String(dirtMapping.dirtTileIdx)];
-    out.push(...slotsFromTile(tile));
-  }
-  if (boardwalkMapping?.boardwalkTileIdx != null && garden.boardwalkTileObjects) {
-    const tile = garden.boardwalkTileObjects[String(boardwalkMapping.boardwalkTileIdx)];
-    out.push(...slotsFromTile(tile));
-  }
-
-  return out;
+  const dirtMapping = map.globalTileIdxToDirtTile?.[x + y * map.cols];
+  if (dirtMapping?.dirtTileIdx == null || !garden.tileObjects) return [];
+  return slotsFromTile(garden.tileObjects[String(dirtMapping.dirtTileIdx)]);
 }
 
 export function getQualifyingCropsInFootprint(
@@ -110,8 +97,6 @@ export function scanGardenForAbility(ability: AbilityProjection): FootprintResul
   };
 
   visit((garden as { tileObjects?: unknown }).tileObjects);
-  visit((garden as { boardwalkTileObjects?: unknown }).boardwalkTileObjects);
-
   return { slots, totalGain: { coin, capsule } };
 }
 

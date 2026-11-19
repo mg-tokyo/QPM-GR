@@ -28,9 +28,9 @@ export function initializeFoodRules(): void {
     category: 'feature',
     status: 'ok',
     message: 'Rules loaded',
-    metrics: { overrides: Object.keys(rulesState.overrides).length, avoidFavorited: String(rulesState.avoidFavorited) },
+    metrics: { overrides: Object.keys(current().overrides).length, avoidFavorited: String(current().avoidFavorited) },
   });
-  petFoodRulesLog.info('Initialized', { overrides: Object.keys(rulesState.overrides).length });
+  petFoodRulesLog.info('Initialized', { overrides: Object.keys(current().overrides).length });
 }
 
 const STORAGE_KEY = 'quinoa-pet-food-rules';
@@ -43,10 +43,15 @@ const DEFAULT_STATE: PetFoodRulesState = {
   updatedAt: Date.now(),
 };
 
-let rulesState: PetFoodRulesState = loadState();
+// Loaded on first use: a read at module load runs before storage init and gets the GM copy, not the mirror.
+let rulesState: PetFoodRulesState | null = null;
+
+function current(): PetFoodRulesState {
+  return rulesState ??= loadState();
+}
 
 export function getRulesState(): PetFoodRulesState {
-  return rulesState;
+  return current();
 }
 
 export function formatFriendlyName(raw: string): string {
@@ -72,15 +77,15 @@ function loadState(): PetFoodRulesState {
 }
 
 function saveState(): void {
-  storage.set(STORAGE_KEY, rulesState);
+  storage.set(STORAGE_KEY, current());
 }
 
 function emitRulesChanged(): void {
   try {
     window.dispatchEvent(new CustomEvent(PET_FOOD_RULES_EVENT, {
       detail: {
-        avoidFavorited: rulesState.avoidFavorited,
-        updatedAt: rulesState.updatedAt,
+        avoidFavorited: current().avoidFavorited,
+        updatedAt: current().updatedAt,
       },
     }));
   } catch (err) {
@@ -90,18 +95,18 @@ function emitRulesChanged(): void {
 
 export function getPetFoodRules(): PetFoodRulesState {
   return {
-    avoidFavorited: rulesState.avoidFavorited,
-    overrides: { ...rulesState.overrides },
-    updatedAt: rulesState.updatedAt,
+    avoidFavorited: current().avoidFavorited,
+    overrides: { ...current().overrides },
+    updatedAt: current().updatedAt,
   };
 }
 
 export function setAvoidFavoritedFoods(enabled: boolean): void {
-  if (rulesState.avoidFavorited === enabled) {
+  if (current().avoidFavorited === enabled) {
     return;
   }
   rulesState = {
-    ...rulesState,
+    ...current(),
     avoidFavorited: enabled,
     updatedAt: Date.now(),
   };
@@ -113,7 +118,7 @@ export function updateSpeciesOverride(species: string, override: SpeciesOverride
   const key = normalizeSpeciesKey(species);
   if (!key) return;
 
-  const overrides = { ...rulesState.overrides };
+  const overrides = { ...current().overrides };
   if (!override || (!override.allowed && !override.forbidden && !override.preferred)) {
     delete overrides[key];
   } else {
@@ -149,7 +154,7 @@ export function updateSpeciesOverride(species: string, override: SpeciesOverride
   }
 
   rulesState = {
-    ...rulesState,
+    ...current(),
     overrides,
     updatedAt: Date.now(),
   };
@@ -177,7 +182,7 @@ export function getPetSpeciesCatalog(): SpeciesCatalogEntry[] {
     });
   }
 
-  for (const key of Object.keys(rulesState.overrides)) {
+  for (const key of Object.keys(current().overrides)) {
     if (entries.has(key)) continue;
     entries.set(key, {
       species: key,
@@ -192,7 +197,7 @@ export function getPetSpeciesCatalog(): SpeciesCatalogEntry[] {
 export function getSpeciesPreferredFood(species: string): string | null {
   const key = normalizeSpeciesKey(species);
   if (!key) return null;
-  const override = rulesState.overrides[key] || null;
+  const override = current().overrides[key] || null;
   if (override?.preferred) {
     return override.preferred;
   }
@@ -203,7 +208,7 @@ export function setSpeciesPreferredFood(species: string, foodKey: string | null)
   const speciesKey = normalizeSpeciesKey(species);
   if (!speciesKey) return;
 
-  const overrides = { ...rulesState.overrides };
+  const overrides = { ...current().overrides };
   const existing = overrides[speciesKey];
 
   const nextOverride: SpeciesOverride = {};
@@ -242,7 +247,7 @@ export function setSpeciesPreferredFood(species: string, foodKey: string | null)
   }
 
   rulesState = {
-    ...rulesState,
+    ...current(),
     overrides,
     updatedAt: Date.now(),
   };

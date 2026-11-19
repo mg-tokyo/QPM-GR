@@ -9,9 +9,11 @@ import {
   type CropMaxSizeFilter,
   type SizeEdge,
 } from './core';
+import { readCropMaxSizeAlertSettings, startCropMaxSizeAlarm, stopCropMaxSizeAlarm, writeCropMaxSizeAlertSettings } from './alarm';
 
 export type { CropMaxSizeFilter, SizeEdge } from './core';
-export { createSizeEdgeTracker, edgeQualifies, MAX_CROP_SIZE, MAX_WEIGHT_VARIANT } from './core';
+export { createSizeEdgeTracker, edgeQualifies, isMaxWeightLogged, MAX_CROP_SIZE, MAX_WEIGHT_VARIANT } from './core';
+export { buildCropMaxSizePayload, CROP_MAX_SIZE_ROW, getCropMaxSizeAlarmState } from './alarm';
 
 export interface CheckedSizeEdge extends SizeEdge {
   at: number;
@@ -54,6 +56,8 @@ async function checkBatch(edges: SizeEdge[], gen: number): Promise<void> {
 export function startCropMaxSize(): void {
   if (unsubscribe) return;
   const gen = ++generation;
+  filter = readCropMaxSizeAlertSettings();
+  startCropMaxSizeAlarm(onCropMaxSizeBatch);
   unsubscribe = onGardenSnapshot((snapshot) => {
     // A null garden is a gap in the feed, not an empty garden; keep the baseline across it.
     if (!snapshot || gen !== generation) return;
@@ -65,6 +69,7 @@ export function startCropMaxSize(): void {
 
 export function stopCropMaxSize(): void {
   generation += 1;
+  stopCropMaxSizeAlarm();
   unsubscribe?.();
   unsubscribe = null;
   tracker.reset();
@@ -78,8 +83,10 @@ export function onCropMaxSizeBatch(cb: BatchListener): () => void {
   return () => { listeners.delete(cb); };
 }
 
+/** Stored in `qpm.cropMaxSizeAlert.v1`; the next batch uses it. */
 export function setCropMaxSizeFilter(next: CropMaxSizeFilter): void {
   filter = { unloggedJournal: next.unloggedJournal, species: [...next.species] };
+  writeCropMaxSizeAlertSettings(filter);
 }
 
 export function getCropMaxSizeFilter(): CropMaxSizeFilter {

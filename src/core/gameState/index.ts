@@ -6,7 +6,7 @@ import { fetchGameAccountInfo } from '../../services/gameAccount';
 import { createNamedLogger } from '../../diagnostics/logger';
 import { setGameStateIdentitySource, setGameStatePayloadSource } from '../../diagnostics/copyPayload';
 import { isDevModeEnabled } from '../devMode';
-import { getCapturedInfo, onJotaiCapture } from '../jotaiBridge';
+import { getCachedStore, getCapturedInfo, onJotaiCapture } from '../jotaiBridge';
 import { getPlayerIdFromUrl } from '../playerIdFromUrl';
 import { onStateTreeReady, onStateTreeWelcome, selectSync as stateTreeSelectSync } from '../stateTree';
 import { runDivergenceAudit, type DivergenceReport } from './divergence';
@@ -14,6 +14,7 @@ import {
   explainIdentity, getIdentity, hydrateIdentityFromAccount, initIdentity, refreshIdentity, stopIdentity,
 } from './identity';
 import { publishGameStateHealth, startGameStateDiagnostics } from './health';
+import { runModalPeek, type ModalPeekResult } from './modalPeek';
 import { GAME_STATE_KEYS, validateKeyTable, type GameStateKey, type GameStateValue } from './keys';
 import { CAMERA_KEYS } from './keys/camera';
 import { Registry } from './resolver';
@@ -28,6 +29,8 @@ export type { IdentityContext, KeyExplain, SourceKind } from './types';
 export { onIdentityChange } from './identity';
 export { renderGameStateTable } from './health';
 export type { DivergenceReport } from './divergence';
+export type { ModalPeekRefusal, ModalPeekResult } from './modalPeek';
+export { readGameAtom, subscribeGameAtom, type GameAtomRead } from './gameAtom';
 /** The game's 2D camera handles (keys/camera.ts), for the spectator startup check. */
 export const CAMERA_KEY_NAMES = Object.keys(CAMERA_KEYS) as readonly GameStateKey[];
 
@@ -192,6 +195,9 @@ export const simulateSourceLoss = (key: GameStateKey, kind: SourceKind): void =>
 export const restoreSource = (key: GameStateKey, kind: SourceKind): void => requireRegistry().setSimulatedLoss(key, kind, false);
 /** For read-patch instrumentation only (activity-log enhancer). Null when no atom rung resolves. */
 export const atomObjectFor = (key: GameStateKey): unknown => requireRegistry().atomObjectFor(key);
+/** What `readRequest` returns while each name is the open modal, without any listener seeing it open. Refuses while a modal is open. */
+export const peekModalRequests = <T>(names: readonly string[], readRequest: () => T | null): ModalPeekResult<T> =>
+  runModalPeek(getCachedStore(), registry?.atomObjectFor('activeModalState') ?? null, names, readRequest);
 export function gameStateStats() {
   return { ...requireRegistry().stats(), topology: getTopologyStats(), identity: explainIdentity(), divergent: lastDivergent };
 }

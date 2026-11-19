@@ -56,7 +56,6 @@ export type RoomActionType =
   | 'SwapPet'
   | 'XPPotion'
   | 'ReplenishPotion'
-  | 'LogItems'
   | 'RequestPetGreet'
   | 'RidePet'
   | 'HarvestCrop'
@@ -73,6 +72,9 @@ export type RoomActionType =
   | 'ApplyPetTeam'
   | 'MovePetTeam'
   | 'SetPetTeamEmblem'
+  | 'SetSelectedItem'
+  | 'PickupObject'
+  | 'DropObject'
   // Keep the SetRiddenPet member as the final entry of this union — the
   // QPM FULL PRIVATE overlay's apply-transforms.js anchors ws:extend-union
   // to that literal line and inserts automation-only types after it. Add
@@ -278,8 +280,6 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
     case 'XPPotion':
     case 'ReplenishPotion':
       return isNonEmptyString(payload.petItemId);
-    case 'LogItems':
-      return true;
     case 'RequestPetGreet': {
       const p = payload as PlayerPositionPayload;
       return !!p.position && isFiniteNumber(p.position.x) && isFiniteNumber(p.position.y);
@@ -350,6 +350,17 @@ function validatePayload(type: RoomActionType, payload: Record<string, unknown>)
       if (em.type === 'icon') return typeof em.icon === 'string' && PET_TEAM_ICON_IDS.has(em.icon);
       return false;
     }
+    case 'SetSelectedItem':
+      // itemId null = empty hand (live 2065, INP-4 spec F22); decorRotation from the wire picklist
+      // [0,±90,±180,±270,-360] (v1361 schema). Same rule as the overlay's ws:add-validate-cases.
+      return (payload.itemId === null || isNonEmptyString(payload.itemId))
+        && isFiniteNumber(payload.decorRotation)
+        && payload.decorRotation % 90 === 0
+        && payload.decorRotation >= -360
+        && payload.decorRotation <= 270;
+    case 'PickupObject':
+    case 'DropObject':
+      return true;
     default:
       return false;
   }
@@ -383,8 +394,6 @@ function getThrottleKey(type: RoomActionType, payload: Record<string, unknown>):
     case 'XPPotion':
     case 'ReplenishPotion':
       return `${type}:${String(payload.petItemId ?? '')}`;
-    case 'LogItems':
-      return type;
     case 'RequestPetGreet':
       return type;
     case 'RidePet':

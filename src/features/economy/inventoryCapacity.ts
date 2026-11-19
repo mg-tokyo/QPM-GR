@@ -151,26 +151,32 @@ function saveConfig(cfg: InventoryCapacityConfig): void {
   storage.set(STORAGE_KEY, cfg);
 }
 
-let config: InventoryCapacityConfig = loadConfig();
+// Loaded on first use: a read at module load runs before storage init and gets the GM copy, not the mirror.
+let config: InventoryCapacityConfig | null = null;
 const configListeners = new Set<ConfigListener>();
 
+function current(): InventoryCapacityConfig {
+  return config ??= loadConfig();
+}
+
 function notifyConfigListeners(): void {
-  const snapshot = { ...config };
+  const snapshot = { ...current() };
   for (const listener of configListeners) {
     try { listener(snapshot); } catch (err) { warnFeature('QPM-FEATURE-004', { what: 'listener:config' }, err); }
   }
 }
 
 export function getInventoryCapacityConfig(): InventoryCapacityConfig {
-  return { ...config };
+  return { ...current() };
 }
 
 export function updateInventoryCapacityConfig(patch: ConfigPatch): InventoryCapacityConfig {
-  config = sanitizeConfig({
-    ...config,
+  const next = sanitizeConfig({
+    ...current(),
     ...patch,
   });
-  saveConfig(config);
+  config = next;
+  saveConfig(next);
   notifyConfigListeners();
   recompute();
   return getInventoryCapacityConfig();
@@ -231,7 +237,8 @@ function handleSoundOnLevelChange(prevLevel: InventoryCapacityLevel, newLevel: I
 
   if (newLevel === 'ok') return;
 
-  const soundCfg = newLevel === 'full' ? config.fullSound : config.warningSound;
+  const cfg = current();
+  const soundCfg = newLevel === 'full' ? cfg.fullSound : cfg.warningSound;
   if (!soundCfg) return;
 
   const loopKey = newLevel === 'full' ? LOOP_KEY_FULL : LOOP_KEY_WARNING;
@@ -240,7 +247,7 @@ function handleSoundOnLevelChange(prevLevel: InventoryCapacityLevel, newLevel: I
 
 function recompute(): void {
   const count = getInventoryItems().length;
-  const level = computeLevel(count, config);
+  const level = computeLevel(count, current());
   const prev = currentState;
   currentState = { count, max: INVENTORY_MAX, level };
 
@@ -274,15 +281,16 @@ let unsubInventory: (() => void) | null = null;
 export function startInventoryCapacity(): void {
   if (unsubInventory) return;
   ensureBusRegistered();
-  config = loadConfig();
+  const cfg = loadConfig();
+  config = cfg;
   // fireImmediately ensures recompute runs with current cache even if the
   // inventory atom already fired its initial value before this subscription.
   unsubInventory = onInventoryChange(() => recompute(), true);
   publishOk('Started', {
-    enabled: config.enabled ? 1 : 0,
-    warningThreshold: config.warningThreshold,
-    warningSound: config.warningSound ? 1 : 0,
-    fullSound: config.fullSound ? 1 : 0,
+    enabled: cfg.enabled ? 1 : 0,
+    warningThreshold: cfg.warningThreshold,
+    warningSound: cfg.warningSound ? 1 : 0,
+    fullSound: cfg.fullSound ? 1 : 0,
   });
 }
 

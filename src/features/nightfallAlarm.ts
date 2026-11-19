@@ -4,6 +4,7 @@ import { getDayCycleClock, nextNightfall, onDayClockAnchorChange, type DayCycleC
 import { getServerNowMs } from '../store/serverClock';
 import { t } from '../i18n';
 import { formatRestockCountdown } from '../ui/core/panelHelpers';
+import { getAnySpriteDataUrl, isSpritesReady } from '../sprite-v2/compat';
 import { storage } from '../utils/storage';
 import { isRecord } from '../utils/typeGuards';
 import { raiseAlert, registerAlertRow } from './alertHub';
@@ -44,6 +45,13 @@ let cleanups: Array<() => void> = [];
 const counts = { fired: 0, skippedLate: 0, arms: 0 };
 
 const nowMs = (): number => getServerNowMs() ?? Date.now();
+const NIGHT_COLOR = 'var(--qpm-dawn)';
+const NIGHT_ICON_KEY = 'sprite/ui/SunsetIcon';
+
+function nightIconUrl(): string | null {
+  if (!isSpritesReady()) return null;
+  return getAnySpriteDataUrl(NIGHT_ICON_KEY) || null;
+}
 
 function clearTimer(): void {
   if (timer !== null) clearTimeout(timer);
@@ -54,11 +62,21 @@ function fire(night: number, now: number): void {
   firedNightMs = night;
   counts.fired += 1;
   const left = night - now;
+  const iconUrl = nightIconUrl();
   raiseAlert(NIGHTFALL_ALARM_ROW, {
     title: t('feature.nightfallAlarm.title'),
     body: left > 0 ? t('feature.nightfallAlarm.bodyIn', { time: formatRestockCountdown(left) }) : t('feature.nightfallAlarm.bodyNow'),
     cardKey: `nightfall:${night}`,
+    accent: NIGHT_COLOR,
+    // The card ticks on the local clock; `night` is server time.
+    ...(left > 0 ? { figure: { countdownTo: Date.now() + left, label: t('feature.nightfallAlarm.figure') } } : {}),
+    ...(iconUrl ? { iconUrl } : {}),
   });
+}
+
+function nightfallSummary(): string {
+  const lead = getNightfallLeadMinutes();
+  return lead === 0 ? t('feature.nightfallAlarm.summaryNow') : t('feature.nightfallAlarm.summaryLead', { min: lead });
 }
 
 function arm(): void {
@@ -93,7 +111,16 @@ function openNightfallSettings(): void {
 export function startNightfallAlarm(): void {
   if (started) return;
   started = true;
-  registerAlertRow({ id: NIGHTFALL_ALARM_ROW, group: 'garden', labelKey: 'feature.nightfallAlarm.row', defaultSound: 'chime', settingsAction: openNightfallSettings });
+  registerAlertRow({
+    id: NIGHTFALL_ALARM_ROW,
+    group: 'garden',
+    labelKey: 'feature.nightfallAlarm.row',
+    defaultSound: 'chime',
+    settingsAction: openNightfallSettings,
+    icon: nightIconUrl,
+    summary: nightfallSummary,
+    accent: NIGHT_COLOR,
+  });
   cleanups.push(onDayCycleChange(arm), onDayClockAnchorChange(arm));
   arm();
 }

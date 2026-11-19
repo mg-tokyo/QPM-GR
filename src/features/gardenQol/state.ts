@@ -104,13 +104,19 @@ function loadConfig(): GardenQolConfig {
   return { ...DEFAULT_CONFIG, holdContexts: { ...DEFAULT_HOLD_CONTEXTS } };
 }
 
-let config: GardenQolConfig = loadConfig();
+// Loaded on first use: a read at module load runs before storage init and gets the GM copy, not the mirror.
+let config: GardenQolConfig | null = null;
+
+function current(): GardenQolConfig {
+  return config ??= loadConfig();
+}
 
 function persist(): void {
-  storage.set(STORAGE_KEY, config);
+  storage.set(STORAGE_KEY, current());
 }
 
 export function getGardenQolConfig(): GardenQolConfig {
+  const config = current();
   return {
     ...config,
     holdContexts: { ...config.holdContexts },
@@ -118,7 +124,7 @@ export function getGardenQolConfig(): GardenQolConfig {
 }
 
 export function updateGardenQolConfig(partial: Partial<GardenQolConfig>): GardenQolConfig {
-  const merged = { ...config, ...partial };
+  const merged = { ...current(), ...partial };
   config = sanitizeConfig(merged);
   persist();
   return getGardenQolConfig();

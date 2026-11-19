@@ -42,7 +42,13 @@ export function showToast(message: string, type: 'success' | 'error' | 'info' = 
 // ---------------------------------------------------------------------------
 
 export function canonicalKeyFromEvent(e: KeyboardEvent): string {
-  const code = e.code || '';
+  const fromCode = keyFromCode(e.code || '');
+  if (fromCode) return fromCode;
+  const key = e.key.toLowerCase();
+  return key.length > 0 ? key : '';
+}
+
+function keyFromCode(code: string): string {
   if (code.startsWith('Key') && code.length === 4) return code.slice(3).toLowerCase();
   if (code.startsWith('Digit') && code.length === 6) return code.slice(5);
   if (/^F\d{1,2}$/.test(code)) return code.toLowerCase();
@@ -74,22 +80,22 @@ export function canonicalKeyFromEvent(e: KeyboardEvent): string {
     case 'PageUp': return 'pageup';
     case 'PageDown': return 'pagedown';
     case 'Insert': return 'insert';
-    default: {
-      const key = e.key.toLowerCase();
-      return key.length > 0 ? key : '';
-    }
+    default: return '';
   }
 }
 
+const MODIFIER_ONLY_KEYS = new Set(['Control', 'Shift', 'Alt', 'AltGraph', 'Meta', 'OS', 'CapsLock', 'Tab']);
+
 export function normalizeKeybind(e: KeyboardEvent): string {
-  const SKIP = ['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Dead', 'Unidentified'];
-  if (SKIP.includes(e.key)) return '';
+  if (MODIFIER_ONLY_KEYS.has(e.key)) return '';
+  // macOS Option+E/U/I/N/` and AltGr accents report key 'Dead': the physical key is the bind.
+  const unnamed = e.key === 'Dead' || e.key === 'Unidentified';
+  const key = unnamed ? keyFromCode(e.code || '') : canonicalKeyFromEvent(e);
+  if (!key) return '';
   const parts: string[] = [];
   if (e.ctrlKey || e.metaKey) parts.push('ctrl');
   if (e.altKey) parts.push('alt');
   if (e.shiftKey) parts.push('shift');
-  const key = canonicalKeyFromEvent(e);
-  if (!key) return '';
   parts.push(key);
   return parts.join('+');
 }

@@ -12,6 +12,7 @@ vi.mock('../../ui/shop/restockAlerts/soundConfig', () => ({ getCustomSounds: () 
 vi.mock('../../ui/shop/restockAlerts/soundEngine', () => ({
   isBuiltinSound: () => false, playSound: vi.fn(), playCustomSound: vi.fn(), getSoundGateStats: () => ({}), stopAllLoops: vi.fn(),
 }));
+vi.mock('../../sprite-v2/compat', () => ({ isSpritesReady: () => false, getAnySpriteDataUrl: () => '' }));
 
 const sent: Array<{ title: string; tag: string | undefined; silent: boolean | undefined }> = [];
 const requests = { count: 0 };
@@ -100,6 +101,6 @@ describe('desktop notifications (ALR-13.1)', () => {
     setAlertRowEnabled('d.row', true);
     raiseAlert('d.row', { title: 'still ticked' });
     expect(sent).toHaveLength(1);
-    expect(getAlertHubState().rows.find((r) => r.id === 'd.row')).toEqual({ id: 'd.row', group: 'qpm', enabled: true, soundId: 'ping' });
+    expect(getAlertHubState().rows.find((r) => r.id === 'd.row')).toEqual({ id: 'd.row', group: 'qpm', enabled: true, soundId: 'ping', cardSize: 1, icon: false, summary: null, accent: null });
   });
 });

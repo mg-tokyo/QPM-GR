@@ -48,7 +48,8 @@ import { applyAlertSprite, removeAlert } from './alertDom';
 import { stopAllLoops } from './soundEngine';
 import { startWeatherAlertProcessor, stopWeatherAlertProcessor } from './weatherAlertProcessor';
 import { ensureBusRegistered, publishOk, warnFeature } from './_diagnostics';
-import { ingestJournalSeedsMyData } from '../../../features/journalSeeds';
+import { ingestJournalSeedsMyData, onWatchedSeedsChange } from '../../../features/journalSeeds';
+import { registerJournalSeedRows } from './journalSeedCard';
 
 // ---------------------------------------------------------------------------
 // Socket close detection
@@ -227,6 +228,10 @@ export function startShopRestockAlerts(): void {
     };
     window.addEventListener(TRACKED_UPDATED_EVENT, alertState.trackedChangedHandler as EventListener);
 
+    registerJournalSeedRows();
+    stopWatchedSeeds?.();
+    stopWatchedSeeds = onWatchedSeedsChange(() => { processShopStock(getShopStockState()); });
+
     bindAlertSocketIfNeeded();
     ensureAlertSocketPollRunning();
 
@@ -270,6 +275,7 @@ function currentConfirmationSources(): readonly ('A' | 'B' | 'C' | 'D')[] {
 
 let removeDebugBridge: (() => void) | null = null;
 let stopPinMigration: (() => void) | null = null;
+let stopWatchedSeeds: (() => void) | null = null;
 
 function installDebugBridge(): void {
   removeDebugBridge?.();
@@ -323,6 +329,8 @@ export function stopShopRestockAlerts(): void {
   stopWeatherAlertProcessor();
   stopPinMigration?.();
   stopPinMigration = null;
+  stopWatchedSeeds?.();
+  stopWatchedSeeds = null;
 
   dismissedInStockKeys.clear();
   dismissedCyclesByKey.clear();

@@ -12,8 +12,12 @@ let balances: { coinsBalance: number | null; magicDustBalance: number | null };
 let stackCap: number | null;
 let catalogPricing: { coinPrice: number | null; dustPrice: number | null; rarity: string | null } | null;
 let ownershipSource: boolean;
+let bagLimit: number | null;
+let myData: unknown;
 
-vi.mock('../../../catalogs/shopEligibility', () => ({ getItemCatalogPricing: () => catalogPricing }));
+vi.mock('../../../catalogs/shopEligibility', () => ({ getItemCatalogPricing: () => catalogPricing, getShopFacingCatalogEntry: () => null }));
+vi.mock('../../../catalogs/logic/bagLimitCatalog', () => ({ getBagLimit: () => bagLimit }));
+vi.mock('./oneTimeOwnership', () => ({ readOwnershipData: () => myData }));
 vi.mock('../../../websocket/api', () => ({
   isRoomSessionReady: () => true,
   isRoomSocketOpen: () => true,
@@ -62,6 +66,8 @@ beforeEach(() => {
   stackCap = null;
   catalogPricing = null;
   ownershipSource = true;
+  bagLimit = null;
+  myData = null;
 });
 
 describe('buildPurchasePayload', () => {
@@ -140,6 +146,39 @@ describe('sendPurchaseBatch', () => {
     const r = await sendPurchaseBatch(model, 5);
     expect(sentPayloads).toHaveLength(0);
     expect(r).toMatchObject({ sent: 0, baseline: null, error: 'feature.restockAlert.soldOut' });
+  });
+
+  describe('bag full (ALR-7.3b)', () => {
+    const fullBag = (extra: Array<Record<string, unknown>> = []) => ({
+      inventory: { items: [{ itemType: 'Seed', species: 'Daisy', quantity: 1 }, { itemType: 'Pet', id: 'p1' }, ...extra] },
+    });
+
+    it('full bag + new item → nothing sent, "Bag full"', async () => {
+      bagLimit = 2;
+      myData = fullBag();
+      const r = await sendPurchaseBatch(model, 5);
+      expect(sentPayloads).toHaveLength(0);
+      expect(r).toMatchObject({ sent: 0, error: 'feature.restockAlert.bagFull' });
+    });
+
+    it('full bag + a Carrot stack already in the bag → sends', async () => {
+      bagLimit = 3;
+      myData = fullBag([{ itemType: 'Seed', species: 'Carrot', quantity: 4 }]);
+      expect((await sendPurchaseBatch(model, 5)).sent).toBe(5);
+    });
+
+    it('limit unparsed → no bag check', async () => {
+      myData = fullBag();
+      expect((await sendPurchaseBatch(model, 5)).sent).toBe(5);
+    });
+
+    it('the headless path refuses too', async () => {
+      bagLimit = 2;
+      myData = fullBag();
+      const outcome = await purchaseAndConfirm({ shopType: 'seed', itemId: 'Carrot', key: KEY, label: 'Carrot', quantity: 1, stockCycleId: null, autoStore: false });
+      expect(sentPayloads).toHaveLength(0);
+      expect(outcome).toMatchObject({ sent: 0, status: 'notSent', error: 'feature.restockAlert.bagFull' });
+    });
   });
 
   it('a failed send reports zero units sent', async () => {

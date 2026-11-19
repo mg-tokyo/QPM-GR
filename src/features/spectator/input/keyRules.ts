@@ -8,8 +8,8 @@ export const HELD_ONLY: ReadonlySet<SpectatorAction> = new Set([...MOVE_ACTIONS,
 export const SEAT_DIGIT = /^[1-9]$/;
 export const CAPTURE_KEYS: ReadonlySet<string> = new Set(['enter', 'space']);
 
-/** Another QPM keybind in normalizeKeybind form. loose: it fires on its key with any modifiers (the Pet Hutch's). */
-export interface OtherKeybind { name: string; combo: string; loose?: boolean }
+/** Another QPM keybind in normalizeKeybind form. */
+export interface OtherKeybind { name: string; combo: string }
 export type KeyClash = { kind: 'spectator'; action: SpectatorAction } | { kind: 'other'; name: string };
 export type KeyRefusal = 'fixed' | 'holdModifier';
 
@@ -50,8 +50,7 @@ export function findKeyClashes(
     }
     for (const o of others) {
       if (!o.combo) continue;
-      const hit = o.loose ? parse(binding).base === parse(o.combo).base : firesOn(a, binding, o.combo);
-      if (hit) list.push({ kind: 'other', name: o.name });
+      if (firesOn(a, binding, o.combo)) list.push({ kind: 'other', name: o.name });
     }
     if (list.length > 0) out.set(a, list);
   }

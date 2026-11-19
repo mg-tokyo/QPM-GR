@@ -136,7 +136,7 @@ describe('capabilities', () => {
     it('the world map comes first; the movement map stands in without it; neither is missing map', () => {
       const mvMap = { cols: 50, rows: 40, collisionTiles: new Set<number>() };
       const di = { updateDirectionState() { /* noop */ }, keysPressed: [] };
-      const both = world({ directionalInput: di, movement: { map: mvMap, movePlayer: () => true } });
+      const both = world({ directionalInput: di, movement: { map: mvMap, attemptMove: () => undefined, getMoveTarget: () => null } });
       expect(Array.isArray(both) ? both : both.map).toBe(worldMap);
       const mvOnly = world({ movement: { map: mvMap } }, null);
       expect(Array.isArray(mvOnly) ? mvOnly : mvOnly.map).toBe(mvMap);
@@ -147,7 +147,7 @@ describe('capabilities', () => {
 
     it('systemsReplaced: a seat system gone for now is not a replacement; a new or different one is', () => {
       const di = { updateDirectionState() { /* noop */ }, keysPressed: [] };
-      const mover = { map: worldMap, movePlayer: () => true };
+      const mover = { map: worldMap, attemptMove: () => undefined, getMoveTarget: () => null };
       const seated = world({ directionalInput: di, movement: mover });
       const seatless = world({});
       const other = world({ directionalInput: { ...di }, movement: mover });

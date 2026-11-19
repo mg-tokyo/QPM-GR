@@ -1,0 +1,346 @@
+QPM DEBUG API GUIDE
+===================
+Built from the source in src/debug/ and src/main/globalApis.ts (2026-11-19).
+Not run live. "(!)" = sends a REAL game action. Everything else only reads or changes QPM itself.
+atoms.* and jotai.* return promises: use `await`.
+
+
+1. TURNING IT ON
+----------------
+QPM_BOOT is always available. In the game tab's console:
+
+  QPM_BOOT.enableDebug()        saves the opt-in and reloads
+  QPM_BOOT.disableDebug()       turns it off and reloads
+  QPM_BOOT.status()             is it on? which storage is in use?
+  QPM_BOOT.setLocale('de')      also 'follow-game'
+  QPM_BOOT.getLocale()
+
+The opt-in is stored under the key qpm.debug.globals.v1. Dev builds always have it on.
+
+
+2. WHAT EXISTS AND WHEN
+-----------------------
+Needs the opt-in:
+  QPM  (same object as QPM_DEBUG_API)        the main toolbox, section 3
+  QPM_PROBE(), QPM_PROBE_OVERLAY(), QPM_PICK()   shortcuts for QPM.probe
+  QPM_INSPECT_GARDEN(), QPM_EXPOSE_GARDEN(), QPM_CURRENT_TILE()   garden inspectors
+  QPM_INSPECT_PLAYER(id, name?)              open the player inspector
+  QPM_INSPECT_FRIEND(id)                     set your own player id
+  QPM_TEST_ALL_SPRITES(), QPM_BENCHMARK(), QPM_VALIDATE_SPECIES()   old validation scripts
+
+Always on:
+  __QPM_INTERNAL__                           perf, WebSocket and reactivity internals, section 4
+  QPM_ACTIVITY_LOG                           list / export / clear / summary / verify / status / replay / enabled(bool?)
+  QPM_DIAGNOSTICS_V1                         healthBus.read(name) / readAll() / aggregate() / subscribe(cb), codes.lookup(code)
+  QPM_GARDEN_DIAG(), QPM_GARDEN_TEST(), QPM_GARDEN_NODES()   garden filter diagnostics
+  __QPM_DEBUG.shopRegistry                   shop list internals
+  __QPM_DEBUG.restockAlerts                  restock-alert internals
+
+
+3. QPM.* BY TOPIC
+-----------------
+
+SUPPORT AND HEALTH
+  supportReport()               Diagnostics "Copy for Discord" text plus extras (environment,
+                                how catalogs were captured, Bad Luck Protection counters)
+  diagnoseCatalogs()  logCatalogStatus()  getCatalogs()  areCatalogsReady()  waitForCatalogs()
+  catalogAudit()                check every game-data catalog against the game's code now
+  catalogMerge('petCatalog')    heal one catalog
+  forceWeatherCatalogRefresh()
+  setVerboseLogs(true)  getVerboseLogs()
+  storageReadDurable(key)  storageReadsBeforeInit()     storage-wrapper internals
+
+GAME STATE
+  await atoms.read('inventory') read one value (key names: src/core/gameState/keys/)
+  atoms.list()                  every key and where it is bound
+  atoms.explain(key)            where one value comes from
+  atoms.explainAll()  atoms.divergence()  atoms.stats()  atoms.health()  atoms.discover(filter?)
+  atoms.simulateSourceLoss(key, 'stateTree'|'atom'|'custom')   undo with atoms.restoreSource(...)
+  jotai.listAtoms(filter?)  jotai.readAtom(label)  jotai.captureInfo()  debugAllAtoms()
+  getGardenSnapshot()  getMapSnapshot()  isGardenBridgeReady()
+
+DOES THE GAME DATA STILL MATCH WHAT QPM EXPECTS
+  abilityCatalogDrift()  cropSizeBoostDrift()  dayStageDrift()
+  mutationRulesDrift()  rarePatchPairsDrift()
+  bagLimit()  chargedAbilityRules()  gameHotkeys()  gamePanels()  pushRules()
+  isGameHotkey('Shift+E')       true = the game uses this key combo
+  abilityRates()  abilityClassification()  waitForPetAbilities(ms?)
+
+PETS
+  debugPets()  debugLevels()  checkTargetScale()  debugSlotInfos()  debugPetInventory()  auditRainbowPets()
+  optimizerSnapshot(mode?)  optimizerFamily(abilityOrFamily)  optimizerExplain(petIdOrName)
+  setOptimizerConfig({...})
+  getPetTeams()  getPetPool()  togglePetsWindow()  openPetHub3v3()  debugAriesIntegration()
+  testPetData()  testComparePets(a, b)  testAbilityDefinitions()
+  isInstantFeedAvailable()
+  (!) applyPetTeam(teamId)
+  (!) feedPet(index)
+  (!) feedPetByIds(petId, cropId)
+  (!) feedAllPets(40)           feeds every pet under 40% hunger
+
+INVENTORY, STORAGE, SHOPS
+  debugInventory()  debugInventoryAtoms(labels?)  scanSeeds()  shopStock()
+  bagFullCheck(itemType, id)    would one more of this item fit in the bag?
+  (!) storageMove.take(itemId, 'SeedSilo'|'ToolShack'|'DecorShed')   whole stack, storage -> bag
+  (!) storageMove.put(itemId, 'SeedSilo'|'ToolShack'|'DecorShed')    whole stack, bag -> storage
+                                both return counts before and after
+  (!) selectItem.press(target, name?)      selectItem.state() only reads
+  multiStorage.open(ids?) / close / toggle / state / panels / values / check / resetLayout / start / stop
+  multiShop.open(names?) / close / toggle / state / panels / configs / gates / reset
+  phonePush.plan()              one request, sends nothing
+  (!) phonePush.sync()          sends to the game server
+
+ALERTS AND FEATURES (most have .state() plus a setter)
+  alertHub.state / history(feature?) / test / raise / setSoundsOn / setRowEnabled / desktop / setDesktopOn / linkedRows
+  alertsWip.on() / off() / state()
+  hungerAlarm  troughAlarm  nightfallAlarm  roomFull  maxStrAlarm  eggReady  cropMaxSize  friendBonus  journalSeeds
+  mutationEta.snapshot() / bell()
+  mutationGain.lastDiff() / alarm() / setMutations([...])
+  mutationApply(existing, add)
+  chargedAbilities.projections() / targets() / readyEdges() / readyAlarm() / previewReady(id)
+  keybinds.list() / assign(actionId, combo) / clear(actionId)
+  npcDialogue.diagnostics()  popupSilencer.diagnostics()
+
+STATS AND HISTORY
+  stats()  resetStats()  hatchStats()  resetHatchStats()  statsRecorder.status()
+  pity.snapshot() / log() / check() / rebuild(kind?, itemId?) / reset() / accountError()
+  activityLogList / Export / Clear / Verify / Summary / Enabled   (same as QPM_ACTIVITY_LOG)
+
+SPRITES
+  spriteProbe(['sprite/pet/Worm', ...])   test sprite lookups
+  spriteBootReport()  petRiveStats()  spriteLogs(true)  spriteLogDump(n)
+  floraBlueprint()  testStitch(species)  testStitchAll()
+  showPetSpriteGrid()  showAllSpriteSheets()  listSpriteResources()  loadTrackedSpriteSheets()
+  viewAllSprites()  spriteExtractor
+
+3D CAMERA AND SPECTATOR
+  camera3d.state / enter / follow / set / exit / perf(ms) / bench / drift / pick(x, y) / zoom / hints / resetHints
+                                (plus many more tuning commands)
+  spectator.state / enter / exit / players / follow(id) / detach / director(on) / waypoints / waypoint / photo.capture()
+
+DEVELOPER TOOLS
+  probe.scan() / overlay(true) / pickOnce() / findTargets('inventory') / inspectPoint(x, y) / resolve(recipe) / recipes()
+  ws.start() / stop() / filter(...types) / unfilter(...types) / stats()     log WebSocket traffic
+  perfBusyTimer(ms, everyMs)    fake slow task to test the Perf line; returns a stop function
+  resetTutorials()  showTour(windowId?)
+  searchPageWindow()  inspectPetCards()  findPetDataInDOM()  extractStrengthFromUI()
+
+
+4. __QPM_INTERNAL__ (ALWAYS ON)
+-------------------------------
+  diagnosticsReport()           Copy-for-Discord text, never touches the clipboard
+  getPerfSnapshot()  getScanStats()  getReactiveStats()  getReactiveEntryCosts()
+  getJotaiSubscriptionStats()  debugReactiveRouting()
+  setReactiveKillSwitch('state'|'client'|'composite'|'dynamic', bool)   applies after reload
+  getReactiveKillSwitches()
+  commandSequencer.stats() / chain() / transportAudit() / sendBudget() / events.*  (+ enable/disable switches)
+  (!) commandSequencer.debugToggleLock(...)   toggles an item lock for real; run again to undo
+  riveControl.rules() / reapply()
+  setDevMode(bool)  isDevMode()
+  instaHarvestSnapshot()
+  getGardenFiltersConfig()  updateGardenFiltersConfig()  applyGardenFiltersNow()
+  gameStateStart()  gameStateStop()  gameStateConsumerCosts()
+  fixture                       fixture builds only
+
+
+5. KNOWN ISSUES
+---------------
+- src/debug/debugApi.ts builds a lazy-loading toolbox (createLazyDebugProxy) that nothing calls.
+  The file now only powers atoms.* and jotai.*; its other ~25 functions copy ones in src/debug/mainApi/.
+- inspectPetCards and the other page-inspection helpers search for elements like .pet-card that
+  have not been confirmed to still exist.
+- viewAllSprites() uses pixelated rendering, which the project rules ban.
+- The "Rive Control (dev)" window (src/ui/riveControl/) is built but nothing opens it:
+  registerRiveControlWindow() is never called (last wired around 3.3.18-3.3.20).
+
+
+6. PLAYING WITH THE 3D CAMERA, RIVE, PIXI AND STORAGE PANELS
+-------------------------------------------------------------
+All of this is console only; no buttons or menus. QPM.* needs the debug opt-in;
+__QPM_RIVE_ENGINE__ does not.
+
+3D CAMERA (easy, the most complete)
+  QPM.camera3d.enter({ pitch: 60, dist: 800, yaw: 45 })   take over the camera
+  QPM.camera3d.set({ yaw: 90, fov: 80, hideSelf: true })   change it while live
+  QPM.camera3d.exit()
+  QPM.camera3d.state()                                      what it's doing now
+
+  Values: yaw / pitch / fov in degrees, dist = distance from the target,
+          target: {x, y} = point at a world spot (null = your avatar), hideSelf = hide your avatar,
+          lookH / yOff = height offsets, s = use the normal zoom curve (null = raw control).
+  QPM.camera3d.follow(playerId)                 ids from QPM.spectator.players()
+  QPM.camera3d.preset('low'|'medium'|'high'|'ultra')
+  QPM.camera3d.setting('fov', 70)               also invertY, sensitivity,
+                                                detail ('closest'|'near'|'medium'|'far'),
+                                                ground ('low'|'high'), weather3d ('simple'|'full'),
+                                                farAnim ('off'|'full')
+  QPM.camera3d.simulateWeather('Rain')          fake weather; null puts it back.
+                                                A wrong name returns "unknown weather ..." and changes nothing.
+  QPM.camera3d.renderGrab()                     screenshot canvas
+  QPM.camera3d.pick(x, y)                       what is under a screen point
+  QPM.camera3d.drawn('Pet')                     list what's drawn
+  QPM.camera3d.viewmodel({...})  QPM.camera3d.weather({...})   tuning until reload
+  QPM.spectator.enter()  .director(true)  .waypoints()  .photo.capture()
+
+RIVE ANIMATIONS (avatars, pets, decor): possible but clunky
+  const R = __QPM_RIVE_ENGINE__
+  R.instances()                         every live Rive animation, with ids
+  R.enumerate(id)                       its inputs, images and text
+  R.setSpeed(id, 0)                     freeze it (2 = double speed)
+  R.setInput(id, 'isHappy', true)       flip an input (names come from enumerate)
+  R.fire(id, 'jump')                    fire a one-shot trigger
+  R.setImage(id, 'face', 'https://...') swap an image
+  R.findAvatar(playerId)                one player's avatar animation
+  R.revertAll()                         undo everything
+  Ids are opaque: you scroll through instances() to find the right one.
+  Saved Rive rules still run at startup: __QPM_INTERNAL__.riveControl.rules() / .reapply().
+  Rules cannot be added from the console, and the window that edits them is not wired up (section 5).
+
+PIXI SCENE (the game's drawing layer): read-only
+  QPM.probe.overlay(true)               outline things on screen
+  QPM.probe.pickOnce()                  report whatever you click next
+  QPM.probe.inspectPoint(x, y)  QPM.probe.findTargets('inventory')  QPM.probe.highlight(ref)
+  QPM_GARDEN_DIAG()  QPM_GARDEN_NODES() the garden's drawn objects
+  Nothing exposes the game's PIXI app or stage (QPM captures one internally in
+  core/pixiCapture but never shares it). You can look, but not move, hide or recolour.
+
+MULTI-STORAGE PANELS: easy
+  QPM.multiStorage.owned()                        which storages you have
+  QPM.multiStorage.open(null)                     open every one you own
+  QPM.multiStorage.open(['PetHutch','SeedSilo'])
+  QPM.multiStorage.panels()                       positions, stacking order, header/grip centres
+  QPM.multiStorage.values()                       each panel's value label
+  QPM.multiStorage.resetLayout()  QPM.multiStorage.close()
+  QPM.multiStorage.simulateMissing(['...'])       pretend the game changed; null clears it
+  QPM.multiShop.* works the same way for shops: open(names?), panels(), reset().
+
+IDEAS TO MAKE IT EASY FOR OTHER PEOPLE (not built; UI needs agreeing first)
+  1. Reconnect the Rive Control window as a dev-only window (already built).
+  2. A small 3D camera playground: sliders for yaw / pitch / distance / FOV, a weather
+     picker, a player-follow list, all calling the commands above.
+  3. Expose the PIXI stage behind the debug opt-in (e.g. QPM.pixi.stage). Riskier: editing
+     game objects can slow or crash the game.
+
+
+7. DEV MODE
+-----------
+Not a hidden feature set. It is left over from when it hid some Garden Painter tabs,
+which are now always visible (src/core/devMode.ts).
+
+What it does now:
+  1. Shows which code is watching each piece of game state. Each new watcher records the
+     line of code that set it up, so __QPM_INTERNAL__.gameStateConsumerCosts() can name
+     the code behind a costly one. Without dev mode that column is empty.
+  2. Logs "Dev mode on" once at startup.
+
+How it turns on (either flag works):
+  __QPM_INTERNAL__.setDevMode(true)     stores qpm.dev.enabled
+  __QPM_INTERNAL__.isDevMode()
+  QPM_BOOT.enableDebug() also turns it on. While debug is on, setDevMode(false)
+  will not switch it off.
+
+Cost: a short trace per new watcher when it is created, not every frame. Cheap, but no
+reason to leave it on unless you are tracking down a slow watcher.
+
+The extra tools live in the debug opt-in (QPM.*). Fixture builds are a separate build that
+adds __QPM_INTERNAL__.fixture. The Rive Control window is not tied to dev mode.
+
+
+8. SPRITES IN THE 3D CAMERA
+---------------------------
+The 3D camera does not draw QPM's own sprites. It re-projects the game's own PIXI objects
+(pets, avatars, plants, decor, buildings) into 3D, and borrows the game's textures for the
+floor, fences and weather (sprite-v2/gameTextures: getGameTexture / getKeysByFrame).
+Those texture lookups are NOT exposed in the console.
+QPM.spriteProbe() and the other sprite commands in section 3 are for QPM's 2D windows only.
+
+There are no commands to swap a texture, tint, scale or hide one kind of sprite in 3D.
+That would need new commands.
+
+What you CAN do (all QPM.camera3d.*, while 3D is live):
+
+See what is drawn
+  drawn('Pet', 40)              drawn objects whose label contains the text, with screen
+                                positions, plus every "lifted" piece (things raised off the floor)
+  pick(x, y)                    which object is under a screen point
+  lastView()                    the last frame's camera
+  firstAppear()                 objects that popped in late during perf()/bench() runs
+  ovStats()                     how many times QPM wrote to game objects (a depth write re-sorts the world)
+
+Change what is drawn
+  set({ hideSelf: true })       hide your own avatar
+  setting('detail', 'far')      how far objects get full detail ('closest'|'near'|'medium'|'far')
+  detailRadius(px)              the same reach in pixels; the next setting change resets it
+  setting('farAnim', 'off')     freeze far-away animations ('full' = animate)
+  recull()                      the next frame re-decides which objects are visible
+  sortStep(deg)                 depth-sort step in degrees (until 3D reinstalls)
+  viewmodel({...})              the first-person held item: position and size (until reload)
+  simulateWeather('Rain')       weather sprites; null puts it back
+  weather({...})                weather tuning (until reload)
+
+Advanced tuning (until 3D reinstalls; for perf testing, not play)
+  levers({ margin, capPx, ringPx })   how far outside the screen objects are still drawn
+  levers({ still: false })            turn off the "camera not moving" shortcut
+  levers({ persist: false })          turn off keeping object positions between frames
+  levers({ floor: ... })              how the floor is baked
+  levers({ farAnim: 'off' })          same as the setting, without saving it
+  levers()                            read the current values
+
+
+9. PIXI, SPRITE AND GAME ENGINE CONTROL IN GENERAL
+--------------------------------------------------
+Short version: you can LOOK at almost everything, but the only ready-made controls are
+the garden filters (hide/dim crops), Rive animations (section 6) and the 3D camera.
+There is no command to grab the PIXI app/stage, swap textures or edit game objects.
+
+QPM'S OWN SPRITES (the pictures in QPM windows, not the game world)
+  QPM.spriteProbe(['sprite/pet/Worm', ...])   does each key render? size, errors
+  QPM.spriteBootReport()                      how the sprite system started up
+  QPM.petRiveStats()                          animated pet sprites
+  QPM.spriteLogs(true)  QPM.spriteLogDump(n)  sprite logging on, then dump it
+  QPM.showPetSpriteGrid()  QPM.showAllSpriteSheets()  QPM.listSpriteResources()  QPM.loadTrackedSpriteSheets()
+  QPM.floraBlueprint()  QPM.testStitch(species)  QPM.testStitchAll()   plant-building checks
+  Read-only: these show or test sprites, they don't change what the game draws.
+
+PIXI SCENE (what the game draws)
+  QPM.probe.overlay(true)       outline drawn things on screen
+  QPM.probe.pickOnce()          report whatever you click next
+  QPM.probe.scan()  QPM.probe.inspectPoint(x, y)  QPM.probe.findTargets('inventory')  QPM.probe.highlight(ref)
+  QPM_GARDEN_DIAG()             garden drawing diagnostics
+  QPM_GARDEN_TEST('Carrot')     which garden objects match one species
+  QPM_GARDEN_NODES()            watch garden objects being replaced; stop with QPM_GARDEN_NODES_STOP()
+  QPM captures the PIXI app internally (core/pixiCapture, getPixiApp) but never shares it.
+
+GARDEN FILTERS (the one ready-made "change what is drawn" control)
+  __QPM_INTERNAL__.getGardenFiltersConfig()
+  __QPM_INTERNAL__.updateGardenFiltersConfig({ enabled: true, cropSpecies: ['Carrot'] })
+  __QPM_INTERNAL__.applyGardenFiltersNow()
+  Fields: enabled, cropSpecies [], mutations [], excludeMutations (true = show plants WITHOUT them),
+          eggTypes [], growthStates ('mature' | 'growing'; [] = all)
+  NOTE: update... SAVES the setting, the same as changing it in the Garden Filters window.
+
+GAME ENGINE (the game's own systems)
+  const engine = await QPM.atoms.read('quinoaEngine')    the game's engine object
+  On current builds its systems are under:
+    engine.page.playerViews.systemRegistry.getSystem(name)    your seat (inventory, ...)
+    engine.page.rendererScope.systemRegistry.getSystem(name)  the world (map, pets, ...)
+  Older builds: engine.getSystem(name), or engine.boot.seatScope / boot.worldScope.
+  System names QPM itself uses: avatar, pet, tileObject, building, npcVisit, map, gardenObject,
+    inventory, storage, weather, dayNight, moon, movement, directionalInput, zoom,
+    worldTapRouter, toasts, rightSideRail, paperstackChangelog
+  QPM's own helper for this walk (getEngineSystem in utils/quinoaEngine.ts) is not exposed.
+  QPM.camera3d.cost(3000)       time per frame of the pet / avatar / tileObject / building /
+                                npcVisit systems over 3 seconds
+
+WARNINGS for the engine and PIXI objects
+  - Reading is fine. Changing them is unsupported and nothing undoes it except a reload.
+  - Never `delete` a property on a game object, and never add getters to one: it makes the
+    game's own objects permanently slower (project note on V8 slow objects).
+  - Don't read the engine in a tight loop (Firefox debug harness note).
+  - Some engine systems only exist while you have a seat; spectating returns nothing.
+
+NOT AVAILABLE (would need new commands)
+  - Getting the PIXI app / stage from the console
+  - Swapping a game texture, tinting, resizing or hiding one kind of object
+    (outside the garden filters and the 3D camera's hideSelf)
+  - QPM's game texture lookup (sprite-v2/gameTextures: getGameTexture / getKeysByFrame)

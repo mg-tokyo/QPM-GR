@@ -63,15 +63,35 @@ function mutationIconUrl(mutation: string): string | undefined {
   return getAnySpriteDataUrl(findVariantBadge(mutation)?.iconKey) || undefined;
 }
 
+// Solid only: a gradient (Rainbow) is not a valid border colour.
+function mutationColor(mutation: string): string | undefined {
+  return findVariantBadge(mutation)?.color;
+}
+
 function fire(mutation: string): void {
   counts.fired += 1;
   const iconUrl = mutationIconUrl(mutation);
+  const color = mutationColor(mutation);
+  const name = getMutationName(mutation);
   raiseAlert(MUTATION_DONE_ROW, {
-    title: t('feature.mutationEta.bellTitle', { mutation: getMutationName(mutation) }),
+    title: t('feature.mutationEta.bellTitle', { mutation: name }),
     body: t('feature.mutationEta.bellBody'),
     cardKey: `mutationDone:${mutation}`,
+    chips: [{ text: name, ...(color ? { color } : {}), ...(iconUrl ? { iconUrl } : {}) }],
+    ...(color ? { accent: color } : {}),
     ...(iconUrl ? { iconUrl } : {}),
   });
+}
+
+function bellSummary(): string {
+  const bells = getBelledMutations();
+  return bells.length === 0
+    ? t('feature.mutationEta.bellSummaryNone')
+    : t('feature.mutationEta.bellSummary', { list: bells.map(getMutationName).join(', ') });
+}
+
+function firstBell(): string | null {
+  return getBelledMutations()[0] ?? null;
 }
 
 function evaluate(): void {
@@ -91,7 +111,15 @@ function evaluate(): void {
 export function startMutationEtaBell(): void {
   if (started) return;
   started = true;
-  registerAlertRow({ id: MUTATION_DONE_ROW, group: 'garden', labelKey: 'feature.mutationEta.bellRow', defaultSound: 'chime' });
+  registerAlertRow({
+    id: MUTATION_DONE_ROW,
+    group: 'garden',
+    labelKey: 'feature.mutationEta.bellRow',
+    defaultSound: 'chime',
+    icon: () => { const m = firstBell(); return m ? mutationIconUrl(m) ?? null : null; },
+    summary: bellSummary,
+    accent: () => { const m = firstBell(); return m ? mutationColor(m) ?? null : null; },
+  });
   cleanups = [onGardenSnapshot(evaluate, false), onMutationBellsChange(evaluate)];
   evaluate();
 }

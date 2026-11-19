@@ -7,6 +7,7 @@ import { warnFeature } from './restockWindowDiagnostics';
 import { getAnySpriteDataUrl, getCropSpriteCanvas, getPetSpriteCanvas } from '../../sprite-v2/compat';
 import { canvasToDataUrl } from '../../utils/dom/canvasHelpers';
 import { storage } from '../../utils/storage';
+import { gmHttpRequest } from '../../utils/gm';
 import { getWeatherDef } from '../../catalogs/gameCatalogs';
 import {
   areShopCatalogsLoaded,
@@ -47,46 +48,17 @@ export interface ShopRestockUiState {
   pinnedHeight: number | null;
 }
 
-// ---------------------------------------------------------------------------
-// GmXhr (local minimal type for the Ariedam fetch)
-// ---------------------------------------------------------------------------
-
-type GmXhr = (details: {
-  method: 'GET';
-  url: string;
-  timeout?: number;
-  onload?: (res: { status: number; responseText: string }) => void;
-  onerror?: (err: unknown) => void;
-  ontimeout?: () => void;
-}) => void;
-
-function resolveGmXhr(): GmXhr | null {
-  if (typeof GM_xmlhttpRequest === 'function') return GM_xmlhttpRequest as unknown as GmXhr;
-  const gm = (globalThis as { GM?: { xmlHttpRequest?: GmXhr } }).GM;
-  if (typeof gm?.xmlHttpRequest === 'function') return gm.xmlHttpRequest as GmXhr;
-  return null;
-}
-
-export function gmFetch(url: string): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const xhr = resolveGmXhr();
-    if (!xhr) return reject(new Error('GM_xmlhttpRequest unavailable'));
-    xhr({
-      method: 'GET',
-      url,
-      timeout: 10_000,
-      onload: (res) => {
-        if (res.status >= 200 && res.status < 300) {
-          try { resolve(JSON.parse(res.responseText)); }
-          catch { reject(new Error('JSON parse failed')); }
-        } else {
-          reject(new Error(`HTTP ${res.status}`));
-        }
-      },
-      onerror:   () => reject(new Error('Network error')),
-      ontimeout: () => reject(new Error('Timeout')),
-    });
-  });
+export async function gmFetch(url: string): Promise<unknown> {
+  const res = await gmHttpRequest(url, { timeoutMs: 10_000 });
+  if (res.kind === 'unavailable') throw new Error('GM_xmlhttpRequest unavailable');
+  if (res.kind === 'error') throw new Error('Network error');
+  if (res.kind === 'timeout') throw new Error('Timeout');
+  if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
+  try {
+    return JSON.parse(res.responseText) as unknown;
+  } catch {
+    throw new Error('JSON parse failed');
+  }
 }
 
 // ---------------------------------------------------------------------------

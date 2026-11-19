@@ -77,6 +77,8 @@ export interface LauncherCardConfig extends CardConfigBase {
   readonly tier: 'launcher';
   readonly renderSummary: (container: HTMLElement) => (() => void) | void;
   readonly onOpen: () => void;
+  /** true: onOpen opens a website, not a QPM window (left out of the window keybinds). */
+  readonly opensExternal?: boolean;
 }
 
 export type CardConfig = InlineToggleConfig | ExpandableCardConfig | LauncherCardConfig;

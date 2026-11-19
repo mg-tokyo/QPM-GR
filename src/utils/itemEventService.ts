@@ -5,9 +5,9 @@ import {
   canonicalItemId,
   gmGet,
   getItemIdVariants,
-  type GmXhr,
 } from './restock/dataService';
 import { supabaseClientInfoHeaders } from './supabaseClientInfo';
+import { gmHttpRequest, gmXhr } from './gm';
 
 const EVENTS_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/restock_events';
 const WEATHER_EVENTS_ENDPOINT = 'https://xjuvryjgrjchbhjixwzh.supabase.co/rest/v1/weather_events';
@@ -22,13 +22,6 @@ export interface ItemEvent {
 
 interface VariantItemEvent extends ItemEvent {
   sourceId: string;
-}
-
-function resolveGmXhr(): GmXhr | null {
-  if (typeof GM_xmlhttpRequest === 'function') return GM_xmlhttpRequest as unknown as GmXhr;
-  const gm = (globalThis as any).GM;
-  if (gm?.xmlHttpRequest) return gm.xmlHttpRequest.bind(gm) as GmXhr;
-  return null;
 }
 
 const EVENTS_TIMEOUT_MS = 3_500;
@@ -61,31 +54,25 @@ function clampEventLimit(limit: number | null | undefined): number {
   return Math.max(MIN_EVENT_LIMIT, Math.min(MAX_EVENT_LIMIT, safe));
 }
 
-function gmPost(
-  gm: GmXhr,
+async function gmPost(
   url: string,
   apiKey: string,
   body: unknown,
   timeoutMs = EVENTS_TIMEOUT_MS,
 ): Promise<string | null> {
-  return new Promise((resolve) => {
-    gm({
-      method: 'POST',
-      url,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        apikey: apiKey,
-        'Content-Type': 'application/json',
-        Prefer: 'count=none',
-        ...supabaseClientInfoHeaders(),
-      },
-      timeout: timeoutMs,
-      onload: (res) => resolve(res.status >= 200 && res.status < 300 ? res.responseText : null),
-      onerror: () => resolve(null),
-      ontimeout: () => resolve(null),
-      data: JSON.stringify(body),
-    });
+  const res = await gmHttpRequest(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      apikey: apiKey,
+      'Content-Type': 'application/json',
+      Prefer: 'count=none',
+      ...supabaseClientInfoHeaders(),
+    },
+    timeoutMs,
+    data: JSON.stringify(body),
   });
+  return res.kind === 'load' && res.status >= 200 && res.status < 300 ? res.responseText : null;
 }
 
 function getItemEventCacheKey(shopType: string, itemId: string, limit: number): string {
@@ -183,7 +170,6 @@ function mergeAndDeduplicateVariantEvents(
 
 /** Preferred path: one RPC call returning canonicalized, deduplicated events. Returns null if unavailable so caller can fall back. */
 async function fetchEventsViaRpc(
-  gm: GmXhr,
   shopType: string,
   itemId: string,
   limit: number,
@@ -194,7 +180,7 @@ async function fetchEventsViaRpc(
     p_limit: limit,
   };
 
-  const text = await gmPost(gm, EVENTS_RPC_ENDPOINT, RESTOCK_ANON_KEY, payload, EVENTS_TIMEOUT_MS);
+  const text = await gmPost(EVENTS_RPC_ENDPOINT, RESTOCK_ANON_KEY, payload, EVENTS_TIMEOUT_MS);
   if (!text) return null;
 
   let rows: unknown;
@@ -226,7 +212,6 @@ async function fetchEventsViaRpc(
 }
 
 async function fetchEventsForId(
-  gm: GmXhr,
   shopType: string,
   targetId: string,
   limit: number,
@@ -235,7 +220,7 @@ async function fetchEventsForId(
   const containsParam = encodeURIComponent(JSON.stringify([{ itemId: targetId }]));
   const url = `${EVENTS_ENDPOINT}?shop_type=eq.${encodeURIComponent(shopType)}&items=cs.${containsParam}&select=timestamp,items&order=timestamp.desc&limit=${limit}`;
 
-  const result = await gmGet(gm, url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
+  const result = await gmGet(url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
   if (!result.ok || !result.text) return [];
 
   let rows: unknown[];
@@ -284,10 +269,9 @@ export function fetchRecentWeatherEvents(limit = 10): Promise<RecentWeatherEvent
   if (cached && cached.limit === n && Date.now() - cached.fetchedAt <= EVENT_CACHE_TTL_MS) return Promise.resolve(cached.events);
   if (recentWeatherInflight) return recentWeatherInflight;
   recentWeatherInflight = (async (): Promise<RecentWeatherEvent[] | null> => {
-    const gm = resolveGmXhr();
-    if (!gm) return null;
+    if (!gmXhr()) return null;
     const url = `${WEATHER_EVENTS_ENDPOINT}?select=weather_id,timestamp&order=timestamp.desc&limit=${n}`;
-    const result = await gmGet(gm, url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
+    const result = await gmGet(url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
     if (!result.ok || !result.text) return null;
     let rows: unknown;
     try { rows = JSON.parse(result.text); } catch { return null; }
@@ -307,12 +291,11 @@ export function fetchRecentWeatherEvents(limit = 10): Promise<RecentWeatherEvent
 
 /** Fetch weather occurrence events from the weather_events table. */
 async function fetchWeatherEventsFromTable(
-  gm: GmXhr,
   weatherId: string,
   limit: number,
 ): Promise<ItemEvent[]> {
   const url = `${WEATHER_EVENTS_ENDPOINT}?weather_id=eq.${encodeURIComponent(weatherId)}&select=timestamp&order=timestamp.desc&limit=${limit}`;
-  const result = await gmGet(gm, url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
+  const result = await gmGet(url, RESTOCK_ANON_KEY, EVENTS_TIMEOUT_MS);
   if (!result.ok || !result.text) return [];
 
   let rows: unknown[];
@@ -348,18 +331,17 @@ export async function fetchItemEvents(
   if (existing) return existing;
 
   const fetchPromise = (async (): Promise<ItemEvent[]> => {
-    const gm = resolveGmXhr();
-    if (!gm) return [];
+    if (!gmXhr()) return [];
 
     // Weather events come from a separate table.
     if (shopType === 'weather') {
-      const weatherEvents = await fetchWeatherEventsFromTable(gm, itemId, normalizedLimit);
+      const weatherEvents = await fetchWeatherEventsFromTable(itemId, normalizedLimit);
       writeItemEventCache(cacheKey, weatherEvents);
       return weatherEvents;
     }
 
     // Primary path: server-side canonicalized RPC.
-    const rpcEvents = await fetchEventsViaRpc(gm, shopType, itemId, normalizedLimit);
+    const rpcEvents = await fetchEventsViaRpc(shopType, itemId, normalizedLimit);
     if (rpcEvents) {
       const canonicalId = canonicalItemId(shopType, itemId);
       const mergedRpc = mergeAndDeduplicateVariantEvents(
@@ -380,7 +362,7 @@ export async function fetchItemEvents(
     const canonicalId = canonicalItemId(shopType, itemId);
     const matchItemIds = new Set<string>(variants);
     const eventBatches = await Promise.all(
-      variants.map((variant) => fetchEventsForId(gm, shopType, variant, normalizedLimit, matchItemIds)),
+      variants.map((variant) => fetchEventsForId(shopType, variant, normalizedLimit, matchItemIds)),
     );
     const merged = mergeAndDeduplicateVariantEvents(
       eventBatches.flat(),
@@ -416,10 +398,9 @@ export async function fetchAlgorithmHistory(): Promise<AlgorithmVersionEntry[]> 
     return algoHistoryCache.entries;
   }
 
-  const gm = resolveGmXhr();
-  if (!gm) return algoHistoryCache?.entries ?? [];
+  if (!gmXhr()) return algoHistoryCache?.entries ?? [];
 
-  const text = await gmPost(gm, ALGO_HISTORY_RPC_ENDPOINT, RESTOCK_ANON_KEY, {}, EVENTS_TIMEOUT_MS);
+  const text = await gmPost(ALGO_HISTORY_RPC_ENDPOINT, RESTOCK_ANON_KEY, {}, EVENTS_TIMEOUT_MS);
   if (!text) return algoHistoryCache?.entries ?? [];
 
   let rows: unknown;

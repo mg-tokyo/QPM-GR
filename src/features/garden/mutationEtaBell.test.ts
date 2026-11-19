@@ -14,8 +14,9 @@ vi.mock('../../sprite-v2/compat', () => ({
   isSpritesReady: () => true,
   getAnySpriteDataUrl: (key: string | null) => (key ? `data:${key}` : ''),
 }));
+// Rainbow carries a gradient only, as the catalog does.
 vi.mock('../mutations/data/variantBadges', () => ({
-  findVariantBadge: (m: string) => ({ iconKey: `sprite/ui/Mutation${m}` }),
+  findVariantBadge: (m: string) => ({ iconKey: `sprite/ui/Mutation${m}`, ...(m === 'Rainbow' ? { gradient: 'linear-gradient(red, blue)' } : { color: `#c-${m}` }) }),
 }));
 vi.mock('../../utils/game/catalogHelpers', () => ({ getMutationName: (m: string) => m }));
 
@@ -35,13 +36,15 @@ vi.mock('./gardenTiles', () => ({
   countActionableFruits: (_tiles: unknown, sel: string[]) => remaining[sel[0] ?? ''] ?? 0,
 }));
 
-interface RaisedCard { row: string; title: string; body?: string; cardKey?: string; iconUrl?: string }
+interface RaisedCard { row: string; title: string; body?: string; cardKey?: string; iconUrl?: string; accent?: string; chips?: Array<{ text: string; color?: string; iconUrl?: string }> }
+interface RowDef { id: string; icon?: () => string | null; summary?: () => string; accent?: () => string | null }
 const raised: RaisedCard[] = [];
 const rows: string[] = [];
+const defs: RowDef[] = [];
 const enabledRows: string[] = [];
 vi.mock('../alertHub', () => ({
   raiseAlert: (row: string, p: Omit<RaisedCard, 'row'>) => { raised.push({ row, ...p }); return null; },
-  registerAlertRow: (def: { id: string }) => { rows.push(def.id); },
+  registerAlertRow: (def: RowDef) => { rows.push(def.id); defs.push(def); },
   setAlertRowEnabled: (id: string, on: boolean) => { if (on) enabledRows.push(id); },
 }));
 
@@ -69,6 +72,7 @@ beforeEach(() => {
   mem.clear();
   raised.length = 0;
   rows.length = 0;
+  defs.length = 0;
   enabledRows.length = 0;
   remaining = {};
   totalFruit = 10;
@@ -108,6 +112,33 @@ describe('mutation done service', () => {
     expect(raised[0]).toMatchObject({ row: MUTATION_DONE_ROW, cardKey: 'mutationDone:Rainbow', iconUrl: 'data:sprite/ui/MutationRainbow' });
     tick({ Rainbow: 0 });
     expect(raised).toHaveLength(1);
+  });
+
+  it('a solid-colour mutation sends its catalog colour as accent and a mutation chip; a gradient one sends neither colour', () => {
+    setMutationBell('Frozen', true);
+    setMutationBell('Rainbow', true);
+    startMutationEtaBell();
+    tick({ Frozen: 1, Rainbow: 1 });
+    tick({ Frozen: 0, Rainbow: 0 });
+    const frozen = raised.find((r) => r.cardKey === 'mutationDone:Frozen');
+    const rainbow = raised.find((r) => r.cardKey === 'mutationDone:Rainbow');
+    expect(frozen?.accent).toBe('#c-Frozen');
+    expect(frozen?.chips).toEqual([{ text: 'Frozen', color: '#c-Frozen', iconUrl: 'data:sprite/ui/MutationFrozen' }]);
+    expect(rainbow).not.toHaveProperty('accent');
+    expect(rainbow?.chips).toEqual([{ text: 'Rainbow', iconUrl: 'data:sprite/ui/MutationRainbow' }]);
+  });
+
+  it('row follows the bells: first belled icon and colour, a list summary, none when empty', () => {
+    startMutationEtaBell();
+    const def = defs[0];
+    expect([def?.icon?.(), def?.summary?.(), def?.accent?.()]).toEqual([null, 'feature.mutationEta.bellSummaryNone', null]);
+    setMutationBell('Wet', true);
+    setMutationBell('Gold', true);
+    expect([def?.icon?.(), def?.summary?.(), def?.accent?.()]).toEqual([
+      'data:sprite/ui/MutationWet',
+      'feature.mutationEta.bellSummary:{"list":"Wet, Gold"}',
+      '#c-Wet',
+    ]);
   });
 
   it('first value 0 after start does not ring', () => {

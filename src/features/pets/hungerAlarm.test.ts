@@ -23,12 +23,14 @@ let petsCb: ((infos: ActivePetInfo[]) => void) | null = null;
 vi.mock('../../store/pets', () => ({
   onActivePetInfos: (cb: (infos: ActivePetInfo[]) => void) => { petsCb = cb; return () => { petsCb = null; }; },
 }));
-interface RaisedCard { row: string; title: string; body?: string; cardKey?: string; iconUrl?: string; meter?: { pct: number; color: string } }
+interface RaisedCard { row: string; title: string; body?: string; cardKey?: string; iconUrl?: string; accent?: string; meter?: { pct: number; color: string } }
+interface RowDef { id: string; icon?: () => string | null; summary?: () => string; accent?: string }
 const raised: RaisedCard[] = [];
 const rows: string[] = [];
+const defs: RowDef[] = [];
 vi.mock('../alertHub', () => ({
   raiseAlert: (row: string, p: Omit<RaisedCard, 'row'>) => { raised.push({ row, ...p }); return null; },
-  registerAlertRow: (def: { id: string }) => { rows.push(def.id); },
+  registerAlertRow: (def: RowDef) => { rows.push(def.id); defs.push(def); },
 }));
 
 import {
@@ -86,6 +88,7 @@ describe('hunger alarm feature', () => {
     mem.clear();
     raised.length = 0;
     rows.length = 0;
+    defs.length = 0;
     troughFed = [];
   });
 
@@ -110,6 +113,26 @@ describe('hunger alarm feature', () => {
     push({ ...gold, hungerPct: 20 });
     expect(raised[0]?.iconUrl).toBe('data:Turtle|Gold,Frozen');
     expect(raised[0]?.meter).toEqual({ pct: 20, color: 'var(--qpm-hunger-low)' });
+    expect(raised[0]?.accent).toBe('var(--qpm-hunger-low)');
+  });
+
+  it('accent follows the meter band (a 40% threshold fires in the mid band)', () => {
+    startHungerAlarm();
+    setHungerAlarmDefault(40);
+    push(pet('a', 80));
+    push(pet('a', 35));
+    expect(raised[0]?.accent).toBe('var(--qpm-hunger-mid)');
+  });
+
+  it('row declares the first active pet sprite, a threshold summary and the hunger token', () => {
+    startHungerAlarm();
+    const def = defs[0];
+    expect(def?.icon?.()).toBeNull();
+    push({ ...pet('a', 80), mutations: ['Rainbow'] }, pet('b', 80));
+    expect(def?.icon?.()).toBe('data:Turtle|Rainbow');
+    setHungerAlarmDefault(30);
+    expect(def?.summary?.()).toBe('feature.hungerAlarm.summary:{"pct":30}');
+    expect(def?.accent).toBe('var(--qpm-hunger-low)');
   });
 
   it('skips a pet the trough will feed, without repeating later', () => {

@@ -1,41 +1,17 @@
+import { gmHttpRequest } from './gm';
+
 /**
  * Fetch an image URL via GM_xmlhttpRequest (bypasses CSP img-src),
  * returning a blob object URL. Falls back to the original URL if
  * GM_xmlhttpRequest is unavailable.
  */
-export function fetchImageUrl(url: string): Promise<string> {
-  if (typeof GM_xmlhttpRequest !== 'function') {
-    return Promise.resolve(url);
+export async function fetchImageUrl(url: string): Promise<string> {
+  const res = await gmHttpRequest(url, { responseType: 'blob', timeoutMs: 15000 });
+  if (res.kind !== 'load') return url;
+  try {
+    const blob = res.response;
+    return blob instanceof Blob && blob.size > 0 ? URL.createObjectURL(blob) : url;
+  } catch {
+    return url;
   }
-
-  return new Promise<string>((resolve) => {
-    try {
-      GM_xmlhttpRequest({
-        method: 'GET',
-        url,
-        responseType: 'blob',
-        timeout: 15000,
-        onload(response: { response: Blob }) {
-          try {
-            const blob = response.response;
-            if (blob instanceof Blob && blob.size > 0) {
-              resolve(URL.createObjectURL(blob));
-            } else {
-              resolve(url);
-            }
-          } catch {
-            resolve(url);
-          }
-        },
-        onerror() {
-          resolve(url);
-        },
-        ontimeout() {
-          resolve(url);
-        },
-      } as never);
-    } catch {
-      resolve(url);
-    }
-  });
 }

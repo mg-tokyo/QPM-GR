@@ -150,9 +150,12 @@ export interface ZoomLike {
 /** The gesture fields are optional (live 2026-10-04): set while a touch pinch or Safari gesture runs. */
 export interface ZoomSystemLike { zoom: ZoomLike; shouldBlockZoom(): boolean; initialPinchDistance?: number | null; initialTileSizeOnGesture?: number }
 export interface DirectionalInputLike { keysPressed: string[]; updateDirectionState(): void }
-/** The game's MovementSystem step (live 2026-10-06 v1419): one tile toward `dir` ('up' | 'right' | 'down' | 'left')
- * from `pos`, unless its own collision check (mount mode, conditional regions) refuses; true when it stepped. */
-export interface MovementLike { movePlayer(dir: string, pos: XY): boolean }
+/** The game's MovementSystem step (live 2026-11-19): attemptMove steps toward the first held direction
+ * ('up' | 'right' | 'down' | 'left') whose getMoveTarget passes (collision, mount mode, dynamic regions), else bumps. */
+export interface MovementLike {
+  attemptMove(timeMs: number, held: readonly string[], pos: XY): void;
+  getMoveTarget(dir: string, pos: XY): XY | null;
+}
 export interface MovementMapLike { cols: number; rows: number; collisionTiles: Set<number> }
 /** The game's AvatarView, the fields the ground tracker reads (live 2026-10-05, v1419). Natural y = tile centre − rest −
  * lift, gliding source → target; the container adds the riding nudge and the peek lift. */

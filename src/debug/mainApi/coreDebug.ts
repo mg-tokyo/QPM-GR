@@ -22,24 +22,37 @@ import { isHighValueAbility, isLowValueAbility } from '../../features/pets/data/
 import { getAllAbilities, getMutationCatalog, waitForPetAbilities } from '../../catalogs/gameCatalogs';
 import { getMutationRulesDrift } from '../../catalogs/logic/mutationRulesCatalog';
 import { getRarePatchPairsDrift } from '../../catalogs/logic/rarePatchPairsCatalog';
+import { getBagLimit, getBagLimitStatus } from '../../catalogs/logic/bagLimitCatalog';
+import { getChargedAbilityRulesStatus } from '../../catalogs/logic/chargedAbilityRulesCatalog';
+import { getGameHotkeysStatus, isGameHotkey } from '../../catalogs/logic/gameHotkeysCatalog';
+import { getGamePanelsStatus } from '../../catalogs/logic/gamePanelsCatalog';
+import { assignKeybind, clearKeybindAction, listKeybindActions } from '../../features/input/keybinds';
+import { getSelectItemDebugState, selectBagItem, type SelectTarget } from '../../features/input/selectItem';
+import { isBagFullFor } from '../../ui/shop/restockAlerts/bagRoom';
+import { readOwnershipData } from '../../ui/shop/restockAlerts/oneTimeOwnership';
+import { isRecord } from '../../utils/typeGuards';
 import { RARE_PATCH_VARIANTS } from '../../catalogs/pityThresholds';
 import { getMutationApplicationResult } from '../../utils/mutationCompatibility';
 import { mutationDebugApi } from '../../store/mutationSummary';
 import { getMutationEtaSnapshot } from '../../features/garden/mutationEta';
 import { getMutationEtaBellState } from '../../features/garden/mutationEtaBell';
-import { getMutationGainDebugState } from '../../features/garden/mutationGain';
+import { getMutationGainAlarmState, getMutationGainDebugState, setWatchedMutations } from '../../features/garden/mutationGain';
 import { getRecentReadyEdges } from '../../features/chargedAbilities/readyEdge';
-import { getEggReadyState, setEggReadyLeadMinutes } from '../../features/garden/eggReady';
+import { getChargedReadyAlarmDiagnostics, previewChargedReadyCard } from '../../features/chargedAbilities/readyAlarm';
+import { getAllAbilityProjections } from '../../features/chargedAbilities/abilities';
+import { scanGardenForAbility } from '../../features/chargedAbilities/footprintScan';
+import { getAbilityTargets } from '../../features/chargedAbilities/selector';
+import { getMaxStrAlarmState, setMaxStrLeadMinutes } from '../../features/pets/maxStrAlarm';
+import { getEggReadyAlarmState, getEggReadyState, setEggReadyLeadMinutes } from '../../features/garden/eggReady';
 import { getFriendBonusState } from '../../store/friendBonus';
-import { getCropMaxSizeState, getRecentSizeEdges } from '../../features/garden/cropMaxSize';
+import { getCropMaxSizeAlarmState, getCropMaxSizeState, getRecentSizeEdges } from '../../features/garden/cropMaxSize';
 import { getJournalSeedsState } from '../../features/journalSeeds';
 import { testPetData, testComparePets, testAbilityDefinitions } from '../../utils/petDataTester';
 import { toggleWindow } from '../../ui/core/modalWindow';
 import { togglePetsWindow } from '../../ui/pets/petsWindow';
-import { readDurable } from '../../utils/storage';
-
-declare const unsafeWindow: (Window & typeof globalThis) | undefined;
-declare const GM_info: unknown;
+import { readDurable, storageReadsBeforeInit } from '../../utils/storage';
+import { gmInfo, gmUnsafeWindow } from '../../utils/gm';
+import { pageWindow } from '../../core/pageContext';
 
 export const coreDebugApi = {
   setVerboseLogs: (enabled: boolean) => {
@@ -62,14 +75,57 @@ export const coreDebugApi = {
   dayStageDrift: () => getDayStageDrift(),
   mutationRulesDrift: () => getMutationRulesDrift(getMutationCatalog()),
   rarePatchPairsDrift: () => getRarePatchPairsDrift(RARE_PATCH_VARIANTS),
+  bagLimit: () => getBagLimitStatus(),
+  chargedAbilityRules: () => getChargedAbilityRulesStatus(),
+  gameHotkeys: () => getGameHotkeysStatus(),
+  gamePanels: () => getGamePanelsStatus(),
+  /** true = the game acts on this combo, null = the game's tables are not read. */
+  isGameHotkey: (combo: string) => isGameHotkey(combo),
+  keybinds: {
+    list: () => listKeybindActions(),
+    assign: (actionId: string, combo: string) => assignKeybind(actionId, combo),
+    clear: (actionId: string) => clearKeybindAction(actionId),
+  },
+  /** Sends a real pick/put-away (INP-4.2): live checks only through the fixture. */
+  selectItem: {
+    press: (target: SelectTarget, name?: string) => selectBagItem(target, name),
+    state: () => getSelectItemDebugState(),
+  },
+  /** Read-only: would one more `itemType`/`id` find no bag slot? `limit` overrides the parsed one for probes. */
+  bagFullCheck: (itemType: string, id: string, limit?: number) => {
+    const myData = readOwnershipData();
+    const inventory = isRecord(myData) ? myData.inventory : null;
+    return isBagFullFor(inventory, { itemType, id }, limit ?? getBagLimit());
+  },
   mutationApply: (existing: string[], add: string) => getMutationApplicationResult(existing, add),
   mutationSummaryDebug: mutationDebugApi,
   mutationEta: { snapshot: () => getMutationEtaSnapshot(), bell: () => getMutationEtaBellState() },
-  mutationGain: { lastDiff: () => getMutationGainDebugState() },
-  chargedAbilities: { readyEdges: () => getRecentReadyEdges() },
-  eggReady: { state: () => getEggReadyState(), setLead: (minutes: number) => setEggReadyLeadMinutes(minutes) },
+  mutationGain: {
+    lastDiff: () => getMutationGainDebugState(),
+    alarm: () => getMutationGainAlarmState(),
+    setMutations: (ids: string[]) => { setWatchedMutations(ids); return getMutationGainAlarmState().watched; },
+  },
+  chargedAbilities: {
+    readyEdges: () => getRecentReadyEdges(),
+    readyAlarm: () => getChargedReadyAlarmDiagnostics(),
+    previewReady: (abilityId: string, petSlotId?: string, targets?: number) => previewChargedReadyCard(abilityId, petSlotId, targets),
+    projections: () => getAllAbilityProjections().map((p) => {
+      const garden = scanGardenForAbility(p);
+      return {
+        abilityId: p.abilityId, yieldKind: p.yieldKind, tileRadius: p.tileRadius, cooldownMs: p.cooldownMs,
+        targetMutations: p.targetMutations, replacementMutation: p.replacementMutation, capsuleSpriteKey: p.capsuleSpriteKey,
+        requiredSpecies: p.requiredSpecies, gardenTargets: garden.slots.length, gardenGain: garden.totalGain,
+      };
+    }),
+    targets: () => getAbilityTargets().map((s) => ({
+      abilityId: s.abilityId, petSlotId: s.petSlotId, ready: s.ready, qualifyingCount: s.qualifyingCount,
+      projectedGain: s.projectedGain, best: s.optimality.bestPatch,
+    })),
+  },
+  maxStrAlarm: { state: () => getMaxStrAlarmState(), setLead: (minutes: number) => setMaxStrLeadMinutes(minutes) },
+  eggReady: { state: () => getEggReadyState(), setLead: (minutes: number) => setEggReadyLeadMinutes(minutes), alarm: () => getEggReadyAlarmState() },
   friendBonus: { state: () => getFriendBonusState() },
-  cropMaxSize: { lastEdges: () => getRecentSizeEdges(), state: () => getCropMaxSizeState() },
+  cropMaxSize: { lastEdges: () => getRecentSizeEdges(), state: () => getCropMaxSizeState(), alarm: () => getCropMaxSizeAlarmState() },
   journalSeeds: { state: () => getJournalSeedsState() },
   abilityRates: () => getAbilityRateReport(),
   abilityClassification: () => {
@@ -83,6 +139,7 @@ export const coreDebugApi = {
   waitForPetAbilities: (ms?: number) => waitForPetAbilities(ms),
   setOptimizerConfig: (partial: Partial<OptimizerConfig>) => setOptimizerConfig(partial),
   storageReadDurable: (key: string) => readDurable(key),
+  storageReadsBeforeInit: () => storageReadsBeforeInit(),
   activityLogEnabled: async (enabled?: boolean) => {
     if (typeof enabled === 'boolean') {
       await setActivityLogEnhancerEnabled(enabled);
@@ -142,8 +199,8 @@ export const coreDebugApi = {
       { name: 'window.PetsService', value: (window as any).PetsService },
       { name: 'window.QWS', value: (window as any).QWS },
       { name: 'window.QWS?.PetsService', value: (window as any).QWS?.PetsService },
-      { name: 'unsafeWindow.PetsService', value: (typeof unsafeWindow !== 'undefined' ? (unsafeWindow as any).PetsService : undefined) },
-      { name: 'unsafeWindow.QWS', value: (typeof unsafeWindow !== 'undefined' ? (unsafeWindow as any).QWS : undefined) },
+      { name: 'pageWindow.PetsService', value: (pageWindow as any).PetsService },
+      { name: 'pageWindow.QWS', value: (pageWindow as any).QWS },
     ];
 
     console.log('Checking for PetsService in various locations:\n');
@@ -234,24 +291,17 @@ export const coreDebugApi = {
     for (const [key, c] of Object.entries(pity.counters)) {
       counters[key] = `${c.misses} miss / ${c.hits} hit / ${c.totalPulls} pulls`;
     }
-    const gmInfo = (() => {
-      try {
-        const gi = (typeof GM_info !== 'undefined' ? GM_info : null) as
-          | { scriptHandler?: string; version?: string }
-          | null;
-        return gi ? `${gi.scriptHandler ?? '?'} ${gi.version ?? ''}`.trim() : null;
-      } catch {
-        return null;
-      }
-    })();
+    const info = gmInfo();
     const extras = {
       environment: {
-        scriptHandler: gmInfo,
+        scriptHandler: info ? `${info.handler ?? '?'} ${info.handlerVersion ?? ''}`.trim() : null,
         // Violentmonkey on Firefox can silently fall back to the isolated
         // content world; that breaks the Object.* catalog hooks.
         isolatedWorld: (() => {
-          try { return typeof unsafeWindow !== 'undefined' && unsafeWindow !== window; }
-          catch { return null; }
+          try {
+            const pageWindow = gmUnsafeWindow();
+            return pageWindow !== null && pageWindow !== window;
+          } catch { return null; }
         })(),
         petAbilitiesSource: captureSources.petAbilities,
         petAbilitiesCount: getAllAbilities().length,

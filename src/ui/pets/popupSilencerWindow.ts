@@ -2,7 +2,10 @@ import { getPopupSilencerSettings, setAbilitySilenced, setLevelUpsSilenced } fro
 import { t } from '../../i18n';
 import { onActivePetInfos } from '../../store/pets';
 import { getAbilitiesSafe, getAbilityName } from '../../utils/game/catalogHelpers';
-import { createEmptyState, createSearchInput, createSectionHeader, createToggle } from '../components';
+import { getAbilityColor } from '../../utils/rendering/petCardRenderer';
+import { POPUPS_LOOK } from '../alertCentre/popupsLook';
+import { createColorDot, mountAlertSettings } from '../alertCentre/settingsShell';
+import { createEmptyState, createSearchInput, createToggle } from '../components';
 import { closeWindow, destroyWindow, isWindowOpen, openWindow } from '../core/modalWindow';
 
 export const POPUP_SILENCER_WINDOW_ID = 'qpm-popup-silencer';
@@ -24,7 +27,7 @@ const byName = (a: string, b: string): number => getAbilityName(a).localeCompare
 
 /** A switch per ability, on = the popup shows. An ability can sit in both lists; its two switches stay in step. */
 function renderPopupSilencer(root: HTMLElement): () => void {
-  root.style.cssText = 'display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow-y:auto;padding:12px;';
+  const shell = mountAlertSettings(root, t('feature.popupSilencer.title'), POPUPS_LOOK);
   const teamSetters: Setters = new Map();
   const allSetters: Setters = new Map();
 
@@ -39,11 +42,12 @@ function renderPopupSilencer(root: HTMLElement): () => void {
         setAbilitySilenced(id, !shown);
         teamSetters.get(id)?.(shown);
         allSetters.get(id)?.(shown);
+        shell.refresh();
       },
     });
     toggle.input.setAttribute('aria-label', t('feature.popupSilencer.abilityAria', { name }));
     own.set(id, toggle.setChecked);
-    row.append(toggle.root, el('span', NAME_CSS, name));
+    row.append(toggle.root, createColorDot(getAbilityColor(id).base), el('span', NAME_CSS, name));
     return row;
   };
 
@@ -53,17 +57,18 @@ function renderPopupSilencer(root: HTMLElement): () => void {
   };
 
   root.append(el('div', NOTE_CSS, t('feature.popupSilencer.note')));
-  root.append(createSectionHeader(t('feature.popupSilencer.levelUpHeader'), { size: 'compact' }).root);
+  const levelUpBody = shell.addSection(t('feature.popupSilencer.levelUpHeader'));
   const levelUp = createToggle({
     checked: !getPopupSilencerSettings().levelUps,
     label: t('feature.popupSilencer.levelUp'),
-    onChange: (shown) => { setLevelUpsSilenced(!shown); },
+    onChange: (shown) => {
+      setLevelUpsSilenced(!shown);
+      shell.refresh();
+    },
   });
-  root.append(levelUp.root, el('div', NOTE_CSS, t('feature.popupSilencer.levelUpNote')));
+  levelUpBody.append(levelUp.root, el('div', NOTE_CSS, t('feature.popupSilencer.levelUpNote')));
 
-  root.append(createSectionHeader(t('feature.popupSilencer.teamHeader'), { size: 'compact' }).root);
-  const team = el('div', 'display:flex;flex-direction:column;');
-  root.append(team);
+  const team = shell.addSection(t('feature.popupSilencer.teamHeader'));
   let teamKey: string | null = null;
   const stopPets = onActivePetInfos((infos) => {
     const ids = [...new Set(infos.flatMap((p) => p.abilities))].sort(byName);
@@ -73,7 +78,7 @@ function renderPopupSilencer(root: HTMLElement): () => void {
     fill(team, teamSetters, ids, 'feature.popupSilencer.noTeam');
   }, true);
 
-  root.append(createSectionHeader(t('feature.popupSilencer.allHeader'), { size: 'compact' }).root);
+  const allBody = shell.addSection(t('feature.popupSilencer.allHeader'));
   const all = el('div', 'display:flex;flex-direction:column;');
   const renderAll = (query: string): void => {
     const q = query.trim().toLowerCase();
@@ -82,12 +87,13 @@ function renderPopupSilencer(root: HTMLElement): () => void {
   };
   const search = createSearchInput({ placeholder: t('feature.popupSilencer.search'), onInput: renderAll });
   search.input.setAttribute('aria-label', t('feature.popupSilencer.search'));
-  root.append(search.root, all);
+  allBody.append(search.root, all);
   renderAll('');
 
   return () => {
     stopPets();
     search.destroy();
+    shell.destroy();
   };
 }
 

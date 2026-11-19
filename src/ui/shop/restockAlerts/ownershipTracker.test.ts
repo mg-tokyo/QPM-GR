@@ -80,6 +80,10 @@ vi.mock('../../../store/shopStock', () => ({
   },
 }));
 
+vi.mock('../../../i18n', () => ({
+  t: (key: string, vars?: Record<string, unknown>) => (vars ? `${key}${JSON.stringify(vars)}` : key),
+}));
+
 vi.mock('./_diagnostics', () => ({
   warnFeature: () => { /* no-op */ },
 }));
@@ -142,16 +146,24 @@ function makePresenter(): PendingPresenter & {
   showProgressCalls: Array<{ confirmed: number; sent: number }>;
   showCompletionCalls: number;
   showFailureCalls: string[];
+  showRefusalCalls: Array<{ reason: string; stockCycleId: string | null }>;
+  refusalShown: boolean;
 } {
   const p = {
     showStaleNoticeCalls: [] as number[],
     showProgressCalls: [] as Array<{ confirmed: number; sent: number }>,
     showCompletionCalls: 0,
     showFailureCalls: [] as string[],
+    showRefusalCalls: [] as Array<{ reason: string; stockCycleId: string | null }>,
+    refusalShown: true,
     showStaleNotice(sent: number) { p.showStaleNoticeCalls.push(sent); },
     showProgress(confirmed: number, sent: number) { p.showProgressCalls.push({ confirmed, sent }); },
     showCompletion() { p.showCompletionCalls += 1; },
     showFailure(reason: string) { p.showFailureCalls.push(reason); },
+    showRefusal(reason: string, stockCycleId: string | null) {
+      p.showRefusalCalls.push({ reason, stockCycleId });
+      return p.refusalShown;
+    },
   };
   return p;
 }
@@ -426,7 +438,7 @@ describe('Signal C — refused sends', () => {
     await flush();
 
     expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)', status: 'rejected' });
+    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'feature.restockAlert.refusalRejected', status: 'rejected' });
     expect(mockAutoStoreCalls).toEqual([]);
   });
 
@@ -439,7 +451,97 @@ describe('Signal C — refused sends', () => {
     await flush();
 
     expect(outcomes).toHaveLength(1);
-    expect(outcomes[0]).toMatchObject({ sent: 5, confirmed: 0, error: 'Shop rejected the purchase (sold out or not enough coins)', status: 'rejected' });
+    expect(outcomes[0]).toMatchObject({ sent: 5, confirmed: 0, error: 'feature.restockAlert.refusalRejected', status: 'rejected' });
+  });
+
+  it('a final refusal on an open card shows the reason and leaves the dismiss to the card', async () => {
+    const mod = await loadModule();
+    const removed: string[] = [];
+    const marked: Array<string | null> = [];
+    mockRemoveAlert = (key) => { removed.push(key); };
+    mockMarkDismissedCycle = (_key, cycleId) => { marked.push(cycleId); };
+    const presenter = makePresenter();
+    const pending = makePending('seed:CarrotSeed', presenter);
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [{ units: 1, awaitResult: async () => reply(false, 'already_owned') }] });
+    await flush();
+
+    expect(presenter.showRefusalCalls).toEqual([{ reason: 'feature.restockAlert.refusalAlreadyOwned', stockCycleId: 'cycle-1' }]);
+    expect(presenter.showFailureCalls).toEqual([]);
+    expect(removed).toEqual([]);
+    expect(marked).toEqual([]);
+    expect(dismissedInStockKeys.has(pending.key)).toBe(false);
+    expect(pendingOwnershipConfirmations.has(pending.key)).toBe(false);
+  });
+
+  it('a final refusal with no open card dismisses for the cycle at once', async () => {
+    const mod = await loadModule();
+    const removed: string[] = [];
+    const marked: Array<string | null> = [];
+    mockRemoveAlert = (key) => { removed.push(key); };
+    mockMarkDismissedCycle = (_key, cycleId) => { marked.push(cycleId); };
+    const presenter = makePresenter();
+    presenter.refusalShown = false;
+    const pending = makePending('seed:CarrotSeed', presenter);
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [{ units: 1, awaitResult: async () => reply(false, 'insufficient_currency') }] });
+    await flush();
+
+    expect(presenter.showRefusalCalls).toHaveLength(1);
+    expect(removed).toEqual(['seed:CarrotSeed']);
+    expect(marked).toEqual(['cycle-1']);
+    expect(dismissedInStockKeys.has(pending.key)).toBe(true);
+  });
+
+  it('a retryable refusal keeps the card: failure shown, no dismiss, settled as rejected', async () => {
+    const mod = await loadModule();
+    const removed: string[] = [];
+    mockRemoveAlert = (key) => { removed.push(key); };
+    const outcomes: PurchaseOutcome[] = [];
+    const presenter = makePresenter();
+    const pending = makePending('seed:CarrotSeed', presenter, { settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [{ units: 1, awaitResult: async () => reply(false, 'rate_limited') }] });
+    await flush();
+
+    expect(presenter.showFailureCalls).toEqual(['feature.restockAlert.refusalRateLimited']);
+    expect(presenter.showRefusalCalls).toEqual([]);
+    expect(removed).toEqual([]);
+    expect(dismissedInStockKeys.has(pending.key)).toBe(false);
+    expect(outcomes[0]).toMatchObject({ confirmed: 0, error: 'feature.restockAlert.refusalRateLimited', timedOut: false, status: 'rejected' });
+  });
+
+  it('a headless refusal keeps status rejected with the code message', async () => {
+    const mod = await loadModule();
+    const outcomes: PurchaseOutcome[] = [];
+    const pending = makePending('seed:CarrotSeed', null, { settle: (o) => { outcomes.push(o); } });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [{ units: 1, awaitResult: async () => reply(false, 'insufficient_currency') }] });
+    await flush();
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ error: 'feature.restockAlert.notEnoughBalance', status: 'rejected' });
+  });
+
+  it('across a batch, a final refusal outranks a retryable one', async () => {
+    const mod = await loadModule();
+    const presenter = makePresenter();
+    const pending = makePending('seed:CarrotSeed', presenter, { expectedIncrease: 2, sent: 2 });
+    pendingOwnershipConfirmations.set(pending.key, pending);
+    activeAlerts.set(pending.key, {});
+    const first = deferred<QuinoaCommandResultMessage>();
+    const second = deferred<QuinoaCommandResultMessage>();
+    mod.armReactiveConfirmation(pending, { rejectionAwaits: [
+      { units: 1, awaitResult: () => first.promise },
+      { units: 1, awaitResult: () => second.promise },
+    ] });
+    first.resolve(reply(false, 'already_owned'));
+    await flush();
+    second.resolve(reply(false, 'rate_limited'));
+    await flush();
+
+    expect(presenter.showRefusalCalls.map((c) => c.reason)).toEqual(['feature.restockAlert.refusalAlreadyOwned']);
+    expect(presenter.showFailureCalls).toEqual([]);
   });
 });
 

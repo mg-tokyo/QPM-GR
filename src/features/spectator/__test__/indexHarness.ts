@@ -107,6 +107,8 @@ export const storageMock = (h: HarnessState) => ({
     get: (k: string, d: unknown = null) => (h.mem.has(k) ? h.mem.get(k) : d),
     set: (k: string, v: unknown) => { h.mem.set(k, v); },
   },
+  readDurable: (k: string, d: unknown = null) => (h.mem.has(k) ? h.mem.get(k) : d),
+  registerDynamicKey: () => {},
 });
 
 export const gameStateMock = (h: HarnessState) => ({

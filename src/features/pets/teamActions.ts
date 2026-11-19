@@ -46,11 +46,7 @@ export function sendToggleLockItemResult(itemId: string): WebSocketSendResult {
 /**
  * Sell a pet directly.
  * itemId = inventory item UUID (pet must be in inventory to sell).
- *
- * WARNING: This does NOT check for unlogged journal variants. Callers that
- * initiate sells should use `ensureJournalLogged()` from `journalGuard.ts`
- * before calling this to avoid losing unlogged Gold/Rainbow/Normal/Max Weight
- * variants. Currently has zero callers (sell paths use sendRoomAction directly).
+ * Currently has zero callers (sell paths use sendRoomAction directly).
  */
 export function sendSellPet(itemId: string): WebSocketSendResult {
   return sendAction('SellPet', { itemId });

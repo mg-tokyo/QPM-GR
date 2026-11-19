@@ -23,7 +23,7 @@ describe('crop max-size edge core (ALR-15.1)', () => {
   it('a boost taking a crop to 100 is one edge; staying at 100 is not another', () => {
     const t = createSizeEdgeTracker();
     expect(t.step([slot({ size: 96 })])).toEqual([]);
-    expect(t.step([slot({ size: 100 })])).toEqual([{ tileKey: 'g:1', slotId: 0, species: 'Carrot', size: 100 }]);
+    expect(t.step([slot({ size: 100 })])).toEqual([{ tileKey: 'g:1', slotId: 0, species: 'Carrot', mutations: [], size: 100 }]);
     expect(t.step([slot({ size: 100 })])).toEqual([]);
   });
 

@@ -446,15 +446,15 @@ function computeValueForModal(modalId: string): number {
   }
   const storageDecorId = MODAL_TO_STORAGE_DECORID[modalId];
   if (!storageDecorId) return 0;
+  return computeStorageValueById(cachedStorages, storageDecorId, fb) ?? 0;
+}
 
-  const storageEntry = cachedStorages.find((s) => {
-    if (!s || typeof s !== 'object') return false;
-    return (s as Record<string, unknown>).decorId === storageDecorId;
-  }) as Record<string, unknown> | undefined;
-
-  if (!storageEntry) return 0;
-  const items = Array.isArray(storageEntry.items) ? (storageEntry.items as unknown[]) : [];
-  return computeStorageItemsValue(items, fb);
+/** Items in one storage building (the building's own price is not counted); null when it is not in the list. */
+export function computeStorageValueById(storages: readonly unknown[], storageId: string, friendBonus = 1): number | null {
+  const entry = storages.find(s => !!s && typeof s === 'object' && (s as Record<string, unknown>).decorId === storageId);
+  if (!entry) return null;
+  const items = (entry as Record<string, unknown>).items;
+  return computeStorageItemsValue(Array.isArray(items) ? items : [], friendBonus);
 }
 
 function recompute(): void {

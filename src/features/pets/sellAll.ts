@@ -7,7 +7,6 @@ import { warnFeature } from './_diagnostics';
 import { delay } from '../../utils/scheduling/scheduling';
 import { isRecord } from '../../utils/typeGuards';
 import { sendRoomAction } from '../../websocket/api';
-import { ensureJournalLogged } from '../journal/guard';
 
 export type SellAllPetsRunStatus = 'success' | 'partial' | 'noop' | 'cancelled' | 'busy' | 'failed';
 
@@ -70,7 +69,8 @@ const DEFAULT_SETTINGS: SellAllPetsSettings = {
   protections: { ...DEFAULT_PROTECTIONS },
 };
 
-let settings: SellAllPetsSettings = loadSettings();
+// Loaded on first use: a read at module load runs before storage init and gets the GM copy, not the mirror.
+let settings: SellAllPetsSettings | null = null;
 let running = false;
 
 function toString(value: unknown): string | null {
@@ -126,39 +126,43 @@ function loadSettings(): SellAllPetsSettings {
   return sanitizeSettings(storage.get<unknown>(STORAGE_KEY, DEFAULT_SETTINGS));
 }
 
+function currentSettings(): SellAllPetsSettings {
+  return settings ??= loadSettings();
+}
+
 function persistSettings(): void {
-  storage.set(STORAGE_KEY, settings);
+  storage.set(STORAGE_KEY, currentSettings());
 }
 
 export function getSellAllPetsSettings(): SellAllPetsSettings {
   return {
-    keybind: settings.keybind,
+    keybind: currentSettings().keybind,
     protections: {
-      ...settings.protections,
-      protectedRarities: [...settings.protections.protectedRarities],
+      ...currentSettings().protections,
+      protectedRarities: [...currentSettings().protections.protectedRarities],
     },
   };
 }
 
 export function getSellAllPetsKeybind(): string {
-  return settings.keybind;
+  return currentSettings().keybind;
 }
 
 export function setSellAllPetsKeybind(combo: string): void {
   const normalized = toString(combo)?.toLowerCase() ?? '';
-  if (settings.keybind === normalized) return;
-  settings = { ...settings, keybind: normalized };
+  if (currentSettings().keybind === normalized) return;
+  settings = { ...currentSettings(), keybind: normalized };
   persistSettings();
 }
 
 export function setSellAllPetsProtectionRules(next: Partial<SellAllPetsProtectionRules>): void {
   const merged: SellAllPetsProtectionRules = {
-    ...settings.protections,
+    ...currentSettings().protections,
     ...next,
   };
   const sanitized = sanitizeProtections(merged);
   settings = {
-    ...settings,
+    ...currentSettings(),
     protections: sanitized,
   };
   persistSettings();
@@ -442,7 +446,7 @@ export async function runSellAllPets(): Promise<SellAllPetsRunResult> {
       };
     }
 
-    const rules = settings.protections;
+    const rules = currentSettings().protections;
     const flagged = evaluateFlaggedPets(candidates, rules);
     if (flagged.length > 0) {
       const confirmed = await showProtectionConfirmModal(flagged);
@@ -457,8 +461,6 @@ export async function runSellAllPets(): Promise<SellAllPetsRunResult> {
         };
       }
     }
-
-    await ensureJournalLogged(candidates);
 
     let soldCount = 0;
     let failedCount = 0;

@@ -49,13 +49,6 @@ describe('spectator key clashes', () => {
     expect(clashesOf(keysWith({ photo: 'ctrl+p' }), 'photo', others)).toEqual([]);
   });
 
-  it('a loose keybind (any modifiers, the Hutch) clashes on the base key alone', () => {
-    const hutch: OtherKeybind[] = [{ name: 'Hutch', combo: 'h', loose: true }];
-    expect(clashesOf(SPECTATOR_DEFAULTS.keys, 'hideUi', hutch)).toEqual([{ kind: 'other', name: 'Hutch' }]);
-    expect(clashesOf(keysWith({ hideUi: 'ctrl+h' }), 'hideUi', hutch)).toEqual([{ kind: 'other', name: 'Hutch' }]);
-    expect(clashesOf(keysWith({ hideUi: 'j' }), 'hideUi', hutch)).toEqual([]);
-  });
-
   it('empty other keybinds are skipped', () => {
     expect(clashesOf(SPECTATOR_DEFAULTS.keys, 'toggle', [{ name: 'Unset', combo: '' }])).toEqual([]);
   });

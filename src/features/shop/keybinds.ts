@@ -2,7 +2,7 @@
 
 import { storage } from '../../utils/storage';
 import { isEditableTarget, normalizeKeybind } from '../../ui/pets/petsWindow/helpers';
-import { writeRegistryAtom } from '../../core/atomRegistry';
+import { openGameModal } from '../input/gameModal';
 import { createFeatureDiagnostics } from '../../diagnostics/featureDiagnostics';
 import type { Subsystem } from '../../diagnostics/types';
 
@@ -78,6 +78,13 @@ export function clearShopKeybind(shopId: ShopId): void {
   saveState(state);
 }
 
+/** Leaves the shop with no key; `clearShopKeybind` restores the default. */
+export function unbindShopKeybind(shopId: ShopId): void {
+  const state = loadState();
+  state.binds[shopId] = '';
+  saveState(state);
+}
+
 export function getAllShopKeybinds(): Record<ShopId, string> {
   const state = loadState();
   const result = {} as Record<ShopId, string>;
@@ -89,7 +96,7 @@ export function getAllShopKeybinds(): Record<ShopId, string> {
 
 async function openShopModal(shopId: ShopId): Promise<void> {
   try {
-    await writeRegistryAtom('activeModal', shopId);
+    await openGameModal(shopId);
   } catch (err) {
     warnFeature('QPM-FEATURE-004', { what: 'openShopModal', shopId }, err);
   }

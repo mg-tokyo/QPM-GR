@@ -85,8 +85,10 @@ export function getTroughIconUrl(): string | undefined {
   return getAnySpriteDataUrl(getItemCatalogSpriteKey(TROUGH_ITEM_ID)) || undefined;
 }
 
+const TROUGH_COLOR = 'var(--qpm-warning)';
+
 function troughMeter(c: number, cap: number): AlertMeter {
-  return { pct: cap > 0 ? (c / cap) * 100 : 0, color: 'var(--qpm-warning)' };
+  return { pct: cap > 0 ? (c / cap) * 100 : 0, color: TROUGH_COLOR };
 }
 
 function update(nextCount: number, nextCapacity: number | null): void {
@@ -103,6 +105,7 @@ function update(nextCount: number, nextCapacity: number | null): void {
       cardKey: 'trough:low',
       level: 'warn',
       meter: troughMeter(count, capacity),
+      accent: TROUGH_COLOR,
       ...(icon ? { iconUrl: icon } : {}),
     });
   }
@@ -124,7 +127,16 @@ function openPetAlarmsSettings(): void {
 
 export function startTroughAlarm(): void {
   if (stops.length > 0) return;
-  registerAlertRow({ id: TROUGH_ALARM_ROW, group: 'pets', labelKey: 'feature.troughAlarm.row', defaultSound: 'alert', settingsAction: openPetAlarmsSettings });
+  registerAlertRow({
+    id: TROUGH_ALARM_ROW,
+    group: 'pets',
+    labelKey: 'feature.troughAlarm.row',
+    defaultSound: 'alert',
+    settingsAction: openPetAlarmsSettings,
+    icon: () => getTroughIconUrl() ?? null,
+    summary: () => t('feature.troughAlarm.summary', { lowAt: getTroughAlarmSettings().lowAt }),
+    accent: TROUGH_COLOR,
+  });
   stops = [
     subscribe('feedingTroughItems', (items) => { update(items?.length ?? 0, capacity); }),
     subscribe('feedingTroughCapacity', (cap) => { update(count, cap ?? null); }),

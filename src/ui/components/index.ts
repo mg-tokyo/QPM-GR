@@ -7,7 +7,7 @@ export { createProgressBar, type ProgressBarOptions } from './progressBar';
 export { renderIcon, type IconOptions } from './icon';
 export { createCurrencyAmount, type CurrencyAmountOptions } from './currencyAmount';
 export { createMutationBadge, type MutationBadgeOptions } from './mutationBadge';
-export { createRarityBadge } from './rarityBadge';
+export { createRarityBadge, rarityColorVar } from './rarityBadge';
 
 // Composite components
 export { createCard, type CardOptions } from './card';

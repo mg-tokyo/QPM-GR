@@ -37,6 +37,10 @@ import { resolveAutoStoreTarget } from './autoStore';
 import { describeConfirmationSourceGaps } from './sourceGaps';
 import { resolveShopViewMode } from './shopViewMode';
 import { affordableUnits, clampPurchaseQuantity, type PurchaseLimit, type PurchaseLimits } from './purchaseQuantity';
+import { isBagFullFor } from './bagRoom';
+import { readOwnershipData } from './oneTimeOwnership';
+import { getBagLimit } from '../../../catalogs/logic/bagLimitCatalog';
+import { isRecord } from '../../../utils/typeGuards';
 
 // ---------------------------------------------------------------------------
 // WS send helpers
@@ -120,8 +124,18 @@ function explainPurchaseLimit(limit: PurchaseLimit | null): string {
     case 'stock':   return t('feature.restockAlert.soldOut');
     case 'balance': return t('feature.restockAlert.notEnoughBalance');
     case 'stack':   return t('feature.restockAlert.maxStack');
+    case 'bag':     return t('feature.restockAlert.bagFull');
     default:        return explainSendFailure(null);
   }
+}
+
+/** The game's shop preflight: no free bag slot and no stack to join. False while the limit is unparsed. */
+export function isBagFullForModel(model: AlertModel): boolean {
+  const itemType = model.itemType ?? SHOP_TO_ITEM_TYPE[model.shopType];
+  if (!itemType) return false;
+  const myData = readOwnershipData();
+  const inventory = isRecord(myData) ? myData.inventory : null;
+  return isBagFullFor(inventory, { itemType, id: model.itemId }, getBagLimit());
 }
 
 function readBalance(dustPriced: boolean): number | null {
@@ -142,6 +156,7 @@ function resolvePurchaseLimits(model: AlertModel, requested: number): PurchaseLi
     remainingStock: stock?.remaining ?? null,
     affordable: affordableUnits(readBalance(dustPrice != null), unitPrice),
     stackRoom: applyInventoryCapToQuantity(model.shopType, model.itemId, model.key, requested, model.itemType),
+    bagRoom: isBagFullForModel(model) ? 0 : null,
   };
 }
 

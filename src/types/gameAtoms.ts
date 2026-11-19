@@ -228,6 +228,18 @@ export interface CropBrowsingControl {
   readonly [key: string]: unknown;
 }
 
+export interface ActiveModalState {
+  readonly modal: string | null;
+  readonly openId: number;
+}
+
+/** Live 2065 (INP-4 spec F15–F16): a new object replays `animation` on that player's avatar; never reset by the game. */
+export interface AvatarTriggerAnimation {
+  readonly playerId: string;
+  readonly animation: string; // e.g. 'pickupObject', 'dropObject', 'joingame'
+  readonly skipSfx?: boolean;
+}
+
 export interface CropBrowsingProjection {
   readonly visit: CropBrowsingVisit | null;
   readonly order: { readonly sourceKey: string; readonly occupiedSlotIds: readonly number[]; readonly [key: string]: unknown } | null;

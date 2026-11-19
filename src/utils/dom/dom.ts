@@ -13,13 +13,15 @@ export interface OffHandle {
 
 export const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-export const ready: Promise<void> = new Promise(res => {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => res(), { once: true });
-  } else {
-    res();
-  }
-});
+export function whenDomReady(): Promise<void> {
+  return new Promise(res => {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => res(), { once: true });
+    } else {
+      res();
+    }
+  });
+}
 
 export const $ = <T extends Element = Element>(sel: string, root: ParentNode = document) =>
   root.querySelector<T>(sel);

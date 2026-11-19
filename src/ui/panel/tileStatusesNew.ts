@@ -98,39 +98,6 @@ export const startFavoritesStatus: PerTileStatusProvider = (el, addLiveCleanup, 
   }).catch((err) => logTileImportFailed('favorites', err));
 };
 
-export const startShopKeybindsStatus: PerTileStatusProvider = (el, addLiveCleanup, version) => {
-  import('../../features/shop/keybinds').then(({ isShopKeybindsEnabled, getAllShopKeybinds }) => {
-    if (version !== getCurrentVersion()) return;
-    const render = (): void => {
-      if (!isShopKeybindsEnabled()) {
-        setStatusText(el, t('common.off'), 'muted');
-        return;
-      }
-      const count = Object.keys(getAllShopKeybinds()).length;
-      setStatusText(el, t('tile.status.enabledBindCount', { count }), 'positive');
-    };
-    render();
-    const stop = visibleInterval(`tile-shop-keybinds-v${version}`, render, 5_000);
-    addLiveCleanup(version, stop);
-  }).catch((err) => logTileImportFailed('shop-keybinds', err));
-};
-
-export const startPanelShortcutStatus: PerTileStatusProvider = (el, addLiveCleanup, version) => {
-  Promise.all([
-    import('../../features/input/panelHotkey'),
-    import('../pets/petsWindow/helpers'),
-  ]).then(([hotkey, helpers]) => {
-    if (version !== getCurrentVersion()) return;
-    const render = (): void => {
-      const combo = hotkey.getPanelToggleKeybind();
-      setStatusText(el, helpers.formatKeybind(combo));
-    };
-    render();
-    const unsub = hotkey.onPanelToggleKeybindChange(() => render());
-    addLiveCleanup(version, unsub);
-  }).catch((err) => logTileImportFailed('panel-shortcut', err));
-};
-
 export const startTextureManipulatorStatus: PerTileStatusProvider = (el, addLiveCleanup, version) => {
   import('../../features/standalone/textureSwapper').then(({ getTextureSwapperState }) => {
     if (version !== getCurrentVersion()) return;

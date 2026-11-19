@@ -31,8 +31,11 @@ vi.mock('../../../utils/dom/canvasHelpers', () => ({
   canvasToDataUrl: () => null,
 }));
 
+let mockRarityById: Map<string, string>;
+
 vi.mock('../../../catalogs/shopEligibility', () => ({
   getItemCatalogSpriteKey: () => null,
+  getItemCatalogRarity: (id: string) => mockRarityById.get(id) ?? null,
 }));
 
 vi.mock('./ownershipTracker', () => ({
@@ -77,6 +80,14 @@ vi.mock('./soundEngine', () => ({
   stopLoop: vi.fn(),
   isLooping: () => false,
   isBuiltinSound: () => true,
+}));
+
+let cardSizes = new Map<string, number>();
+vi.mock('../../../features/alertHub/settings', () => ({
+  getRowCardSize: (id: string) => cardSizes.get(id) ?? 1,
+  clampCardSize: (v: number) => Math.min(1.3, Math.max(0.7, Math.round(v * 10) / 10)),
+  getAlertRowSettings: (_id: string, soundId: string) => ({ enabled: false, soundId }),
+  writeRowCardSize: (id: string, v: number) => { cardSizes.set(id, v); return v; },
 }));
 
 async function loadAlertDom(): Promise<typeof import('./alertDom')> {
@@ -149,7 +160,10 @@ beforeEach(() => {
   shopStockChangeCallbacks = new Map();
   mockMarkDismissedCycle = () => { /* no-op */ };
   mockClearPendingCalls = [];
+  mockRarityById = new Map();
+  cardSizes = new Map();
   document.body.innerHTML = '';
+  document.head.innerHTML = '';
   vi.resetModules();
 });
 
@@ -234,7 +248,7 @@ describe('armAlertPurchaseWatcher — cooperates with pending (T5)', () => {
 });
 
 describe('removeAlert — pending purchases', () => {
-  const presenter = { showStaleNotice: vi.fn(), showProgress: vi.fn(), showCompletion: vi.fn(), showFailure: vi.fn() };
+  const presenter = { showStaleNotice: vi.fn(), showProgress: vi.fn(), showCompletion: vi.fn(), showFailure: vi.fn(), showRefusal: vi.fn(() => true) };
 
   it("clears the card's own pending that is still awaiting purchase confirmation", async () => {
     const { removeAlert } = await loadAlertDom();
@@ -267,5 +281,92 @@ describe('removeAlert — pending purchases', () => {
 
     removeAlert('seed:CarrotSeed');
     expect(mockClearPendingCalls).toEqual([]);
+  });
+});
+
+describe('createAlert — card shell look (ALR-17.3)', () => {
+  it('draws on the shell with the catalog rarity token as the card colour', async () => {
+    mockRarityById.set('CarrotSeed', 'Legendary');
+    const { createAlert } = await loadAlertDom();
+    const active = createAlert(makeModel());
+
+    expect(active.root.classList.contains('qpm-alert-card')).toBe(true);
+    expect(active.root.classList.contains('qpm-alert-card--accent')).toBe(true);
+    expect(active.root.style.getPropertyValue('--qpm-alert-color')).toBe('var(--qpm-rarity-legendary)');
+    expect(active.root.dataset.qpmRarity).toBe('Legendary');
+    expect(document.getElementById('qpm-alert-card-style')).not.toBeNull();
+    expect(active.root.querySelector('.qpm-alert-card__caption')?.textContent).toBe('feature.restockAlert.pinnedRestocked');
+    expect(active.itemEl.textContent).toBe('Carrot Seed');
+    expect(active.qtyEl.textContent).toBe('qty:3');
+  });
+
+  it("maps the game's 'Mythical' to the mythic token", async () => {
+    mockRarityById.set('CarrotSeed', 'Mythical');
+    const { createAlert } = await loadAlertDom();
+    const active = createAlert(makeModel());
+    expect(active.root.style.getPropertyValue('--qpm-alert-color')).toBe('var(--qpm-rarity-mythic)');
+  });
+
+  it('keeps the plain border for a weather alert and an unknown rarity', async () => {
+    mockRarityById.set('Rain', 'Rare');
+    const { createAlert } = await loadAlertDom();
+    const weather = createAlert(makeModel({ key: 'weather:Rain', itemId: 'Rain', label: 'Rain', isWeatherAlert: true, weatherDurationMs: 300_000 }));
+    const unknown = createAlert(makeModel({ key: 'seed:Mystery', itemId: 'Mystery', label: 'Mystery' }));
+
+    for (const active of [weather, unknown]) {
+      expect(active.root.classList.contains('qpm-alert-card--accent')).toBe(false);
+      expect(active.root.style.getPropertyValue('--qpm-alert-color')).toBe('');
+    }
+    expect(weather.buyBtn.style.display).toBe('none');
+  });
+
+  it('shows the letter fallback when no sprite resolves', async () => {
+    const { createAlert } = await loadAlertDom();
+    const active = createAlert(makeModel());
+    expect(active.iconImg.style.display).toBe('none');
+    expect(active.iconFallbackEl.textContent).toBe('C');
+    expect(active.iconFallbackEl.style.display).toBe('');
+  });
+
+  it('exits with the shell exit class', async () => {
+    const { createAlert, removeAlert } = await loadAlertDom();
+    const active = createAlert(makeModel());
+    removeAlert('seed:CarrotSeed');
+    expect(active.root.classList.contains('qpm-alert-card--exit')).toBe(true);
+  });
+});
+
+describe('restock + weather card size, one for all (ALR-17.11b)', () => {
+  const scaleOf = (el: HTMLElement): string => el.style.getPropertyValue('--qpm-alert-scale');
+  const weatherModel = (): AlertModel => makeModel({ key: 'weather:Rain', itemId: 'Rain', label: 'Rain', isWeatherAlert: true, weatherDurationMs: 300_000 });
+
+  it('opens at the default size with no scale set', async () => {
+    const { createAlert } = await loadAlertDom();
+    expect(scaleOf(createAlert(makeModel()).root)).toBe('');
+  });
+
+  it('opens restock and weather cards at the stored size', async () => {
+    cardSizes.set('linked.restock', 1.2);
+    const { createAlert } = await loadAlertDom();
+    expect(scaleOf(createAlert(makeModel()).root)).toBe('1.2');
+    expect(scaleOf(createAlert(weatherModel()).root)).toBe('1.2');
+  });
+
+  it('preview resizes every open card without storing; set stores and resizes', async () => {
+    const { createAlert } = await loadAlertDom();
+    const { previewRestockCardSize, setRestockCardSize, getRestockCardSize } = await import('./cardSize');
+    const a = createAlert(makeModel());
+    const b = createAlert(weatherModel());
+
+    previewRestockCardSize(0.8);
+    expect([scaleOf(a.root), scaleOf(b.root)]).toEqual(['0.8', '0.8']);
+    expect(cardSizes.has('linked.restock')).toBe(false);
+
+    expect(setRestockCardSize(1.3)).toBe(1.3);
+    expect(getRestockCardSize()).toBe(1.3);
+    expect([scaleOf(a.root), scaleOf(b.root)]).toEqual(['1.3', '1.3']);
+
+    setRestockCardSize(1);
+    expect(scaleOf(a.root)).toBe('');
   });
 });

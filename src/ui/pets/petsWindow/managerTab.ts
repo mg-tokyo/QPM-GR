@@ -12,6 +12,11 @@ import {
   setSyncEnabled,
   onSyncStateChange,
 } from '../../../store/petTeamsSync';
+import { getActivePetInfos } from '../../../store/pets';
+import { onInventoryChange } from '../../../store/inventory';
+import { onHutchChange } from '../../../store/hutch';
+import { isSpritesReady, onSpritesReady } from '../../../sprite-v2/compat';
+import { HYDRATION_EVENT } from '../../../sprite-v2/service/constants';
 import { storage } from '../../../utils/storage';
 import { importAriesTeams } from '../../../utils/ariesTeamImport';
 import type { PooledPet } from '../../../types/petTeams';
@@ -24,6 +29,9 @@ import { buildCompareTeamsPanel } from './comparisonPanel';
 import { renderTeamList } from './teamList';
 import { renderEditor } from './teamEditor';
 import { t } from '../../../i18n';
+
+const SPRITE_REDRAW_DEBOUNCE_MS = 120;
+const POOL_RELOAD_DEBOUNCE_MS = 400;
 
 export function buildManagerTab(
   root: HTMLElement,
@@ -134,6 +142,26 @@ export function buildManagerTab(
   compareWrapper.style.display = 'none';
   editorPanel.appendChild(compareWrapper);
 
+  // A saved pet that is neither pooled nor active draws as an empty slot, so the
+  // pool is reloaded whenever such a slot appears or its source data moves.
+  const missingSlotKey = (): string => {
+    const known = new Set(petPool.map((pet) => pet.id));
+    for (const pet of getActivePetInfos()) if (pet.slotId) known.add(pet.slotId);
+    const missing: string[] = [];
+    for (const team of getTeamsConfig().teams) {
+      for (const slot of team.slots) if (slot && !known.has(slot)) missing.push(slot);
+    }
+    return missing.sort().join(',');
+  };
+
+  // Missing slots left by the last pool load; null until the first load lands.
+  let settledMissKey: string | null = null;
+  let poolReloadTimer: ReturnType<typeof setTimeout> | null = null;
+  const schedulePoolReload = (): void => {
+    if (poolReloadTimer) clearTimeout(poolReloadTimer);
+    poolReloadTimer = setTimeout(() => { poolReloadTimer = null; loadPool(); }, POOL_RELOAD_DEBOUNCE_MS);
+  };
+
   // --- Context object (mutable, shared with teamList + teamEditor) ---
   const ctx: ManagerContext = {
     state,
@@ -155,18 +183,52 @@ export function buildManagerTab(
       if (compareTeamAId && compareTeamBId && compareTeamAId === compareTeamBId) compareTeamBId = null;
       comparePanel.setPair(compareTeamAId, compareTeamBId);
     },
-    renderTeamList(): void { renderTeamList(ctx); },
+    renderTeamList(): void {
+      renderTeamList(ctx);
+      const missing = missingSlotKey();
+      if (missing && settledMissKey !== null && missing !== settledMissKey) schedulePoolReload();
+    },
     renderEditor(): void { renderEditor(ctx); state.onEditorRender?.(); },
   };
 
-  // --- Async init ---
-  getAllPooledPets().then((pool) => {
-    petPool = pool;
+  const redraw = (): void => {
     comparePanel.refresh();
-    emitCompareState();
     ctx.renderTeamList();
-    if (!compareOpen && state.selectedTeamId) ctx.renderEditor();
-  }).catch(() => { /* pool stays empty */ });
+    if (!compareOpen && !editor.contains(document.activeElement)) ctx.renderEditor();
+  };
+
+  function loadPool(): void {
+    getAllPooledPets().then((pool) => {
+      const firstLoad = settledMissKey === null;
+      const missingBefore = missingSlotKey();
+      petPool = pool;
+      settledMissKey = missingSlotKey();
+      if (!firstLoad && settledMissKey === missingBefore) return;
+      emitCompareState();
+      redraw();
+    }).catch(() => { /* keep the last-known pool */ });
+  }
+
+  const onPoolSourceChange = (): void => {
+    if (settledMissKey !== null && missingSlotKey()) schedulePoolReload();
+  };
+  state.cleanups.push(onInventoryChange(onPoolSourceChange));
+  state.cleanups.push(onHutchChange(onPoolSourceChange));
+  state.cleanups.push(() => { if (poolReloadTimer) { clearTimeout(poolReloadTimer); poolReloadTimer = null; } });
+
+  // Pet sprites (per-species Rive files) can land after the first draw; rows
+  // drawn before that show a filled slot as empty until something redraws them.
+  let spriteRedrawTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleSpriteRedraw = (): void => {
+    if (spriteRedrawTimer) clearTimeout(spriteRedrawTimer);
+    spriteRedrawTimer = setTimeout(() => { spriteRedrawTimer = null; redraw(); }, SPRITE_REDRAW_DEBOUNCE_MS);
+  };
+  window.addEventListener(HYDRATION_EVENT, scheduleSpriteRedraw);
+  state.cleanups.push(() => window.removeEventListener(HYDRATION_EVENT, scheduleSpriteRedraw));
+  if (!isSpritesReady()) state.cleanups.push(onSpritesReady(scheduleSpriteRedraw));
+  state.cleanups.push(() => { if (spriteRedrawTimer) { clearTimeout(spriteRedrawTimer); spriteRedrawTimer = null; } });
+
+  loadPool();
 
   function refreshImportButton(): void {
     const imported = storage.get<boolean>(ARIES_IMPORT_ONCE_KEY, false);

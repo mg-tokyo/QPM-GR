@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mem = vi.hoisted(() => new Map<string, unknown>());
 const others = vi.hoisted(() => ({
   shopOn: true, shop: {} as Record<string, string>, panel: 'alt+q', feed: {} as Record<number, string>, sell: '',
-  teams: [] as Array<{ id: string; name: string }>, teamKeys: {} as Record<string, string>, hutch: 'h',
+  teams: [] as Array<{ id: string; name: string }>, teamKeys: {} as Record<string, string>,
 }));
 vi.mock('../../utils/storage', () => ({
   storage: {
@@ -13,6 +13,8 @@ vi.mock('../../utils/storage', () => ({
     set: (k: string, v: unknown) => { mem.set(k, v); },
     remove: (k: string) => { mem.delete(k); },
   },
+  readDurable: (k: string, d: unknown = null) => (mem.has(k) ? mem.get(k) : d),
+  registerDynamicKey: () => {},
 }));
 vi.mock('../../i18n', () => ({ t: (k: string, v?: Record<string, unknown>) => (v ? `${k} ${JSON.stringify(v)}` : k) }));
 vi.mock('../../features/spectator', async () => ({
@@ -34,7 +36,6 @@ vi.mock('../../features/input/panelHotkey', () => ({ getPanelToggleKeybind: () =
 vi.mock('../../features/pets/feedKeybinds', () => ({ getAllFeedKeybinds: () => others.feed }));
 vi.mock('../../features/pets/sellAll', () => ({ getSellAllPetsKeybind: () => others.sell }));
 vi.mock('../../store/petTeams', () => ({ getKeybinds: () => others.teamKeys, getTeamsConfig: () => ({ teams: others.teams }) }));
-vi.mock('../pets/hutchWindow', () => ({ getKeybind: () => others.hutch }));
 
 import { getSpectatorSettings, setSpectatorSetting, SPECTATOR_DEFAULTS } from '../../features/spectator/settings';
 import { isKeybindRecording } from '../pets/petsWindow/helpers';
@@ -65,7 +66,7 @@ const binding = (a: keyof typeof SPECTATOR_DEFAULTS.keys): string => getSpectato
 
 beforeEach(() => {
   mem.clear();
-  Object.assign(others, { shopOn: true, shop: {}, panel: 'alt+q', feed: {}, sell: '', teams: [], teamKeys: {}, hutch: 'h' });
+  Object.assign(others, { shopOn: true, shop: {}, panel: 'alt+q', feed: {}, sell: '', teams: [], teamKeys: {} });
   open();
 });
 afterEach(() => { section?.destroy(); section = null; });
@@ -128,9 +129,8 @@ describe('spectator settings card', () => {
     expect(keyBtn('director').style.borderColor).not.toBe('var(--qpm-warning)');
   });
 
-  it('other QPM keybinds: the Hutch on H by default, a pet team on the toggle key, shop keys only while they are on', () => {
-    expect(note('hideUi')).toContain('feature.spectator.keys.clashOther');
-    expect(note('hideUi')).toContain('feature.spectator.keys.other.hutch');
+  it('other QPM keybinds: Hide UI on H clashes with nothing by default, a pet team on the toggle key, shop keys only while they are on', () => {
+    expect(note('hideUi')).toBe('');
     others.teams = [{ id: 't1', name: 'Farm' }];
     others.teamKeys = { g: 't1', x: 'gone' };
     others.shop = { seedShop: 'alt+s' };

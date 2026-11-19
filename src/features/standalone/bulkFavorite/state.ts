@@ -73,4 +73,14 @@ export function saveConfig(): void {
   storage.set(CONFIG_KEY, configRef.current);
 }
 
-export const configRef = { current: loadConfig() };
+// Loaded on first use: a read at module load runs before storage init and gets the GM copy, not the mirror.
+let config: BulkFavoriteConfig | null = null;
+
+export const configRef = {
+  get current(): BulkFavoriteConfig {
+    return config ??= loadConfig();
+  },
+  set current(next: BulkFavoriteConfig) {
+    config = next;
+  },
+};

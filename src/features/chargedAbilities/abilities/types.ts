@@ -5,6 +5,8 @@ export interface PlantSlotMinimal {
   mutations: string[];
   targetScale: number;
   endTime: number;
+  /** Protected crop: the game's charged-ability scan skips it. */
+  preserved: boolean;
 }
 
 export interface ProjectedGain {
@@ -17,13 +19,15 @@ export interface AbilityProjection {
   abilityName: string;
   /** Full cooldown duration in ms — used to render charge progress. */
   cooldownMs: number;
+  /** Chebyshev reach around the caster, from the dex `tileRadius`. */
+  tileRadius: number;
   targetMutations: string[];
   /** Pet species that natively carry this charged ability. Used to render the
    *  "NEED: [pet sprite]" indicator when no equipped pet has the ability. */
   requiredSpecies: readonly string[];
   replacementMutation: string | null;
   yieldKind: 'coin' | 'capsule';
-  /** Sprite for the projected-yield icon on capture abilities (e.g. `sprite/item/AmberCapsule`). Null on coin abilities and when the item catalog has no matching capsule. */
+  /** Sprite for the projected-yield icon on capture abilities (e.g. `sprite/item/AmberCapsule`). Null on coin abilities and when the item catalog lacks the rule's capsule tool. */
   capsuleSpriteKey: string | null;
   accentColor: string;
   applies(slot: PlantSlotMinimal): boolean;

@@ -28,6 +28,7 @@ import {
   isCosmeticOwned,
   isCosmeticAvailable,
   getWeatherDef,
+  getAllWeatherIds,
 } from '../../catalogs/gameCatalogs';
 import type { FloraBlueprint, SlotOffset } from '../../catalogs/gameCatalogs';
 import type { CosmeticCatalogEntry } from '../../catalogs/types';
@@ -114,6 +115,13 @@ export function getMutationName(mutationId: string): string {
   return def?.name || mutationId;
 }
 
+/** The game's exclusivity family (e.g. "Hydro", "Lunar", "Growth"); null when unknown. */
+export function getMutationGroupSafe(mutationId: string): string | null {
+  if (!areCatalogsReady()) return null;
+  const group = getMutation(mutationId)?.group;
+  return typeof group === 'string' && group.length > 0 ? group : null;
+}
+
 export function getFloraBlueprintSafe(species: string): FloraBlueprint | null {
   return areCatalogsReady() ? getFloraBlueprint(species) : null;
 }
@@ -153,6 +161,7 @@ export interface WeatherDefSafe {
   name: string;
   groupId: string | null;   // e.g., "Hydro", "Lunar"
   spriteKey: string | null;
+  mutation: string | null;  // mutator.mutation, e.g. "Wet"; null for clear sky
 }
 
 /** The weather catalog loads apart from the main catalogs; null until it has this id. */
@@ -160,5 +169,20 @@ export function getWeatherDefSafe(weatherId: string): WeatherDefSafe | null {
   const def = getWeatherDef(weatherId);
   if (!def) return null;
   const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
-  return { id: weatherId, name: str(def.name) ?? weatherId, groupId: str(def.groupId), spriteKey: str(def.spriteId) ?? str(def.iconSpriteKey) };
+  const mutator = def.mutator && typeof def.mutator === 'object' ? (def.mutator as Record<string, unknown>) : null;
+  return {
+    id: weatherId, name: str(def.name) ?? weatherId, groupId: str(def.groupId),
+    spriteKey: str(def.spriteId) ?? str(def.iconSpriteKey), mutation: str(mutator?.mutation),
+  };
+}
+
+export function getAllWeatherDefsSafe(): WeatherDefSafe[] {
+  return getAllWeatherIds()
+    .map(getWeatherDefSafe)
+    .filter((def): def is WeatherDefSafe => def !== null);
+}
+
+/** Every catalog weather in a group (e.g. both Lunar events), catalog order. */
+export function getWeatherDefsInGroupSafe(groupId: string): WeatherDefSafe[] {
+  return getAllWeatherDefsSafe().filter((def) => def.groupId === groupId);
 }

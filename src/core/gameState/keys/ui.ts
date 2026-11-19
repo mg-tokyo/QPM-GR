@@ -3,7 +3,7 @@ import { atomSource, customSource, defineKey } from '../define';
 import { isRecord } from '../../../utils/typeGuards';
 import { isQuinoaEngine } from '../../../utils/quinoaEngine';
 import { findAtomsByLabel, getCachedStore, subscribeAtom } from '../../jotaiBridge';
-import type { CropBrowsingControl, CropBrowsingProjection, GridPosition, NpcChatBubble } from '../../../types/gameAtoms';
+import type { ActiveModalState, AvatarTriggerAnimation, CropBrowsingControl, CropBrowsingProjection, GridPosition, NpcChatBubble } from '../../../types/gameAtoms';
 
 const KNOWN_MODALS = new Set([
   'seedShop', 'eggShop', 'toolShop', 'inventory', 'leaderboard', 'journal', 'decorShop', 'stats', 'petHutch',
@@ -44,6 +44,23 @@ export const UI_KEYS = {
       prefer: (l) => l === 'activeModalAtom',
     })],
   }),
+  activeModalState: defineKey<ActiveModalState | null>({
+    policy: 'client', tier: 'client', defaultValue: null,
+    doc: 'Writable modal state { modal, openId } behind the read-only activeModalAtom (beta modalAtom.ts:168-175). Open a panel by writing { modal: id, openId: prev.openId + 1 }; a raw write skips the game setter\'s tidy-up (modalAtom.ts:346-377).',
+    sources: [atomSource(/^activeModalStateAtom$/, 'client', {
+      writable: true,
+      project: (v) => (isRecord(v) && typeof v.openId === 'number' && (v.modal === null || typeof v.modal === 'string')
+        ? { modal: v.modal, openId: v.openId } : undefined),
+    })],
+  }),
+  inventoryModalIsActive: defineKey<boolean>({
+    policy: 'client', tier: 'client', defaultValue: false,
+    doc: 'The bag is open (beta modalAtom.ts:261). The game\'s setActiveModalState writes false when a panel opens (modalAtom.ts:356); a raw activeModalState write leaves the bag open behind the panel.',
+    sources: [atomSource(/^inventoryModalIsActiveAtom$/, 'client', {
+      writable: true,
+      project: (v) => (typeof v === 'boolean' ? v : undefined),
+    })],
+  }),
   selectedItemId: defineKey<string | null>({
     policy: 'client', tier: 'client', defaultValue: null,
     doc: 'Selected inventory item id (tool id for tools). 1361+ (primary): mySelectedItemIdAtom, derived from heldItem.itemId (read-only). 1202-era (fallback): displayedInventoryItemIdsAtom[myValidatedSelectedItemIndexAtom].',
@@ -71,6 +88,15 @@ export const UI_KEYS = {
         },
       }),
     ],
+  }),
+  avatarTriggerAnimation: defineKey<AvatarTriggerAnimation | null>({
+    policy: 'client', tier: 'client', defaultValue: null,
+    doc: 'Avatar animation trigger { playerId, animation, skipSfx? } (beta atoms/avatarAtoms.ts:20, primitive). Client-only: writing a new object plays the animation on that avatar and sends nothing (live 2065, INP-4 spec F15-F16).',
+    sources: [atomSource(/^avatarTriggerAnimationAtom$/, 'client', {
+      writable: true,
+      project: (v) => (isRecord(v) && typeof v.playerId === 'string' && typeof v.animation === 'string'
+        ? { playerId: v.playerId, animation: v.animation } : undefined),
+    })],
   }),
   selectedSlotId: defineKey<number | null>({
     policy: 'client', tier: 'client', defaultValue: null,

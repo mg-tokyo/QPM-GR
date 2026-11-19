@@ -1,49 +1,26 @@
 import { notify } from "../core/notifications";
 import { storage } from "./storage";
 import { visibleInterval } from "./scheduling/timerManager";
+import { gmHttpRequest } from "./gm";
 
-const CURRENT_VERSION = "3.3.65"; // This should match package.json version
+const CURRENT_VERSION = "3.3.66"; // This should match package.json version
 export const GITHUB_URL = "https://github.com/mg-tokyo/QPM-GR";
 export const UPDATE_URL =
   "https://raw.githubusercontent.com/mg-tokyo/QPM-GR/master/dist/QPM.user.js";
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const STORAGE_KEY = "qpm.versionCheck.v1";
 
-type GmXhr = (input: {
-  method: "GET";
-  url: string;
-  headers?: Record<string, string>;
-  onload: (response: { responseText: string; status: number }) => void;
-  onerror: (error: unknown) => void;
-}) => void;
-
-const getGmXhr = (): GmXhr | undefined => {
-  const globalAny = globalThis as any;
-  return globalAny.GM_xmlhttpRequest || globalAny.GM?.xmlHttpRequest;
-};
-
 // Use GM_xmlhttpRequest when available to bypass CORS in userscript sandbox.
 const fetchText = async (url: string): Promise<string> => {
-  const gmXhr = getGmXhr();
-  if (gmXhr) {
-    return new Promise((resolve, reject) => {
-      gmXhr({
-        method: "GET",
-        url,
-        headers: { "Cache-Control": "no-cache" },
-        onload: (response) => {
-          if (response.status >= 200 && response.status < 300) {
-            resolve(response.responseText);
-          } else {
-            reject(
-              new Error(`GM request failed with status ${response.status}`),
-            );
-          }
-        },
-        onerror: (error) => reject(error),
-      });
-    });
+  const gm = await gmHttpRequest(url, { headers: { "Cache-Control": "no-cache" } });
+  if (gm.kind === "load") {
+    if (gm.status >= 200 && gm.status < 300) return gm.responseText;
+    throw new Error(`GM request failed with status ${gm.status}`);
   }
+  if (gm.kind === "error") {
+    throw gm.error instanceof Error ? gm.error : new Error(String(gm.error));
+  }
+  if (gm.kind === "timeout") throw new Error("GM request timed out");
 
   const res = await fetch(url, { cache: "no-cache" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

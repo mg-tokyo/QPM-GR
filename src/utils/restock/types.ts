@@ -72,17 +72,6 @@ export interface RefreshBudgetEntry {
   windowStartedAt: number;
 }
 
-export type GmXhr = (details: {
-  method: 'GET' | 'POST';
-  url: string;
-  data?: string;
-  headers?: Record<string, string>;
-  onload?: (res: { status: number; responseText: string }) => void;
-  onerror?: (err: unknown) => void;
-  ontimeout?: () => void;
-  timeout?: number;
-}) => void;
-
 export interface FetchTextResult {
   ok: boolean;
   status: number;

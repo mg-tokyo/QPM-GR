@@ -23,12 +23,14 @@ vi.mock('../../core/gameState', () => ({
   subscribe: (key: string, cb: (v: unknown) => void) => { subs.set(key, cb); return () => { subs.delete(key); }; },
 }));
 
-interface RaisedCard { row: string; title: string; body?: string; cardKey?: string; iconUrl?: string; meter?: { pct: number; color: string } }
+interface RaisedCard { row: string; title: string; body?: string; cardKey?: string; iconUrl?: string; accent?: string; meter?: { pct: number; color: string } }
+interface RowDef { id: string; icon?: () => string | null; summary?: () => string; accent?: string }
 const raised: RaisedCard[] = [];
 const rows: string[] = [];
+const defs: RowDef[] = [];
 vi.mock('../alertHub', () => ({
   raiseAlert: (row: string, p: Omit<RaisedCard, 'row'>) => { raised.push({ row, ...p }); return null; },
-  registerAlertRow: (def: { id: string }) => { rows.push(def.id); },
+  registerAlertRow: (def: RowDef) => { rows.push(def.id); defs.push(def); },
 }));
 
 import {
@@ -73,6 +75,7 @@ describe('trough alarm feature', () => {
     mem.clear();
     raised.length = 0;
     rows.length = 0;
+    defs.length = 0;
     initial = {};
   });
 
@@ -92,8 +95,20 @@ describe('trough alarm feature', () => {
       body: 'feature.troughAlarm.body:{"count":1,"capacity":9}',
       cardKey: 'trough:low',
       iconUrl: 'data:sprite/decor/FeedingTrough',
+      accent: 'var(--qpm-warning)',
     });
     expect(raised[0]?.meter?.pct).toBeCloseTo(100 / 9);
+  });
+
+  it('row declares the trough sprite, a lowAt summary and the warning token', () => {
+    startTroughAlarm();
+    setTroughLowAt(2);
+    const def = defs[0];
+    expect([def?.icon?.(), def?.summary?.(), def?.accent]).toEqual([
+      'data:sprite/decor/FeedingTrough',
+      'feature.troughAlarm.summary:{"lowAt":2}',
+      'var(--qpm-warning)',
+    ]);
   });
 
   it('feeds snapshots to listeners and reports no trough as not low', () => {

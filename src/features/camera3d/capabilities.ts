@@ -201,7 +201,7 @@ export function resolveSystems(engine: unknown, worldMap: unknown = null): Engin
   return {
     zoomSys: zoomSys as unknown as EngineSystems['zoomSys'],
     directionalInput: diOk ? (di as unknown as DirectionalInputLike) : null,
-    mover: isRecord(mv) && typeof mv.movePlayer === 'function' ? (mv as unknown as EngineSystems['mover']) : null,
+    mover: isRecord(mv) && typeof mv.attemptMove === 'function' && typeof mv.getMoveTarget === 'function' ? (mv as unknown as EngineSystems['mover']) : null,
     movementFallback: mf as unknown as EngineSystems['movementFallback'],
     map,
     petSystem: pet as unknown as EngineSystems['petSystem'],

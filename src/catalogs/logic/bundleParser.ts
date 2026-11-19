@@ -320,6 +320,16 @@ export async function fetchBundleHitContaining(marker: BundleMarker): Promise<{ 
   return hits[0] ?? null;
 }
 
+// One named chunk, for following an `import{…}from"./x.js"` out of a hit. Game asset chunks only;
+// not cached here (the caller drops it after one parse), but given-up URLs stay given up.
+export async function fetchBundleChunkText(url: string): Promise<string | null> {
+  if (!GENERIC_ASSET_CHUNK_RE.test(url)) return null;
+  const cached = bundleTextCache.get(url);
+  if (cached) return cached;
+  if (tinyUrls.has(url) || isGivenUp(url)) return null;
+  return fetchBundleTextOnce(url);
+}
+
 export async function fetchMainBundle(): Promise<string | null> {
   return fetchBundleContaining(BUNDLE_CONTENT_ANCHOR);
 }

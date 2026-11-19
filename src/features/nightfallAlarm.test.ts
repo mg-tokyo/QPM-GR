@@ -12,6 +12,10 @@ vi.mock('../i18n', () => ({
 }));
 vi.mock('../ui/core/panelHelpers', () => ({ formatRestockCountdown: (ms: number) => `${Math.round(ms / 1000)}s` }));
 vi.mock('../store/serverClock', () => ({ getServerNowMs: () => null }));
+vi.mock('../sprite-v2/compat', () => ({
+  isSpritesReady: () => true,
+  getAnySpriteDataUrl: (key: string) => `data:${key}`,
+}));
 // Same cycle shape as forecastWidget/model.test.ts: nightfall at 03:40, 07:40, 11:40 … UTC.
 vi.mock('../catalogs/logic/dayCycleCatalog', () => ({
   getDayCycle: () => ({
@@ -21,13 +25,15 @@ vi.mock('../catalogs/logic/dayCycleCatalog', () => ({
   onDayCycleChange: () => () => {},
 }));
 
-interface Raised { row: string; title: string; body?: string; cardKey?: string }
+interface Raised { row: string; title: string; body?: string; cardKey?: string; accent?: string; iconUrl?: string; figure?: { countdownTo: number; label: string } }
+interface RowDef { id: string; settingsAction?: unknown; icon?: () => string | null; summary?: () => string; accent?: string }
 const raised: Raised[] = [];
 const rows: string[] = [];
+const defs: RowDef[] = [];
 const settingsActions: unknown[] = [];
 vi.mock('./alertHub', () => ({
   raiseAlert: (row: string, p: Omit<Raised, 'row'>) => { raised.push({ row, ...p }); return null; },
-  registerAlertRow: (def: { id: string; settingsAction?: unknown }) => { rows.push(def.id); settingsActions.push(def.settingsAction); },
+  registerAlertRow: (def: RowDef) => { rows.push(def.id); defs.push(def); settingsActions.push(def.settingsAction); },
 }));
 
 type Mod = typeof import('./nightfallAlarm');
@@ -40,6 +46,7 @@ beforeEach(async () => {
   mem.clear();
   raised.length = 0;
   rows.length = 0;
+  defs.length = 0;
   settingsActions.length = 0;
   mod = await import('./nightfallAlarm');
 });
@@ -62,6 +69,9 @@ describe('nightfall alarm', () => {
       title: 'feature.nightfallAlarm.title',
       body: 'feature.nightfallAlarm.bodyIn:{"time":"60s"}',
       cardKey: `nightfall:${utc('11:40:00')}`,
+      accent: 'var(--qpm-dawn)',
+      iconUrl: 'data:sprite/ui/SunsetIcon',
+      figure: { countdownTo: utc('11:40:00'), label: 'feature.nightfallAlarm.figure' },
     }]);
     vi.advanceTimersByTime(10 * 60_000);
     expect(raised).toHaveLength(1);
@@ -81,6 +91,16 @@ describe('nightfall alarm', () => {
     expect(mod.setNightfallLeadMinutes(0)).toBe(true);
     vi.advanceTimersByTime(10 * 60_000 + 100);
     expect(raised.map((r) => r.body)).toEqual(['feature.nightfallAlarm.bodyNow']);
+    expect(raised[0]).not.toHaveProperty('figure');
+  });
+
+  it('row declares the night sprite, a lead summary and the dawn token', () => {
+    vi.setSystemTime(utc('11:30:00'));
+    mod.startNightfallAlarm();
+    const def = defs[0];
+    expect([def?.icon?.(), def?.summary?.(), def?.accent]).toEqual(['data:sprite/ui/SunsetIcon', 'feature.nightfallAlarm.summaryLead:{"min":1}', 'var(--qpm-dawn)']);
+    mod.setNightfallLeadMinutes(0);
+    expect(def?.summary?.()).toBe('feature.nightfallAlarm.summaryNow');
   });
 
   it('a start just after the fire time still fires for that night', () => {

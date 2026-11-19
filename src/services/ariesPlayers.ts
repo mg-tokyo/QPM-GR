@@ -1,26 +1,9 @@
 // Aries player/friends API client using GM_xmlhttpRequest (no auth required)
 
 import type { ApiResponse, PlayerView } from '../types/publicRooms';
+import { gmHttpRequest, type GmHttpOptions } from '../utils/gm';
 
 const API_BASE_URL = 'https://ariesmod-api.ariedam.fr/';
-
-type HttpMethod = 'GET' | 'POST';
-
-type GmXhr = (details: {
-  method: HttpMethod;
-  url: string;
-  headers?: Record<string, string>;
-  data?: string;
-  onload?: (response: { status: number; responseText: string }) => void;
-  onerror?: (error: any) => void;
-}) => void;
-
-function resolveGmXhr(): GmXhr | undefined {
-  if (typeof GM_xmlhttpRequest === 'function') return GM_xmlhttpRequest as unknown as GmXhr;
-  const gm = (globalThis as any).GM;
-  if (gm?.xmlHttpRequest) return gm.xmlHttpRequest.bind(gm) as GmXhr;
-  return undefined;
-}
 
 function buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
   const url = new URL(path, API_BASE_URL);
@@ -37,70 +20,35 @@ function authHeaders(): Record<string, string> {
   return {};
 }
 
-function httpGet<T>(path: string, query: Record<string, string | number | undefined> | undefined): Promise<ApiResponse<T>> {
-  return new Promise(resolve => {
-    const url = buildUrl(path, query);
-    const gm = resolveGmXhr();
-    if (!gm) {
-      resolve({ status: 0, data: null, error: 'GM_xmlhttpRequest unavailable' });
-      return;
+async function request<T>(url: string, options: GmHttpOptions): Promise<ApiResponse<T>> {
+  const res = await gmHttpRequest(url, options);
+  if (res.kind === 'unavailable') return { status: 0, data: null, error: 'GM_xmlhttpRequest unavailable' };
+  if (res.kind === 'error') return { status: 0, data: null, error: String(res.error ?? 'Network error') };
+  if (res.kind === 'timeout') return { status: 0, data: null, error: 'Timeout' };
+  let parsed: T | null = null;
+  let error: string | undefined;
+  if (res.responseText) {
+    try {
+      parsed = JSON.parse(res.responseText) as T;
+    } catch (e) {
+      error = `Failed to parse JSON: ${(e as Error).message}`;
     }
+  }
+  if ((res.status < 200 || res.status >= 300) && !error) {
+    error = `HTTP ${res.status}`;
+  }
+  return error ? { status: res.status, data: parsed, error } : { status: res.status, data: parsed };
+}
 
-    gm({
-      method: 'GET',
-      url,
-      headers: authHeaders(),
-      onload: res => {
-        let parsed: T | null = null;
-        let error: string | undefined;
-        if (res.responseText) {
-          try {
-            parsed = JSON.parse(res.responseText) as T;
-          } catch (e) {
-            error = `Failed to parse JSON: ${(e as Error).message}`;
-          }
-        }
-        if ((res.status < 200 || res.status >= 300) && !error) {
-          error = `HTTP ${res.status}`;
-        }
-        resolve(error ? { status: res.status, data: parsed, error } : { status: res.status, data: parsed });
-      },
-      onerror: err => resolve({ status: 0, data: null, error: String(err ?? 'Network error') }),
-    });
-  });
+function httpGet<T>(path: string, query: Record<string, string | number | undefined> | undefined): Promise<ApiResponse<T>> {
+  return request<T>(buildUrl(path, query), { headers: authHeaders() });
 }
 
 function httpPost<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  return new Promise(resolve => {
-    const url = buildUrl(path);
-    const gm = resolveGmXhr();
-    if (!gm) {
-      resolve({ status: 0, data: null, error: 'GM_xmlhttpRequest unavailable' });
-      return;
-    }
-
-    gm({
-      method: 'POST',
-      url,
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      data: JSON.stringify(body),
-      onload: res => {
-        let parsed: T | null = null;
-        let error: string | undefined;
-        if (res.responseText) {
-          try {
-            parsed = JSON.parse(res.responseText) as T;
-          } catch (e) {
-            error = `Failed to parse JSON: ${(e as Error).message}`;
-          }
-        }
-        if ((res.status < 200 || res.status >= 300) && !error) {
-          error = `HTTP ${res.status}`;
-        }
-        resolve(error ? { status: res.status, data: parsed, error } : { status: res.status, data: parsed });
-      },
-      onerror: err => resolve({ status: 0, data: null, error: String(err ?? 'Network error') }),
-    });
+  return request<T>(buildUrl(path), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    data: JSON.stringify(body),
   });
 }
 

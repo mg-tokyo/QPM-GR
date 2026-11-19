@@ -2,6 +2,22 @@
 
 export const CHANGELOG: Array<{ version: string; date: string; notes: string[] }> = [
   {
+    version: "3.3.66",
+    date: "2026-11-19",
+    notes: [
+      "Added a Keybinds window in Config: set a key for any QPM window, open game panels like your bag or a storage, toggle the planter pot, and switch to the next or previous pet team",
+      "Added keys that pick a tool, seed, egg or decor from your bag, and take it out of storage first when you have none in your bag (switch this off with \"Take from storage when none in bag\")",
+      "Added Storage panels: one key opens your storages side by side as the game's own panels, each showing its value. Choose the storages and set the key in Config",
+      "Added Shop panels: one key opens the shops side by side as the game's own shop windows. Choose the shops and set the key in Config",
+      "Improved restock alerts: no alert for one-time items you already own, Buy All says \"Bag full\" when your bag has no room, the card shows why the shop refused a purchase, and cards have a new look with rarity colours",
+      "Improved QPM in Starweaver Mod Manager: settings now save through the mod manager like in Tampermonkey, instead of only in the browser's site data",
+      "Removed the shop enhancer: the game's shops now open as a tile grid, where its sorting and Buy All button no longer worked",
+      "Fixed the shop keybinds (Alt+S/E/T/D) not opening shops after the latest game update",
+      "Fixed the Charged Abilities panel, garden totals and hutch sidebar showing nothing after the latest game update",
+      "Fixed walking in the 3D camera not following the camera direction after the latest game update",
+    ],
+  },
+  {
     version: "3.3.65",
     date: "2026-11-15",
     notes: [

@@ -4,6 +4,7 @@ import { storage } from '../storage';
 import { log } from '../logger';
 import { isDebugGlobalsEnabled } from '../debugGlobals';
 import { supabaseClientInfoHeaders } from '../supabaseClientInfo';
+import { gmHttpRequest, gmXhr } from '../gm';
 import { STANDARD_RESTOCK_SHOP_TYPES } from '../../types/shops';
 import { getWeatherGatedShopIds } from '../../store/shopRegistry';
 import { areShopCatalogsLoaded, getItemEligibleShops } from '../../catalogs/shopEligibility';
@@ -32,7 +33,6 @@ import type {
   FetchStatus,
   CacheEntry,
   RefreshBudgetEntry,
-  GmXhr,
   FetchTextResult,
   WeatherPrediction,
   WeatherPredictionCacheEntry,
@@ -46,7 +46,6 @@ export type {
   RestockRefreshBudgetState,
   RestockDataUpdatedDetail,
   FetchStatus,
-  GmXhr,
   WeatherPrediction,
 } from './types';
 
@@ -135,13 +134,6 @@ export const RESTOCK_MODEL_ACCURACY_MIN_SCORED = 5;
 
 // HTTP helpers
 
-export function resolveGmXhr(): GmXhr | null {
-  if (typeof GM_xmlhttpRequest === 'function') return GM_xmlhttpRequest as unknown as GmXhr;
-  const gm = (globalThis as { GM?: { xmlHttpRequest?: GmXhr } }).GM;
-  if (typeof gm?.xmlHttpRequest === 'function') return gm.xmlHttpRequest.bind(gm) as GmXhr;
-  return null;
-}
-
 function toErrorText(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === 'string') return err;
@@ -173,56 +165,30 @@ function getRestockRequestConfig(): { url: string; key: string } | null {
 }
 
 /** Promisified GM XHR GET with status/error details. */
-export function gmGet(
-  gm: GmXhr,
+export async function gmGet(
   url: string,
   apiKey: string,
   timeoutMs = 15_000,
   extraHeaders?: Record<string, string>,
 ): Promise<FetchTextResult> {
-  return new Promise((resolve) => {
-    gm({
-      method: 'GET',
-      url,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        apikey: apiKey,
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, max-age=0',
-        Pragma: 'no-cache',
-        ...supabaseClientInfoHeaders(),
-        ...extraHeaders,
-      },
-      timeout: timeoutMs,
-      onload: (res) => {
-        if (res.status >= 200 && res.status < 300) {
-          resolve({ ok: true, status: res.status, text: res.responseText, error: null });
-          return;
-        }
-        const snippet = bodySnippet(res.responseText);
-        resolve({
-          ok: false,
-          status: res.status,
-          text: null,
-          error: snippet ? `HTTP ${res.status}: ${snippet}` : `HTTP ${res.status}`,
-        });
-      },
-      onerror: (err) =>
-        resolve({
-          ok: false,
-          status: 0,
-          text: null,
-          error: `Network error: ${toErrorText(err)}`,
-        }),
-      ontimeout: () =>
-        resolve({
-          ok: false,
-          status: 0,
-          text: null,
-          error: `Timeout after ${timeoutMs}ms`,
-        }),
-    });
+  const res = await gmHttpRequest(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      apikey: apiKey,
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, max-age=0',
+      Pragma: 'no-cache',
+      ...supabaseClientInfoHeaders(),
+      ...extraHeaders,
+    },
+    timeoutMs,
   });
+  if (res.kind === 'unavailable') return { ok: false, status: 0, text: null, error: 'GM_xmlhttpRequest unavailable' };
+  if (res.kind === 'error') return { ok: false, status: 0, text: null, error: `Network error: ${toErrorText(res.error)}` };
+  if (res.kind === 'timeout') return { ok: false, status: 0, text: null, error: `Timeout after ${timeoutMs}ms` };
+  if (res.status >= 200 && res.status < 300) return { ok: true, status: res.status, text: res.responseText, error: null };
+  const snippet = bodySnippet(res.responseText);
+  return { ok: false, status: res.status, text: null, error: snippet ? `HTTP ${res.status}: ${snippet}` : `HTTP ${res.status}` };
 }
 
 async function webGet(
@@ -472,11 +438,9 @@ export async function fetchRestockPredictionAccuracyAggregate(
     'limit=1',
   ].join('&');
   const url = `${RESTOCK_ACCURACY_ENDPOINT}?${query}`;
-  const gm = resolveGmXhr();
-
   let result: FetchTextResult | null = null;
-  if (gm) {
-    result = await gmGet(gm, url, reqConfig.key, 5_000, { Prefer: 'count=none' });
+  if (gmXhr()) {
+    result = await gmGet(url, reqConfig.key, 5_000, { Prefer: 'count=none' });
   }
   if (!result?.ok || result.text == null) {
     result = await webGet(url, reqConfig.key, 5_000, { Prefer: 'count=none' });
@@ -563,7 +527,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
       return safeCacheFallback(cache);
     }
 
-    const gm = resolveGmXhr();
+    const gm = gmXhr() !== null;
 
     if (!weatherDisabledLogged) {
       log('[RestockData] Weather disabled until unified API is available.');
@@ -580,7 +544,7 @@ export async function fetchRestockData(force = false): Promise<RestockItem[]> {
     ): Promise<{ text: string | null; errors: string[] }> => {
       const errors: string[] = [];
       if (gm) {
-        const gmResult = await gmGet(gm, url, reqConfig.key, 15_000, forceHeaders);
+        const gmResult = await gmGet(url, reqConfig.key, 15_000, forceHeaders);
         if (gmResult.ok && gmResult.text !== null) {
           return { text: gmResult.text, errors };
         }
@@ -814,11 +778,10 @@ export async function fetchWeatherPredictions(force = false): Promise<WeatherPre
     const key = (RESTOCK_ANON_KEY || '').trim();
     if (key.length < 16) return cache?.data ?? [];
 
-    const gm = resolveGmXhr();
     let result: FetchTextResult | null = null;
 
-    if (gm) {
-      result = await gmGet(gm, WEATHER_PREDICTIONS_URL, key, 10_000);
+    if (gmXhr()) {
+      result = await gmGet(WEATHER_PREDICTIONS_URL, key, 10_000);
     }
     if (!result?.ok || result.text == null) {
       result = await webGet(WEATHER_PREDICTIONS_URL, key, 10_000);

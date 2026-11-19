@@ -110,13 +110,15 @@ function onPets(infos: ActivePetInfo[]): void {
     if (!pet || !reading) continue;
     counts.raised += 1;
     const icon = petIcon(pet);
+    const meter = hungerMeter(reading.pct);
     raiseAlert(HUNGER_ALARM_ROW, {
       title: t('feature.hungerAlarm.title', { name: petName(pet) }),
       // floor: a rounded 24.6 would read "25% (alarm below 25%)".
       body: t('feature.hungerAlarm.body', { pct: Math.floor(reading.pct), threshold: reading.threshold }),
       cardKey: `hunger:${petId}`,
       level: 'warn',
-      meter: hungerMeter(reading.pct),
+      meter,
+      accent: meter.color,
       ...(icon ? { iconUrl: icon } : {}),
     });
   }
@@ -153,7 +155,19 @@ function openPetAlarmsSettings(): void {
 
 export function startHungerAlarm(): void {
   if (stopPets) return;
-  registerAlertRow({ id: HUNGER_ALARM_ROW, group: 'pets', labelKey: 'feature.hungerAlarm.row', defaultSound: 'alert', settingsAction: openPetAlarmsSettings });
+  registerAlertRow({
+    id: HUNGER_ALARM_ROW,
+    group: 'pets',
+    labelKey: 'feature.hungerAlarm.row',
+    defaultSound: 'alert',
+    settingsAction: openPetAlarmsSettings,
+    icon: () => {
+      const first = latest.find((p) => p.species);
+      return first ? petIcon(first) ?? null : null;
+    },
+    summary: () => t('feature.hungerAlarm.summary', { pct: getHungerAlarmSettings().defaultPct }),
+    accent: 'var(--qpm-hunger-low)',
+  });
   stopPets = onActivePetInfos(onPets, true);
 }
 

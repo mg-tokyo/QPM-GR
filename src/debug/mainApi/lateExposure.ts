@@ -20,8 +20,6 @@ import { getCapturedGameVersion } from '../../diagnostics/gameVersionCapture';
 import { getCurrentVersion } from '../../utils/versionChecker';
 import { startPerfBusyTimer } from './perfBusyTimer';
 
-declare const unsafeWindow: (Window & typeof globalThis) | undefined;
-
 // Phase-10 debug exposure: attaches late-bound entries to QPM_DEBUG_API and
 // publishes __QPM_INTERNAL__ once the stores/features they read are running.
 export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise<void> {
@@ -127,9 +125,17 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   };
   const alertHub = await import('../../features/alertHub');
   const { notify, onNotifications } = await import('../../core/notifications');
-  const readHistory = (feature?: string): Array<{ feature: string; level: string; message: string; timestamp: number }> => {
-    let snap: Array<{ feature: string; level: string; message: string; timestamp: number }> = [];
-    onNotifications((events) => { snap = events.map(({ feature: f, level, message, timestamp }) => ({ feature: f, level, message, timestamp })); })();
+  type HistoryRow = { feature: string; level: string; message: string; timestamp: number; title?: string; body?: string; iconUrl?: string };
+  const readHistory = (feature?: string): HistoryRow[] => {
+    let snap: HistoryRow[] = [];
+    onNotifications((events) => {
+      snap = events.map(({ feature: f, level, message, timestamp, title, body, iconUrl }) => ({
+        feature: f, level, message, timestamp,
+        ...(title !== undefined ? { title } : {}),
+        ...(body !== undefined ? { body } : {}),
+        ...(iconUrl !== undefined ? { iconUrl } : {}),
+      }));
+    })();
     return feature ? snap.filter((e) => e.feature === feature) : snap;
   };
   (QPM_DEBUG_API as any).alertHub = {
@@ -147,6 +153,26 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
     setDesktopOn: alertHub.setDesktopOn,
     setRowDesktop: alertHub.setRowDesktop,
     requestDesktop: alertHub.requestDesktopPermission,
+    // Centre linked rows through the hub resolvers (ALR-17.4b); icon reported as length + head only.
+    linkedRows: async () => {
+      const { getLinkedRows } = await import('../../ui/alertCentre/linkedRows');
+      return getLinkedRows().map((row) => {
+        const def = { ...row, defaultSound: 'none' };
+        const icon = alertHub.resolveRowIcon(def);
+        return { id: row.id, iconLength: icon?.length ?? 0, iconHead: icon?.slice(0, 22) ?? null, summary: alertHub.resolveRowSummary(def), accent: alertHub.resolveRowAccent(def) };
+      });
+    },
+  };
+  const wip = await import('../../utils/wipFeatures');
+  const loadedWithAlerts = wip.areAlertsWipEnabled();
+  const wipState = (): { enabled: boolean; reloadNeeded: boolean } => {
+    const enabled = wip.areAlertsWipEnabled();
+    return { enabled, reloadNeeded: enabled !== loadedWithAlerts };
+  };
+  (QPM_DEBUG_API as any).alertsWip = {
+    on: () => { wip.setAlertsWipEnabled(true); return wipState(); },
+    off: () => { wip.setAlertsWipEnabled(false); return wipState(); },
+    state: wipState,
   };
   const hungerAlarm = await import('../../features/pets/hungerAlarm');
   (QPM_DEBUG_API as any).hungerAlarm = {
@@ -163,6 +189,12 @@ export async function exposeLateDebugApis(debugGlobalsEnabled: boolean): Promise
   (QPM_DEBUG_API as any).nightfallAlarm = {
     state: nightfallAlarm.getNightfallAlarmState,
     setLead: nightfallAlarm.setNightfallLeadMinutes,
+  };
+  const roomFull = await import('../../features/room/roomFull');
+  (QPM_DEBUG_API as any).roomFull = {
+    state: roomFull.getRoomFullAlarmState,
+    setMinPlayers: roomFull.setRoomFullMinPlayers,
+    preview: () => roomFull.previewRoomFullCard() !== null,
   };
   const { loadCamera3dDebugApi } = await import('../../features/camera3d');
   (QPM_DEBUG_API as any).camera3d = await loadCamera3dDebugApi();

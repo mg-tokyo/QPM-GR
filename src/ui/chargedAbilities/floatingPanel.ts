@@ -20,6 +20,7 @@ import {
 } from '../../features/chargedAbilities/storage';
 import { PANEL_POSITION_STORAGE_KEY } from '../../features/chargedAbilities/constants';
 import { groupSnapshots } from '../../features/chargedAbilities/grouping';
+import { areChargedAbilityRulesUnreadable } from '../../features/chargedAbilities/abilities';
 import { t } from '../../i18n';
 import { showToast } from '../components/toast';
 import type { PetAbilityTargetSnapshot } from '../../features/chargedAbilities/types';
@@ -59,13 +60,19 @@ function buildHeader(onClose: () => void): HTMLDivElement {
   return header;
 }
 
+function emptyText(): string {
+  return areChargedAbilityRulesUnreadable()
+    ? t('feature.chargedAbilities.rulesUnreadable')
+    : t('feature.chargedAbilities.noActivePets');
+}
+
 function paintBody(body: HTMLElement, snapshots: readonly PetAbilityTargetSnapshot[]): void {
   body.replaceChildren();
 
   if (snapshots.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'qpm-charged-abilities__empty';
-    empty.textContent = t('feature.chargedAbilities.noActivePets');
+    empty.textContent = emptyText();
     body.appendChild(empty);
     return;
   }
@@ -190,6 +197,6 @@ export function openChargedAbilitiesPanel(): void {
   manuallyOpened = true;
   ensurePanelOpen();
   if (latestSnapshots.length === 0) {
-    showToast(t('feature.chargedAbilities.noActivePets'), { variant: 'info' });
+    showToast(emptyText(), { variant: 'info' });
   }
 }

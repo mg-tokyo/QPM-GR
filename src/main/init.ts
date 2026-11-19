@@ -1,11 +1,11 @@
-import { ready, sleep, getGameHudRoot, getSharedDomObserverStats, initDomObserverDebugBridge } from '../utils/dom/dom';
+import { whenDomReady, sleep, getGameHudRoot, getSharedDomObserverStats, initDomObserverDebugBridge } from '../utils/dom/dom';
 import { healthBus } from '../diagnostics/healthBus';
 import { waitForAriesDetection, getAriesDetectionInfo } from '../integrations/ariesDetection';
 import { isVerboseLogsEnabled } from '../diagnostics/logger';
 import { diag, publishOk as publishInitOk, warnCore } from './_diagnostics';
 import { yieldToBrowser } from '../utils/scheduling/scheduling';
 import { createOriginalUI, setCfg, openPublicRoomsWindow, openJournalCheckerWindow } from '../ui/core/originalPanel';
-import { readSharedGlobal, shareGlobal } from '../core/pageContext';
+import { pageWindow, readSharedGlobal, shareGlobal } from '../core/pageContext';
 import { startVersionChecker } from '../utils/versionChecker';
 import { initPublicRooms } from '../features/standalone/publicRooms';
 import {
@@ -17,7 +17,6 @@ import type { SpriteService } from '../sprite-v2/types';
 import { setSpriteService, inspectPetSprites } from '../sprite-v2/compat';
 import { initStitcherHydrationListener } from '../sprite-v2/stitcher';
 import { initLocale } from '../i18n';
-import { initPetHutchWindow, togglePetHutchWindow, openPetHutchWindow, closePetHutchWindow } from '../ui/pets/hutchWindow';
 import { initPetsWindow, togglePetsWindow } from '../ui/pets/petsWindow';
 import { toggleWindow, registerWindowOpener, restoreOpenWindows } from '../ui/core/modalWindow';
 import { openShopRestockWindow } from '../ui/shop/restockWindow';
@@ -79,13 +78,12 @@ import { disposers, installGlobalHandlers, isStoodDown, standDownFrameHost } fro
 import { isGameFrameHost } from '../utils/environment';
 import { runFeaturePhases } from './phases';
 import { startLateSpriteBoot } from './lateSpriteBoot';
-
-declare const unsafeWindow: (Window & typeof globalThis) | undefined;
+import { reportIfPageUnreachable } from './pageReach';
 
 async function waitForGame(): Promise<'game' | 'frame-host'> {
   diag.debug('Waiting for game to load');
 
-  await ready;
+  await whenDomReady();
   if (isGameFrameHost()) return 'frame-host';
 
   const maxWait = 30000;
@@ -212,8 +210,7 @@ async function initialize(): Promise<void> {
     diag.debug('Sprite system v2 initialized');
 
     if (debugGlobalsEnabled && typeof window !== 'undefined') {
-      const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-      (targetWindow as any).inspectPetSprites = inspectPetSprites;
+      (pageWindow as any).inspectPetSprites = inspectPetSprites;
       diag.debug('inspectPetSprites() available in console');
     }
   };
@@ -230,11 +227,10 @@ async function initialize(): Promise<void> {
     standDownFrameHost();
     return;
   }
+  reportIfPageUnreachable();
 
-  // Kick off Aries co-existence detection — resolves in the background via the
-  // shared DOM observer. Timeout well before startShopEnhancer() runs in Phase 8,
-  // so isAriesInstalled() is authoritative by then. See ariesDetection.ts and
-  // features/shop/enhancer for the gate that consumes this.
+  // Resolves in the background via the shared DOM observer, so later phases
+  // read an authoritative isAriesInstalled().
   void waitForAriesDetection(3000).then((detected) => {
     const info = getAriesDetectionInfo();
     diag.debug('Aries detection resolved', { detected: detected ? 1 : 0, via: info.detectedVia ?? 'n/a' });

@@ -56,6 +56,7 @@ import {
   styleFilterButton,
 } from './layout';
 import { buildHistoryTable, filterAndSortHistory, renderPinnedRows } from './lists';
+import { createJournalSeedsBlock } from './journalBlock';
 
 function renderShopRestockWindow(root: HTMLElement): void {
   root.innerHTML = '';
@@ -174,6 +175,12 @@ function renderShopRestockWindow(root: HTMLElement): void {
     allData = [...shopData, ...weatherPredictionsAsRestockItems()];
   };
   let trackedItems = loadTracked();
+  const journalBlock = createJournalSeedsBlock({
+    getRows: () => allData,
+    getTracked: () => trackedItems,
+    onPinsChanged: () => persistTrackedAndRender(true),
+  });
+  if (journalBlock) body.insertBefore(journalBlock.section, histSection);
   let isLoading = false;
   updateRefreshBudgetUi();
   let sortColumn: SortColumn = persistedUi.sortColumn;
@@ -274,6 +281,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     });
     predEtaRefs = rendered.etaRefs;
     predCleanups = rendered.cleanups;
+    journalBlock?.refresh();
   }
 
   // -- Sort state helpers --
@@ -413,6 +421,7 @@ function renderShopRestockWindow(root: HTMLElement): void {
     hideSoundPopover();
     flushPredCleanups();
     flushHistCleanups();
+    journalBlock?.destroy();
     stopWeatherDataUpdates();
     stopTicker();
     stopSpritesReady();

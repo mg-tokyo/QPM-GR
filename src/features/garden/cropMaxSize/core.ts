@@ -10,6 +10,7 @@ export interface SizeEdge {
   tileKey: string;
   slotId: number;
   species: string;
+  mutations: string[];
   size: number;
 }
 
@@ -52,7 +53,7 @@ export function createSizeEdgeTracker(): SizeEdgeTracker {
         if (known === null || !isMax(slot.size)) continue;
         const sameSlot = prev !== undefined && slot.startTime <= prev.startTime && slot.species === prev.species;
         const crossed = sameSlot ? prev.size !== null && prev.size < MAX_CROP_SIZE : true;
-        if (crossed) edges.push({ tileKey: slot.tileKey, slotId: slot.slotId, species: slot.species, size: slot.size });
+        if (crossed) edges.push({ tileKey: slot.tileKey, slotId: slot.slotId, species: slot.species, mutations: [...slot.mutations], size: slot.size });
       }
       known = next;
       return edges;
